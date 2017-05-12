@@ -36,4 +36,5 @@ PG and PP require the following dependencies:
 - Parallel Python (pp-1.6.5)
 - matplotlib
 - Numpy
+- Neicio: the USGS NEIC Python interface and its dependencies found in https://github.com/usgs/neicio
 
