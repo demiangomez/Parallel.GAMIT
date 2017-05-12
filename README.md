@@ -1,6 +1,6 @@
 # Parallel.GAMIT
 # Author: Demián D. Gómez
-Python wrapper to parallelize GAMIT executions.
+A Python wrapper to parallelize GAMIT executions.
 
 Parallel.GAMIT is a Python software solution for parallel GPS processing of large regional or global networks. It also incorporates a metadata and RINEX data management tool that guarantees a consistent archive. It relies on Postgres SQL (https://www.postgresql.org/) to store station metadata and the Natural Resources of Canada Precise-Point-Positioning (NRCAN PPP) software (not included in this repository) to obtain reliable daily a-priori coordinates for GAMIT.
 
@@ -23,11 +23,11 @@ PP is a Python wrapper for the NRCAN PPP (not included in this repository) which
 PG and PP require the following dependencies:
 
 - Python version > 2.7.13
-- GAMIT-GLOBK: although PP does not use GAMIT in it's full, it relies on grdtab otl.grid and sh_rx2apr to obtain the ocean loading coefficients and station coordinates (when PPP fails to process a station-day). Bare in mind that sh_rx2apr need the following dependencies to run in a computer without GAMIT installed: svdiff, svpos, tform, sh_rx2apr, doy
+- GAMIT-GLOBK: although PP does not use GAMIT in its full, it relies on grdtab, otl.grid and sh_rx2apr to obtain the ocean loading coefficients and station coordinates (when PPP fails to process a station-day). Bare in mind that sh_rx2apr needs the following dependencies to run in a computer without GAMIT installed: svdiff, svpos, tform, sh_rx2apr, doy
 - teqc: the good-old RINEX quality check tool
 - RinSum: one of the programs of GPSTk found in http://www.gpstk.org/bin/view/Documentation/WebHome
 - pygressql: Python interface to connect to Postgres
-- tqdm: a Python progress bar to show the processing 
+- tqdm: a Python progress bar to show the processing progress
 - rnx2crx: RINEX to CRINEX
 - crx2rnx: CRINEX to RINEX
 - crz2rnx: this is a script modified by me which is based on the the scripts found in http://terras.gsi.go.jp/ja/crx2rnx.html with a few minor tweaks to handle the most common problems found in CRINEZ files.
