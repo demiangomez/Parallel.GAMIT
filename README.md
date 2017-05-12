@@ -23,12 +23,7 @@ PP is a Python wrapper for the NRCAN PPP (not included in this repository) which
 PG and PP require the following dependencies:
 
 - Python version > 2.7.13
-- GAMIT-GLOBK: although PP does not use GAMIT in it's full, it relies on grdtab otl.grid and sh_rx2apr to obtain the ocean loading coefficients and station coordinates (when PPP fails to process a station-day). Bare in mind that sh_rx2apr need the following dependencies to run in a computer without GAMIT installed:
- - svdiff
- - svpos
- - tform
- - sh_rx2apr
- - doy
+- GAMIT-GLOBK: although PP does not use GAMIT in it's full, it relies on grdtab otl.grid and sh_rx2apr to obtain the ocean loading coefficients and station coordinates (when PPP fails to process a station-day). Bare in mind that sh_rx2apr need the following dependencies to run in a computer without GAMIT installed: svdiff, svpos, tform, sh_rx2apr, doy
 - teqc: the good-old RINEX quality check tool
 - RinSum: one of the programs of GPSTk found in http://www.gpstk.org/bin/view/Documentation/WebHome
 - pygressql: Python interface to connect to Postgres
