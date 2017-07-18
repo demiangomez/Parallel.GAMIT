@@ -2,6 +2,9 @@
 Project: Parallel.Archive
 Date: 02/16/2017
 Author: Demian D. Gomez
+
+This class is used to connect to the database and handles inserts, updates and selects
+It also handles the error, info and warning messages
 """
 
 import pg

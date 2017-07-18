@@ -2,6 +2,8 @@
 Project: Parallel.Archive
 Date: 2/23/17 9:28 AM
 Author: Demian D. Gomez
+
+Not really used for the moment...
 """
 
 import magic

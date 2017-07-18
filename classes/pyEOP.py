@@ -2,6 +2,9 @@
 Project: Parallel.Archive
 Date: 2/23/17 2:52 PM
 Author: Demian D. Gomez
+
+This class fetches earth orientation parameters files from the orbits folder (specified in the gnss_data.cfg file) passed as an argument (sp3archive)
+
 """
 
 import pyProducts

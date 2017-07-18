@@ -2,6 +2,8 @@
 Project: Parallel.Archive
 Date: 2/22/17 3:27 PM
 Author: Demian D. Gomez
+
+This class fetches statellite clock files from the orbits folder (specified in the gnss_data.cfg file) passed as an argument (clk_archive)
 """
 
 import pyProducts

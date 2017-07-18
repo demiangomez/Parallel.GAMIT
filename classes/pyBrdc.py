@@ -2,6 +2,8 @@
 Project: Parallel.Archive
 Date: 02/16/2017
 Author: Demian D. Gomez
+
+This class fetches broadcast orbits from the brdc folder (specified in the gnss_data.cfg file) passed as an argument (brdc_archive)
 """
 
 from shutil import copyfile

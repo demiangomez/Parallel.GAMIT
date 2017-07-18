@@ -2,6 +2,8 @@
 Project: Parallel.Archive
 Date: 02/16/2017
 Author: Demian D. Gomez
+
+Ocean loading coefficients class. It runs and reads grdtab (from GAMIT).
 """
 
 import os
@@ -67,8 +69,12 @@ class OceanLoading():
             cmd = pyRunWithRetry.RunCommand(self.grdtab + ' ' + str(self.x) + ' ' + str(self.y) + ' ' + str(self.z) + ' ' + self.StationCode, 5, self.rootdir)
             out,err = cmd.run_shell()
 
-            if err:
-                raise pyOTLException('grdtab returned an error: ' + err)
+            if err or os.path.isfile(os.path.join(self.rootdir, 'GAMIT.fatal')):
+                if err:
+                    raise pyOTLException('grdtab returned an error: ' + err)
+                else:
+                    with open(os.path.join(self.rootdir, 'GAMIT.fatal'), 'r') as fileio:
+                        raise pyOTLException('grdtab returned an error:\n' +  fileio.read())
             else:
                 # open otl file
                 with open(os.path.join(self.rootdir,'harpos.' + self.StationCode), 'r') as fileio:
@@ -77,6 +83,9 @@ class OceanLoading():
     def __del__(self):
         if os.path.isfile(os.path.join(self.rootdir, 'GAMIT.status')):
             os.remove(os.path.join(self.rootdir, 'GAMIT.status'))
+
+        if os.path.isfile(os.path.join(self.rootdir, 'GAMIT.fatal')):
+            os.remove(os.path.join(self.rootdir, 'GAMIT.fatal'))
 
         if os.path.isfile(os.path.join(self.rootdir, 'grdtab.out')):
             os.remove(os.path.join(self.rootdir, 'grdtab.out'))

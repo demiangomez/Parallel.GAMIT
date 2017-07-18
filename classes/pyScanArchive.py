@@ -24,6 +24,7 @@ import numpy
 import pyOptions
 import time
 import Utils
+import platform
 
 class callback_class():
     def __init__(self, pbar):
@@ -32,7 +33,7 @@ class callback_class():
 
     def callbackfunc(self, args):
         msg = args
-        self.erros = msg
+        self.errors = msg
         self.pbar.update(1)
 
 def verify_rinex_date_multiday(cnn, date, rinexinfo, Config):
@@ -169,7 +170,7 @@ def try_insert(NetworkCode, StationCode, year, doy, rinex, Config):
 
     except:
 
-        return traceback.format_exc() + ' processing rinex: ' + NetworkCode + ' ' + StationCode
+        return traceback.format_exc() + ' processing rinex: ' + NetworkCode + ' ' + StationCode + ' using node ' + platform.node()
 
 def process_extra_rinex(NetworkCode, StationCode, year, doy, rinex):
 
@@ -216,7 +217,7 @@ def process_extra_rinex(NetworkCode, StationCode, year, doy, rinex):
         return
 
     except:
-        traceback.format_exc() + ' (process_extra_rinex) processing: ' + NetworkCode + ' ' + StationCode
+        traceback.format_exc() + ' (process_extra_rinex) processing: ' + NetworkCode + ' ' + StationCode + ' using node ' + platform.node()
 
 def ecef2lla(ecefArr):
     # convert ECEF coordinates to LLA
@@ -266,10 +267,19 @@ def obtain_otl(NetworkCode, StationCode, archive_path, brdc_path, options, sp3ty
         pyArchive = pyArchiveStruct.RinexStruct(cnn)
 
         # assumes that the files in the db are correct. We take 5 records from the time span (evenly spaced)
-        stn = cnn.query('SELECT * FROM (SELECT row_number() OVER() as rnum, r.* FROM rinex as r WHERE "NetworkCode" = \'%s\' '
-                        'AND "StationCode" = \'%s\' ORDER BY "ObservationSTime") AS rr '
-                        'WHERE (rnum %% ((SELECT count(*) FROM rinex as r WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\')/10)) = 0' % (
-            NetworkCode, StationCode, NetworkCode, StationCode))
+        count = cnn.query('SELECT count(*) FROM rinex as r WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\'' % (NetworkCode, StationCode))
+
+        if count.ntuples() >= 10:
+            stn = cnn.query('SELECT * FROM (SELECT row_number() OVER() as rnum, r.* FROM rinex as r WHERE "NetworkCode" = \'%s\' '
+                            'AND "StationCode" = \'%s\' ORDER BY "ObservationSTime") AS rr '
+                            'WHERE (rnum %% ((SELECT count(*) FROM rinex as r WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\')/10)) = 0' % (
+                NetworkCode, StationCode, NetworkCode, StationCode))
+        elif count.ntuples() < 10:
+            stn = cnn.query(
+                'SELECT * FROM (SELECT row_number() OVER() as rnum, r.* FROM rinex as r WHERE "NetworkCode" = \'%s\' '
+                'AND "StationCode" = \'%s\' ORDER BY "ObservationSTime") AS rr ' % (NetworkCode, StationCode))
+        else:
+            return 'Station ' + NetworkCode + '.' + StationCode + ' had no rinex files in the archive. Please check the database for problems.'
 
         tblrinex = stn.dictresult()
 
@@ -285,7 +295,7 @@ def obtain_otl(NetworkCode, StationCode, archive_path, brdc_path, options, sp3ty
                 # problem loading this file, try another one
                 continue
             except:
-                return traceback.format_exc() + ' processing: ' + NetworkCode + ' ' + StationCode
+                return traceback.format_exc() + ' processing: ' + NetworkCode + ' ' + StationCode + ' using node ' + platform.node()
             else:
 
                 try:
@@ -293,12 +303,13 @@ def obtain_otl(NetworkCode, StationCode, archive_path, brdc_path, options, sp3ty
                     ppp = pyPPP.RunPPP(Rinex,'' , options, sp3types, sp3altrn, Rinex.antOffset, False, False)
 
                     ppp.exec_ppp()
+
+                    x.append(ppp.x)
+                    y.append(ppp.y)
+                    z.append(ppp.z)
+
                 except pyPPP.pyRunPPPException:
                     continue
-
-                x.append(ppp.x)
-                y.append(ppp.y)
-                z.append(ppp.z)
 
         # average the x y z values
         if len(x) > 0:
@@ -324,7 +335,7 @@ def obtain_otl(NetworkCode, StationCode, archive_path, brdc_path, options, sp3ty
     except pyOTL.pyOTLException as e:
         return "Error while calculating OTL for " + NetworkCode + " " + StationCode + ": " + str(e)
     except:
-        outmsg = traceback.format_exc() + ' processing otl: ' + NetworkCode + ' ' + StationCode
+        outmsg = traceback.format_exc() + ' processing otl: ' + NetworkCode + ' ' + StationCode + ' using node ' + platform.node()
 
     return outmsg
 
@@ -338,14 +349,14 @@ def insert_stninfo(NetworkCode, StationCode, stninfofile):
     try:
         cnn = dbConnection.Cnn("gnss_data.cfg")
     except:
-        return traceback.format_exc() + ' insert_stninfo: ' + NetworkCode + ' ' + StationCode
+        return traceback.format_exc() + ' insert_stninfo: ' + NetworkCode + ' ' + StationCode + ' using node ' + platform.node()
 
     try:
         stnInfo = pyStationInfo.StationInfo(cnn,NetworkCode,StationCode, allow_empty=True)
         stninfo = stnInfo.parse_station_info(stninfofile)
 
     except pyStationInfo.pyStationInfoException as e:
-        return traceback.format_exc() + ' insert_stninfo: ' + NetworkCode + ' ' + StationCode
+        return traceback.format_exc() + ' insert_stninfo: ' + NetworkCode + ' ' + StationCode + ' using node ' + platform.node()
 
     # insert all the receivers and antennas in the db
     for stn in stninfo:
@@ -372,7 +383,7 @@ def insert_stninfo(NetworkCode, StationCode, stninfofile):
             except pyStationInfo.pyStationInfoException as e:
                 errors.append(str(e))
             except:
-                errors.append(traceback.format_exc() + ' insert_stninfo: ' + NetworkCode + ' ' + StationCode)
+                errors.append(traceback.format_exc() + ' insert_stninfo: ' + NetworkCode + ' ' + StationCode + ' using node ' + platform.node())
                 continue
 
     if not errors:
@@ -493,7 +504,7 @@ def execute_ppp(record, rinex_path, Config):
         cnn.insert_warning('pyStationInfoException while running pyPPPArchive: ' + str(e))
 
     except:
-        return traceback.format_exc() + ' processing: ' + NetworkCode + ' ' + StationCode + ' ' + str(year) + ' ' + str(doy)
+        return traceback.format_exc() + ' processing: ' + NetworkCode + ' ' + StationCode + ' ' + str(year) + ' ' + str(doy) + ' using node ' + platform.node()
 
 
 def output_handle(callback):
@@ -513,10 +524,21 @@ def output_handle(callback):
 
 def scan_rinex(cnn, job_server, pyArchive, archive_path, Config):
 
+    print " >> Searching for master.list..."
+
+    if os.path.isfile('master.list'):
+        # try to load the file
+        master_list = [line.strip() for line in open("master.list", 'r')]
+        print " -- master.list found!"
+    else:
+        master_list = []
+
     print " >> Analyzing the archive's structure..."
     archivefiles, path2rinex = pyArchive.scan_archive_struct(archive_path)
 
     print "   >> Beginning with the recursive search for CRINEX files..."
+    if master_list:
+        print "   -- NOTE: since master.list is present the number of files reported in the progress bar might be larger than the processed list."
     submit = 0
     pbar = tqdm(total=len(archivefiles), ncols=80)
 
@@ -545,10 +567,15 @@ def scan_rinex(cnn, job_server, pyArchive, archive_path, Config):
             if Config.run_parallel:
                 callback.append(callback_class(pbar))
 
-                job_server.submit(try_insert, args=(NetworkCode, StationCode, year, doy, rinexpath, Config),
-                                  depfuncs=(verify_rinex_date_multiday, check_rinex_timespan_int),
-                                  modules=('dbConnection', 'pyDate', 'pyRinex', 'shutil'), callback=callback[submit].callbackfunc)
-                submit += 1
+                if not master_list or NetworkCode + '::' + StationCode in master_list:
+                    job_server.submit(try_insert, args=(NetworkCode, StationCode, year, doy, rinexpath, Config),
+                                      depfuncs=(verify_rinex_date_multiday, check_rinex_timespan_int),
+                                      modules=('dbConnection', 'pyDate', 'pyRinex', 'shutil', 'platform'),
+                                      callback=callback[submit].callbackfunc)
+                    submit += 1
+
+                else:
+                    pbar.update(1)
 
                 if submit > 300:
                     # when we submit more than 300 jobs, wait until this batch is complete
@@ -559,8 +586,12 @@ def scan_rinex(cnn, job_server, pyArchive, archive_path, Config):
                     submit = 0
             else:
                 callback.append(callback_class(pbar))
-                callback[0].callbackfunc(try_insert(NetworkCode, StationCode, year, doy, rinexpath, Config))
-                callback = output_handle(callback)
+
+                if not master_list or NetworkCode + '::' + StationCode in master_list:
+                    callback[0].callbackfunc(try_insert(NetworkCode, StationCode, year, doy, rinexpath, Config))
+                    callback = output_handle(callback)
+                else:
+                    pbar.update(1)
 
     if Config.run_parallel:
         job_server.wait()
@@ -602,12 +633,19 @@ def process_otl(cnn, job_server, run_parallel, archive_path, brdc_path, options,
 
     print ""
     print " >> Calculating coordinates and OTL for new stations..."
-    rs = cnn.query('SELECT * FROM stations WHERE auto_x is null or auto_y is null or auto_z is null or "Harpos_coeff_otl" is null')
+
+    rs = cnn.query('SELECT stations."NetworkCode", stations."StationCode", count(rinex."ObservationMonth") FROM stations '
+                    'RIGHT JOIN rinex ON rinex."NetworkCode" = stations."NetworkCode" AND rinex."StationCode" = stations."StationCode" '
+                    'WHERE auto_x is null OR auto_y is null OR auto_z is null OR "Harpos_coeff_otl" is null '
+                    'GROUP BY stations."NetworkCode", stations."StationCode"')
+
+    # rs = cnn.query('SELECT * FROM stations WHERE auto_x is null or auto_y is null or auto_z is null or "Harpos_coeff_otl" is null')
     #rs = cnn.query('SELECT * FROM stations WHERE "StationCode" = \'cjnt\' OR "StationCode" = \'bue2\'')
     records = rs.dictresult()
 
     pbar = tqdm(total=len(records), ncols=80)
     callback = []
+    submit = 0
     for record in records:
         NetworkCode = record['NetworkCode']
         StationCode = record['StationCode']
@@ -617,8 +655,18 @@ def process_otl(cnn, job_server, run_parallel, archive_path, brdc_path, options,
 
             job_server.submit(obtain_otl, args=(NetworkCode, StationCode, archive_path, brdc_path, options, sp3types, sp3altrn),
                               depfuncs=(ecef2lla,),
-                              modules=('dbConnection', 'pyRinex', 'pyArchiveStruct', 'pyOTL', 'pyPPP', 'numpy'),
+                              modules=('dbConnection', 'pyRinex', 'pyArchiveStruct', 'pyOTL', 'pyPPP', 'numpy', 'platform'),
                               callback=callback[-1].callbackfunc)
+
+            submit += 1
+
+            if submit > 300:
+                # when we submit more than 300 jobs, wait until this batch is complete
+                pbar.write(' -- waiting for 300 jobs to finish...')
+                job_server.wait()
+                # handle any output messages during this batch
+                callback = output_handle(callback)
+                submit = 0
         else:
             callback.append(callback_class(pbar))
             callback[0].callbackfunc(obtain_otl(NetworkCode, StationCode, archive_path, brdc_path, options, sp3types, sp3altrn))
@@ -657,7 +705,7 @@ def scan_station_info(job_server, run_parallel, pyArchive, archive_path):
             if run_parallel:
                 callback.append(callback_class(pbar))
                 job_server.submit(insert_stninfo, args=(NetworkCode,StationCode,stninfopath),
-                                  modules=('dbConnection', 'pyStationInfo', 'sys', 'datetime', 'pyDate'),
+                                  modules=('dbConnection', 'pyStationInfo', 'sys', 'datetime', 'pyDate', 'platform'),
                                   callback=callback[-1].callbackfunc)
             else:
                 callback.append(callback_class(pbar))
@@ -754,6 +802,15 @@ def scan_station_info_manual(cnn, pyArchive, stn_info_path, stn_info_stn, stn_in
 
 def process_ppp(cnn, pyArchive, archive_path, job_server, run_parallel, Config):
 
+    print " >> Searching for master.list..."
+
+    if os.path.isfile('master.list'):
+        # try to load the file
+        master_list = [line.strip() for line in open("master.list", 'r')]
+        print " -- master.list found!"
+    else:
+        master_list = []
+
     print " >> Running PPP to the RINEX files in the archive..."
 
     # for each rinex in the db, run PPP and get a coordinate
@@ -784,7 +841,7 @@ def process_ppp(cnn, pyArchive, archive_path, job_server, run_parallel, Config):
             callback.append(callback_class(pbar))
             job_server.submit(execute_ppp, args=(record, rinex_path, Config),
                               depfuncs=(remove_from_archive,),
-                              modules=('dbConnection', 'pyRinex', 'pyPPP', 'pyStationInfo', 'pyDate', 'pySp3', 'os'),
+                              modules=('dbConnection', 'pyRinex', 'pyPPP', 'pyStationInfo', 'pyDate', 'pySp3', 'os', 'platform'),
                               callback=callback[submit].callbackfunc)
             submit += 1
 
@@ -819,7 +876,7 @@ def print_help():
     print "         --stninfo: scan for station info files in the archive"
     print "                    if no arguments, searches the archive for station info files and uses their location to determine network"
     print "                    else, use: --stninfo_path --stn --network, where"
-    print "                    --stninfo_path: path to a dir with station info files, or single station info file. Leave empy to use stdin"
+    print "                    --stninfo_path: path to a dir with station info files, or single station info file. Type 'stdin' to use standard input"
     print "                    --stn         : station to search for in the station info, of list of stations separated by comma, no spaces between ('all' will try to add all of them)"
     print "                    --net         : network name that has to be used to add the station information"
     print "         --ppp    : run ppp to the rinex files in the archive"
@@ -876,8 +933,8 @@ def main(argv):
             run_rinex = True
             run_ppp = True
 
-    if not stn_info_path and run_stninfo:
-        print 'No --stn_info_path: reading from stdin'
+    if stn_info_path == 'stdin' and run_stninfo:
+        print '--stn_info_path stdin: reading from stdin'
         stn_info_stdin = []
         for line in sys.stdin:
             stn_info_stdin.append(line)
@@ -896,7 +953,13 @@ def main(argv):
     # configure the parallel python if run in parallel = true
 
     if Config.run_parallel:
-        ppservers = ('*',)
+        if Config.options['node_list'] is None:
+            # no explicit list, find all
+            ppservers = ('*',)
+        else:
+            # use the provided explicit list of nodes
+            ppservers = tuple(Config.options['node_list'].split(','))
+
         job_server = pp.Server(ncpus=Utils.get_processor_count(), ppservers=ppservers)
         time.sleep(1)
         print "Starting pp with", job_server.get_active_nodes(), "workers"

@@ -24,6 +24,7 @@ class command(threading.Thread):
 
             self.stdout, self.stderr = self.p.communicate()
         except:
+            print self.cmd
             raise
 
     def wait(self, timeout=None):

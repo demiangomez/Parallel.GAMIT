@@ -2,6 +2,8 @@
 Project: Parallel.Archive
 Date: 3/21/17 5:36 PM
 Author: Demian D. Gomez
+
+Class with all the configuration information necessary to run many of the scripts. It loads the config file (gnss_data.cfg).
 """
 
 import ConfigParser
@@ -14,6 +16,7 @@ class ReadOptions():
         self.options = {'path': None,
                        'repository': None,
                        'parallel': False,
+                       'node_list': None,
                        'brdc': None,
                        'sp3_type_1': None,
                        'sp3_type_2': None,

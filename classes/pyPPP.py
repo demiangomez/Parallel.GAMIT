@@ -370,9 +370,14 @@ orbits/%s
             except:
                 return False, (None, None)
 
-        if isnan(self.sigmax) or isnan(self.sigmay) or isnan(self.sigmaz) \
-                or isnan(self.sigmaxy) or isnan(self.sigmaxz) or isnan(self.sigmayz):
-            return False, (None, None)
+        if self.kinematic:
+            # no covariance information in kinematic mode
+            if isnan(self.sigmax) or isnan(self.sigmay) or isnan(self.sigmaz):
+                return False, (None, None)
+        else:
+            if isnan(self.sigmax) or isnan(self.sigmay) or isnan(self.sigmaz) \
+                    or isnan(self.sigmaxy) or isnan(self.sigmaxz) or isnan(self.sigmayz):
+                return False, (None, None)
 
         return True, (None, None)
 

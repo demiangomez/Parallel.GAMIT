@@ -225,7 +225,7 @@ class ReadRinex(RinexRecord):
             crinex_size = os.path.getsize(self.crinex_path)
 
             # run crz2rnx with timeout structure
-            cmd = pyRunWithRetry.RunCommand('crz2rnx -f -d ' + self.crinex_path, 20)
+            cmd = pyRunWithRetry.RunCommand('crz2rnx -f -d ' + self.crinex_path, 30)
             try:
                 _, err = cmd.run_shell()
             except pyRunWithRetry.RunCommandWithRetryExeception as e:
@@ -681,6 +681,9 @@ class ReadRinex(RinexRecord):
             cmd = pyRunWithRetry.RunCommand('rnx2crz -f ' + self.rinex_path, 45)
             try:
                 _, err = cmd.run_shell()
+
+                if os.path.getsize(os.path.join(self.rootdir, crinex)) == 0:
+                    raise pyRinexException('Error in compress_local_copyto: compressed version of ' + self.rinex_path + ' has zero size!')
             except pyRunWithRetry.RunCommandWithRetryExeception as e:
                 # catch the timeout except and pass it as a pyRinexException
                 raise pyRinexException(e)

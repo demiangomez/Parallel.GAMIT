@@ -2,6 +2,10 @@
 Project: Parallel.Archive
 Date: 02/16/2017
 Author: Demian D. Gomez
+
+This class handles the interface between the directory structure of the rinex archive and the databased records.
+It can be used to retrieve a rinex path based on a rinex database record
+It can also scan the dirs of the archive for d.Z and station.info files
 """
 
 import os
@@ -132,42 +136,45 @@ class RinexStruct():
         doy = None
 
         # split the fields and verify if everything is OK
-        valid = True
-        keys = []
-        for level in self.levels:
-            if not level.get('KeyCode') in key_filter and len(key_filter) > 0:
-                # skip this key if not requested in key_filter
-                continue
-            keys.append(path.split('/')[level.get('Level')-1])
-
-            if len(keys[-1]) != level.get('TotalChars'):
-                # invalid key in this level
-                valid = False
-
-        if valid:
+        try:
+            valid = True
+            keys = []
             for level in self.levels:
                 if not level.get('KeyCode') in key_filter and len(key_filter) > 0:
                     # skip this key if not requested in key_filter
                     continue
-                if level.get('isnumeric') == 1:
-                    exec("%s = %d" % (level.get('KeyCode'), int(path.split('/')[level.get('Level') - 1])))
-                else:
-                    exec("%s = '%s'.lower()" % (level.get('KeyCode'), path.split('/')[level.get('Level') - 1]))
+                keys.append(path.split('/')[level.get('Level')-1])
 
-        if not station and 'station' in key_filter:
-            # station code not defined (and it was requested), parse it from the file
-            station = path.split('/')[-1][0:4].lower()
+                if len(keys[-1]) != level.get('TotalChars'):
+                    # invalid key in this level
+                    valid = False
 
-        if not network and 'network' in key_filter:
-            # network code not defined, assign default (if requested)
-            network = 'rnx'
+            if valid:
+                for level in self.levels:
+                    if not level.get('KeyCode') in key_filter and len(key_filter) > 0:
+                        # skip this key if not requested in key_filter
+                        continue
+                    if level.get('isnumeric') == 1:
+                        exec("%s = %d" % (level.get('KeyCode'), int(path.split('/')[level.get('Level') - 1])))
+                    else:
+                        exec("%s = '%s'.lower()" % (level.get('KeyCode'), path.split('/')[level.get('Level') - 1]))
 
-        if not doy and 'doy' in key_filter:
-            # doy not defined (and it way requested), try to parse it from the file
-            try:
-                doy = int(path.split('/')[-1][4:3])
-            except:
-                valid = False
+            if not station and 'station' in key_filter:
+                # station code not defined (and it was requested), parse it from the file
+                station = path.split('/')[-1][0:4].lower()
+
+            if not network and 'network' in key_filter:
+                # network code not defined, assign default (if requested)
+                network = 'rnx'
+
+            if not doy and 'doy' in key_filter:
+                # doy not defined (and it was requested), try to parse it from the file
+                try:
+                    doy = int(path.split('/')[-1][4:3])
+                except:
+                    valid = False
+        except IndexError:
+            return False, network, station, year, doy, month, day
 
         return valid,network,station,year,doy,month,day
 

@@ -2,6 +2,9 @@
 Project: Parallel.Archive
 Date: 3/3/17 9:56 AM
 Author: Demian D. Gomez
+
+This class is based on the USGS Neicio: the USGS NEIC Python interface and its purpose is to update the table "earthquakes" in the db with the latest events (M >= 6)
+
 """
 from libcomcat import comcat
 from datetime import datetime,timedelta

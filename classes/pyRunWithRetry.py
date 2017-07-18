@@ -23,23 +23,27 @@ class RunCommand():
         self.cat_file = cat_file
 
     def run_shell(self):
-        retry = 0
-        while True:
-            with pyRunCommand.command(self.cmd,self.cwd,self.cat_file) as cmd:
-                cmd.start()
-                timeout = cmd.wait(self.time_out)
-                if timeout:
-                    if retry <= 2:
-                        retry += 1
-                        continue
+        try:
+            retry = 0
+            while True:
+                with pyRunCommand.command(self.cmd,self.cwd,self.cat_file) as cmd:
+                    cmd.start()
+                    timeout = cmd.wait(self.time_out)
+                    if timeout:
+                        if retry <= 2:
+                            retry += 1
+                            continue
+                        else:
+                            raise RunCommandWithRetryExeception(
+                                "Error in RunCommand.run_shell -- (" + self.cmd + "): Timeout after 3 retries")
                     else:
-                        raise RunCommandWithRetryExeception(
-                            "Error in RunCommand.run_shell -- (" + self.cmd + "): Timeout after 3 retries")
-                else:
-                    break
+                        break
 
-        # remove non-ASCII chars
-        if not cmd.stderr is None:
-            cmd.stderr = ''.join([i if ord(i) < 128 else ' ' for i in cmd.stderr])
+            # remove non-ASCII chars
+            if not cmd.stderr is None:
+                cmd.stderr = ''.join([i if ord(i) < 128 else ' ' for i in cmd.stderr])
+
+        except:
+            raise
 
         return cmd.stdout, cmd.stderr

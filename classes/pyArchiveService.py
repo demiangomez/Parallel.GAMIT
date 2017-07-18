@@ -2,6 +2,15 @@
 Project: Parallel.Archive
 Date: 3/19/17 11:41 AM
 Author: Demian D. Gomez
+
+Main script that scans the repository for new rinex files.
+It PPPs the rinex files and searches the database for stations (within 100 m) with the same station 4 letter code.
+If the station exists in the db, it moves the file to the archive and adds the new file to the "rinex" table.
+if the station doesn't exist, then it incorporates the station with a special NetworkCode (???) and leaves the file in the repo until you assign the correct NetworkCode and add the station information.
+
+It is invoked jusy by calling python pyArchiveService.py
+Requires the config file gnss_data.cfg (in the running folder)
+
 """
 
 import pyRinex

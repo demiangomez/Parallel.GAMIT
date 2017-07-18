@@ -2,6 +2,30 @@
 Project: Parallel.Archive
 Date: 3/27/17 11:54 AM
 Author: Demian D. Gomez
+
+Integrity check utility of the database. Checks the following:
+ - Station info consistency
+ - Proposes a station info based on RINEX data
+ - Searches for data gaps in the rinex table
+ - Prints the station info records
+ - renames or merges two stations into one
+ usage
+         --stn [net.]stn                    : Station to run integrity check on, comma separated stations allowed. If 'all', integrity check is run for all stations."
+         --net network                      : Network of stations in --stn (if --stn is not in net.stn format). If --stn is not set, checks all stations in the network."
+         --date StartDate[,EndDate]         : Date range to work on; can be yyyy/mm/dd or yyyy.doy or 'all'. If not specified, 'all' is assumed"
+         --stninfo_rinex                    : Check that the receiver serial number in the rinex headers agrees with the station info receiver serial number. Output message if it doesn't."
+         --stninfo_proposed [--ignore days] : Output a proposed station.info using the RINEX metadata. Optional, specify --ignore to ignore station.info records <= days."
+         --stninfo                          : Check the consistency of the station information records in the database. Date range does not apply."
+         --gaps [--ignore days]             : Check the RINEX files in the database and look for gaps (missing days). Optional, specify --ignore with the smallest gap to display."
+         --spatial_coherence [--fix/del]    : Check that the RINEX files correspond to the stations they are linked to using their PPP coordinate."
+                                              Add --fix to try to solve problems. In case the problem cannot be solved, add the RINEX file to the excluded table."
+                                              Add --del to delete problems instead of moving data to the excluded table."
+         --print_stninfo long|short         : Output the station info to stdout. long outputs the full line of the station info. short outputs a short version (better for screen visualization)."
+         --rename [dest net].[dest stn]     : Takes the data from station --stn --net and renames (merges) it to [dest net].[dest stn]."
+                                              It also changes the rinex filenames in the archive to match those of the new destiny station."
+                                              If multiple stations are given as origins, all of them will be renamed as [dest net].[dest stn]."
+                                              Limit the date range using the --date option"
+
 """
 
 import sys
