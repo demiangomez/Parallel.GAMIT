@@ -1,0 +1,156 @@
+ Session Table  
+
+Processing Agency = MIT
+                      
+Satellite Constraint = Y         ; Y/N  (next two lines are free-format but 'all' must be present)     
+                 all       a      e      i     n       w       M     rad1   rad2  rad3  rad4  rad5  rad6  rad7  rad8  rad9; 
+                          0.01  0.01   0.01   0.01    0.01    0.01   0.01   0.01  0.01  0.01  0.01  0.01  0.01  0.01  0.01
+                
+  << Controls must begin in column 1 >>
+
+Choice of Experiment = BASELINE   ; BASELINE/RELAX./ORBIT  
+Type of Analysis = 1-ITER         ; 1-ITER(autcln prefit and conditional redo) / 0-ITER (no postfit autcln) / PREFIT    
+AUTCLN redo = Y                   ; Y/N; 3rd soln only if needed, assume 'Y' if 'Type of analysis = 1-ITER' 
+Choice of Observable = LC_AUTCLN  ; LC_AUTCLN (default), LC_HELP (codeless L2), L1_ONLY (L1 soln from dual freq),
+                                    L2_ONLY (L2 soln from dual freq), L1,L2_INDEPENDENT (L1 + L2 from dual freq)
+                                    L1&L2 (same as L1,L2_INDEPENDENT but with ion constraint);
+                                    L1_RECEIVER (must add 'L1only' in autcln.cmd)
+Station Error = ELEVATION 10 5    ; 1-way L1, a**2 + (b**2)/(sin(elev)**2) in mm. default = 10. 0.
+AUTCLN reweight = Y               ; Y/N; reweight data from autcln rms; replaces  'Use N-file' in releases < 10.32
+AUTCLN Command File = autcln.cmd  ; Filename; default none (use default options)     
+Decimation Factor = 4             ; FOR SOLVE, default = 1  
+Quick-pre decimation factor = 10  ; 1st iter or autcln pre, default same as Decimation Factor    
+Quick-pre observable = LC_ONLY    ; for 1st soln, default same as Choice of observable
+
+Ionospheric Constraints =  0.0 mm + 8.00 ppm            
+Ambiguity resolution WL = 0.15 0.15 1000. 99. 15000. ; for LC_HELP, ignored for LC_AUTCLN
+Ambiguity resolution NL = 0.15 0.15 1000. 99. 15000. ; allow long baselines with LC_AUTCLN
+
+Zenith Delay Estimation = Y     ; Yes/No  (default No)
+Interval zen = 2                ; 2 hrs = 13 knots/day  (default is 1 ZD  per day)
+Zenith Constraints = 0.50       ; zenith-delay a priori constraint in meters (default 0.5) 
+Zenith Variation = 0.02 100.    ; zenith-delay variation, tau in meters/sqrt(hr), hrs (default .02 100.) 
+Elevation Cutoff = 0             ; default 0 to use value in autcln.cmd 
+Atmospheric gradients = Y       ; Yes/Np  (default No)            
+Number gradients = 2            ; number of gradient parameters per day (NS or ES); default 1
+Gradient Constraints = 0.01     ; gradient at 10 deg elevation in meters; default 0.03 m
+
+Update T/L files = L_ONLY       ; T_AND_L (default), T_ONLY, L_ONLY, NONE 
+Update tolerance = .3           ; minimum adjustment for updating L-file coordinates, default .3 m   
+
+Met obs source = GPT 50         ; hierarchical list with humidity value at the end; e.g. RNX UFL GPT 50 ; default GTP 50 
+                                     if [humid value] < 0, use RNX, UFL(VMF1), or GPT2 if available 
+Output met = N                  ; write the a priori met values to a z-file (Y/N)
+Use met.list = N                ; not yet supported
+Use met.grid = N                ; not yet supported
+DMap = GMF                      ; GMF(default)/VMF1/NMFH; GMF now invokes GPT2 if gpt.grid is available (default)
+WMap = GMF                      ; GMF(default)/VMF1/NMFW; GMF now invokes GPT2 if gpt.grid is available (default)
+Use map.list = N                ; VMF1 list file with mapping functions, ZHD, ZWD, P, Pw, T, Ht
+Use map.grid = N                ; VMF1 grid file with mapping functions and ZHD
+Yaw Model = Y                   ; Y/N  default = Y  
+Radiation Model for ARC = BERNE  ; SPHRC/BERNE/BERN1,BERN2/UCLR1/UCLR2/SRDYB/SVBDY/NONE  default = BERNE   
+Earth radiation model = NONE     ; NCLE1/NCLE2/TUME1/TUME2/NONE  default = NONE; MIT repro2 = NCLE1
+Antenna thrust model = NONE      ; ANTBK/NONE  default = NONE; MIT repro2 = ANTBK
+Inertial frame = J2000           ; J2000/B1950 default = J2000
+Reference System for ARC = EGM08 ; WGS84/EGM96/EGM08/EGR08  default = EGM008; MIT repro2 = EGR08 (relativity)
+ 
+Tides applied = 31               ; Binary coded: 1 earth  2 freq-dep  4 pole  8 ocean  16 remove mean for pole tide  
+                                 ; 32 atmosphere ;  default = 31
+Use otl.list = N                 ; Ocean tidal loading list file from OSO
+Use otl.grid = Y                 ; Ocean tidal loading grid file, GAMIT-format converted from OSO
+Etide model = IERS03             ; IERS96/IERS03  
+Earth Rotation = 11              ; Diurnal/Semidirunal terms: Binary coded: 1=pole 2=UT1 4=Ray model; 8=IERS2010 16=include libration terms; default=11  
+Apply atm loading = N            ; Y/N for atmospheric loading  
+Use atml.list = N                ; Atmospheric (non-tidal) loading list file from LU 
+Use atml.grid = N                ; Atmospheric (non-tidal) loading grid file from LU, converted to GAMIT format
+Use atl.list = N                 ; Atmospheric tides, list file, not yet available
+Use atl.grid = N                 ; Atmospheric tides, grid file
+
+Antenna Model = AZEL             ; NONE/ELEV/AZEL  default = ELEV   Use AZEL for IGS absolute ANTEX files
+SV antenna model = ELEV          ; NONE/ELEV       default = NONE   Use ELEV for IGS ANTEX files
+SV antenna off = N               ; Y/N to estimate satellite antenna offsets (default N)
+
+Delete AUTCLN input C-files = Y  ; Y/N ; default Y to force rerun of MODEL
+Scratch directory = ./tmp    
+
+ << List of additional controls not commonly - blank first column to indicate a comment >>
+                   
+  Simulation con                  : s-file name 
+  Inertial frame = B1950          ; B1950/J2000 (default = J2000) 
+                      
+  Initial ARC                     ; Y/N  default = Yes 
+  Final ARC                       ; Y/N  default = No
+  Radiation Model for ARC         ; SPHRC/BERNE/SRDYB/SVBDY  default = SPHRC
+  Reference System for ARC        ; WGS72/WGS84/MERIT/IGS92/EGM96/EGM08(incremental_updates) (default = EGM08)
+  Reference System for ARC = EGM08 ; WGS72/WGS84/MERIT/IGS92/EGM96/EGM08/EGR08  default = EGM008; MIT repro2 = EGR08 (relativity)
+
+  Tabular interval for ARC        ; 900. seconds (new default), 1350. seconds (old default)
+  Stepsize for ARC                ; 75. seconds (new default), 168.75 seconds (old default)
+  Arc debug flag                  : Turn on various print and test options (see arc.f) (default = 0 )
+ 
+  Earth Rotation                  ; Diurnal/Semidirunal terms: Binary coded: 1=pole 2=UT1 4=Ray model; 8=IERS2010 ; default=11
+  Estimate EOP                    ; Binary coded: 1 wob   2 ut1   4 wob rate   8 ut1 rate   
+  Wobble Constraint = 3. 0.3      ; Default 3. (arcsec) 0.3 (arcsec/day)
+  UT1 Constraint = 0.00002 0.02   ; Default .00002 (sec) 0.02 (sec/day) 
+   
+  Number Zen = 4                  ; number of zenith-delay parameters (default 1)
+  Zenith Constraints = 0.50       ; zenith-delay a priori constraint in meters (default 0.5)
+  Zenith Model = PWL              ; PWL (piecewise linear)/CON (step)
+  Zenith Variation = 0.02 100.    ; zenith-delay variation, tau in meters/sqrt(hr), hrs (default .02 100.) 
+  Gradient Constraints = 0.03     ; gradient at 10 deg elevation in meters  
+  Gradient Variation = .01 100    ; gradient variation 
+  Tropospheric Constraints = NO   ; YES/NO   (spatial constraint)
+
+  Ion model = NONE                ; NONE/GMAP (default NONE) use 2nd/3rd order ionsopheric corrections
+  Mag field = IGRF12              : IGRF12/IGRF11/IGRF10/DIPOLE (default IGRF12)
+
+  Yaw Model                       ; YES/NO  default = YES
+  I-file = N                      ; Use I-file (Y/N)  (default Y) 
+        
+  AUTCLN Postfit = Y              ; Assume 'Y' if 'Type of analysis = 1-ITER' (autcln.cmd.postfit file also)
+  Delete AUTCLN input C-files = Y ; YES/NO/Intermediate (default no)  
+  AUTCLN Command File             ; Filename; default none (use default options)
+  Delete eclipse data = POST      ; ALL/NO/POST (Default = NO)
+  SCANDD control                  ; BOTH (default) /NONE/FIRST/FULL/IFBAD see manual sec. 5.2
+  Iteration                       ; CFILES / XFILES (default)  
+  Edit AUTCLN Command File        ; YES/NO; default = NO  (For clocks, no longer needed)
+
+  Ambiguity resolution WL         ; default = 0.15 0.15 1000.  10. 500.
+  Ambiguity resolution NL         ; default = 0.15 0.15 1000.  10. 500.
+  Type of Biases                  : IMPLICIT (default for quick), EXPLICIT (default for full)   
+  H-file solutions                ; ALL ; LOOSE-ONLY 
+  Skip loose                      : Y / N (default) sometimes necessary for short baselines
+  Station Error = BASELINE 10. 0.   ; 1-way L1, a**2 + (b**2)(L**2) in mm, ppm, default = 10. 0.
+  Station Error = UNIFORM 10.       ; 1-way L1 in mm, default = 10. 
+  Station Error = ELEVATION 4.3 7.0 ; 1-way L1 , a**2 + b**2/sin(elev)**2 in mm, default = 4.3 7.0  
+  Satellite Error = UNIFORM 0.      ; 1-way L1 in mm (added quadratically to station error) default = 0.
+  Select Epochs                   ; Enter start and stop epoch number (applies only to SOLVE)   
+  Decimation Factor               ; FOR SOLVE, default = 1  
+  Elevation Cutoff = 15.          ; For SOLVE, overrides the MODEL or AUTCLN values if they are lower
+  Correlation print               ; Threshhold for printing correlations (default 0.9999)
+
+  Export Orbits                   ; YES/NO  default = NO
+  Orbit id                        ; 4-char code read only if Export Orbits = YES
+  Orbit Format                    ; SP1/SP3 (NGS Standard Products)
+  Orbit organization              ; 3-char code read only if Export Orbits = YES 
+  Reference System for Orbit = ITR93 ; ITR92/ITR91/ITR90/WGS84/MERIT (for SP3 header)  
+  Reference System for ARC = EGM08 ; WGS84/EGM96/EGM08/EGR08  default = EGM008; MIT repro2 = EGR08 (relativity)
+
+  Lunar eclipses = Y               ; Set = N to turn off lunar eclipses in ARC to match model of GAMIT < 10.2 (default Y) 
+                                     (no longer supported: see arc_debug below)
+  Delete all input C-files        ; YES/NO  default = NO
+  Delete MODEL input C-files      ; YES/NO  default = NO
+  Delete AUTCLN input C-files     ; YES/NO  default = NO 
+  Update T/L files                ; T_AND_L (default), T_ONLY, L_ONLY, NONE 
+                                    (Applies only to update for final solution after initial )
+  Update tolerance                ; minimum adjustment for updating L-file coordinates, default .3 m
+  SOLVE-only = YES                ; YES/NO  default = NO 
+  X-compress = YES                ; Uncompress/compress X-files  default = NO  
+  SCANDD control                  ; FULL (default), FIRST, BOTH, IFBAD, NONE
+  Run CTOX = YES                  ; Make clean X-files from C-files  default = NO
+  Bias apriori = 100.             ; Optional constraint on biases for LC_AUTCLN (default 0 -> no constrint)
+  SOLVE print  = Y                ; Turn on SOLVE output to screen (default N)  
+
+  Bias apriori = 1000.            ; Optional constraint on biases for LC_AUTCLN (default 1000, 0 -> constraint)
+  Bias rcond = 10000.             ; Condition number ratio for fixing dependent biases (default 10000.)
+

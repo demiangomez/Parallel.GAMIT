@@ -1,0 +1,108 @@
+# process.defaults
+#
+#  Do not remove any of these entries. To by-pass a function, set the value to null: ""
+
+## LOCAL DIRECTORIES
+# Directory for translation of raw data 
+ set rawpth = "$procdir/raw"
+# Directory path for raw archives (search all levels); e.g. /data18/simon
+ set rawfnd = ""                                                         
+# Input files for RINEX translators
+ set mpth = "$procdir/mkrinex"
+# RINEX files directory
+ set rpth = "$procdir/rinex"
+# Directory path for RINEX archives (search all levels); e.g. /data18/simon
+ set rnxfnd = ""   
+# Broadcast orbit directory
+ set bpth = "$procdir/brdc"   
+# IGS files directory
+ set ipth = "$procdir/igs"
+# G-files directory
+ set gpth = "$procdir/gfiles"
+# GAMIT and GLOBK tables directory
+ set tpth = "$procdir/tables"
+# Output gifs directory
+ set gifpth = "$procdir/gifs" 
+# Globk solution directory 
+ set glbpth = "$procdir/gsoln"  
+# Globk binary h-file directory
+ set glfpth = "$procdir/glbf"  
+# Directory path for other h-files (LA, LB, LC options; search all levels)
+#  e.g. "/raid1/tah/SIO_GLL"; ( /raid6/ftp/pub/MIT_GLL/H07  /raid2/simon/gps_analysis/cgps_hfiles )
+ set hfnd = "" 
+# Template files
+ set templatepth = "$procdir/templates"
+# Place to store temporary control files
+ set cpth = "$procdir/control"
+# Archive root directory (cannot be null)
+ set archivepth = "$procdir/archive"
+
+## FTP INFO FOR REMOTE FILES
+# Raw data archive
+# set rawarchive = 'chandler.mit.edu'
+# set rawdir = 'pub/continuous/mitnet'
+# set rawlogin = "anonymous simon@chandler.mit.edu"
+# Addresses for CDDSI, SOPAC, IGSCB, UNAVCO, BKG, IGN, USNO are given in template/ftp_info
+
+##GAMIT
+# Set sampling interval, number of epochs, and start time for processing
+ set sint = '30'
+ set nepc = '2880'
+ set stime = '0 0'
+# Variables for updating tables 
+ set stinf_unique = "-u"
+ set stinf_nosort = "-nosort"
+ set stinf_slthgt = "2.00" 
+# Set "Y" to use RINEX header coordinates not in lfile or apr file
+ set use_rxc      = "N"    
+# Broadcast orbits
+ set brdc = 'brdc'
+# Minimum x-file size to be processed (Def. 300 blocks; most OS use 1 Kb blocks)
+ set minxf = '150'
+# Set search window for RINEX files which might contain data for day - default check the previous day
+ set rx_doy_plus = 0
+ set rx_doy_minus = 1 
+# Default globk .apr file
+ set aprf = itrf08_comb.apr
+# Set compress (copts), delete (dopts) and archive (aopts) options. (Don't forget to set the archivepth.)
+# Possible d-, c-, and a- opts: D, H, ao, ac, as, b, c, d, e, g, h, i, j, k, l, m, o, p, q, t, x, ps, all" 
+ set dopts = ( c )
+ set copts = ( x k ao )
+ set aopts = '' 
+# Set the rinex ftp archives (defined in ftp_info) you would like to look for data in. 
+# (Default archives searched are: sopac, cddis and unavco).
+set rinex_ftpsites = (sopac cddis unavco) 
+
+
+## RESOURCES  
+# Minimum raw disk space in Mbytes
+ set minraw = '100'
+# Minimum rinex disk space in Mbytes
+ set minrinex = '100'
+# Minimum archive disk space in Mbytes
+ set minarchive = '100'
+# Minimum working disk space in Mbytes
+ set minwork = '500'
+
+## SYSTEM-DEPENDENT SETTINGS
+# UNIX df command must be set to return the correct form  
+# Most machines (
+ set udf = 'df -mk' 
+#   but note that if you have free > 1 Tb, you will need to change this to Mb
+# set udf = 'df -m'
+# HP
+# set udf = 'bdf' 
+# UNIX mail command
+#  Most machines
+ set umail = 'mail -s'
+#  HP
+# set umail = 'mailx -s'
+# Mail address for sending the processing report (if '' will default to `whoami` in sh_gamit)
+ set mailto = ''
+# Host name for email and anonymous ftp password use (if '' will default to `hostname` in sh_gamit)
+ set machine = ''
+# Ghostscript path
+set gspath = '/usr/bin'
+# ImageMagick path fir gif conversion
+# set impath = '/usr/bin/X11' 
+set impath = '/usr/bin'          
