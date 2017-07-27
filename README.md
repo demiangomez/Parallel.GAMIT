@@ -38,3 +38,8 @@ PG and PP require the following dependencies:
 - Numpy
 - Neicio: the USGS NEIC Python interface and its dependencies found in https://github.com/usgs/neicio
 
+About the scripts "execute_localy.sh" and "execute_server.sh"
+
+The script execute_localy.sh will run the (on the local computer) PG using the first argument as the session config file, the second argument as the year and the third as the list of DOYs to process. Parallel.GAMIT will search the network for nodes to run GAMIT on. Those nodes can also be specified in the gnss_data.cfg, using the key [archive]: node_list = x.x.x.x,x.x.x.x,...
+
+The script execute_server.sh runs the Parallel Python server which can handle call from both PG and PP. The only condition for the server to work is that it should be able to access all the GAMIT or PPP executable files.
