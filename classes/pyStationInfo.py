@@ -182,13 +182,32 @@ class StationInfo(StationInfoRecord):
                     pDate = date.datetime()
                     for record in self.records:
 
+                        # DDG: problem with some versions of Python. TypeError: can't compare datetime.datetime to str
+                        # seems like there are some instances of record where DateStart comes as a string not as a datetime object
+
                         if not record['DateEnd']:
-                            if pDate >= record['DateStart']:
+
+                            if type(record['DateStart']) is str:
+                                DateStart = datetime.datetime.strptime(record['DateStart'],'%Y-%m-%d %H:%M:%S')
+                            else:
+                                DateStart = record['DateStart']
+
+                            if pDate >= DateStart:
                                 self.load_data(record)
                                 self.currentrecord = record
                                 break
                         else:
-                            if pDate >= record['DateStart'] and pDate <= record['DateEnd']:
+                            if type(record['DateStart']) is str:
+                                DateStart = datetime.datetime.strptime(record['DateStart'],'%Y-%m-%d %H:%M:%S')
+                            else:
+                                DateStart = record['DateStart']
+
+                            if type(record['DateEnd']) is str:
+                                DateEnd = datetime.datetime.strptime(record['DateEnd'],'%Y-%m-%d %H:%M:%S')
+                            else:
+                                DateEnd = record['DateEnd']
+
+                            if pDate >= DateStart and pDate <= DateEnd:
                                 self.load_data(record)
                                 self.currentrecord = record
                                 break

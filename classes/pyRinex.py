@@ -265,13 +265,33 @@ class ReadRinex(RinexRecord):
             raise pyRinexException(self.rinex_path + ': error in ReadRinex.process: the output for first/last obs is empty. The output from RinSum was:\n' + out)
         else:
             # rinsum return dates that are 19xx (1916, for example) when they should be 2016
-            #if int(self.firstObs.split('/')[0]) - 1900 < 80:
-            #    # wrong date
-            #    self.firstObs = self.firstObs.replace(self.firstObs.split('/')[0], str(int(self.firstObs.split('/')[0]) - 1900 + 2000))
+            # also, some dates from 199x are reported as 0091!
+            # handle data format problems seen in the Cluster (only)
 
-            #if int(self.lastObs.split('/')[0]) - 1900 < 80:
-            #    # wrong date
-            #    self.lastObs = self.lastObs.replace(self.lastObs.split('/')[0], str(int(self.lastObs.split('/')[0]) - 1900 + 2000))
+            if int(self.firstObs.split('/')[0]) - 1900 < 80 and int(self.firstObs.split('/')[0]) >= 1900:
+                # wrong date
+                self.firstObs = self.firstObs.replace(self.firstObs.split('/')[0], str(int(self.firstObs.split('/')[0]) - 1900 + 2000))
+
+            elif int(self.firstObs.split('/')[0]) < 1900 and int(self.firstObs.split('/')[0]) >= 80:
+
+                self.firstObs = self.firstObs.replace(self.firstObs.split('/')[0], str(int(self.firstObs.split('/')[0]) + 1900))
+
+            elif int(self.firstObs.split('/')[0]) < 1900 and int(self.firstObs.split('/')[0]) < 80:
+
+                self.firstObs = self.firstObs.replace(self.firstObs.split('/')[0], str(int(self.firstObs.split('/')[0]) + 2000))
+
+
+            if int(self.lastObs.split('/')[0]) - 1900 < 80 and int(self.lastObs.split('/')[0]) >= 1900:
+                # wrong date
+                self.lastObs = self.lastObs.replace(self.lastObs.split('/')[0], str(int(self.lastObs.split('/')[0]) - 1900 + 2000))
+
+            elif int(self.lastObs.split('/')[0]) < 1900 and int(self.lastObs.split('/')[0]) >= 80:
+
+                self.lastObs = self.lastObs.replace(self.lastObs.split('/')[0], str(int(self.lastObs.split('/')[0]) + 1900))
+
+            elif int(self.lastObs.split('/')[0]) < 1900 and int(self.lastObs.split('/')[0]) < 80:
+
+                self.lastObs = self.lastObs.replace(self.lastObs.split('/')[0], str(int(self.lastObs.split('/')[0]) + 2000))
 
             try:
                 self.datetime_firstObs = datetime.datetime.strptime(self.firstObs,'%Y/%m/%d %H:%M:%S')

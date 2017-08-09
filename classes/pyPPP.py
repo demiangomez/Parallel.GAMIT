@@ -2,6 +2,10 @@
 Project:
 Date: 2/21/17 3:34 PM
 Author: Demian D. Gomez
+
+Python wrapper for PPP. It runs the NRCAN PPP and loads the information from the summary file. Can be used without a
+database connection, except for PPPSpatialCheck
+
 """
 
 import pyRinex

@@ -69,7 +69,7 @@ class OceanLoading():
             cmd = pyRunWithRetry.RunCommand(self.grdtab + ' ' + str(self.x) + ' ' + str(self.y) + ' ' + str(self.z) + ' ' + self.StationCode, 5, self.rootdir)
             out,err = cmd.run_shell()
 
-            if err or os.path.isfile(os.path.join(self.rootdir, 'GAMIT.fatal')):
+            if err or os.path.isfile(os.path.join(self.rootdir, 'GAMIT.fatal')) and not os.path.isfile(os.path.join(self.rootdir, 'harpos.' + self.StationCode)):
                 if err:
                     raise pyOTLException('grdtab returned an error: ' + err)
                 else:

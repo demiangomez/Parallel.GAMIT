@@ -16,6 +16,7 @@ class ReadOptions():
         self.options = {'path': None,
                        'repository': None,
                        'parallel': False,
+                       'cups': None,
                        'node_list': None,
                        'brdc': None,
                        'sp3_type_1': None,

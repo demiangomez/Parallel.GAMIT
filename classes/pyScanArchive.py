@@ -2,6 +2,21 @@
 Project: Parallel.Archive
 Date: 02/16/2017
 Author: Demian D. Gomez
+
+Main routines to load the RINEX files to the database, load station information, run PPP on the archive files and obtain
+the OTL coefficients
+usage:
+         --rinex  : scan for rinex"
+         --rnxcft : resolve rinex conflicts (multiple files per day)"
+         --otl    : calculate OTL parameters for stations in the database"
+         --stninfo: scan for station info files in the archive"
+                    if no arguments, searches the archive for station info files and uses their location to determine network"
+                    else, use: --stninfo_path --stn --network, where"
+                    --stninfo_path: path to a dir with station info files, or single station info file. Type 'stdin' to use standard input"
+                    --stn         : station to search for in the station info, of list of stations separated by comma, no spaces between ('all' will try to add all of them)"
+                    --net         : network name that has to be used to add the station information"
+         --ppp    : run ppp to the rinex files in the archive"
+         --all    : do all of the above"
 """
 
 import pyArchiveStruct
@@ -80,9 +95,21 @@ def verify_rinex_date_multiday(cnn, date, rinexinfo, Config):
 
 def check_rinex_timespan_int(rinex, stn):
 
+    # DDG: in some unknown cases, stn['ObservationSTime'] and stn['ObservationETime'] comes back as a string.
+
+    if type(stn['ObservationSTime']) is str:
+        ObservationSTime = datetime.datetime.strptime(stn['ObservationSTime'], '%Y-%m-%d %H:%M:%S')
+    else:
+        ObservationSTime = stn['ObservationSTime']
+
+    if type(stn['ObservationETime']) is str:
+        ObservationETime = datetime.datetime.strptime(stn['ObservationETime'], '%Y-%m-%d %H:%M:%S')
+    else:
+        ObservationETime = stn['ObservationETime']
+
     # how many seconds difference between the rinex file and the record in the db
-    stime_diff = abs((stn['ObservationSTime'] - rinex.datetime_firstObs).total_seconds())
-    etime_diff = abs((stn['ObservationETime'] - rinex.datetime_lastObs).total_seconds())
+    stime_diff = abs((ObservationSTime - rinex.datetime_firstObs).total_seconds())
+    etime_diff = abs((ObservationETime - rinex.datetime_lastObs).total_seconds())
 
     # at least four minutes different on each side
     if stime_diff <= 240 and etime_diff <= 240 and stn['Interval'] == rinex.interval:
@@ -202,7 +229,9 @@ def process_extra_rinex(NetworkCode, StationCode, year, doy, rinex):
             # update the record in rinex_extra (put in the rinex file we had in rinex)
             cnn.insert('rinex_extra', current_rinex)
             # delete the other one
-            cnn.delete('rinex_extra', update_dict)
+            # cnn.delete('rinex_extra', update_dict)
+            cnn.query('DELETE FROM rinex_extra WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "ObservationYear" = %i AND "ObservationDOY" = %i AND "Filename" = \'%s\''
+            % (update_dict['NetworkCode'], update_dict['StationCode'], update_dict['ObservationYear'], update_dict['ObservationDOY'], update_dict['Filename']))
 
             # generate an info event saying what we did
             cnn.insert_info(
@@ -256,6 +285,7 @@ def obtain_otl(NetworkCode, StationCode, archive_path, brdc_path, options, sp3ty
 
     import traceback
 
+    errors = ''
     outmsg = []
     x = []
     y = []
@@ -267,17 +297,24 @@ def obtain_otl(NetworkCode, StationCode, archive_path, brdc_path, options, sp3ty
         pyArchive = pyArchiveStruct.RinexStruct(cnn)
 
         # assumes that the files in the db are correct. We take 5 records from the time span (evenly spaced)
-        count = cnn.query('SELECT count(*) FROM rinex as r WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\'' % (NetworkCode, StationCode))
+        count = cnn.query('SELECT count(*) as cc FROM rinex as r WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\'' % (NetworkCode, StationCode))
 
-        if count.ntuples() >= 10:
+        count = count.dictresult()
+
+        #print '\nsuma total: ' + str(count[0]['cc'])
+
+        if count[0]['cc'] >= 10:
             stn = cnn.query('SELECT * FROM (SELECT row_number() OVER() as rnum, r.* FROM rinex as r WHERE "NetworkCode" = \'%s\' '
                             'AND "StationCode" = \'%s\' ORDER BY "ObservationSTime") AS rr '
                             'WHERE (rnum %% ((SELECT count(*) FROM rinex as r WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\')/10)) = 0' % (
                 NetworkCode, StationCode, NetworkCode, StationCode))
-        elif count.ntuples() < 10:
+
+            #print 'select 10>'
+        elif count[0]['cc'] < 10:
             stn = cnn.query(
                 'SELECT * FROM (SELECT row_number() OVER() as rnum, r.* FROM rinex as r WHERE "NetworkCode" = \'%s\' '
                 'AND "StationCode" = \'%s\' ORDER BY "ObservationSTime") AS rr ' % (NetworkCode, StationCode))
+            #print 'select all'
         else:
             return 'Station ' + NetworkCode + '.' + StationCode + ' had no rinex files in the archive. Please check the database for problems.'
 
@@ -291,51 +328,59 @@ def obtain_otl(NetworkCode, StationCode, archive_path, brdc_path, options, sp3ty
             try:
                 Rinex = pyRinex.ReadRinex(dbRinex['NetworkCode'], dbRinex['StationCode'],
                                           os.path.join(archive_path, file))
-            except pyRinex.pyRinexException as e:
+
+                # run ppp without otl and met and in non-strict mode
+                ppp = pyPPP.RunPPP(Rinex, '', options, sp3types, sp3altrn, Rinex.antOffset, False, False)
+
+                ppp.exec_ppp()
+
+                x.append(ppp.x)
+                y.append(ppp.y)
+                z.append(ppp.z)
+                errors = errors + 'PPP -> ' + NetworkCode + '.' + StationCode + ': ' + str(ppp.x) + ' ' + str(ppp.y) + ' ' + str(ppp.z) + '\n'
+
+            except (IOError, pyRinex.pyRinexException, pySp3.pySp3Exception, pyPPP.pyRunPPPException) as e:
                 # problem loading this file, try another one
+                errors = errors + str(e) + '\n'
                 continue
             except:
                 return traceback.format_exc() + ' processing: ' + NetworkCode + ' ' + StationCode + ' using node ' + platform.node()
-            else:
-
-                try:
-                    # run ppp without otl and met and in non-strict mode
-                    ppp = pyPPP.RunPPP(Rinex,'' , options, sp3types, sp3altrn, Rinex.antOffset, False, False)
-
-                    ppp.exec_ppp()
-
-                    x.append(ppp.x)
-                    y.append(ppp.y)
-                    z.append(ppp.z)
-
-                except pyPPP.pyRunPPPException:
-                    continue
 
         # average the x y z values
         if len(x) > 0:
-            x = numpy.array(x)
-            y = numpy.array(y)
-            z = numpy.array(z)
+            #print 'about to average'
+            if len(x) > 1:
+                x = numpy.array(x)
+                y = numpy.array(y)
+                z = numpy.array(z)
 
-            x = numpy.mean(x[abs(x - numpy.mean(x)) < 2 * numpy.std(x)])
-            y = numpy.mean(y[abs(y - numpy.mean(y)) < 2 * numpy.std(y)])
-            z = numpy.mean(z[abs(z - numpy.mean(z)) < 2 * numpy.std(z)])
+                x = numpy.mean(x[abs(x - numpy.mean(x)) < 2 * numpy.std(x)])
+                y = numpy.mean(y[abs(y - numpy.mean(y)) < 2 * numpy.std(y)])
+                z = numpy.mean(z[abs(z - numpy.mean(z)) < 2 * numpy.std(z)])
+            else:
+                x = x[0]
+                y = y[0]
+                z = z[0]
 
             lat,lon,h = ecef2lla([x,y,z])
 
             # calculate the otl parameters if the auto_coord returned a valid position
+            errors = errors + 'Mean -> ' + NetworkCode + '.' + StationCode + ': ' + str(x) + ' ' + str(y) + ' ' + str(z) + '\n'
+
             otl = pyOTL.OceanLoading(StationCode, options['grdtab'], options['otlgrid'])
             coeff = otl.calculate_otl_coeff(x=x, y=y, z=z)
 
             # update record in the database
             cnn.query('UPDATE stations SET "auto_x" = %.3f, "auto_y" = %.3f, "auto_z" = %.3f, "lat" = %.8f, "lon" = %.8f, "height" = %.3f, "Harpos_coeff_otl" = \'%s\' WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\'' % (x, y, z, lat[0], lon[0], h[0], coeff, NetworkCode, StationCode))
+
         else:
-            outmsg = 'Could not obtain a coordinate/otl coefficients for ' + NetworkCode + ' ' + StationCode + ' after 20 tries. Maybe there where few valid RINEX files or could not find an ephemeris file'
+            outmsg = 'Could not obtain a coordinate/otl coefficients for ' + NetworkCode + ' ' + StationCode + ' after 20 tries. Maybe there where few valid RINEX files or could not find an ephemeris file. Debug info and errors follow:\n' + errors
 
     except pyOTL.pyOTLException as e:
-        return "Error while calculating OTL for " + NetworkCode + " " + StationCode + ": " + str(e)
+        return "Error while calculating OTL for " + NetworkCode + " " + StationCode + ": " + str(e) + '\n Debug info and errors follow: \n' + errors
     except:
-        outmsg = traceback.format_exc() + ' processing otl: ' + NetworkCode + ' ' + StationCode + ' using node ' + platform.node()
+        # print 'problem!' + traceback.format_exc()
+        outmsg = traceback.format_exc() + ' processing otl: ' + NetworkCode + ' ' + StationCode + ' using node ' + platform.node() + '\n Debug info and errors follow: \n' + errors
 
     return outmsg
 
@@ -394,13 +439,17 @@ def insert_stninfo(NetworkCode, StationCode, stninfofile):
 
 def remove_from_archive(cnn, record, Rinex, Config):
 
-    # do not make thing very complex here, just move it out from the archive
+    # do not make very complex things here, just move it out from the archive
     retry_folder = os.path.join(Config.repository_data_in_retry, Rinex.date.yyyy() + '/' + Rinex.date.ddd())
     Rinex.move_origin_file(retry_folder)
 
     cnn.begin_transac()
     # delete this rinex entry from the database
-    cnn.delete('rinex', record)
+    # cnn.delete('rinex', record)
+    cnn.query(
+        'DELETE FROM rinex WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "ObservationYear" = %i AND "ObservationDOY" = %i'
+        % (record['NetworkCode'], record['StationCode'], record['ObservationYear'], record['ObservationDOY']))
+
     # are there any rinex extra? Maybe they are correct.
     rs = cnn.query(
         'SELECT * FROM rinex_extra WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "ObservationYear" = %i AND "ObservationDOY" = %i' % (
@@ -414,7 +463,12 @@ def remove_from_archive(cnn, record, Rinex, Config):
                 Rinex.origin_file, record['NetworkCode'], record['StationCode'], rnx[0]['Filename']))
 
         cnn.insert('rinex', rnx[0])
-        cnn.delete('rinex_extra', rnx[0])
+        #cnn.delete('rinex_extra', rnx[0])
+        cnn.query(
+            'DELETE FROM rinex_extra WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "ObservationYear" = %i AND "ObservationDOY" = %i AND "Filename" = \'%s\''
+            % (rnx[0]['NetworkCode'], rnx[0]['StationCode'], rnx[0]['ObservationYear'],
+               rnx[0]['ObservationDOY'], rnx[0]['Filename']))
+
         # on the next execution of pyScanArchive --ppp this file will be analyzed
     else:
         cnn.insert_warning(
@@ -570,7 +624,7 @@ def scan_rinex(cnn, job_server, pyArchive, archive_path, Config):
                 if not master_list or NetworkCode + '::' + StationCode in master_list:
                     job_server.submit(try_insert, args=(NetworkCode, StationCode, year, doy, rinexpath, Config),
                                       depfuncs=(verify_rinex_date_multiday, check_rinex_timespan_int),
-                                      modules=('dbConnection', 'pyDate', 'pyRinex', 'shutil', 'platform'),
+                                      modules=('dbConnection', 'pyDate', 'pyRinex', 'shutil', 'platform', 'datetime'),
                                       callback=callback[submit].callbackfunc)
                     submit += 1
 
@@ -655,7 +709,7 @@ def process_otl(cnn, job_server, run_parallel, archive_path, brdc_path, options,
 
             job_server.submit(obtain_otl, args=(NetworkCode, StationCode, archive_path, brdc_path, options, sp3types, sp3altrn),
                               depfuncs=(ecef2lla,),
-                              modules=('dbConnection', 'pyRinex', 'pyArchiveStruct', 'pyOTL', 'pyPPP', 'numpy', 'platform'),
+                              modules=('dbConnection', 'pyRinex', 'pyArchiveStruct', 'pyOTL', 'pyPPP', 'numpy', 'platform', 'pySp3'),
                               callback=callback[-1].callbackfunc)
 
             submit += 1
@@ -960,7 +1014,11 @@ def main(argv):
             # use the provided explicit list of nodes
             ppservers = tuple(Config.options['node_list'].split(','))
 
-        job_server = pp.Server(ncpus=Utils.get_processor_count(), ppservers=ppservers)
+        if Config.options['cpus'] is None:
+            job_server = pp.Server(ncpus=Utils.get_processor_count(), ppservers=ppservers)
+        else:
+            job_server = pp.Server(ncpus=int(Config.options['cpus']), ppservers=ppservers)
+
         time.sleep(1)
         print "Starting pp with", job_server.get_active_nodes(), "workers"
     else:
