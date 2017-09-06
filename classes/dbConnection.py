@@ -11,6 +11,7 @@ import pg
 import platform
 import ConfigParser
 import inspect
+import re
 
 class dbErrInsert(Exception):
     pass
@@ -103,6 +104,7 @@ class Cnn(pg.DB):
 
         # do not insert if record exists
         desc = '%s%s' % (module, desc.replace('\'', ''))
+        desc = re.sub(r'[^\x00-\x7f]+', '', desc)
         warn = self.query('SELECT * FROM events WHERE "EventDescription" = \'%s\'' % (desc))
 
         if warn.ntuples() == 0:
