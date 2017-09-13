@@ -31,7 +31,7 @@ class Cnn(pg.DB):
 
         options = {'hostname': 'localhost',
            'username': 'postgres' ,
-           'password': 'f8749hel' ,
+           'password': '' ,
            'database': 'gnss_data'}
 
         self.active_transaction = False

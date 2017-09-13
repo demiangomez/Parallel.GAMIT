@@ -1,0 +1,301 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<database name="gnss_data" schema="public" type="PostgreSQL - 9.6.1">
+   <tables>
+      <table name="antennas" numRows="71" remarks="" schema="public" type="TABLE">
+         <column autoUpdated="false" digits="0" id="0" name="AntennaCode" nullable="false" remarks="" size="22" type="varchar">
+            <child column="AntennaCode" foreignKey="stationinfo_AntennaCode_fkey" implied="false" onDeleteCascade="false" table="stationinfo"/>
+         </column>
+         <column autoUpdated="false" digits="0" id="1" name="AntennaDescription" nullable="true" remarks="" size="2147483647" type="varchar"/>
+         <primaryKey column="AntennaCode" sequenceNumberInPK="1"/>
+      </table>
+      <table name="apr_coords" numRows="0" remarks="" schema="public" type="TABLE">
+         <column autoUpdated="false" digits="0" id="0" name="NetworkCode" nullable="false" remarks="" size="3" type="varchar">
+            <parent column="NetworkCode" foreignKey="apr_coords_NetworkCode_fkey" implied="false" onDeleteCascade="false" table="stations"/>
+         </column>
+         <column autoUpdated="false" digits="0" id="1" name="StationCode" nullable="false" remarks="" size="4" type="varchar">
+            <parent column="StationCode" foreignKey="apr_coords_NetworkCode_fkey" implied="false" onDeleteCascade="false" table="stations"/>
+         </column>
+         <column autoUpdated="false" digits="6" id="2" name="Year" nullable="false" remarks="" size="29" type="timestamp"/>
+         <column autoUpdated="false" digits="6" id="3" name="DOY" nullable="false" remarks="" size="29" type="timestamp"/>
+         <column autoUpdated="false" digits="0" id="4" name="FYear" nullable="true" remarks="" size="131089" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="5" name="x" nullable="true" remarks="" size="131089" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="6" name="y" nullable="true" remarks="" size="131089" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="7" name="z" nullable="true" remarks="" size="131089" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="8" name="sn" nullable="true" remarks="" size="131089" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="9" name="se" nullable="true" remarks="" size="131089" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="10" name="su" nullable="true" remarks="" size="131089" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="11" name="ReferenceFrame" nullable="true" remarks="" size="20" type="varchar"/>
+         <primaryKey column="NetworkCode" sequenceNumberInPK="1"/>
+         <primaryKey column="StationCode" sequenceNumberInPK="2"/>
+         <primaryKey column="Year" sequenceNumberInPK="3"/>
+         <primaryKey column="DOY" sequenceNumberInPK="4"/>
+      </table>
+      <table name="earthquakes" numRows="3263" remarks="" schema="public" type="TABLE">
+         <column autoUpdated="false" digits="6" id="0" name="date" nullable="false" remarks="" size="29" type="timestamp"/>
+         <column autoUpdated="false" digits="0" id="1" name="lat" nullable="false" remarks="" size="131089" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="2" name="lon" nullable="false" remarks="" size="131089" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="3" name="depth" nullable="true" remarks="" size="131089" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="4" name="mag" nullable="true" remarks="" size="131089" type="numeric"/>
+         <primaryKey column="date" sequenceNumberInPK="1"/>
+         <primaryKey column="lat" sequenceNumberInPK="2"/>
+         <primaryKey column="lon" sequenceNumberInPK="3"/>
+      </table>
+      <table name="events" numRows="632745" remarks="" schema="public" type="TABLE">
+         <column autoUpdated="true" defaultValue="nextval('events_event_id_seq'::regclass)" digits="0" id="0" name="event_id" nullable="false" remarks="" size="10" type="serial"/>
+         <column autoUpdated="false" defaultValue="now()" digits="6" id="1" name="EventDate" nullable="true" remarks="" size="29" type="timestamp"/>
+         <column autoUpdated="false" digits="0" id="2" name="EventType" nullable="true" remarks="" size="6" type="varchar"/>
+         <column autoUpdated="false" digits="0" id="3" name="EventDescription" nullable="true" remarks="" size="2147483647" type="text"/>
+         <primaryKey column="event_id" sequenceNumberInPK="1"/>
+      </table>
+      <table name="gamit_soln" numRows="62345" remarks="" schema="public" type="TABLE">
+         <column autoUpdated="false" digits="0" id="0" name="NetworkCode" nullable="false" remarks="" size="3" type="varchar">
+            <parent column="NetworkCode" foreignKey="gamit_soln_NetworkCode_fkey" implied="false" onDeleteCascade="false" table="stations"/>
+            <parent column="NetworkCode" foreignKey="gamit_soln_NetworkCode_fkey1" implied="false" onDeleteCascade="false" table="rinex"/>
+         </column>
+         <column autoUpdated="false" digits="0" id="1" name="StationCode" nullable="false" remarks="" size="4" type="varchar">
+            <parent column="StationCode" foreignKey="gamit_soln_NetworkCode_fkey" implied="false" onDeleteCascade="false" table="stations"/>
+            <parent column="StationCode" foreignKey="gamit_soln_NetworkCode_fkey1" implied="false" onDeleteCascade="false" table="rinex"/>
+         </column>
+         <column autoUpdated="false" digits="0" id="2" name="Project" nullable="false" remarks="" size="20" type="varchar"/>
+         <column autoUpdated="false" digits="0" id="3" name="Year" nullable="false" remarks="" size="131089" type="numeric">
+            <parent column="ObservationYear" foreignKey="gamit_soln_NetworkCode_fkey1" implied="false" onDeleteCascade="false" table="rinex"/>
+         </column>
+         <column autoUpdated="false" digits="0" id="4" name="DOY" nullable="false" remarks="" size="131089" type="numeric">
+            <parent column="ObservationDOY" foreignKey="gamit_soln_NetworkCode_fkey1" implied="false" onDeleteCascade="false" table="rinex"/>
+         </column>
+         <column autoUpdated="false" digits="0" id="5" name="FYear" nullable="true" remarks="" size="131089" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="6" name="X" nullable="true" remarks="" size="131089" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="7" name="Y" nullable="true" remarks="" size="131089" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="8" name="Z" nullable="true" remarks="" size="131089" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="9" name="sigmax" nullable="true" remarks="" size="131089" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="10" name="sigmay" nullable="true" remarks="" size="131089" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="11" name="sigmaz" nullable="true" remarks="" size="131089" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="12" name="VarianceFactor" nullable="true" remarks="" size="131089" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="13" name="sigmaxy" nullable="true" remarks="" size="131089" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="14" name="sigmayz" nullable="true" remarks="" size="131089" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="15" name="sigmaxz" nullable="true" remarks="" size="131089" type="numeric"/>
+         <primaryKey column="NetworkCode" sequenceNumberInPK="1"/>
+         <primaryKey column="StationCode" sequenceNumberInPK="2"/>
+         <primaryKey column="Project" sequenceNumberInPK="3"/>
+         <primaryKey column="Year" sequenceNumberInPK="4"/>
+         <primaryKey column="DOY" sequenceNumberInPK="5"/>
+      </table>
+      <table name="keys" numRows="7" remarks="" schema="public" type="TABLE">
+         <column autoUpdated="false" digits="0" id="0" name="KeyCode" nullable="false" remarks="" size="7" type="varchar">
+            <child column="KeyCode" foreignKey="rinex_tank_struct_key_fkey" implied="false" onDeleteCascade="false" table="rinex_tank_struct"/>
+         </column>
+         <column autoUpdated="false" digits="0" id="1" name="TotalChars" nullable="true" remarks="" size="10" type="int4"/>
+         <column autoUpdated="false" digits="0" id="2" name="rinex_col_out" nullable="true" remarks="" size="2147483647" type="varchar"/>
+         <column autoUpdated="false" digits="0" id="3" name="rinex_col_in" nullable="true" remarks="" size="60" type="varchar"/>
+         <column autoUpdated="false" digits="0" id="4" name="isnumeric" nullable="true" remarks="" size="1" type="bit"/>
+         <primaryKey column="KeyCode" sequenceNumberInPK="1"/>
+      </table>
+      <table name="locks" numRows="63" remarks="" schema="public" type="TABLE">
+         <column autoUpdated="false" digits="0" id="0" name="filename" nullable="false" remarks="" size="2147483647" type="text"/>
+         <column autoUpdated="false" digits="0" id="1" name="NetworkCode" nullable="true" remarks="" size="3" type="varchar">
+            <parent column="NetworkCode" foreignKey="locks_NetworkCode_fkey" implied="false" onDeleteCascade="true" table="stations"/>
+         </column>
+         <column autoUpdated="false" digits="0" id="2" name="StationCode" nullable="true" remarks="" size="4" type="varchar">
+            <parent column="StationCode" foreignKey="locks_NetworkCode_fkey" implied="false" onDeleteCascade="true" table="stations"/>
+         </column>
+         <primaryKey column="filename" sequenceNumberInPK="1"/>
+      </table>
+      <table name="networks" numRows="21" remarks="" schema="public" type="TABLE">
+         <column autoUpdated="false" digits="0" id="0" name="NetworkCode" nullable="false" remarks="" size="2147483647" type="varchar">
+            <child column="NetworkCode" foreignKey="NetworkCode" implied="false" onDeleteCascade="false" table="stations"/>
+         </column>
+         <column autoUpdated="false" digits="0" id="1" name="NetworkName" nullable="true" remarks="" size="2147483647" type="varchar"/>
+         <primaryKey column="NetworkCode" sequenceNumberInPK="1"/>
+      </table>
+      <table name="ppp_soln" numRows="685567" remarks="" schema="public" type="TABLE">
+         <column autoUpdated="false" digits="0" id="0" name="NetworkCode" nullable="false" remarks="" size="2147483647" type="varchar">
+            <parent column="NetworkCode" foreignKey="ppp_soln_NetworkName_StationCode_fkey" implied="false" onDeleteCascade="false" table="stations"/>
+            <parent column="NetworkCode" foreignKey="ppp_soln_NetworkCode_fkey" implied="false" onDeleteCascade="false" table="rinex"/>
+         </column>
+         <column autoUpdated="false" digits="0" id="1" name="StationCode" nullable="false" remarks="" size="2147483647" type="varchar">
+            <parent column="StationCode" foreignKey="ppp_soln_NetworkName_StationCode_fkey" implied="false" onDeleteCascade="false" table="stations"/>
+            <parent column="StationCode" foreignKey="ppp_soln_NetworkCode_fkey" implied="false" onDeleteCascade="false" table="rinex"/>
+         </column>
+         <column autoUpdated="false" digits="4" id="2" name="X" nullable="true" remarks="" size="12" type="numeric"/>
+         <column autoUpdated="false" digits="4" id="3" name="Y" nullable="true" remarks="" size="12" type="numeric"/>
+         <column autoUpdated="false" digits="4" id="4" name="Z" nullable="true" remarks="" size="12" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="5" name="Year" nullable="false" remarks="" size="131089" type="numeric">
+            <parent column="ObservationYear" foreignKey="ppp_soln_NetworkCode_fkey" implied="false" onDeleteCascade="false" table="rinex"/>
+         </column>
+         <column autoUpdated="false" digits="0" id="6" name="DOY" nullable="false" remarks="" size="131089" type="numeric">
+            <parent column="ObservationDOY" foreignKey="ppp_soln_NetworkCode_fkey" implied="false" onDeleteCascade="false" table="rinex"/>
+         </column>
+         <column autoUpdated="false" digits="0" id="7" name="ReferenceFrame" nullable="false" remarks="" size="20" type="varchar"/>
+         <column autoUpdated="false" digits="0" id="8" name="sigmax" nullable="true" remarks="" size="131089" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="9" name="sigmay" nullable="true" remarks="" size="131089" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="10" name="sigmaz" nullable="true" remarks="" size="131089" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="11" name="sigmaxy" nullable="true" remarks="" size="131089" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="12" name="sigmaxz" nullable="true" remarks="" size="131089" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="13" name="sigmayz" nullable="true" remarks="" size="131089" type="numeric"/>
+         <primaryKey column="NetworkCode" sequenceNumberInPK="1"/>
+         <primaryKey column="StationCode" sequenceNumberInPK="2"/>
+         <primaryKey column="Year" sequenceNumberInPK="3"/>
+         <primaryKey column="DOY" sequenceNumberInPK="4"/>
+         <primaryKey column="ReferenceFrame" sequenceNumberInPK="5"/>
+      </table>
+      <table name="ppp_soln_excl" numRows="1" remarks="" schema="public" type="TABLE">
+         <column autoUpdated="false" digits="0" id="0" name="NetworkCode" nullable="false" remarks="" size="3" type="varchar">
+            <parent column="NetworkCode" foreignKey="ppp_soln_excl_NetworkCode_fkey" implied="false" onDeleteCascade="false" table="stations"/>
+         </column>
+         <column autoUpdated="false" digits="0" id="1" name="StationCode" nullable="false" remarks="" size="4" type="varchar">
+            <parent column="StationCode" foreignKey="ppp_soln_excl_NetworkCode_fkey" implied="false" onDeleteCascade="false" table="stations"/>
+         </column>
+         <column autoUpdated="false" digits="0" id="2" name="Year" nullable="false" remarks="" size="131089" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="3" name="DOY" nullable="false" remarks="" size="131089" type="numeric"/>
+         <primaryKey column="NetworkCode" sequenceNumberInPK="1"/>
+         <primaryKey column="StationCode" sequenceNumberInPK="2"/>
+         <primaryKey column="Year" sequenceNumberInPK="3"/>
+         <primaryKey column="DOY" sequenceNumberInPK="4"/>
+      </table>
+      <table name="receivers" numRows="68" remarks="" schema="public" type="TABLE">
+         <column autoUpdated="false" digits="0" id="0" name="ReceiverCode" nullable="false" remarks="" size="22" type="varchar">
+            <child column="ReceiverCode" foreignKey="stationinfo_ReceiverCode_fkey" implied="false" onDeleteCascade="false" table="stationinfo"/>
+         </column>
+         <column autoUpdated="false" digits="0" id="1" name="ReceiverDescription" nullable="true" remarks="" size="22" type="varchar"/>
+         <primaryKey column="ReceiverCode" sequenceNumberInPK="1"/>
+      </table>
+      <table name="rinex" numRows="726860" remarks="" schema="public" type="TABLE">
+         <column autoUpdated="false" digits="0" id="0" name="NetworkCode" nullable="false" remarks="" size="2147483647" type="varchar">
+            <child column="NetworkCode" foreignKey="gamit_soln_NetworkCode_fkey1" implied="false" onDeleteCascade="false" table="gamit_soln"/>
+            <child column="NetworkCode" foreignKey="ppp_soln_NetworkCode_fkey" implied="false" onDeleteCascade="false" table="ppp_soln"/>
+            <parent column="NetworkCode" foreignKey="rinex_NetworkCode_fkey" implied="false" onDeleteCascade="false" table="stations"/>
+         </column>
+         <column autoUpdated="false" digits="0" id="1" name="StationCode" nullable="false" remarks="" size="2147483647" type="varchar">
+            <child column="StationCode" foreignKey="gamit_soln_NetworkCode_fkey1" implied="false" onDeleteCascade="false" table="gamit_soln"/>
+            <child column="StationCode" foreignKey="ppp_soln_NetworkCode_fkey" implied="false" onDeleteCascade="false" table="ppp_soln"/>
+            <parent column="StationCode" foreignKey="rinex_NetworkCode_fkey" implied="false" onDeleteCascade="false" table="stations"/>
+         </column>
+         <column autoUpdated="false" digits="0" id="2" name="ObservationYear" nullable="false" remarks="" size="131089" type="numeric">
+            <child column="Year" foreignKey="gamit_soln_NetworkCode_fkey1" implied="false" onDeleteCascade="false" table="gamit_soln"/>
+            <child column="Year" foreignKey="ppp_soln_NetworkCode_fkey" implied="false" onDeleteCascade="false" table="ppp_soln"/>
+         </column>
+         <column autoUpdated="false" digits="0" id="3" name="ObservationMonth" nullable="false" remarks="" size="131089" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="4" name="ObservationDay" nullable="false" remarks="" size="131089" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="5" name="ObservationDOY" nullable="false" remarks="" size="131089" type="numeric">
+            <child column="DOY" foreignKey="gamit_soln_NetworkCode_fkey1" implied="false" onDeleteCascade="false" table="gamit_soln"/>
+            <child column="DOY" foreignKey="ppp_soln_NetworkCode_fkey" implied="false" onDeleteCascade="false" table="ppp_soln"/>
+         </column>
+         <column autoUpdated="false" digits="0" id="6" name="ObservationFYear" nullable="false" remarks="" size="131089" type="numeric"/>
+         <column autoUpdated="false" digits="6" id="7" name="ObservationSTime" nullable="true" remarks="" size="29" type="timestamp"/>
+         <column autoUpdated="false" digits="6" id="8" name="ObservationETime" nullable="true" remarks="" size="29" type="timestamp"/>
+         <column autoUpdated="false" digits="0" id="9" name="ReceiverType" nullable="true" remarks="" size="20" type="varchar"/>
+         <column autoUpdated="false" digits="0" id="10" name="ReceiverSerial" nullable="true" remarks="" size="20" type="varchar"/>
+         <column autoUpdated="false" digits="0" id="11" name="ReceiverFw" nullable="true" remarks="" size="20" type="varchar"/>
+         <column autoUpdated="false" digits="0" id="12" name="AntennaType" nullable="true" remarks="" size="20" type="varchar"/>
+         <column autoUpdated="false" digits="0" id="13" name="AntennaSerial" nullable="true" remarks="" size="20" type="varchar"/>
+         <column autoUpdated="false" digits="0" id="14" name="AntennaDome" nullable="true" remarks="" size="20" type="varchar"/>
+         <column autoUpdated="false" digits="0" id="15" name="Filename" nullable="true" remarks="" size="20" type="varchar"/>
+         <column autoUpdated="false" digits="0" id="16" name="Interval" nullable="true" remarks="" size="131089" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="17" name="AntennaOffset" nullable="true" remarks="" size="131089" type="numeric"/>
+         <primaryKey column="NetworkCode" sequenceNumberInPK="1"/>
+         <primaryKey column="StationCode" sequenceNumberInPK="2"/>
+         <primaryKey column="ObservationYear" sequenceNumberInPK="3"/>
+         <primaryKey column="ObservationDOY" sequenceNumberInPK="4"/>
+      </table>
+      <table name="rinex_extra" numRows="13308" remarks="" schema="public" type="TABLE">
+         <column autoUpdated="false" digits="0" id="0" name="NetworkCode" nullable="false" remarks="" size="2147483647" type="varchar">
+            <parent column="NetworkCode" foreignKey="rinex_extra_NetworkCode_fkey" implied="false" onDeleteCascade="false" table="stations"/>
+         </column>
+         <column autoUpdated="false" digits="0" id="1" name="StationCode" nullable="false" remarks="" size="2147483647" type="varchar">
+            <parent column="StationCode" foreignKey="rinex_extra_NetworkCode_fkey" implied="false" onDeleteCascade="false" table="stations"/>
+         </column>
+         <column autoUpdated="false" digits="0" id="2" name="ObservationYear" nullable="false" remarks="" size="131089" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="3" name="ObservationMonth" nullable="false" remarks="" size="131089" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="4" name="ObservationDay" nullable="false" remarks="" size="131089" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="5" name="ObservationDOY" nullable="false" remarks="" size="131089" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="6" name="ObservationFYear" nullable="false" remarks="" size="131089" type="numeric"/>
+         <column autoUpdated="false" digits="6" id="7" name="ObservationSTime" nullable="true" remarks="" size="29" type="timestamp"/>
+         <column autoUpdated="false" digits="6" id="8" name="ObservationETime" nullable="true" remarks="" size="29" type="timestamp"/>
+         <column autoUpdated="false" digits="0" id="9" name="ReceiverType" nullable="true" remarks="" size="20" type="varchar"/>
+         <column autoUpdated="false" digits="0" id="10" name="ReceiverSerial" nullable="true" remarks="" size="20" type="varchar"/>
+         <column autoUpdated="false" digits="0" id="11" name="ReceiverFw" nullable="true" remarks="" size="20" type="varchar"/>
+         <column autoUpdated="false" digits="0" id="12" name="AntennaType" nullable="true" remarks="" size="20" type="varchar"/>
+         <column autoUpdated="false" digits="0" id="13" name="AntennaSerial" nullable="true" remarks="" size="20" type="varchar"/>
+         <column autoUpdated="false" digits="0" id="14" name="AntennaDome" nullable="true" remarks="" size="20" type="varchar"/>
+         <column autoUpdated="false" digits="0" id="15" name="Filename" nullable="false" remarks="" size="2147483647" type="varchar"/>
+         <column autoUpdated="false" digits="0" id="16" name="Interval" nullable="true" remarks="" size="131089" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="17" name="AntennaOffset" nullable="true" remarks="" size="131089" type="numeric"/>
+         <primaryKey column="NetworkCode" sequenceNumberInPK="1"/>
+         <primaryKey column="StationCode" sequenceNumberInPK="2"/>
+         <primaryKey column="ObservationYear" sequenceNumberInPK="3"/>
+         <primaryKey column="ObservationMonth" sequenceNumberInPK="4"/>
+         <primaryKey column="ObservationDay" sequenceNumberInPK="5"/>
+         <primaryKey column="Filename" sequenceNumberInPK="6"/>
+      </table>
+      <table name="rinex_tank_struct" numRows="3" remarks="" schema="public" type="TABLE">
+         <column autoUpdated="false" digits="0" id="0" name="Level" nullable="false" remarks="" size="10" type="int4"/>
+         <column autoUpdated="false" digits="0" id="1" name="KeyCode" nullable="true" remarks="" size="7" type="varchar">
+            <parent column="KeyCode" foreignKey="rinex_tank_struct_key_fkey" implied="false" onDeleteCascade="false" table="keys"/>
+         </column>
+         <primaryKey column="Level" sequenceNumberInPK="1"/>
+      </table>
+      <table name="stationinfo" numRows="998" remarks="" schema="public" type="TABLE">
+         <column autoUpdated="false" digits="0" id="0" name="NetworkCode" nullable="false" remarks="" size="3" type="varchar">
+            <parent column="NetworkCode" foreignKey="stationinfo_NetworkCode_StationCode_fkey" implied="false" onDeleteCascade="false" table="stations"/>
+         </column>
+         <column autoUpdated="false" digits="0" id="1" name="StationCode" nullable="false" remarks="" size="4" type="varchar">
+            <parent column="StationCode" foreignKey="stationinfo_NetworkCode_StationCode_fkey" implied="false" onDeleteCascade="false" table="stations"/>
+         </column>
+         <column autoUpdated="false" digits="0" id="2" name="ReceiverCode" nullable="false" remarks="" size="22" type="varchar">
+            <parent column="ReceiverCode" foreignKey="stationinfo_ReceiverCode_fkey" implied="false" onDeleteCascade="false" table="receivers"/>
+         </column>
+         <column autoUpdated="false" digits="0" id="3" name="ReceiverSerial" nullable="true" remarks="" size="22" type="varchar"/>
+         <column autoUpdated="false" digits="0" id="4" name="ReceiverFirmware" nullable="true" remarks="" size="10" type="varchar"/>
+         <column autoUpdated="false" digits="0" id="5" name="AntennaCode" nullable="false" remarks="" size="22" type="varchar">
+            <parent column="AntennaCode" foreignKey="stationinfo_AntennaCode_fkey" implied="false" onDeleteCascade="false" table="antennas"/>
+         </column>
+         <column autoUpdated="false" digits="0" id="6" name="AntennaSerial" nullable="true" remarks="" size="20" type="varchar"/>
+         <column autoUpdated="false" digits="4" id="7" name="AntennaHeight" nullable="true" remarks="" size="6" type="numeric"/>
+         <column autoUpdated="false" digits="4" id="8" name="AntennaNorth" nullable="true" remarks="" size="12" type="numeric"/>
+         <column autoUpdated="false" digits="4" id="9" name="AntennaEast" nullable="true" remarks="" size="12" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="10" name="HeightCode" nullable="true" remarks="" size="2147483647" type="varchar"/>
+         <column autoUpdated="false" digits="0" id="11" name="RadomeCode" nullable="false" remarks="" size="7" type="varchar"/>
+         <column autoUpdated="false" digits="6" id="12" name="DateStart" nullable="false" remarks="" size="29" type="timestamp"/>
+         <column autoUpdated="false" digits="6" id="13" name="DateEnd" nullable="true" remarks="" size="29" type="timestamp"/>
+         <column autoUpdated="false" digits="0" id="14" name="ReceiverVers" nullable="true" remarks="" size="22" type="varchar"/>
+         <primaryKey column="NetworkCode" sequenceNumberInPK="1"/>
+         <primaryKey column="StationCode" sequenceNumberInPK="2"/>
+         <primaryKey column="DateStart" sequenceNumberInPK="3"/>
+      </table>
+      <table name="stations" numRows="350" remarks="" schema="public" type="TABLE">
+         <column autoUpdated="false" digits="0" id="0" name="NetworkCode" nullable="false" remarks="" size="3" type="varchar">
+            <child column="NetworkCode" foreignKey="apr_coords_NetworkCode_fkey" implied="false" onDeleteCascade="false" table="apr_coords"/>
+            <child column="NetworkCode" foreignKey="gamit_soln_NetworkCode_fkey" implied="false" onDeleteCascade="false" table="gamit_soln"/>
+            <child column="NetworkCode" foreignKey="locks_NetworkCode_fkey" implied="false" onDeleteCascade="true" table="locks"/>
+            <child column="NetworkCode" foreignKey="ppp_soln_NetworkName_StationCode_fkey" implied="false" onDeleteCascade="false" table="ppp_soln"/>
+            <child column="NetworkCode" foreignKey="ppp_soln_excl_NetworkCode_fkey" implied="false" onDeleteCascade="false" table="ppp_soln_excl"/>
+            <child column="NetworkCode" foreignKey="rinex_NetworkCode_fkey" implied="false" onDeleteCascade="false" table="rinex"/>
+            <child column="NetworkCode" foreignKey="rinex_extra_NetworkCode_fkey" implied="false" onDeleteCascade="false" table="rinex_extra"/>
+            <child column="NetworkCode" foreignKey="stationinfo_NetworkCode_StationCode_fkey" implied="false" onDeleteCascade="false" table="stationinfo"/>
+            <parent column="NetworkCode" foreignKey="NetworkCode" implied="false" onDeleteCascade="false" table="networks"/>
+         </column>
+         <column autoUpdated="false" digits="0" id="1" name="StationCode" nullable="false" remarks="" size="4" type="varchar">
+            <child column="StationCode" foreignKey="apr_coords_NetworkCode_fkey" implied="false" onDeleteCascade="false" table="apr_coords"/>
+            <child column="StationCode" foreignKey="gamit_soln_NetworkCode_fkey" implied="false" onDeleteCascade="false" table="gamit_soln"/>
+            <child column="StationCode" foreignKey="locks_NetworkCode_fkey" implied="false" onDeleteCascade="true" table="locks"/>
+            <child column="StationCode" foreignKey="ppp_soln_NetworkName_StationCode_fkey" implied="false" onDeleteCascade="false" table="ppp_soln"/>
+            <child column="StationCode" foreignKey="ppp_soln_excl_NetworkCode_fkey" implied="false" onDeleteCascade="false" table="ppp_soln_excl"/>
+            <child column="StationCode" foreignKey="rinex_NetworkCode_fkey" implied="false" onDeleteCascade="false" table="rinex"/>
+            <child column="StationCode" foreignKey="rinex_extra_NetworkCode_fkey" implied="false" onDeleteCascade="false" table="rinex_extra"/>
+            <child column="StationCode" foreignKey="stationinfo_NetworkCode_StationCode_fkey" implied="false" onDeleteCascade="false" table="stationinfo"/>
+         </column>
+         <column autoUpdated="false" digits="0" id="2" name="StationName" nullable="true" remarks="" size="40" type="varchar"/>
+         <column autoUpdated="false" digits="3" id="3" name="DateStart" nullable="true" remarks="" size="7" type="numeric"/>
+         <column autoUpdated="false" digits="3" id="4" name="DateEnd" nullable="true" remarks="" size="7" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="5" name="auto_x" nullable="true" remarks="" size="131089" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="6" name="auto_y" nullable="true" remarks="" size="131089" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="7" name="auto_z" nullable="true" remarks="" size="131089" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="8" name="Harpos_coeff_otl" nullable="true" remarks="" size="2147483647" type="text"/>
+         <column autoUpdated="false" digits="0" id="9" name="lat" nullable="true" remarks="" size="131089" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="10" name="lon" nullable="true" remarks="" size="131089" type="numeric"/>
+         <column autoUpdated="false" digits="0" id="11" name="height" nullable="true" remarks="" size="131089" type="numeric"/>
+         <primaryKey column="NetworkCode" sequenceNumberInPK="1"/>
+         <primaryKey column="StationCode" sequenceNumberInPK="2"/>
+      </table>
+   </tables>
+</database>

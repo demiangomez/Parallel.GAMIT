@@ -367,7 +367,7 @@ def process_crinex_file(crinex, filename, data_rejected, data_retry, Config):
 
     except pyOTL.pyOTLException as e:
 
-        msg = "Error while calculating OTL for " + crinex + ": " + str(e) + '. The file has been moved into the rejection folder.'
+        msg = "Error while calculating OTL for " + crinex + ": " + str(e) + '. The file has been moved into the retry folder.'
         error_handle(cnn, msg, crinex, retry_folder, filename)
 
         return (None, None)

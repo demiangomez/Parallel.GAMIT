@@ -15,7 +15,7 @@ import pyPPP
 import pyParseAntex
 import pyEarthquakes
 import pyPPPETM_full_cov
-import pyPPPETM_double
+import pyPPPETM
 import pyOptions
 import atexit
 import os
@@ -150,7 +150,7 @@ def main():
 
     for stn in stns:
         try:
-            etm = pyPPPETM_double.ETM(cnn,stn['NetworkCode'],stn['StationCode'], False)
+            etm = pyPPPETM.ETM(cnn,stn['NetworkCode'],stn['StationCode'], False)
             etm.plot('production/' + etm.NetworkCode + '.' + etm.StationCode + '.png')
         except IndexError:
             pass

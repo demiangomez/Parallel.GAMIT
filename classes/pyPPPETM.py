@@ -13,6 +13,68 @@ from numpy import pi
 from scipy.stats import chi2
 import matplotlib.pyplot as plt
 
+class Jumps():
+
+    def __init__(self, cnn, NetworkCode, StationCode):
+
+        # station location
+        stn = cnn.query('SELECT * FROM stations WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\'' % (NetworkCode, StationCode))
+
+        stn = stn.dictresult()[0]
+
+        # get all the antenna and receiver changes from the station info
+        StnInfo = pyStationInfo.StationInfo(cnn, NetworkCode, StationCode)
+
+        # get the earthquakes based on Mike's expression
+        jumps = cnn.query('SELECT * FROM earthquakes')
+        jumps = jumps.dictresult()
+
+        eq = [[float(jump.get('lat')), float(jump.get('lon')), float(jump.get('mag')), float(jump.get('date').year), float(jump.get('date').month), float(jump.get('date').day)] for jump in jumps]
+        eq = numpy.array(list(eq))
+
+        dist = self.distance(float(stn['lon']), float(stn['lat']), eq[:, 1], eq[:, 0])
+
+        m = -0.8717 * (numpy.log10(dist) - 2.25) + 0.4901 * (eq[:, 2] - 6.6928)
+        # build the earthquake jump table
+        # remove event events that happened the same day
+
+        j = list(set(pyDate.Date(year=eq[0], month=eq[1], day=eq[2]).fyear for eq in eq[m > 0, 3:6]))
+
+        self.jump_table = [[jump, 0.5] for jump in j]
+
+        # antenna and receiver changes
+        for i, jump in enumerate(StnInfo.records):
+            if i > 0:
+                date = pyDate.Date(year=jump.get('DateStart').year, month=jump.get('DateStart').month,
+                                   day=jump.get('DateStart').day)
+                self.jump_table.append([date.fyear, 0])
+
+        # sort jump table
+        self.jump_table.sort()
+
+        self.np_jumps = numpy.array(self.jump_table)
+        self.lat = float(jumps[0]['lat'])
+        self.lon = float(jumps[0]['lon'])
+
+    def distance(self, lon1, lat1, lon2, lat2):
+        """
+        Calculate the great circle distance between two points
+        on the earth (specified in decimal degrees)
+        """
+
+        # convert decimal degrees to radians
+        lon1 = lon1*pi/180
+        lat1 = lat1*pi/180
+        lon2 = lon2*pi/180
+        lat2 = lat2*pi/180
+        # haversine formula
+        dlon = lon2 - lon1
+        dlat = lat2 - lat1
+        a = numpy.sin(dlat/2)**2 + numpy.cos(lat1) * numpy.cos(lat2) * numpy.sin(dlon/2)**2
+        c = 2 * numpy.arcsin(numpy.sqrt(a))
+        km = 6371 * c
+        return km
+
 class ETM():
 
     def __init__(self, cnn, NetworkCode, StationCode, plotit=False):
@@ -31,6 +93,7 @@ class ETM():
         self.jump_table = []
         self.NetworkCode = NetworkCode
         self.StationCode = StationCode
+
         # load all the PPP coordinates available for this station
         # exclude ppp solutions in the exclude table and any solution that is more than 100 meters from the auto coord
         ppp = cnn.query('SELECT PPP.* FROM (SELECT p1.*, sqrt((p1."X" - st.auto_x)^2 + (p1."Y" - st.auto_y)^2 + (p1."Z" - st.auto_z)^2) as dist FROM ppp_soln p1 '
@@ -45,38 +108,10 @@ class ETM():
         ppp = ppp.dictresult()
 
         if len(ppp) > 10:
-            # take the first PPP XYZ ccordinate (here we assume that all wrong coordinates are already out)
-            xyz = [ppp[0].get('X'), ppp[0].get('Y'), ppp[0].get('Z')]
 
-            # get all the antenna and receiver changes from the station info
-            StnInfo = pyStationInfo.StationInfo(cnn, NetworkCode, StationCode)
-
-            # get the earthquakes based on Mike's expression
-            jumps = cnn.query('SELECT * FROM earthquakes')
-            jumps = jumps.dictresult()
-
-            # station lat lon
-            self.slat, self.slon, _ = self.ecef2lla(xyz)
-            eq = [[float(jump.get('lat')), float(jump.get('lon')), float(jump.get('mag')), float(jump.get('date').year), float(jump.get('date').month), float(jump.get('date').day)] for jump in jumps]
-            eq = numpy.array(list(eq))
-
-            dist = self.distance(self.slon, self.slat, eq[:,1], eq[:,0])
-            m = -0.8717 * (numpy.log10(dist) - 2.25) + 0.4901 * (eq[:,2] - 6.6928)
-            # build the earthquake jump table
-            # remove event events that happened the same day
-            j = list(set(pyDate.Date(year=eq[0], month=eq[1], day=eq[2]).fyear for eq in eq[m > 0,3:6]))
-            self.jump_table = [[jump, 0.5] for jump in j]
-
-            # antenna and receiver changes
-            for i, jump in enumerate(StnInfo.records):
-                if i > 0:
-                    date = pyDate.Date(year=jump.get('DateStart').year, month=jump.get('DateStart').month, day=jump.get('DateStart').day)
-                    self.jump_table.append([date.fyear, 0])
-
-            # sort jump table
-            self.jump_table.sort()
-
-            np_jumps = numpy.array(self.jump_table)
+            self.jumps = Jumps(cnn, NetworkCode, StationCode)
+            self.slat  = self.jumps.lat
+            self.slon  = self.jumps.lon
 
             # estimate the ETM parameters
             fyr = (pyDate.Date(year=item.get('Year'),doy=item.get('DOY')).fyear for item in ppp)
@@ -84,15 +119,13 @@ class ETM():
             t.sort()
             t = t[:,numpy.newaxis]
 
-            # instead of doing:
-            #ts = numpy.arange(t.min(), t.max(), 1 / 365.)
             # use MJD to prevent problems with leap years
             ts = numpy.arange(pyDate.Date(fyear=t.min()).mjd, pyDate.Date(fyear=t.max()).mjd+1, 1)
             ts = numpy.array([pyDate.Date(mjd=tts).fyear for tts in ts])
             ts = ts[:,numpy.newaxis]
 
-            A, p_jumps, const_h, const_s = self.design_matrix(t, np_jumps)
-            As, _, _, _                  = self.design_matrix(ts, p_jumps)
+            A, p_jumps, ssize = self.design_matrix(t, self.jumps.np_jumps, -1)
+            As, _, ssize      = self.design_matrix(ts, p_jumps, ssize)
 
             XYZ = ([float(item['X']), float(item['Y']), float(item['Z'])] for item in ppp)
             L = numpy.array(list(XYZ))
@@ -107,7 +140,7 @@ class ETM():
             for i in range(3):
                 P = numpy.diag(numpy.ones(A.shape[0]))
                 # L[:,i][:,numpy.newaxis] makes a column array from a 1D vector
-                x, sigma, index, dev, f, P = self.adjust_lsq(A,P,L[:,i][:,numpy.newaxis],const_h,const_s)
+                x, sigma, index, dev, f, P = self.adjust_lsq(A,P,L[:,i][:,numpy.newaxis],numpy.array([]),numpy.array([]))
 
                 self.C.append(x)
                 self.S.append(sigma)
@@ -552,26 +585,7 @@ class ETM():
 
         return numpy.array([lat]), numpy.array([lon]), numpy.array([alt])
 
-    def distance(self, lon1, lat1, lon2, lat2):
-        """
-        Calculate the great circle distance between two points
-        on the earth (specified in decimal degrees)
-        """
-
-        # convert decimal degrees to radians
-        lon1 = lon1*pi/180
-        lat1 = lat1*pi/180
-        lon2 = lon2*pi/180
-        lat2 = lat2*pi/180
-        # haversine formula
-        dlon = lon2 - lon1
-        dlat = lat2 - lat1
-        a = numpy.sin(dlat/2)**2 + numpy.cos(lat1) * numpy.cos(lat2) * numpy.sin(dlon/2)**2
-        c = 2 * numpy.arcsin(numpy.sqrt(a))
-        km = 6371 * c
-        return km
-
-    def design_matrix(self, t, jumps):
+    def design_matrix(self, t, jumps, ssize):
 
         if t.size > 1:
 
@@ -584,7 +598,23 @@ class ETM():
             v = (t - Tr)
 
             # periodic terms
-            s = numpy.array([sin(2 * pi * t[:,0]), sin(4 * pi * t[:,0]), cos(2 * pi * t[:,0]), cos(4 * pi * t[:,0])]).transpose()
+            # only add if there is a year with at least 4 measurements spaced 3 months from each one
+            yrs = numpy.arange(numpy.floor(numpy.min(t[:,0])), numpy.ceil(numpy.max(t[:,0])))
+            add_periodic = False
+            for yr in yrs:
+                if len(t[numpy.logical_and(t[:,0] >= yr, t[:,0] < yr+1),0]) > 90:
+                    # more than 90 days in this year
+                    add_periodic = True
+                    break
+                elif len(t[numpy.logical_and(t[:,0] >= yr, t[:,0] < yr+1),0]) >= 2 and numpy.min(numpy.diff(t[numpy.logical_and(t[:,0] >= yr, t[:,0] < yr+1),0])) > float(90)/float(365):
+                    # only two days in this year, but they are space at least 90 days
+                    add_periodic = True
+                    break
+
+            if add_periodic and ssize != 0:
+                s = numpy.array([sin(2 * pi * t[:,0]), sin(4 * pi * t[:,0]), cos(2 * pi * t[:,0]), cos(4 * pi * t[:,0])]).transpose()
+            else:
+                s = numpy.array([])
 
             if jumps.size > 0:
                 # remove jumps before and after the start of the data if they are just co-seismic of antenna changes (with no data)
@@ -652,7 +682,10 @@ class ETM():
 
                 jumps = jumps[jumps[:,0] != 0,:]
 
-                A = numpy.column_stack((c, v, ht, hl, s))
+                if s.size:
+                    A = numpy.column_stack((c, v, ht, hl, s))
+                else:
+                    A = numpy.column_stack((c, v, ht, hl))
 
                 # build the constrains matrix
                 # for jumps associated with log decays, if the jump has no data right after it happened, add a constrain
@@ -684,15 +717,18 @@ class ETM():
                 #constrains_s = numpy.column_stack((numpy.zeros((ss, 2 + hs + hl.shape[1])), numpy.diag(numpy.ones(ss))))
 
             else:
-                ss = s.shape[1]
+                #ss = s.shape[1]
 
-                constrains_h = numpy.array([])
-                constrains_s = numpy.column_stack((numpy.zeros((ss, 2)), numpy.diag(numpy.ones(ss))))
+                #constrains_h = numpy.array([])
+                #constrains_s = numpy.column_stack((numpy.zeros((ss, 2)), numpy.diag(numpy.ones(ss))))
 
-                A = numpy.column_stack((c, v, s))
+                if s.size:
+                    A = numpy.column_stack((c, v, s))
+                else:
+                    A = numpy.column_stack((c, v))
 
 
 
-            return A, jumps, constrains_h, constrains_s
+            return A, jumps, s.size
 
 

@@ -1,0 +1,16 @@
+antennas
+keys
+networks
+receivers
+stations
+rinex
+rinex_tank_struct
+apr_coords
+locks
+ppp_soln_excl
+rinex_extra
+stationinfo
+gamit_soln
+ppp_soln
+earthquakes
+events

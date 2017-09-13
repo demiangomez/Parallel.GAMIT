@@ -87,3 +87,8 @@ ENV/
 
 # Rope project settings
 .ropeproject
+
+# production folder in classes
+classes/production
+classes/gnss_data.cfg
+.DS_Store
