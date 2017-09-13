@@ -92,3 +92,7 @@ ENV/
 classes/production
 classes/gnss_data.cfg
 .DS_Store
+
+# config files in Parallel.GAMIT folder
+parallel_gamit/gnss_data.cfg
+parallel_gamit/link_tables.sh
