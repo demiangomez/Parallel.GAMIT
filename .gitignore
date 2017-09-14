@@ -91,6 +91,7 @@ ENV/
 # production folder in classes
 classes/production
 classes/gnss_data.cfg
+classes/error*
 .DS_Store
 
 # config files in Parallel.GAMIT folder

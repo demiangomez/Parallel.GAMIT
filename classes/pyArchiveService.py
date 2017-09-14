@@ -33,6 +33,7 @@ import pySp3
 from tqdm import tqdm
 import traceback
 import platform
+import pyJobServer
 
 # class to handle the output of the parallel processing
 class callback_class():
@@ -275,12 +276,15 @@ def process_crinex_file(crinex, filename, data_rejected, data_retry, Config):
             # ppp didn't work, try using sh_rx2apr
             brdc = pyBrdc.GetBrdcOrbits(Config.brdc_path, rinexinfo.date, rinexinfo.rootdir)
 
-            _, auto_coords = rinexinfo.auto_coord(brdc)
+            auto_coords_xyz, auto_coords_lla = rinexinfo.auto_coord(brdc)
 
-            if auto_coords:
-                ppp.lat = auto_coords[0]
-                ppp.lon = auto_coords[1]
-                ppp.h   = auto_coords[2]
+            if auto_coords_lla:
+                ppp.lat = [auto_coords_lla[0]]
+                ppp.lon = [auto_coords_lla[1]]
+                ppp.h   = [auto_coords_lla[2]]
+                ppp.x   = auto_coords_xyz[0]
+                ppp.y   = auto_coords_xyz[1]
+                ppp.z   = auto_coords_xyz[2]
             else:
                 raise pyPPP.pyRunPPPException('Both PPP and sh_rx2apr failed to obtain a coordinate for ' + crinex +
                                               '.\nThe file has been moved into the rejection folder. '
@@ -301,10 +305,14 @@ def process_crinex_file(crinex, filename, data_rejected, data_retry, Config):
                 insert_data(Config, cnn, StationCode, match, rinexinfo, year, doy, retry_folder)
             else:
                 error = \
-                """
-                %s was found to match %s.%s but the name of the file indicates it is actually from station %s.
-                Please verify that %s belongs to %s.%s, rename it and try again. The file was moved to the retry folder.
-                """ % (crinex, match['NetworkCode'], match['StationCode'],StationCode, crinex, match['NetworkCode'], match['StationCode'])
+                """%s matches the coordinate of %s.%s but the filename indicates it is %s.
+Please verify that this file belongs to %s.%s, rename it and try again. The file was moved to the retry folder. Rename script and pSQL sentence follows:
+BASH# mv %s %s
+PSQL# INSERT INTO stations ("NetworkCode", "StationCode", "auto_x", "auto_y", "auto_z", "lat", "lon", "height") VALUES ('???','%s', %12.3f, %12.3f, %12.3f, %10.6f, %10.6f, %8.3f)
+                """ % (crinex, match['NetworkCode'], match['StationCode'], StationCode, match['NetworkCode'],
+                       match['StationCode'], crinex,
+                       crinex.replace(rinexinfo.crinex,rinexinfo.crinex.replace(StationCode, match['StationCode'])),
+                       StationCode, ppp.x, ppp.y, ppp.z, ppp.lat[0], ppp.lon[0], ppp.h[0])
 
                 error_handle(cnn, error, crinex, retry_folder, filename)
 
@@ -318,7 +326,9 @@ def process_crinex_file(crinex, filename, data_rejected, data_retry, Config):
                 # no match, but we have some candidates
                 matches = ', '.join(['%s.%s: %.3f m' % (m['NetworkCode'], m['StationCode'], m['distance']) for m in match])
 
-                error = 'Solution for rinex in repository (%s %s) did not match a station code or a unique station location within 5 km. Possible cantidate(s): %s. This file has been moved to data_in_rejected' % (crinex, rinexinfo.date.yyyyddd(), matches)
+                error = """Solution for rinex in repository (%s %s) did not match a station code or a unique station location within 5 km. Possible cantidate(s): %s. This file has been moved to data_in_rejected. pSQL sentence follows:
+PSQL# INSERT INTO stations ("NetworkCode", "StationCode", "auto_x", "auto_y", "auto_z", "lat", "lon", "height") VALUES ('???','%s', %12.3f, %12.3f, %12.3f, %10.6f, %10.6f, %8.3f)
+                """ % (crinex, rinexinfo.date.yyyyddd(), matches, StationCode, ppp.x, ppp.y, ppp.z, ppp.lat[0], ppp.lon[0], ppp.h[0])
 
                 error_handle(cnn, error, crinex, reject_folder, filename)
 
@@ -360,7 +370,7 @@ def process_crinex_file(crinex, filename, data_rejected, data_retry, Config):
 
     except pyStationInfo.pyStationInfoException as e:
 
-        msg = 'pyStationInfoException: ' + str(e) + '. The file will stay in the repository and processed during the next cycle, but further information will be logged.'
+        msg = 'pyStationInfoException: ' + str(e) + '. The file will stay in the repository and will be processed during the next cycle of pyArchiveService.'
         error_handle(cnn, msg, crinex, retry_folder, filename)
 
         return (None, None)
@@ -425,7 +435,7 @@ def insert_station_w_lock(cnn, StationCode, filename, lat, lon, h, x, y, z, otl)
             NetworkCode = hex(index).replace('0x','').rjust(3, '?')
             index += 1
             if index > 255:
-                # FATAL ERROR! the networkCode exceed 99
+                # FATAL ERROR! the networkCode exceed FF
                 raise Exception(
                     'While looking for a temporary network code, ?ff was reached! Cannot continue executing pyArchiveService. Please free some temporary network codes.')
 
@@ -536,20 +546,16 @@ def main(argv):
     # bind to the repository directory
 
     Config = pyOptions.ReadOptions('gnss_data.cfg')
-    cnn = dbConnection.Cnn('gnss_data.cfg')
 
     if not os.path.isdir(Config.repository):
-        print "the provided argument is not a folder"
+        print "the provided repository path in gnss_data.cfg is not a folder"
         print_help()
         exit()
 
-    if Config.run_parallel:
-        ppservers = ('*',)
-        job_server = pp.Server(ncpus=Utils.get_processor_count(), ppservers=ppservers)
-        time.sleep(3)
-        print "Starting pp with", job_server.get_active_nodes(), "workers"
-    else:
-        job_server = None
+    # initialize the PP job server
+    JobServer = pyJobServer.JobServer(Config)
+
+    cnn = dbConnection.Cnn('gnss_data.cfg')
 
     # set the data_xx directories
     data_in = os.path.join(Config.repository,'data_in')
@@ -567,6 +573,7 @@ def main(argv):
         os.makedirs(data_reject)
 
     # look for data in the data_in_retry and move it to data_in
+    print " >> Moving files from data_in_retry to data_in. This process may take a while..."
     for path, dirs, files in os.walk(data_in_retry):
         for file in files:
             if file.endswith("d.Z") and file[0:2] != '._':
@@ -593,6 +600,7 @@ def main(argv):
 
     remove_empty_folders(data_in_retry)
 
+    # take a break to allow the FS to finish the task
     time.sleep(5)
 
     # delete any locks with a NetworkCode != '?%'
@@ -601,7 +609,6 @@ def main(argv):
     locks = cnn.query('SELECT * FROM locks')
     locks = locks.dictresult()
 
-    submit = 0
     files_path = []
     files_list = []
     tqdm.write("\n >> " +  datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ": Starting repository recursion walk...")
@@ -620,27 +627,29 @@ def main(argv):
     tqdm.write("Found %i files to process..." % (len(files_list)))
 
     pbar = tqdm(total=len(files_path),ncols=80)
+
+    # dependency functions
+    depfuncs = (check_rinex_timespan_int, write_error, error_handle, insert_data, verify_rinex_multiday)
+    # import modules
+    modules = ('pyRinex', 'pyArchiveStruct', 'pyOTL', 'pyPPP', 'pyStationInfo', 'dbConnection', 'Utils', 'shutil', 'os', 'uuid',
+    'datetime', 'pyDate', 'numpy', 'pySp3', 'traceback', 'platform', 'pyBrdc')
+
     callback = []
+
     for file_to_process, file in zip(files_path,files_list):
 
         if Config.run_parallel:
-            callback.append(callback_class(pbar))
-            job_server.submit(process_crinex_file,(file_to_process, file, data_reject, data_in_retry, Config),
-                              depfuncs=(check_rinex_timespan_int,write_error,error_handle,insert_data,verify_rinex_multiday),
-                              modules=('pyRinex','pyArchiveStruct','pyOTL','pyPPP','pyStationInfo','dbConnection','Utils','shutil','os','uuid','datetime','pyDate','numpy','pySp3','traceback','platform','pyBrdc'),
-                              callback=callback[submit].callbackfunc)
 
-            submit += 1
+            arguments = (file_to_process, file, data_reject, data_in_retry, Config)
 
-            if submit >= 300:
-                # when we submit more than 300 jobs, wait until this batch is complete
-                # print " >> Batch of 300 jobs sent to the queue. Waiting until complete..."
-                tqdm.write(' >> waiting for jobs to finish...')
-                job_server.wait()
-                tqdm.write(' >> Done.')
+            JobServer.SubmitJob(process_crinex_file, arguments, depfuncs, modules, callback, callback_class(pbar), 'callbackfunc')
+
+            if JobServer.process_callback:
+                tqdm.write(' >> Done processing 300 jobs.')
                 # handle any output messages during this batch
                 callback = output_handle(cnn, callback)
-                submit = 0
+                JobServer.process_callback = False
+
         else:
             callback.append(callback_class(pbar))
             callback[0].callbackfunc(process_crinex_file(file_to_process, file, data_reject, data_in_retry, Config))
@@ -649,7 +658,7 @@ def main(argv):
     # once we finnish walking the dir, wait and, handle the output messages
     if Config.run_parallel:
         tqdm.write(' >> waiting for jobs to finish...')
-        job_server.wait()
+        JobServer.job_server.wait()
         tqdm.write(' >> Done.')
 
     # process the errors and the new stations

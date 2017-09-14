@@ -105,6 +105,11 @@ class Cnn(pg.DB):
         # do not insert if record exists
         desc = '%s%s' % (module, desc.replace('\'', ''))
         desc = re.sub(r'[^\x00-\x7f]+', '', desc)
+        # remove commands from events
+        # modification introduced by DDG (suggested by RS)
+        desc = re.sub(r'BASH.*', '', desc)
+        desc = re.sub(r'PSQL.*', '', desc)
+
         warn = self.query('SELECT * FROM events WHERE "EventDescription" = \'%s\'' % (desc))
 
         if warn.ntuples() == 0:
