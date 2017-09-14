@@ -279,9 +279,10 @@ def process_crinex_file(crinex, filename, data_rejected, data_retry, Config):
             auto_coords_xyz, auto_coords_lla = rinexinfo.auto_coord(brdc)
 
             if auto_coords_lla:
-                ppp.lat = [auto_coords_lla[0]]
-                ppp.lon = [auto_coords_lla[1]]
-                ppp.h   = [auto_coords_lla[2]]
+                # DDG: this is correct - auto_coord returns a numpy array (calculated in ecef2lla), so ppp.lat = auto_coords_lla is consistent.
+                ppp.lat = auto_coords_lla[0]
+                ppp.lon = auto_coords_lla[1]
+                ppp.h   = auto_coords_lla[2]
                 ppp.x   = auto_coords_xyz[0]
                 ppp.y   = auto_coords_xyz[1]
                 ppp.z   = auto_coords_xyz[2]

@@ -103,8 +103,13 @@ class ReadRinex(RinexRecord):
         add_pgm_runby = True
         replace_pgm_runby = False
         replace_ant_type = False
+        bad_header = False
 
         for line in header:
+
+            if len(line) < 60:
+                if 'TIME OF FIRST OBS' in line or 'TIME OF LAST OBS' in line:
+                    bad_header = True
 
             if 'RINEX VERSION / TYPE' in line:
                 if line[40:41] == 'M':
@@ -135,7 +140,7 @@ class ReadRinex(RinexRecord):
                     # fix it
                     replace_ant_type = True
 
-        if add_time_sys or add_obs_agen or add_marker_name or add_pgm_runby or replace_pgm_runby or replace_ant_type:
+        if add_time_sys or add_obs_agen or add_marker_name or add_pgm_runby or replace_pgm_runby or replace_ant_type or bad_header:
             try:
                 with open(self.rinex_path, 'r') as fileio:
                     rinex = fileio.readlines()
@@ -143,6 +148,16 @@ class ReadRinex(RinexRecord):
                 raise
 
             for i,line in enumerate(rinex):
+                if len(line) < 60:
+                    # if the line is < 60 chars, replace with a bogus time and date (RinSum ignores it anyways)
+                    # but requires it to continue
+                    # notice that the code only arrives here if non-compulsory bad fields are found e.g. TIME OF FIRST OBS
+                    if 'TIME OF FIRST OBS' in line:
+                        rinex[i] = '  2000    12    27    00    00    0.000                     TIME OF FIRST OBS\n'
+
+                    if 'TIME OF LAST OBS' in line:
+                        rinex[i] = '  2000    12    27    23    59   59.000                     TIME OF LAST OBS\n'
+
                 if 'TIME OF FIRST OBS' in line and add_time_sys:
                     rinex[i] = line.replace('            TIME OF FIRST OBS', 'GPS         TIME OF FIRST OBS')
 
@@ -472,7 +487,7 @@ class ReadRinex(RinexRecord):
         # leave errors un-trapped on purpose (will raise an error to the parent)
         out, err = cmd.run_shell()
 
-        if err:
+        if err != '':
             return None, None
         else:
             # check that the Final chi**2 is < 2

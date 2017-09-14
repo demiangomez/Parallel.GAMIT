@@ -15,11 +15,11 @@
   <component name="ExecutionTargetManager" SELECTED_TARGET="default_target" />
   <component name="FileEditorManager">
     <leaf>
-      <file leaf-file-name="pyArchiveService.py" pinned="false" current-in-tab="true">
+      <file leaf-file-name="pyArchiveService.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/pyArchiveService.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="156">
-              <caret line="317" column="0" lean-forward="false" selection-start-line="317" selection-start-column="0" selection-end-line="317" selection-end-column="0" />
+            <state relative-caret-position="96">
+              <caret line="284" column="44" lean-forward="true" selection-start-line="284" selection-start-column="44" selection-end-line="284" selection-end-column="44" />
               <folding>
                 <element signature="e#691#705#0" expanded="true" />
               </folding>
@@ -27,11 +27,11 @@
           </provider>
         </entry>
       </file>
-      <file leaf-file-name="pyRinex.py" pinned="false" current-in-tab="false">
+      <file leaf-file-name="pyRinex.py" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/pyRinex.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="417">
-              <caret line="496" column="112" lean-forward="false" selection-start-line="496" selection-start-column="112" selection-end-line="496" selection-end-column="112" />
+            <state relative-caret-position="21">
+              <caret line="692" column="29" lean-forward="false" selection-start-line="692" selection-start-column="29" selection-end-line="692" selection-end-column="29" />
               <folding />
             </state>
           </provider>
@@ -143,6 +143,7 @@
         <option value="$PROJECT_DIR$/dbConnection.py" />
         <option value="$PROJECT_DIR$/gnss_data.cfg" />
         <option value="$PROJECT_DIR$/pyJobServer.py" />
+        <option value="$PROJECT_DIR$/pyRinex.py" />
         <option value="$PROJECT_DIR$/pyArchiveService.py" />
       </list>
     </option>
@@ -240,7 +241,9 @@
     <option name="myLimit" value="2678400000" />
   </component>
   <component name="XDebuggerManager">
-    <breakpoint-manager />
+    <breakpoint-manager>
+      <option name="time" value="1" />
+    </breakpoint-manager>
     <watches-manager />
   </component>
   <component name="editorHistoryManager">
@@ -318,14 +321,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/pyRinex.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="417">
-          <caret line="496" column="112" lean-forward="false" selection-start-line="496" selection-start-column="112" selection-end-line="496" selection-end-column="112" />
-          <folding />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/pyPPP.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="387">
@@ -380,11 +375,19 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/pyArchiveService.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="156">
-          <caret line="317" column="0" lean-forward="false" selection-start-line="317" selection-start-column="0" selection-end-line="317" selection-end-column="0" />
+        <state relative-caret-position="96">
+          <caret line="284" column="44" lean-forward="true" selection-start-line="284" selection-start-column="44" selection-end-line="284" selection-end-column="44" />
           <folding>
             <element signature="e#691#705#0" expanded="true" />
           </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pyRinex.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="21">
+          <caret line="692" column="29" lean-forward="false" selection-start-line="692" selection-start-column="29" selection-end-line="692" selection-end-column="29" />
+          <folding />
         </state>
       </provider>
     </entry>
