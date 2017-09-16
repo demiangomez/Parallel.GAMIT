@@ -40,7 +40,7 @@ class GetSp3Orbits(pyProducts.OrbitalProduct):
 
         # if we get here and self.sp3_path is still none, then no type of sp3 file was found
         if self.sp3_path is None:
-            raise pySp3Exception('Could not find a valid orbit file (type ' + sp3type +  ') for (wwwwd) ' + date.wwwwd() + ' using any of the provided sp3 types')
+            raise pySp3Exception('Could not find a valid orbit file (types: ' + ', '.join(sp3types) + ') for week ' + str(date.gpsWeek) + ' day ' + str(date.gpsWeekDay) + ' using any of the provided sp3 types')
         else:
             # parse the RF of the orbit file
             try:

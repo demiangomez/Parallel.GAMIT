@@ -155,6 +155,7 @@ class RunPPP(PPPSpatialCheck):
         self.sigmayz   = None
 
         self.sp3altrn  = sp3altrn
+        self.sp3types  = sp3types
         self.otl_coeff = otl_coeff
         self.strict    = strict
         self.apply_met = apply_met
@@ -182,14 +183,14 @@ class RunPPP(PPPSpatialCheck):
                 # could not create production dir! FATAL
                 raise
 
-            self.config_session(self.options, sp3types)
+            self.config_session(self.options, sp3types, sp3altrn)
 
         else:
             raise pyRunPPPException('The file ' + self.rinex.rinex_path + ' could not be found. PPP was not executed.')
 
         return
 
-    def config_session(self, options, sp3types):
+    def config_session(self, options, sp3types, sp3altrn):
 
         # make a local copy of the rinex file
         # decimate the rinex file if the interval is < 15 sec.
@@ -198,11 +199,24 @@ class RunPPP(PPPSpatialCheck):
 
         copyfile(self.rinex.rinex_path, os.path.join(self.rootdir, self.rinex.rinex))
 
-        orbit1 = pySp3.GetSp3Orbits(options['sp3'],self.rinex.date,sp3types,os.path.join(self.rootdir,'orbits'),True)
-        orbit2 = pySp3.GetSp3Orbits(options['sp3'],self.rinex.date+1,sp3types,os.path.join(self.rootdir,'orbits'),True)
-        clock1 = pyClk.GetClkFile(options['sp3'],self.rinex.date,sp3types,os.path.join(self.rootdir,'orbits'),True)
-        clock2 = pyClk.GetClkFile(options['sp3'],self.rinex.date+1,sp3types,os.path.join(self.rootdir,'orbits'),True)
-        eop_file = pyEOP.GetEOP(options['sp3'],self.rinex.date,sp3types,self.rootdir)
+        try:
+            orbit1 = pySp3.GetSp3Orbits(options['sp3'],self.rinex.date,sp3types,os.path.join(self.rootdir,'orbits'),True)
+            orbit2 = pySp3.GetSp3Orbits(options['sp3'],self.rinex.date+1,sp3types,os.path.join(self.rootdir,'orbits'),True)
+            clock1 = pyClk.GetClkFile(options['sp3'],self.rinex.date,sp3types,os.path.join(self.rootdir,'orbits'),True)
+            clock2 = pyClk.GetClkFile(options['sp3'],self.rinex.date+1,sp3types,os.path.join(self.rootdir,'orbits'),True)
+            eop_file = pyEOP.GetEOP(options['sp3'],self.rinex.date,sp3types,self.rootdir)
+        except pySp3.pySp3Exception:
+            if sp3altrn:
+                # maybe orbit file was not found. Switch to alternative orbits
+                orbit1 = pySp3.GetSp3Orbits(options['sp3'], self.rinex.date, sp3altrn, os.path.join(self.rootdir, 'orbits'),True)
+                orbit2 = pySp3.GetSp3Orbits(options['sp3'], self.rinex.date + 1, sp3altrn, os.path.join(self.rootdir, 'orbits'), True)
+                clock1 = pyClk.GetClkFile(options['sp3'], self.rinex.date, sp3altrn, os.path.join(self.rootdir, 'orbits'), True)
+                clock2 = pyClk.GetClkFile(options['sp3'], self.rinex.date + 1, sp3altrn,os.path.join(self.rootdir, 'orbits'), True)
+                eop_file = pyEOP.GetEOP(options['sp3'], self.rinex.date, sp3altrn, self.rootdir)
+            else:
+                raise
+        except:
+            raise
 
         otl_file = open(os.path.join(self.rootdir, self.rinex.StationCode + '.olc'), 'w')
         otl_file.write(self.otl_coeff)
@@ -439,10 +453,10 @@ orbits/%s
                     if sucess:
                         break
                     elif not sucess and i == 0:
-                        self.config_session(self.options, self.sp3altrn)
+                        self.config_session(self.options, self.sp3altrn, None)
                 elif not result and i == 0:
                     # when a timeout happens, tries to rerun PPP using the alternative orbits
-                    self.config_session(self.options, self.sp3altrn)
+                    self.config_session(self.options, self.sp3altrn, None)
                 elif not result and i == 1:
                     # execution with alternative orbits, still result = False
                     raise pyRunPPPException(message + ' - principal and alternative orbits.')

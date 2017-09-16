@@ -213,7 +213,7 @@ def verify_rinex_multiday(cnn, rinexinfo, Config):
         for rnx in rinexinfo.multiday_rnx_list:
             rnxlist.append(rnx.rinex)
             # some other file, move it to the repository
-            retry_folder = os.path.join(Config.repository_data_in_retry, rnx.date.yyyy() + '/' + rnx.date.ddd())
+            retry_folder = os.path.join(Config.repository_data_in_retry, 'multiday_found/' + rnx.date.yyyy() + '/' + rnx.date.ddd())
             rnx.compress_local_copyto(retry_folder)
 
         # if the file corresponding to this session is found, assign its object to rinexinfo
@@ -249,8 +249,8 @@ def process_crinex_file(crinex, filename, data_rejected, data_retry, Config):
         return (error, None)
 
     # we can now make better reject and retry folders
-    reject_folder = os.path.join(data_rejected, Utils.get_norm_year_str(year) + '/' + Utils.get_norm_doy_str(doy))
-    retry_folder = os.path.join(data_retry, Utils.get_norm_year_str(year) + '/' + Utils.get_norm_doy_str(doy))
+    reject_folder = os.path.join(data_rejected, '%reason%/' + Utils.get_norm_year_str(year) + '/' + Utils.get_norm_doy_str(doy))
+    retry_folder = os.path.join(data_retry, '%reason%/' + Utils.get_norm_year_str(year) + '/' + Utils.get_norm_doy_str(doy))
 
     try:
         # main try except block
@@ -273,10 +273,11 @@ def process_crinex_file(crinex, filename, data_rejected, data_retry, Config):
             ppp.exec_ppp()
 
         except pyPPP.pyRunPPPException as e:
+
             # ppp didn't work, try using sh_rx2apr
             brdc = pyBrdc.GetBrdcOrbits(Config.brdc_path, rinexinfo.date, rinexinfo.rootdir)
 
-            auto_coords_xyz, auto_coords_lla = rinexinfo.auto_coord(brdc)
+            auto_coords_xyz, auto_coords_lla, auto_error = rinexinfo.auto_coord(brdc)
 
             if auto_coords_lla:
                 # DDG: this is correct - auto_coord returns a numpy array (calculated in ecef2lla), so ppp.lat = auto_coords_lla is consistent.
@@ -287,12 +288,19 @@ def process_crinex_file(crinex, filename, data_rejected, data_retry, Config):
                 ppp.y   = auto_coords_xyz[1]
                 ppp.z   = auto_coords_xyz[2]
             else:
+                if auto_error is None:
+                    auto_error = 'no report!'
+
                 raise pyPPP.pyRunPPPException('Both PPP and sh_rx2apr failed to obtain a coordinate for ' + crinex +
                                               '.\nThe file has been moved into the rejection folder. '
-                                              'Summary PPP file (if exists) follows:\n' + ppp.summary)
+                                              'Summary PPP file and error (if exists) follows:\n' + ppp.summary +
+                                              '\n\n' + 'ERROR section:\n' + str(e) + '\nauto_coord error follows:\n' + auto_error)
 
         # check for unreasonable heights
         if ppp.h[0] > 9000 or ppp.h[0] < -400:
+
+            reject_folder = reject_folder.replace('%reason%','rinex_issues')
+
             # elevation cannot be higher or lower than the tallest and lowest point on the Earth
             error_handle(cnn, crinex + ' : unreasonable geodetic height (%.3f). RINEX file will not enter the archive.' % (ppp.h[0]), crinex, reject_folder, filename)
             return (None, None)
@@ -305,14 +313,17 @@ def process_crinex_file(crinex, filename, data_rejected, data_retry, Config):
                 # even if the station code is wrong, if result is True we insert (there is only 1 match)
                 insert_data(Config, cnn, StationCode, match, rinexinfo, year, doy, retry_folder)
             else:
+
+                retry_folder = retry_folder.replace('%reason%','coord_conflicts')
+
                 error = \
                 """%s matches the coordinate of %s.%s but the filename indicates it is %s.
 Please verify that this file belongs to %s.%s, rename it and try again. The file was moved to the retry folder. Rename script and pSQL sentence follows:
 BASH# mv %s %s
 PSQL# INSERT INTO stations ("NetworkCode", "StationCode", "auto_x", "auto_y", "auto_z", "lat", "lon", "height") VALUES ('???','%s', %12.3f, %12.3f, %12.3f, %10.6f, %10.6f, %8.3f)
                 """ % (crinex, match['NetworkCode'], match['StationCode'], StationCode, match['NetworkCode'],
-                       match['StationCode'], crinex,
-                       crinex.replace(rinexinfo.crinex,rinexinfo.crinex.replace(StationCode, match['StationCode'])),
+                       match['StationCode'], os.path.join(retry_folder, filename),
+                       os.path.join(retry_folder,filename.replace(StationCode, match['StationCode'])),
                        StationCode, ppp.x, ppp.y, ppp.z, ppp.lat[0], ppp.lon[0], ppp.h[0])
 
                 error_handle(cnn, error, crinex, retry_folder, filename)
@@ -324,14 +335,17 @@ PSQL# INSERT INTO stations ("NetworkCode", "StationCode", "auto_x", "auto_y", "a
             # 2) no entry in the database for this solution -> add a lock and populate the exit args
 
             if len(match) > 0:
+
+                retry_folder = retry_folder.replace('%reason%','coord_conflicts')
+
                 # no match, but we have some candidates
                 matches = ', '.join(['%s.%s: %.3f m' % (m['NetworkCode'], m['StationCode'], m['distance']) for m in match])
 
-                error = """Solution for rinex in repository (%s %s) did not match a station code or a unique station location within 5 km. Possible cantidate(s): %s. This file has been moved to data_in_rejected. pSQL sentence follows:
+                error = """Solution for rinex in repository (%s %s) did not match a station code or a unique station location within 5 km. Possible cantidate(s): %s. This file has been moved to data_in_retry. pSQL sentence follows:
 PSQL# INSERT INTO stations ("NetworkCode", "StationCode", "auto_x", "auto_y", "auto_z", "lat", "lon", "height") VALUES ('???','%s', %12.3f, %12.3f, %12.3f, %10.6f, %10.6f, %8.3f)
                 """ % (crinex, rinexinfo.date.yyyyddd(), matches, StationCode, ppp.x, ppp.y, ppp.z, ppp.lat[0], ppp.lon[0], ppp.h[0])
 
-                error_handle(cnn, error, crinex, reject_folder, filename)
+                error_handle(cnn, error, crinex, retry_folder, filename)
 
                 return (None, None)
 
@@ -357,6 +371,8 @@ PSQL# INSERT INTO stations ("NetworkCode", "StationCode", "auto_x", "auto_y", "a
 
 
     except pyRinex.pyRinexException as e:
+
+        reject_folder = reject_folder.replace('%reason%','rinex_issues')
         # error, move the file to rejected folder
         error_handle(cnn, crinex + ' : (file moved to rejected folder)\n' + str(e), crinex, reject_folder, filename)
 
@@ -365,11 +381,15 @@ PSQL# INSERT INTO stations ("NetworkCode", "StationCode", "auto_x", "auto_y", "a
     except pyPPP.pyRunPPPException as e:
 
         #msg = 'Error in PPP while processing: ' + crinex + ' : \n' + str(e) + '\nThe file has been moved into the rejection folder. Summary PPP file (if exists) follows:\n' + ppp.summary
+        reject_folder = reject_folder.replace('%reason%','no_ppp_solution')
+
         error_handle(cnn, str(e), crinex, reject_folder, filename)
 
         return (None, None)
 
     except pyStationInfo.pyStationInfoException as e:
+
+        retry_folder = retry_folder.replace('%reason%','station_info_exception')
 
         msg = 'pyStationInfoException: ' + str(e) + '. The file will stay in the repository and will be processed during the next cycle of pyArchiveService.'
         error_handle(cnn, msg, crinex, retry_folder, filename)
@@ -378,12 +398,17 @@ PSQL# INSERT INTO stations ("NetworkCode", "StationCode", "auto_x", "auto_y", "a
 
     except pyOTL.pyOTLException as e:
 
+        retry_folder = retry_folder.replace('%reason%','otl_exception')
+
         msg = "Error while calculating OTL for " + crinex + ": " + str(e) + '. The file has been moved into the retry folder.'
         error_handle(cnn, msg, crinex, retry_folder, filename)
 
         return (None, None)
 
     except pySp3.pySp3Exception as e:
+
+        retry_folder = retry_folder.replace('%reason%', 'sp3_exception')
+
         # DDG: changed from rejected to retry because the logic was rejecting files when no orbit file was found
         # it should move the files to the retry folder, not to the rejected
         # another case is when the date is crewed up and there are negative or non-reasonable values for gps week
@@ -394,6 +419,9 @@ PSQL# INSERT INTO stations ("NetworkCode", "StationCode", "auto_x", "auto_y", "a
         return (None, None)
 
     except dbConnection.dbErrInsert as e:
+
+        reject_folder = reject_folder.replace('%reason%', 'duplicate_insert')
+
         # insert duplicate values: two parallel processes tried to insert different filenames (or the same) of the same station
         # to the db: move it to the rejected folder. The user might want to retry later. Log it in events
         # this case should be very rare
@@ -403,6 +431,8 @@ PSQL# INSERT INTO stations ("NetworkCode", "StationCode", "auto_x", "auto_y", "a
         return (None, None)
 
     except:
+
+        retry_folder = retry_folder.replace('%reason%', 'general_exception')
 
         error = traceback.format_exc() + ' processing: ' + crinex + ' in node ' + platform.node() + ' (file moved to retry folder)'
         error_handle(cnn, error, crinex, retry_folder, filename, no_db_log=True)
@@ -612,7 +642,7 @@ def main(argv):
 
     files_path = []
     files_list = []
-    tqdm.write("\n >> " +  datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ": Starting repository recursion walk...")
+    tqdm.write("\n >> " +  datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ": Starting repository recursive walk...")
 
     for path, dirs, files in os.walk(data_in):
         for file in files:

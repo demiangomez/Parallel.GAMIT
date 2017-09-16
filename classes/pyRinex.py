@@ -16,6 +16,7 @@ import uuid
 from shutil import rmtree
 import re
 import numpy
+import struct
 
 def find_between(s, first, last):
     try:
@@ -92,89 +93,145 @@ class RinexRecord():
 
 class ReadRinex(RinexRecord):
 
-    def check_time_sys(self):
+    def read_fields(self, line, data, format_tuple):
+
+        # create the parser object
+        formatstr = re.sub(r'\..', '',' '.join(format_tuple).replace('%', '').replace('f', 's').replace('i', 's').replace('-', ''))
+
+        fs = struct.Struct(formatstr)
+        parse = fs.unpack_from
+
+        if len(data) < fs.size:
+            # line too short, add padding zeros
+            f = '%-' + str(fs.size) + 's'
+            data = f % line
+        elif len(data) > fs.size:
+            # line too long! cut
+            data = line[0:fs.size]
+
+        fields = list(parse(data))
+
+        # convert each element in the list to float if necessary
+        for i, field in enumerate(fields):
+            if 'f' in format_tuple[i]:
+                try:
+                    fields[i] = float(fields[i])
+                except ValueError:
+                    # invalid number in the field!, replace with something harmless
+                    fields[i] = float(2.11)
+            elif 'i' in format_tuple[i]:
+                try:
+                    fields[i] = int(fields[i])
+                except ValueError:
+                    # invalid number in the field!, replace with something harmless
+                    fields[i] = int(1)
+
+        return fields
+
+    def check_header(self):
+
+        # list of required header records and a flag to know if they were found or not in the current header
+        # also, have a tuple of default values in case there is a missing record
+        required_records = {'RINEX VERSION / TYPE': [('%9.2f','%11s','%1s','%19s','%1s','%19s'), False, ('',)],
+                            'PGM / RUN BY / DATE' : [('%-20s','%-20s','%-20s'), False, ('pyRinex: 1.00 000', 'Parallel.PPP', '21FEB17 00:00:00')],
+                            'MARKER NAME'         : [('%-60s',), False, (self.StationCode,)],
+                            'MARKER NUMBER'       : [('%-20s',), False, (self.StationCode,)],
+                            'OBSERVER / AGENCY'   : [('%-20s','%-40s'), False, ('UNKNOWN','UNKNOWN')],
+                            'REC # / TYPE / VERS' : [('%-20s','%-20s','%-20s'), False, ('LP00785','ASHTECH Z-XII3','CC00')],
+                            'ANT # / TYPE'        : [('%-20s','%-20s'), False,('12129', 'ASH700936C_M SNOW')],
+                            'ANTENNA: DELTA H/E/N': [('%14.4f','%14.4f','%14.4f'), False, (float(0), float(0), float(0))],
+                            'APPROX POSITION XYZ' : [('%14.4f','%14.4f','%14.4f'), False, (float(0), float(0), float(6371000))],
+                             #'# / TYPES OF OBSERV' : [('%6i',), False, ('',)],
+                            'TIME OF FIRST OBS'   : [('%6i','%6i','%6i','%6i','%6i','%13.7f','%8s'), False, (int(2000), int(1), int(1),  int(0),  int(0),  float(0), 'GPS')],
+                            'TIME OF LAST OBS'    : [('%6i','%6i','%6i','%6i','%6i','%13.7f','%8s'), True, (int(2000), int(1), int(1), int(23), int(59), float(59), 'GPS')],
+                            'COMMENT'             : [('%60s',), True, ('',)]}
 
         header = self.get_header()
-
-        add_time_sys = False
-        check_time_sys = False
-        add_obs_agen = True
-        add_marker_name = True
-        add_pgm_runby = True
-        replace_pgm_runby = False
-        replace_ant_type = False
-        bad_header = False
+        new_header = []
+        system = ''
 
         for line in header:
 
-            if len(line) < 60:
-                if 'TIME OF FIRST OBS' in line or 'TIME OF LAST OBS' in line:
-                    bad_header = True
+            if any(key in line for key in required_records.keys()):
+                # get the first occurrence only!
+                record = [key for key in required_records.keys() if key in line][0]
 
-            if 'RINEX VERSION / TYPE' in line:
-                if line[40:41] == 'M':
-                    # mixed system, should check for GPS in time of first obs
-                    check_time_sys = True
+                # mark the record as found
+                required_records[record] = [required_records[record][0], True, required_records[record][2]]
 
-            if 'TIME OF FIRST OBS' in line and check_time_sys:
-                if line[48:51].strip() == '':
-                    add_time_sys = True
+                # get the data section by spliting the line using the record text
+                data = line.split(record)[0]
 
-            if 'OBSERVER / AGENCY' in line:
-                add_obs_agen = False
+                fields = self.read_fields(line, data, required_records[record][0])
 
-            if 'PGM / RUN BY / DATE' in line:
-                # an error detected in some rinex files:
-                # 04JAN100 18:03:33 GTMPGM / RUN BY / DATE
-                # the M of GTM moves one char the PGM / RUN BY / DATE
-                if line[60:].strip() != 'PGM / RUN BY / DATE':
-                    replace_pgm_runby = True
-                add_pgm_runby = False
+                if record == 'RINEX VERSION / TYPE':
+                    # read the information about the RINEX type
+                    # save the system to use during TIME OF FIRST OBS
+                    system = fields[4].strip()
 
-            if 'MARKER NAME' in line:
-                add_marker_name = False
+                    if not system in (' ', 'G', 'R', 'S', 'E', 'M'):
+                        # assume GPS
+                        system = 'G'
+                        fields[4] = 'G'
 
-            if 'ANT # / TYPE' in line:
-                if line[60:71].strip() != 'ANT # / TYPE':
-                    # bad header in some RINEX files
-                    # fix it
-                    replace_ant_type = True
+                else:
+                    # reformat the header line
+                    if record == 'TIME OF FIRST OBS' or record == 'TIME OF LAST OBS':
+                        if system == 'M' and not fields[6].strip():
+                            fields[6] = 'GPS'
 
-        if add_time_sys or add_obs_agen or add_marker_name or add_pgm_runby or replace_pgm_runby or replace_ant_type or bad_header:
+                #if record == '# / TYPES OF OBSERV':
+                # re-read this time with the correct number of fields
+                #    required_records[record][0] += ('%6s',)*fields[0]
+                #    fields = self.read_fields(line, data, required_records[record][0])
+
+                # regenerate the fields
+                data = ''.join (required_records[record][0]) % tuple(fields)
+                data = '%-60s' % data + record
+
+                # save to new header
+                new_header += [data + '\n']
+            else:
+                # not a critical field, just put it back in
+                if not 'END OF HEADER' in line:
+                    # leave END OF HEADER until the end to add possible missing records
+                    new_header += [line]
+
+        if system == '':
+            # if we are out of the loop and we could not determine the system, raise error
+            raise pyRinexException('Unfixable RINEX header: could not find RINEX VERSION / TYPE')
+
+        # now check that all the records where included! there's missing ones, then force them
+        if not all([item[1] for item in required_records.values()]):
+            # get the keys of the missing records
+            missing_records = {item[0]:item[1] for item in required_records.items() if item[1][1] == False}
+
+            for record in missing_records:
+                if '# / TYPES OF OBSERV' in record:
+                    raise pyRinexException('Unfixable RINEX header: could not find # / TYPES OF OBSERV')
+
+                data = ''.join(missing_records[record][0]) % missing_records[record][2]
+                data = '%-60s' % data + record
+                new_header = new_header + [data + '\n']
+                data = '%-60s' % 'pyRinex: WARN! dummy record inserted to fix file!' + 'COMMENT'
+                new_header = new_header + [data + '\n']
+
+        new_header += [''.ljust(60,' ') + 'END OF HEADER\n']
+
+        if new_header != header:
+
             try:
                 with open(self.rinex_path, 'r') as fileio:
                     rinex = fileio.readlines()
             except:
                 raise
 
-            for i,line in enumerate(rinex):
-                if len(line) < 60:
-                    # if the line is < 60 chars, replace with a bogus time and date (RinSum ignores it anyways)
-                    # but requires it to continue
-                    # notice that the code only arrives here if non-compulsory bad fields are found e.g. TIME OF FIRST OBS
-                    if 'TIME OF FIRST OBS' in line:
-                        rinex[i] = '  2000    12    27    00    00    0.000                     TIME OF FIRST OBS\n'
-
-                    if 'TIME OF LAST OBS' in line:
-                        rinex[i] = '  2000    12    27    23    59   59.000                     TIME OF LAST OBS\n'
-
-                if 'TIME OF FIRST OBS' in line and add_time_sys:
-                    rinex[i] = line.replace('            TIME OF FIRST OBS', 'GPS         TIME OF FIRST OBS')
-
-                if 'PGM / RUN BY / DATE' in line and replace_pgm_runby:
-                    rinex[i] = line.replace(line, 'pyRinex: 1.00 000   Parallel.Archive    21FEB17 00:00:00    PGM / RUN BY / DATE\n')
-
-                if 'ANT # / TYPE' in line and replace_ant_type:
-                    rinex[i] = rinex[i].replace(rinex[i][60:],'ANT # / TYPE\n')
-
-                if 'END OF HEADER' in line:
-                    if add_obs_agen:
-                        rinex.insert(i,'IGN                 IGN                                     OBSERVER / AGENCY\n')
-                    if add_marker_name:
-                        rinex.insert(i,self.StationCode + '                                                        MARKER NAME\n')
-                    if add_pgm_runby:
-                        rinex.insert(i,'pyRinex: 1.00 000   Parallel.Archive    21FEB17 00:00:00    PGM / RUN BY / DATE\n')
-                    break
+            # find the end of header
+            index = [i for i, item in enumerate(rinex) if 'END OF HEADER' in item][0]
+            # delete header
+            del rinex[0:index+1]
+            # add new header
+            rinex = new_header + rinex
 
             try:
                 f = open(self.rinex_path, 'w')
@@ -255,7 +312,7 @@ class ReadRinex(RinexRecord):
 
 
         # check basic infor in the rinex header to avoid problems with RinSum
-        self.check_time_sys()
+        self.check_header()
 
         # run RinSum to get file information
         cmd = pyRunWithRetry.RunCommand('RinSum --notable ' + self.rinex_path, 21)
@@ -427,12 +484,18 @@ class ReadRinex(RinexRecord):
                 raise pyRinexException('RinSum no data found. Are time limits wrong for file ' + self.rinex + ' details:' + line)
 
         # remove non-utf8 chars
-        self.recNo = re.sub(r'[^\x00-\x7f]+','', self.recNo).strip()
-        self.recType = re.sub(r'[^\x00-\x7f]+', '', self.recType).strip()
-        self.recVers = re.sub(r'[^\x00-\x7f]+', '', self.recVers).strip()
-        self.antNo = re.sub(r'[^\x00-\x7f]+', '', self.antNo).strip()
-        self.antType = re.sub(r'[^\x00-\x7f]+', '', self.antType).strip()
-        self.antDome = re.sub(r'[^\x00-\x7f]+', '', self.antDome).strip()
+        if self.recNo:
+            self.recNo = re.sub(r'[^\x00-\x7f]+','', self.recNo).strip()
+        if self.recType:
+            self.recType = re.sub(r'[^\x00-\x7f]+', '', self.recType).strip()
+        if self.recVers:
+            self.recVers = re.sub(r'[^\x00-\x7f]+', '', self.recVers).strip()
+        if self.antNo:
+            self.antNo = re.sub(r'[^\x00-\x7f]+', '', self.antNo).strip()
+        if self.antType:
+            self.antType = re.sub(r'[^\x00-\x7f]+', '', self.antType).strip()
+        if self.antDome:
+            self.antDome = re.sub(r'[^\x00-\x7f]+', '', self.antDome).strip()
 
 
     def get_header(self):
@@ -488,19 +551,19 @@ class ReadRinex(RinexRecord):
         out, err = cmd.run_shell()
 
         if err != '':
-            return None, None
+            return None, None, err + '\n' + out
         else:
-            # check that the Final chi**2 is < 2
+            # check that the Final chi**2 is < 3
             for line in out.split('\n'):
                 if '* Final sqrt(chi**2/n)' in line:
                     chi = line.split()[-1]
 
                     if chi == 'NaN':
                         return None, None
-                    elif float(chi) < 2:
+                    elif float(chi) < 3:
                         # open the APR file and read the coordinates
-                        if os.path.isfile(os.path.join(self.rootdir, self.StationCode + '.apr')):
-                            with open(os.path.join(self.rootdir, self.StationCode + '.apr')) as apr:
+                        if os.path.isfile(os.path.join(self.rootdir, self.rinex[0:4] + '.apr')):
+                            with open(os.path.join(self.rootdir, self.rinex[0:4] + '.apr')) as apr:
                                 line = apr.readline().split()
 
                                 self.x = float(line[1])
@@ -509,9 +572,9 @@ class ReadRinex(RinexRecord):
 
                                 self.lat, self.lon, self.h = self.ecef2lla([self.x, self.y, self.z])
 
-                            return (float(line[1]), float(line[2]), float(line[3])), (self.lat, self.lon, self.h)
+                            return (float(line[1]), float(line[2]), float(line[3])), (self.lat, self.lon, self.h), None
 
-            return None, None
+            return None, None, out + '\nLIMIT FOR CHI**2 is 3!'
 
     def auto_coord_teqc(self,brdc):
         # calculate an autonomous coordinate using broadcast orbits
@@ -825,3 +888,95 @@ def main():
 if __name__ == '__main__':
 
     main()
+
+    # BACK UP OF OLD check_time_sys
+    # print ''.join(new_header)
+    #
+    # add_time_sys = False
+    # check_time_sys = False
+    # add_obs_agen = True
+    # add_marker_name = True
+    # add_pgm_runby = True
+    # replace_pgm_runby = False
+    # replace_ant_type = False
+    # bad_header = False
+    #
+    # for line in header:
+    #
+    #     if len(line) < 60:
+    #         if 'TIME OF FIRST OBS' in line or 'TIME OF LAST OBS' in line:
+    #             bad_header = True
+    #
+    #     if 'RINEX VERSION / TYPE' in line:
+    #         if line[40:41] == 'M':
+    #             # mixed system, should check for GPS in time of first obs
+    #             check_time_sys = True
+    #
+    #     if 'TIME OF FIRST OBS' in line and check_time_sys:
+    #         if line[48:51].strip() == '':
+    #             add_time_sys = True
+    #
+    #     if 'OBSERVER / AGENCY' in line:
+    #         add_obs_agen = False
+    #
+    #     if 'PGM / RUN BY / DATE' in line:
+    #         # an error detected in some rinex files:
+    #         # 04JAN100 18:03:33 GTMPGM / RUN BY / DATE
+    #         # the M of GTM moves one char the PGM / RUN BY / DATE
+    #         if line[60:].strip() != 'PGM / RUN BY / DATE':
+    #             replace_pgm_runby = True
+    #         add_pgm_runby = False
+    #
+    #     if 'MARKER NAME' in line:
+    #         add_marker_name = False
+    #
+    #     if 'ANT # / TYPE' in line:
+    #         if line[60:71].strip() != 'ANT # / TYPE':
+    #             # bad header in some RINEX files
+    #             # fix it
+    #             replace_ant_type = True
+    #
+    # if add_time_sys or add_obs_agen or add_marker_name or add_pgm_runby or replace_pgm_runby or replace_ant_type or bad_header:
+    #     try:
+    #         with open(self.rinex_path, 'r') as fileio:
+    #             rinex = fileio.readlines()
+    #     except:
+    #         raise
+    #
+    #     for i, line in enumerate(rinex):
+    #         if len(line) < 60:
+    #             # if the line is < 60 chars, replace with a bogus time and date (RinSum ignores it anyways)
+    #             # but requires it to continue
+    #             # notice that the code only arrives here if non-compulsory bad fields are found e.g. TIME OF FIRST OBS
+    #             if 'TIME OF FIRST OBS' in line:
+    #                 rinex[i] = '  2000    12    27    00    00    0.000                     TIME OF FIRST OBS\n'
+    #
+    #             if 'TIME OF LAST OBS' in line:
+    #                 rinex[i] = '  2000    12    27    23    59   59.000                     TIME OF LAST OBS\n'
+    #
+    #         if 'TIME OF FIRST OBS' in line and add_time_sys:
+    #             rinex[i] = line.replace('            TIME OF FIRST OBS', 'GPS         TIME OF FIRST OBS')
+    #
+    #         if 'PGM / RUN BY / DATE' in line and replace_pgm_runby:
+    #             rinex[i] = line.replace(line,
+    #                                     'pyRinex: 1.00 000   Parallel.Archive    21FEB17 00:00:00    PGM / RUN BY / DATE\n')
+    #
+    #         if 'ANT # / TYPE' in line and replace_ant_type:
+    #             rinex[i] = rinex[i].replace(rinex[i][60:], 'ANT # / TYPE\n')
+    #
+    #         if 'END OF HEADER' in line:
+    #             if add_obs_agen:
+    #                 rinex.insert(i, 'IGN                 IGN                                     OBSERVER / AGENCY\n')
+    #             if add_marker_name:
+    #                 rinex.insert(i,
+    #                              self.StationCode + '                                                        MARKER NAME\n')
+    #             if add_pgm_runby:
+    #                 rinex.insert(i, 'pyRinex: 1.00 000   Parallel.Archive    21FEB17 00:00:00    PGM / RUN BY / DATE\n')
+    #             break
+    #
+    #     try:
+    #         f = open(self.rinex_path, 'w')
+    #         f.writelines(rinex)
+    #         f.close()
+    #     except:
+    #         raise
