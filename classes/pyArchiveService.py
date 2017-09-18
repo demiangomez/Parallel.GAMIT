@@ -213,7 +213,7 @@ def verify_rinex_multiday(cnn, rinexinfo, Config):
         for rnx in rinexinfo.multiday_rnx_list:
             rnxlist.append(rnx.rinex)
             # some other file, move it to the repository
-            retry_folder = os.path.join(Config.repository_data_in_retry, 'multiday_found/' + rnx.date.yyyy() + '/' + rnx.date.ddd())
+            retry_folder = os.path.join(Config.repository_data_in_retry, 'multidays_found/' + rnx.date.yyyy() + '/' + rnx.date.ddd())
             rnx.compress_local_copyto(retry_folder)
 
         # if the file corresponding to this session is found, assign its object to rinexinfo
@@ -317,11 +317,11 @@ def process_crinex_file(crinex, filename, data_rejected, data_retry, Config):
                 retry_folder = retry_folder.replace('%reason%','coord_conflicts')
 
                 error = \
-                """%s matches the coordinate of %s.%s but the filename indicates it is %s.
+                """%s matches the coordinate of %s.%s (distance = %8.3f m) but the filename indicates it is %s.
 Please verify that this file belongs to %s.%s, rename it and try again. The file was moved to the retry folder. Rename script and pSQL sentence follows:
 BASH# mv %s %s
 PSQL# INSERT INTO stations ("NetworkCode", "StationCode", "auto_x", "auto_y", "auto_z", "lat", "lon", "height") VALUES ('???','%s', %12.3f, %12.3f, %12.3f, %10.6f, %10.6f, %8.3f)
-                """ % (crinex, match['NetworkCode'], match['StationCode'], StationCode, match['NetworkCode'],
+                """ % (crinex, match['NetworkCode'], match['StationCode'], float(match['distance']), StationCode, match['NetworkCode'],
                        match['StationCode'], os.path.join(retry_folder, filename),
                        os.path.join(retry_folder,filename.replace(StationCode, match['StationCode'])),
                        StationCode, ppp.x, ppp.y, ppp.z, ppp.lat[0], ppp.lon[0], ppp.h[0])
@@ -401,6 +401,16 @@ PSQL# INSERT INTO stations ("NetworkCode", "StationCode", "auto_x", "auto_y", "a
         retry_folder = retry_folder.replace('%reason%','otl_exception')
 
         msg = "Error while calculating OTL for " + crinex + ": " + str(e) + '. The file has been moved into the retry folder.'
+        error_handle(cnn, msg, crinex, retry_folder, filename)
+
+        return (None, None)
+
+    except pyBrdc.pyBrdcException as e:
+
+        # if PPP fails and ArchiveService tries to run sh_rnx2apr and it doesn't find the orbits, send to retry
+        retry_folder = retry_folder.replace('%reason%', 'sp3_exception')
+
+        msg = "Error while obtaining broadcast orbit for " + crinex + ": " + str(e) + '\nMost likely PPP failed and sh_rnx2apr was run to try to the a coordinate (but failed due to missing broadcast orbit file). The file has been moved into the retry folder.'
         error_handle(cnn, msg, crinex, retry_folder, filename)
 
         return (None, None)

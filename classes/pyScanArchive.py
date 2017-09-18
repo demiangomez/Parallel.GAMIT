@@ -23,8 +23,7 @@ import pyArchiveStruct
 import dbConnection
 import pyDate
 import pyRinex
-import pp
-from shutil import rmtree
+import traceback
 import datetime
 import copy
 import os
@@ -40,6 +39,7 @@ import pyOptions
 import time
 import Utils
 import platform
+import pyJobServer
 
 class callback_class():
     def __init__(self, pbar):
@@ -64,7 +64,7 @@ def verify_rinex_date_multiday(cnn, date, rinexinfo, Config):
         for rnx in rinexinfo.multiday_rnx_list:
             rnxlist.append(rnx.rinex)
             # some other file, move it to the repository
-            retry_folder = os.path.join(Config.repository_data_in_retry, rnx.date.yyyy() + '/' + rnx.date.ddd())
+            retry_folder = os.path.join(Config.repository_data_in_retry, 'multidays_found/' + rnx.date.yyyy() + '/' + rnx.date.ddd())
             rnx.compress_local_copyto(retry_folder)
 
         # if the file corresponding to this session is found, assign its object to rinexinfo
@@ -80,7 +80,7 @@ def verify_rinex_date_multiday(cnn, date, rinexinfo, Config):
     if not date == rinexinfo.date:
         # move the file out of the archive because it's in the wrong spot (wrong folder, wrong name, etc)
         # let pyArchiveService fix the issue
-        retry_folder = os.path.join(Config.repository_data_in_retry, date.yyyy() + '/' + date.ddd())
+        retry_folder = os.path.join(Config.repository_data_in_retry, 'wrong_date_found/' +  date.yyyy() + '/' + date.ddd())
         # move the crinex out of the archive
         rinexinfo.move_origin_file(retry_folder)
 
@@ -120,13 +120,17 @@ def check_rinex_timespan_int(rinex, stn):
 
 def try_insert(NetworkCode, StationCode, year, doy, rinex, Config):
 
-    import traceback
+    try:
+        # try to open a connection to the database
+        cnn = dbConnection.Cnn("gnss_data.cfg")
+    except Exception:
+        return traceback.format_exc() + ' processing rinex: ' + NetworkCode + ' ' + StationCode + ' using node ' + platform.node()
+    except:
+        raise
 
     try:
         # get the rinex file name
         filename = rinex.split('/')[-1].replace('d.Z', 'o')
-
-        cnn = dbConnection.Cnn("gnss_data.cfg")
 
         # build the archive level sql string
         rs = cnn.query(
@@ -136,9 +140,9 @@ def try_insert(NetworkCode, StationCode, year, doy, rinex, Config):
         if rs.ntuples() == 0:
             # no record found, new rinex file for this day
             # examine the rinex
-            rinexinfo = pyRinex.ReadRinex(NetworkCode,StationCode,rinex)
+            rinexinfo = pyRinex.ReadRinex(NetworkCode, StationCode, rinex)
 
-            date = pyDate.Date(year=year,doy=doy)
+            date = pyDate.Date(year=year, doy=doy)
 
             # verify that the rinex is from this date and that is not a multiday file
             if verify_rinex_date_multiday(cnn, date, rinexinfo, Config):
@@ -181,7 +185,8 @@ def try_insert(NetworkCode, StationCode, year, doy, rinex, Config):
                         # if the file has the same time span as the primary rinex in the db and the same interval,
                         # do not add it to the database
                         if check_rinex_timespan_int(rinexinfo, rnx):
-                            # insert to rinex_extra. Will be processed later (not in parallel)
+                            # insert to rinex_extra. Will be processed later (not in parallel) to decide which file
+                            # should go into rinex and which one should stay in rinex_extra
                             cnn.insert('rinex_extra', rinexinfo.record)
                         else:
                             # do not remove for the moment
@@ -195,17 +200,25 @@ def try_insert(NetworkCode, StationCode, year, doy, rinex, Config):
         cnn.insert_warning('During ' + rinex + ' :' + str(e))
         return
 
-    except:
+    except Exception:
 
         return traceback.format_exc() + ' processing rinex: ' + NetworkCode + ' ' + StationCode + ' using node ' + platform.node()
 
+    except:
+
+        raise
+
 def process_extra_rinex(NetworkCode, StationCode, year, doy, rinex):
 
-    import traceback
+    try:
+        # try to open a connection to the database
+        cnn = dbConnection.Cnn("gnss_data.cfg")
+    except Exception:
+        return traceback.format_exc() + ' processing rinex: ' + NetworkCode + ' ' + StationCode + ' using node ' + platform.node()
+    except:
+        raise
 
     try:
-        cnn = dbConnection.Cnn("gnss_data.cfg")
-
         # load the current_rinex
         rs = cnn.query(
             'SELECT * FROM rinex WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "ObservationYear" = \'%s\' AND "ObservationDOY" = \'%s\''
@@ -245,8 +258,13 @@ def process_extra_rinex(NetworkCode, StationCode, year, doy, rinex):
         cnn.insert_warning('Processing EXTRA RINEX during ' + rinex + ' :' + str(e))
         return
 
-    except:
+    except Exception:
+
         traceback.format_exc() + ' (process_extra_rinex) processing: ' + NetworkCode + ' ' + StationCode + ' using node ' + platform.node()
+
+    except:
+
+        raise
 
 def ecef2lla(ecefArr):
     # convert ECEF coordinates to LLA
@@ -281,9 +299,8 @@ def ecef2lla(ecefArr):
 
     return numpy.array([lat]), numpy.array([lon]), numpy.array([alt])
 
-def obtain_otl(NetworkCode, StationCode, archive_path, brdc_path, options, sp3types, sp3altrn):
 
-    import traceback
+def obtain_otl(NetworkCode, StationCode, archive_path, brdc_path, options, sp3types, sp3altrn):
 
     errors = ''
     outmsg = []
@@ -296,7 +313,7 @@ def obtain_otl(NetworkCode, StationCode, archive_path, brdc_path, options, sp3ty
 
         pyArchive = pyArchiveStruct.RinexStruct(cnn)
 
-        # assumes that the files in the db are correct. We take 5 records from the time span (evenly spaced)
+        # assumes that the files in the db are correct. We take 10 records from the time span (evenly spaced)
         count = cnn.query('SELECT count(*) as cc FROM rinex as r WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\'' % (NetworkCode, StationCode))
 
         count = count.dictresult()
@@ -343,8 +360,10 @@ def obtain_otl(NetworkCode, StationCode, archive_path, brdc_path, options, sp3ty
                 # problem loading this file, try another one
                 errors = errors + str(e) + '\n'
                 continue
-            except:
+            except Exception:
                 return traceback.format_exc() + ' processing: ' + NetworkCode + ' ' + StationCode + ' using node ' + platform.node()
+            except:
+                raise
 
         # average the x y z values
         if len(x) > 0:
@@ -377,24 +396,30 @@ def obtain_otl(NetworkCode, StationCode, archive_path, brdc_path, options, sp3ty
             outmsg = 'Could not obtain a coordinate/otl coefficients for ' + NetworkCode + ' ' + StationCode + ' after 20 tries. Maybe there where few valid RINEX files or could not find an ephemeris file. Debug info and errors follow:\n' + errors
 
     except pyOTL.pyOTLException as e:
+
         return "Error while calculating OTL for " + NetworkCode + " " + StationCode + ": " + str(e) + '\n Debug info and errors follow: \n' + errors
-    except:
+
+    except Exception:
         # print 'problem!' + traceback.format_exc()
         outmsg = traceback.format_exc() + ' processing otl: ' + NetworkCode + ' ' + StationCode + ' using node ' + platform.node() + '\n Debug info and errors follow: \n' + errors
+
+    except:
+
+        raise
 
     return outmsg
 
 
 def insert_stninfo(NetworkCode, StationCode, stninfofile):
 
-    import traceback
-
     errors = []
 
     try:
         cnn = dbConnection.Cnn("gnss_data.cfg")
-    except:
+    except Exception:
         return traceback.format_exc() + ' insert_stninfo: ' + NetworkCode + ' ' + StationCode + ' using node ' + platform.node()
+    except:
+        raise
 
     try:
         stnInfo = pyStationInfo.StationInfo(cnn,NetworkCode,StationCode, allow_empty=True)
@@ -402,6 +427,8 @@ def insert_stninfo(NetworkCode, StationCode, stninfofile):
 
     except pyStationInfo.pyStationInfoException as e:
         return traceback.format_exc() + ' insert_stninfo: ' + NetworkCode + ' ' + StationCode + ' using node ' + platform.node()
+    except:
+        raise
 
     # insert all the receivers and antennas in the db
     for stn in stninfo:
@@ -427,9 +454,11 @@ def insert_stninfo(NetworkCode, StationCode, stninfofile):
                 stnInfo.InsertStationInfo(stn)
             except pyStationInfo.pyStationInfoException as e:
                 errors.append(str(e))
-            except:
+            except Exception:
                 errors.append(traceback.format_exc() + ' insert_stninfo: ' + NetworkCode + ' ' + StationCode + ' using node ' + platform.node())
                 continue
+            except:
+                raise
 
     if not errors:
         return
@@ -440,7 +469,7 @@ def insert_stninfo(NetworkCode, StationCode, stninfofile):
 def remove_from_archive(cnn, record, Rinex, Config):
 
     # do not make very complex things here, just move it out from the archive
-    retry_folder = os.path.join(Config.repository_data_in_retry, Rinex.date.yyyy() + '/' + Rinex.date.ddd())
+    retry_folder = os.path.join(Config.repository_data_in_retry, 'inconsistent_ppp_solution/' + Rinex.date.yyyy() + '/' + Rinex.date.ddd())
     Rinex.move_origin_file(retry_folder)
 
     cnn.begin_transac()
@@ -469,29 +498,46 @@ def remove_from_archive(cnn, record, Rinex, Config):
             % (rnx[0]['NetworkCode'], rnx[0]['StationCode'], rnx[0]['ObservationYear'],
                rnx[0]['ObservationDOY'], rnx[0]['Filename']))
 
-        # on the next execution of pyScanArchive --ppp this file will be analyzed
+        cnn.commit_transac()
+
+        # compile information to run ppp on the "new" rinex file
+        pyArchive = pyArchiveStruct.RinexStruct(cnn)
+
+        rinex_path = pyArchive.build_rinex_path(rnx[0]['NetworkCode'], rnx[0]['StationCode'],
+                                                rnx[0]['ObservationYear'], rnx[0]['ObservationDOY'])
+        # add the base dir
+        rinex_path = os.path.join(Config.archive_path, rinex_path)
+
+        # ppp this rinex newly added rinex file (from the rinex_extra table)
+        execute_ppp(rnx[0], rinex_path, Config)
     else:
         cnn.insert_warning(
             'After running PPP it was found that the rinex file %s does not belong to %s.%s. This file will be removed from the rinex table (no rinex_extra found to be promoted to rinex) and moved to the repository/data_in_retry to add it to the corresponding station.' % (
                 Rinex.origin_file, record['NetworkCode'], record['StationCode']))
 
-    cnn.commit_transac()
+        cnn.commit_transac()
+
     return
 
 
 def execute_ppp(record, rinex_path, Config):
-
-    import traceback
 
     NetworkCode = record['NetworkCode']
     StationCode = record['StationCode']
     year = record['ObservationYear']
     doy = record['ObservationDOY']
 
+    try:
+        # try to open a connection to the database
+        cnn = dbConnection.Cnn("gnss_data.cfg")
+    except Exception:
+        return traceback.format_exc() + ' processing rinex: ' + NetworkCode + ' ' + StationCode + ' using node ' + platform.node()
+    except:
+        raise
+
     # create a temp folder in production to put the orbit in
     # we need to check the RF of the orbit to see if we have this solution in the DB
     try:
-        cnn = dbConnection.Cnn('gnss_data.cfg')
 
         rootdir = 'production/' + NetworkCode + '/' + StationCode
 
@@ -543,6 +589,8 @@ def execute_ppp(record, rinex_path, Config):
 
                     # insert record in DB
                     cnn.insert('ppp_soln', ppp.record)
+                    # DDG: Eric's request to generate a date of PPP solution
+                    cnn.insert_info('A new PPP solution was created for %s.%s %i %i (frame %s)' % (NetworkCode, StationCode, int(year), int(doy), orbit.RF))
                 else:
                     remove_from_archive(cnn, record, Rinex, Config)
             else:
@@ -557,13 +605,19 @@ def execute_ppp(record, rinex_path, Config):
     except pyStationInfo.pyStationInfoException as e:
         cnn.insert_warning('pyStationInfoException while running pyPPPArchive: ' + str(e))
 
-    except:
+    except Exception:
         return traceback.format_exc() + ' processing: ' + NetworkCode + ' ' + StationCode + ' ' + str(year) + ' ' + str(doy) + ' using node ' + platform.node()
 
+    except:
+        raise
 
 def output_handle(callback):
 
     messages = [outmsg.errors for outmsg in callback]
+
+    if len([out_msg for out_msg in messages if out_msg]) > 0:
+        tqdm.write(
+            ' >> There were unhandled errors during this batch. Please check errors_pyScanArchive.log for details')
 
     # function to print any error that are encountered during parallel execution
     for msg in messages:
@@ -576,7 +630,7 @@ def output_handle(callback):
 
     return []
 
-def scan_rinex(cnn, job_server, pyArchive, archive_path, Config):
+def scan_rinex(cnn, JobServer, pyArchive, archive_path, Config):
 
     print " >> Searching for master.list..."
 
@@ -593,8 +647,11 @@ def scan_rinex(cnn, job_server, pyArchive, archive_path, Config):
     print "   >> Beginning with the recursive search for CRINEX files..."
     if master_list:
         print "   -- NOTE: since master.list is present the number of files reported in the progress bar might be larger than the processed list."
-    submit = 0
+
     pbar = tqdm(total=len(archivefiles), ncols=80)
+
+    depfuncs = (verify_rinex_date_multiday, check_rinex_timespan_int),
+    modules = ('dbConnection', 'pyDate', 'pyRinex', 'shutil', 'platform', 'datetime', 'traceback')
 
     callback = []
     for rinex, rinexpath in zip(archivefiles, path2rinex):
@@ -619,25 +676,21 @@ def scan_rinex(cnn, job_server, pyArchive, archive_path, Config):
             # it was a valid archive entry, insert in database
             # print "About to execute "+rinexpath
             if Config.run_parallel:
-                callback.append(callback_class(pbar))
 
                 if not master_list or NetworkCode + '::' + StationCode in master_list:
-                    job_server.submit(try_insert, args=(NetworkCode, StationCode, year, doy, rinexpath, Config),
-                                      depfuncs=(verify_rinex_date_multiday, check_rinex_timespan_int),
-                                      modules=('dbConnection', 'pyDate', 'pyRinex', 'shutil', 'platform', 'datetime'),
-                                      callback=callback[submit].callbackfunc)
-                    submit += 1
+
+                    arguments = (NetworkCode, StationCode, year, doy, rinexpath, Config)
+
+                    JobServer.SubmitJob(try_insert, arguments, depfuncs, modules, callback, callback_class(pbar), 'callbackfunc')
 
                 else:
                     pbar.update(1)
 
-                if submit > 300:
-                    # when we submit more than 300 jobs, wait until this batch is complete
-                    # print " >> Batch of 300 jobs sent to the queue. Waiting until complete..."
-                    job_server.wait()
+                if JobServer.process_callback:
+                    tqdm.write(' >> Done processing 300 jobs.')
                     # handle any output messages during this batch
                     callback = output_handle(callback)
-                    submit = 0
+
             else:
                 callback.append(callback_class(pbar))
 
@@ -648,7 +701,9 @@ def scan_rinex(cnn, job_server, pyArchive, archive_path, Config):
                     pbar.update(1)
 
     if Config.run_parallel:
-        job_server.wait()
+        tqdm.write(' >> waiting for jobs to finish...')
+        JobServer.job_server.wait()
+        tqdm.write(' >> Done.')
 
     # handle any output messages during this batch
     output_handle(callback)
@@ -656,7 +711,7 @@ def scan_rinex(cnn, job_server, pyArchive, archive_path, Config):
 
     if Config.run_parallel:
         print "\n"
-        job_server.print_stats()
+        JobServer.job_server.print_stats()
 
     return
 
@@ -683,7 +738,7 @@ def process_conflicts(cnn, pyArchive, archive_path):
     return
 
 
-def process_otl(cnn, job_server, run_parallel, archive_path, brdc_path, options, sp3types, sp3altrn):
+def process_otl(cnn, JobServer, run_parallel, archive_path, brdc_path, options, sp3types, sp3altrn):
 
     print ""
     print " >> Calculating coordinates and OTL for new stations..."
@@ -699,35 +754,34 @@ def process_otl(cnn, job_server, run_parallel, archive_path, brdc_path, options,
 
     pbar = tqdm(total=len(records), ncols=80)
     callback = []
-    submit = 0
+
+    depfuncs = (ecef2lla,)
+    modules = ('dbConnection', 'pyRinex', 'pyArchiveStruct', 'pyOTL', 'pyPPP', 'numpy', 'platform', 'pySp3', 'traceback')
+
     for record in records:
         NetworkCode = record['NetworkCode']
         StationCode = record['StationCode']
 
         if run_parallel:
-            callback.append(callback_class(pbar))
 
-            job_server.submit(obtain_otl, args=(NetworkCode, StationCode, archive_path, brdc_path, options, sp3types, sp3altrn),
-                              depfuncs=(ecef2lla,),
-                              modules=('dbConnection', 'pyRinex', 'pyArchiveStruct', 'pyOTL', 'pyPPP', 'numpy', 'platform', 'pySp3'),
-                              callback=callback[-1].callbackfunc)
+            arguments = (NetworkCode, StationCode, archive_path, brdc_path, options, sp3types, sp3altrn)
 
-            submit += 1
+            JobServer.SubmitJob(obtain_otl, arguments, depfuncs, modules, callback, callback_class(pbar), 'callbackfunc')
 
-            if submit > 300:
-                # when we submit more than 300 jobs, wait until this batch is complete
-                pbar.write(' -- waiting for 300 jobs to finish...')
-                job_server.wait()
+            if JobServer.process_callback:
+                tqdm.write(' >> Done processing 300 jobs.')
                 # handle any output messages during this batch
                 callback = output_handle(callback)
-                submit = 0
+
         else:
             callback.append(callback_class(pbar))
             callback[0].callbackfunc(obtain_otl(NetworkCode, StationCode, archive_path, brdc_path, options, sp3types, sp3altrn))
             callback = output_handle(callback)
 
     if run_parallel:
-        job_server.wait()
+        tqdm.write(' >> waiting for jobs to finish...')
+        JobServer.job_server.wait()
+        tqdm.write(' >> Done.')
 
     # handle any output messages during this batch
     output_handle(callback)
@@ -735,12 +789,12 @@ def process_otl(cnn, job_server, run_parallel, archive_path, brdc_path, options,
 
     if run_parallel:
         print '\n'
-        job_server.print_stats()
+        JobServer.job_server.print_stats()
 
     return
 
 
-def scan_station_info(job_server, run_parallel, pyArchive, archive_path):
+def scan_station_info(JobServer, run_parallel, pyArchive, archive_path):
 
     print " >> Searching for station info files in the archive..."
 
@@ -750,6 +804,9 @@ def scan_station_info(job_server, run_parallel, pyArchive, archive_path):
 
     pbar = tqdm(total=len(stninfo), ncols=80)
     callback = []
+
+    modules = ('dbConnection', 'pyStationInfo', 'sys', 'datetime', 'pyDate', 'platform', 'traceback')
+
     for stninfofile, stninfopath in zip(stninfo,path2stninfo):
 
         valid, NetworkCode, StationCode, _, _, _, _ = pyArchive.parse_archive_keys(stninfofile, key_filter=('network','station'))
@@ -757,17 +814,19 @@ def scan_station_info(job_server, run_parallel, pyArchive, archive_path):
         if valid:
             # we were able to get the network and station code, add it to the database
             if run_parallel:
-                callback.append(callback_class(pbar))
-                job_server.submit(insert_stninfo, args=(NetworkCode,StationCode,stninfopath),
-                                  modules=('dbConnection', 'pyStationInfo', 'sys', 'datetime', 'pyDate', 'platform'),
-                                  callback=callback[-1].callbackfunc)
+                arguments = (NetworkCode, StationCode, stninfopath)
+
+                JobServer.SubmitJob(insert_stninfo, arguments, tuple(), modules, callback, callback_class(pbar), 'callbackfunc')
+
             else:
                 callback.append(callback_class(pbar))
                 callback[0].callbackfunc(insert_stninfo(NetworkCode,StationCode,stninfopath))
                 callback = output_handle(callback)
 
     if run_parallel:
-        job_server.wait()
+        tqdm.write(' >> waiting for jobs to finish...')
+        JobServer.job_server.wait()
+        tqdm.write(' >> Done.')
 
     # handle any output messages during this batch
     output_handle(callback)
@@ -775,12 +834,11 @@ def scan_station_info(job_server, run_parallel, pyArchive, archive_path):
 
     if run_parallel:
         print '\n'
-        job_server.print_stats()
+        JobServer.job_server.print_stats()
 
     return
 
 def scan_station_info_manual(cnn, pyArchive, stn_info_path, stn_info_stn, stn_info_net, stdin=None):
-
 
     print " >> Manual scan of station info files in " + stn_info_path
 
@@ -854,18 +912,9 @@ def scan_station_info_manual(cnn, pyArchive, stn_info_path, stn_info_stn, stn_in
 
     return
 
-def process_ppp(cnn, pyArchive, archive_path, job_server, run_parallel, Config):
+def process_ppp(cnn, pyArchive, archive_path, JobServer, run_parallel, Config):
 
-    print " >> Searching for master.list..."
-
-    if os.path.isfile('master.list'):
-        # try to load the file
-        master_list = [line.strip() for line in open("master.list", 'r')]
-        print " -- master.list found!"
-    else:
-        master_list = []
-
-    print " >> Running PPP to the RINEX files in the archive..."
+    print " >> Running PPP on the RINEX files in the archive..."
 
     # for each rinex in the db, run PPP and get a coordinate
     rs_rnx = cnn.query('SELECT rinex.* FROM rinex '
@@ -880,8 +929,12 @@ def process_ppp(cnn, pyArchive, archive_path, job_server, run_parallel, Config):
     tblrinex = rs_rnx.dictresult()
 
     pbar = tqdm(total=len(tblrinex), ncols=80)
+
+    modules = ('dbConnection', 'pyRinex', 'pyPPP', 'pyStationInfo', 'pyDate', 'pySp3', 'os', 'platform', 'pyArchiveStruct', 'traceback')
+    depfuncs = (remove_from_archive,)
+
     callback = []
-    submit = 0
+
     for record in tblrinex:
 
         rinex_path = pyArchive.build_rinex_path(record['NetworkCode'], record['StationCode'],
@@ -893,18 +946,14 @@ def process_ppp(cnn, pyArchive, archive_path, job_server, run_parallel, Config):
         if run_parallel:
 
             callback.append(callback_class(pbar))
-            job_server.submit(execute_ppp, args=(record, rinex_path, Config),
-                              depfuncs=(remove_from_archive,),
-                              modules=('dbConnection', 'pyRinex', 'pyPPP', 'pyStationInfo', 'pyDate', 'pySp3', 'os', 'platform'),
-                              callback=callback[submit].callbackfunc)
-            submit += 1
 
-            if submit > 300:
-                # when we submit more than 300 jobs, wait until this batch is complete
-                job_server.wait()
+            arguments = (record, rinex_path, Config)
+
+            JobServer.SubmitJob(execute_ppp, arguments, depfuncs, modules, callback, callback_class(pbar), 'callbackfunc')
+
+            if JobServer.process_callback:
                 # handle any output messages during this batch
                 callback = output_handle(callback)
-                submit = 0
 
         else:
             callback.append(callback_class(pbar))
@@ -912,7 +961,9 @@ def process_ppp(cnn, pyArchive, archive_path, job_server, run_parallel, Config):
             callback = output_handle(callback)
 
     if run_parallel:
-        job_server.wait()
+        tqdm.write(' >> waiting for jobs to finish...')
+        JobServer.job_server.wait()
+        tqdm.write(' >> Done.')
 
     # handle any output messages during this batch
     output_handle(callback)
@@ -920,7 +971,7 @@ def process_ppp(cnn, pyArchive, archive_path, job_server, run_parallel, Config):
 
     if run_parallel:
         print '\n'
-        job_server.print_stats()
+        JobServer.job_server.print_stats()
 
 def print_help():
     print "  usage: "
@@ -1003,31 +1054,13 @@ def main(argv):
 
     pyArchive = pyArchiveStruct.RinexStruct(cnn)
 
-    #################################
-    # configure the parallel python if run in parallel = true
-
-    if Config.run_parallel:
-        if Config.options['node_list'] is None:
-            # no explicit list, find all
-            ppservers = ('*',)
-        else:
-            # use the provided explicit list of nodes
-            ppservers = tuple(Config.options['node_list'].split(','))
-
-        if Config.options['cpus'] is None:
-            job_server = pp.Server(ncpus=Utils.get_processor_count(), ppservers=ppservers)
-        else:
-            job_server = pp.Server(ncpus=int(Config.options['cpus']), ppservers=ppservers)
-
-        time.sleep(1)
-        print "Starting pp with", job_server.get_active_nodes(), "workers"
-    else:
-        job_server = None
+    # initialize the PP job server
+    JobServer = pyJobServer.JobServer(Config) # type: pyJobServer.JobServer
 
     #########################################
 
     if run_rinex:
-        scan_rinex(cnn, job_server, pyArchive, Config.archive_path, Config)
+        scan_rinex(cnn, JobServer, pyArchive, Config.archive_path, Config)
 
     if run_conflicts:
         process_conflicts(cnn, pyArchive, Config.archive_path)
@@ -1035,20 +1068,20 @@ def main(argv):
     #########################################
 
     if run_otl:
-        process_otl(cnn, job_server, Config.run_parallel, Config.archive_path, Config.brdc_path, Config.options, Config.sp3types, Config.sp3altrn)
+        process_otl(cnn, JobServer, Config.run_parallel, Config.archive_path, Config.brdc_path, Config.options, Config.sp3types, Config.sp3altrn)
 
     #########################################
 
     if run_stninfo:
         if stn_info_path is None:
-            scan_station_info(job_server, Config.run_parallel, pyArchive, Config.archive_path)
+            scan_station_info(JobServer, Config.run_parallel, pyArchive, Config.archive_path)
         else:
             scan_station_info_manual(cnn, pyArchive, stn_info_path, stn_info_stn, stn_info_net, stn_info_stdin)
 
     #########################################
 
     if run_ppp:
-        process_ppp(cnn, pyArchive, Config.archive_path, job_server, Config.run_parallel, Config)
+        process_ppp(cnn, pyArchive, Config.archive_path, JobServer, Config.run_parallel, Config)
 
     #########################################
 

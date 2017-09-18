@@ -79,7 +79,7 @@ class PPPSpatialCheck():
 
                 if min_stn['StationCode'] == StationCode:
                     # the minimum distance if to a station with same name, we are good:
-                    # is the name match the closest station to this solution? yes
+                    # does the name match the closest station to this solution? yes
                     return True, min_stn, []
                 else:
                     stn_match = [stni for stni in stn if stni['StationCode'] == StationCode]

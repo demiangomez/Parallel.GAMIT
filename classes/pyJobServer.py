@@ -113,6 +113,21 @@ def test_node():
     if not os.path.isfile(Config.options['ppp_exe']):
         return ' -- %s: Could not find ppp_exe in %s' % (platform.node(), Config.options['ppp_exe'])
 
+    if not os.path.isfile(os.path.join(Config.options['ppp_path'],'gpsppp.stc')):
+        return ' -- %s: Could not find gpsppp.stc in %s' % (platform.node(), Config.options['ppp_path'])
+
+    if not os.path.isfile(os.path.join(Config.options['ppp_path'],'gpsppp.svb_gps_yrly')):
+        return ' -- %s: Could not find gpsppp.svb_gps_yrly in %s' % (platform.node(), Config.options['ppp_path'])
+
+    if not os.path.isfile(os.path.join(Config.options['ppp_path'],'gpsppp.flt')):
+        return ' -- %s: Could not find gpsppp.flt in %s' % (platform.node(), Config.options['ppp_path'])
+
+    if not os.path.isfile(os.path.join(Config.options['ppp_path'],'gpsppp.stc')):
+        return ' -- %s: Could not find gpsppp.stc in %s' % (platform.node(), Config.options['ppp_path'])
+
+    if not os.path.isfile(os.path.join(Config.options['ppp_path'],'gpsppp.met')):
+        return ' -- %s: Could not find gpsppp.met in %s' % (platform.node(), Config.options['ppp_path'])
+
     if not os.path.isfile(Config.options['atx']):
         return ' -- %s: Could not find atx in %s' % (platform.node(), Config.options['atx'])
 
