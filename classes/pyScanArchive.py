@@ -118,11 +118,12 @@ def check_rinex_timespan_int(rinex, stn):
         return True
 
 
-def try_insert(NetworkCode, StationCode, year, doy, rinex, Config):
+def try_insert(NetworkCode, StationCode, year, doy, rinex):
 
     try:
         # try to open a connection to the database
         cnn = dbConnection.Cnn("gnss_data.cfg")
+        Config = pyOptions.ReadOptions("gnss_data.cfg")
     except Exception:
         return traceback.format_exc() + ' processing rinex: ' + NetworkCode + ' ' + StationCode + ' using node ' + platform.node()
     except:
@@ -300,7 +301,7 @@ def ecef2lla(ecefArr):
     return numpy.array([lat]), numpy.array([lon]), numpy.array([alt])
 
 
-def obtain_otl(NetworkCode, StationCode, archive_path, brdc_path, options, sp3types, sp3altrn):
+def obtain_otl(NetworkCode, StationCode, archive_path, brdc_path, sp3types, sp3altrn):
 
     errors = ''
     outmsg = []
@@ -310,6 +311,7 @@ def obtain_otl(NetworkCode, StationCode, archive_path, brdc_path, options, sp3ty
 
     try:
         cnn = dbConnection.Cnn("gnss_data.cfg")
+        Config = pyOptions.ReadOptions("gnss_data.cfg")
 
         pyArchive = pyArchiveStruct.RinexStruct(cnn)
 
@@ -347,7 +349,7 @@ def obtain_otl(NetworkCode, StationCode, archive_path, brdc_path, options, sp3ty
                                           os.path.join(archive_path, file))
 
                 # run ppp without otl and met and in non-strict mode
-                ppp = pyPPP.RunPPP(Rinex, '', options, sp3types, sp3altrn, Rinex.antOffset, False, False)
+                ppp = pyPPP.RunPPP(Rinex, '', Config.options, sp3types, sp3altrn, Rinex.antOffset, False, False)
 
                 ppp.exec_ppp()
 
@@ -386,7 +388,7 @@ def obtain_otl(NetworkCode, StationCode, archive_path, brdc_path, options, sp3ty
             # calculate the otl parameters if the auto_coord returned a valid position
             errors = errors + 'Mean -> ' + NetworkCode + '.' + StationCode + ': ' + str(x) + ' ' + str(y) + ' ' + str(z) + '\n'
 
-            otl = pyOTL.OceanLoading(StationCode, options['grdtab'], options['otlgrid'])
+            otl = pyOTL.OceanLoading(StationCode, Config.options['grdtab'], Config.options['otlgrid'])
             coeff = otl.calculate_otl_coeff(x=x, y=y, z=z)
 
             # update record in the database
@@ -520,7 +522,7 @@ def remove_from_archive(cnn, record, Rinex, Config):
     return
 
 
-def execute_ppp(record, rinex_path, Config):
+def execute_ppp(record, rinex_path):
 
     NetworkCode = record['NetworkCode']
     StationCode = record['StationCode']
@@ -530,6 +532,8 @@ def execute_ppp(record, rinex_path, Config):
     try:
         # try to open a connection to the database
         cnn = dbConnection.Cnn("gnss_data.cfg")
+
+        Config = pyOptions.ReadOptions("gnss_data.cfg")
     except Exception:
         return traceback.format_exc() + ' processing rinex: ' + NetworkCode + ' ' + StationCode + ' using node ' + platform.node()
     except:
@@ -651,7 +655,7 @@ def scan_rinex(cnn, JobServer, pyArchive, archive_path, Config):
     pbar = tqdm(total=len(archivefiles), ncols=80)
 
     depfuncs = (verify_rinex_date_multiday, check_rinex_timespan_int),
-    modules = ('dbConnection', 'pyDate', 'pyRinex', 'shutil', 'platform', 'datetime', 'traceback')
+    modules = ('dbConnection', 'pyDate', 'pyRinex', 'shutil', 'platform', 'datetime', 'traceback', 'pyOptions')
 
     callback = []
     for rinex, rinexpath in zip(archivefiles, path2rinex):
@@ -679,7 +683,7 @@ def scan_rinex(cnn, JobServer, pyArchive, archive_path, Config):
 
                 if not master_list or NetworkCode + '::' + StationCode in master_list:
 
-                    arguments = (NetworkCode, StationCode, year, doy, rinexpath, Config)
+                    arguments = (NetworkCode, StationCode, year, doy, rinexpath)
 
                     JobServer.SubmitJob(try_insert, arguments, depfuncs, modules, callback, callback_class(pbar), 'callbackfunc')
 
@@ -695,7 +699,7 @@ def scan_rinex(cnn, JobServer, pyArchive, archive_path, Config):
                 callback.append(callback_class(pbar))
 
                 if not master_list or NetworkCode + '::' + StationCode in master_list:
-                    callback[0].callbackfunc(try_insert(NetworkCode, StationCode, year, doy, rinexpath, Config))
+                    callback[0].callbackfunc(try_insert(NetworkCode, StationCode, year, doy, rinexpath))
                     callback = output_handle(callback)
                 else:
                     pbar.update(1)
@@ -738,7 +742,7 @@ def process_conflicts(cnn, pyArchive, archive_path):
     return
 
 
-def process_otl(cnn, JobServer, run_parallel, archive_path, brdc_path, options, sp3types, sp3altrn):
+def process_otl(cnn, JobServer, run_parallel, archive_path, brdc_path, sp3types, sp3altrn):
 
     print ""
     print " >> Calculating coordinates and OTL for new stations..."
@@ -756,7 +760,7 @@ def process_otl(cnn, JobServer, run_parallel, archive_path, brdc_path, options, 
     callback = []
 
     depfuncs = (ecef2lla,)
-    modules = ('dbConnection', 'pyRinex', 'pyArchiveStruct', 'pyOTL', 'pyPPP', 'numpy', 'platform', 'pySp3', 'traceback')
+    modules = ('dbConnection', 'pyRinex', 'pyArchiveStruct', 'pyOTL', 'pyPPP', 'numpy', 'platform', 'pySp3', 'traceback', 'pyOptions')
 
     for record in records:
         NetworkCode = record['NetworkCode']
@@ -764,7 +768,7 @@ def process_otl(cnn, JobServer, run_parallel, archive_path, brdc_path, options, 
 
         if run_parallel:
 
-            arguments = (NetworkCode, StationCode, archive_path, brdc_path, options, sp3types, sp3altrn)
+            arguments = (NetworkCode, StationCode, archive_path, brdc_path, sp3types, sp3altrn)
 
             JobServer.SubmitJob(obtain_otl, arguments, depfuncs, modules, callback, callback_class(pbar), 'callbackfunc')
 
@@ -775,7 +779,7 @@ def process_otl(cnn, JobServer, run_parallel, archive_path, brdc_path, options, 
 
         else:
             callback.append(callback_class(pbar))
-            callback[0].callbackfunc(obtain_otl(NetworkCode, StationCode, archive_path, brdc_path, options, sp3types, sp3altrn))
+            callback[0].callbackfunc(obtain_otl(NetworkCode, StationCode, archive_path, brdc_path, sp3types, sp3altrn))
             callback = output_handle(callback)
 
     if run_parallel:
@@ -912,7 +916,7 @@ def scan_station_info_manual(cnn, pyArchive, stn_info_path, stn_info_stn, stn_in
 
     return
 
-def process_ppp(cnn, pyArchive, archive_path, JobServer, run_parallel, Config):
+def process_ppp(cnn, pyArchive, archive_path, JobServer, run_parallel):
 
     print " >> Running PPP on the RINEX files in the archive..."
 
@@ -930,7 +934,7 @@ def process_ppp(cnn, pyArchive, archive_path, JobServer, run_parallel, Config):
 
     pbar = tqdm(total=len(tblrinex), ncols=80)
 
-    modules = ('dbConnection', 'pyRinex', 'pyPPP', 'pyStationInfo', 'pyDate', 'pySp3', 'os', 'platform', 'pyArchiveStruct', 'traceback')
+    modules = ('dbConnection', 'pyRinex', 'pyPPP', 'pyStationInfo', 'pyDate', 'pySp3', 'os', 'platform', 'pyArchiveStruct', 'traceback', 'pyOptions')
     depfuncs = (remove_from_archive,)
 
     callback = []
@@ -947,7 +951,7 @@ def process_ppp(cnn, pyArchive, archive_path, JobServer, run_parallel, Config):
 
             callback.append(callback_class(pbar))
 
-            arguments = (record, rinex_path, Config)
+            arguments = (record, rinex_path)
 
             JobServer.SubmitJob(execute_ppp, arguments, depfuncs, modules, callback, callback_class(pbar), 'callbackfunc')
 
@@ -957,7 +961,7 @@ def process_ppp(cnn, pyArchive, archive_path, JobServer, run_parallel, Config):
 
         else:
             callback.append(callback_class(pbar))
-            callback[0].callbackfunc(execute_ppp(record, rinex_path, Config))
+            callback[0].callbackfunc(execute_ppp(record, rinex_path))
             callback = output_handle(callback)
 
     if run_parallel:
@@ -1068,7 +1072,7 @@ def main(argv):
     #########################################
 
     if run_otl:
-        process_otl(cnn, JobServer, Config.run_parallel, Config.archive_path, Config.brdc_path, Config.options, Config.sp3types, Config.sp3altrn)
+        process_otl(cnn, JobServer, Config.run_parallel, Config.archive_path, Config.brdc_path, Config.sp3types, Config.sp3altrn)
 
     #########################################
 
@@ -1081,7 +1085,7 @@ def main(argv):
     #########################################
 
     if run_ppp:
-        process_ppp(cnn, pyArchive, Config.archive_path, JobServer, Config.run_parallel, Config)
+        process_ppp(cnn, pyArchive, Config.archive_path, JobServer, Config.run_parallel)
 
     #########################################
 

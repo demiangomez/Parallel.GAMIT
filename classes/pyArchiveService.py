@@ -226,13 +226,14 @@ def verify_rinex_multiday(cnn, rinexinfo, Config):
 
     return True
 
-def process_crinex_file(crinex, filename, data_rejected, data_retry, Config):
+def process_crinex_file(crinex, filename, data_rejected, data_retry):
 
     # create a uuid temporary folder in case we cannot read the year and doy from the file (and gets rejected)
     reject_folder = os.path.join(data_rejected, str(uuid.uuid4()))
 
     try:
         cnn = dbConnection.Cnn("gnss_data.cfg")
+        Config = pyOptions.ReadOptions("gnss_data.cfg")
     except:
         return (traceback.format_exc() + ' open de database when processing file ' + crinex, None)
 
@@ -673,7 +674,7 @@ def main(argv):
     depfuncs = (check_rinex_timespan_int, write_error, error_handle, insert_data, verify_rinex_multiday)
     # import modules
     modules = ('pyRinex', 'pyArchiveStruct', 'pyOTL', 'pyPPP', 'pyStationInfo', 'dbConnection', 'Utils', 'shutil', 'os', 'uuid',
-    'datetime', 'pyDate', 'numpy', 'pySp3', 'traceback', 'platform', 'pyBrdc')
+    'datetime', 'pyDate', 'numpy', 'pySp3', 'traceback', 'platform', 'pyBrdc', 'pyOptions')
 
     callback = []
 
@@ -681,7 +682,7 @@ def main(argv):
 
         if Config.run_parallel:
 
-            arguments = (file_to_process, file, data_reject, data_in_retry, Config)
+            arguments = (file_to_process, file, data_reject, data_in_retry)
 
             JobServer.SubmitJob(process_crinex_file, arguments, depfuncs, modules, callback, callback_class(pbar), 'callbackfunc')
 
@@ -693,7 +694,7 @@ def main(argv):
 
         else:
             callback.append(callback_class(pbar))
-            callback[0].callbackfunc(process_crinex_file(file_to_process, file, data_reject, data_in_retry, Config))
+            callback[0].callbackfunc(process_crinex_file(file_to_process, file, data_reject, data_in_retry))
             callback = output_handle(cnn, callback)
 
     # once we finnish walking the dir, wait and, handle the output messages
