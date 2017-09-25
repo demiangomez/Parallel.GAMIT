@@ -155,6 +155,8 @@ def main():
         except IndexError:
             pass
 
+    return
+
     etm.get_xyz_s(2010, 7)
 
     date = pyDate.Date(year=2016, doy=190)

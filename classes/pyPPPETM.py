@@ -53,8 +53,8 @@ class Jumps():
         self.jump_table.sort()
 
         self.np_jumps = numpy.array(self.jump_table)
-        self.lat = float(jumps[0]['lat'])
-        self.lon = float(jumps[0]['lon'])
+        self.lat = float(stn['lat'])
+        self.lon = float(stn['lon'])
 
     def distance(self, lon1, lat1, lon2, lat2):
         """
