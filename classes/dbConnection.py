@@ -110,10 +110,10 @@ class Cnn(pg.DB):
         desc = re.sub(r'BASH.*', '', desc)
         desc = re.sub(r'PSQL.*', '', desc)
 
-        warn = self.query('SELECT * FROM events WHERE "EventDescription" = \'%s\'' % (desc))
+        #warn = self.query('SELECT * FROM events WHERE "EventDescription" = \'%s\'' % (desc))
 
-        if warn.ntuples() == 0:
-            self.insert('events', EventType=type, EventDescription=desc)
+        #if warn.ntuples() == 0:
+        self.insert('events', EventType=type, EventDescription=desc)
 
         return
 

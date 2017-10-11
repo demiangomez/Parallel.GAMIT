@@ -236,10 +236,15 @@ class StationInfo(StationInfoRecord):
             self.records = stninfo.dictresult()
             return True
 
-    def return_stninfo(self):
+    def return_stninfo(self, record=None):
         stninfo = []
         # from the records struct, return a station info file
-        for record in self.records:
+        if not record is None:
+            records = [record]
+        else:
+            records = self.records
+
+        for record in records:
 
             strDateStart,strDateEnd = self.datetime2stninfodate(record['DateStart'],record['DateEnd'])
 
@@ -251,6 +256,14 @@ class StationInfo(StationInfoRecord):
                            str(record['RadomeCode']).ljust(7)      +        str(record['AntennaSerial']).ljust(20))
 
         return '\n'.join(stninfo)
+
+    def return_stninfo_short(self, record=None):
+
+        stninfo_lines = self.return_stninfo(record=record).split('\n')
+
+        stninfo_lines = [' ' + self.NetworkCode.upper() + '.' + line[1:110] + ' [...] ' + line[160:] for line in stninfo_lines]
+
+        return '\n'.join(stninfo_lines)
 
     def overlaps(self, qrecord):
         # check if the incoming record is between any existing record
@@ -280,6 +293,61 @@ class StationInfo(StationInfoRecord):
                     overlaps.append(record)
 
         return overlaps
+
+    def DeleteStationInfo(self, record):
+
+        self.cnn.insert_info('The station information record for ' + self.NetworkCode + '.' + self.StationCode + ': ' +
+                record['DateStart'].strftime('%Y-%m-%d %H:%M:%S') + ' has been deleted:\n' +
+                self.return_stninfo(record))
+
+        self.cnn.delete('stationinfo', record)
+        self.load_stationinfo_records()
+
+    def UpdateStationInfo(self, record, new_record):
+
+        # load the record
+        if isinstance(record, str):
+            # parse the text record
+            record = self.parse_station_record(record)
+
+        if isinstance(new_record, str):
+            # parse the text record
+            new_record = self.parse_station_record(new_record)
+
+        # avoid problems with trying to insert records from other stations. Force this NetworkCode
+        record['NetworkCode'] = self.NetworkCode
+        new_record['NetworkCode'] = self.NetworkCode
+
+        if self.NetworkCode and self.StationCode:
+
+            # check the possible overlaps. This record will probably overlap with itself, so check that the overlap has
+            # the same DateStart as the original record (that way we know it's an overlap with itself)
+            overlaps = self.overlaps(new_record)
+
+            for overlap in overlaps:
+                if overlap['DateStart'] != record['DateStart']:
+                    # it's overlapping with another record, raise error
+                    ds1, de1 = self.datetime2stninfodate(record['DateStart'], record['DateEnd'])
+                    ds2, de2 = self.datetime2stninfodate(overlap['DateStart'], overlap['DateEnd'])
+
+                    raise pyStationInfoException('Record %s -> %s overlaps with existing station.info records: %s -> %s' % (ds1.strip(), de1.strip(), ds2.strip(), de2.strip()))
+
+            # insert event (before updating to save all information)
+            self.cnn.insert_info(
+                'The station information record for ' + self.NetworkCode + '.' + self.StationCode + ': ' +
+                record['DateStart'].strftime('%Y-%m-%d %H:%M:%S') + ' has been updated:\n' +
+                self.return_stninfo(new_record) +
+                '\n+++++++++++++++++++++++++++++++++++++\n' +
+                'Previous record:\n' +
+                self.return_stninfo(record))
+
+            if new_record['DateStart'] != record['DateStart']:
+                self.cnn.query('UPDATE stationinfo SET "DateStart" = \'%s\' WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "DateStart" = \'%s\'' %
+                               (new_record['DateStart'].strftime('%Y-%m-%d %H:%M:%S'), self.NetworkCode, self.StationCode, record['DateStart'].strftime('%Y-%m-%d %H:%M:%S')))
+
+            self.cnn.update('stationinfo', new_record, NetworkCode=self.NetworkCode, StationCode=self.StationCode, DateStart=new_record['DateStart'])
+
+            self.load_stationinfo_records()
 
     def InsertStationInfo(self, record):
 
@@ -314,11 +382,18 @@ class StationInfo(StationInfoRecord):
                                 'UPDATE stationinfo SET "DateStart" = \'%s\' WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "DateStart" = \'%s\'' % (
                                 record['DateStart'].strftime('%Y-%m-%d %H:%M:%S'), self.NetworkCode, self.StationCode,
                                 self.records[0]['DateStart'].strftime('%Y-%m-%d %H:%M:%S')))
+
+                            # insert event
+                            self.cnn.insert_info('The start date of the station information record for ' + self.NetworkCode + '.' + self.StationCode + ': ' + self.records[0]['DateStart'].strftime('%Y-%m-%d %H:%M:%S') + ' has been been modified to ' + record['DateStart'].strftime('%Y-%m-%d %H:%M:%S'))
                         else:
                             # new and different record, stop the Session with
                             # EndDate = self.records[0]['DateStart'] - datetime.timedelta(seconds=1) and insert
                             record['DateEnd'] = self.records[0]['DateStart'] - datetime.timedelta(seconds=1)
                             self.cnn.insert('stationinfo', record)
+
+                            # insert event
+                            self.cnn.insert_info(
+                                'A new station information record was added for ' + self.NetworkCode + '.' + self.StationCode + ':\n' + self.return_stninfo(record))
 
                     elif len(overlaps) == 1 and overlaps[0] == self.records[-1] and not self.records[-1]['DateEnd']:
                         # overlap with the last session
@@ -327,6 +402,12 @@ class StationInfo(StationInfoRecord):
                                        DateEnd=record['DateStart'] - datetime.timedelta(seconds=1))
                         # create the incoming session
                         self.cnn.insert('stationinfo', record)
+
+                        # insert event
+                        self.cnn.insert_info(
+                            'A new station information record was added for ' + self.NetworkCode + '.' + self.StationCode + ':\n' +
+                            self.return_stninfo(record) + '\nThe last record`s DateEnd value was updated to ' + self.records[-1]['DateEnd'].strftime('%Y-%m-%d %H:%M:%S'))
+
                     else:
                         ds1, de1 = self.datetime2stninfodate(record['DateStart'], record['DateEnd'])
 
@@ -341,102 +422,13 @@ class StationInfo(StationInfoRecord):
                     # no overlaps, insert the record
                     self.cnn.insert('stationinfo', record)
 
-            else:
-                ds1, de1 = self.datetime2stninfodate(record['DateStart'], record['DateEnd'])
-                raise pyStationInfoException('Record %s -> %s already exists in station.info' % (ds1.strip(), de1.strip()))
-        else:
-            raise pyStationInfoException('Cannot insert record without initializing pyStationInfo with NetworkCode and StationCode')
+                    # insert event
+                    self.cnn.insert_info(
+                        'A new station information record was added for ' + self.NetworkCode + '.' + self.StationCode +
+                        ':\n' + self.return_stninfo(record))
 
-
-    def InsertStationInfo2(self, record):
-
-        # load the record
-        if isinstance(record, str):
-            # parse the text record
-            record = self.parse_station_record(record)
-
-        # avoid problems with trying to insert records from other stations. Force this NetworkCode
-        record['NetworkCode'] = self.NetworkCode
-
-        if self.NetworkCode and self.StationCode:
-            # check existence of station in the db
-            rs = self.cnn.query('SELECT * FROM stationinfo WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "DateStart" = \'%s\'' % (self.NetworkCode, self.StationCode, record['DateStart'].strftime('%Y-%m-%d %H:%M:%S')))
-
-            # for output purposes
-            ds1, de1 = self.datetime2stninfodate(record['DateStart'], record['DateEnd'])
-
-            if rs.ntuples() == 0:
-
-                if self.records:
-                    # verify stationinfo records if we have any...
-
-                    # this is not a duplicate
-                    # check that this new record will not conflict with any existing records
-                    if not record['DateEnd']:
-                        # has no DateEnd: maybe DateStart is > records[-1]['DateStart']
-                        if record['DateStart'] > self.records[-1]['DateStart']:
-
-                            if not self.records[-1]['DateEnd']:
-                                # stop last record, if not stopped already
-                                self.cnn.update('stationinfo', self.records[-1], DateEnd=record['DateStart'] - datetime.timedelta(seconds=1))
-
-                            # insert current record
-                            self.cnn.insert('stationinfo', record)
-                        elif record['DateStart'] < self.records[0]['DateStart']:
-                            # it's a station info record that is previous to the start of the station
-                            # the end date is undetermined, check if the inserting record is equal to the first record
-                            # except for the dates
-                            if self.records_are_equal(record, self.records[0]):
-                                # just modify the start date to match the incoming record
-                                # self.cnn.update('stationinfo', self.records[0], DateStart=record['DateStart'])
-                                # the previous statement seems not to work because it updates a primary key!
-                                self.cnn.query('UPDATE stationinfo SET "DateStart" = \'%s\' WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "DateStart" = \'%s\'' % (record['DateStart'].strftime('%Y-%m-%d %H:%M:%S'), self.NetworkCode, self.StationCode, self.records[0]['DateStart'].strftime('%Y-%m-%d %H:%M:%S')))
-                            else:
-                                # new and different record, insert
-                                # make the incoming record DateEnd = DateStart of existing first record
-                                record['DateEnd'] = self.records[0]['DateStart'] - datetime.timedelta(seconds=1)
-                                self.cnn.insert('stationinfo', record)
-                        else:
-                            raise pyStationInfoException('Error trying to insert station.info record %s -> %s: Session Start is < than last Session Start in station.info.' % (ds1.strip(), de1.strip()))
-
-                    else:
-                        # check the DateEnd field
-                        if self.records and not all(record['DateEnd'] < item['DateStart'] for item in self.records):
-                            # it's not a beginning record, let's see if it fits an empty spot in the middle
-                            for rc in self.records:
-
-                                ds2, de2 = self.datetime2stninfodate(rc['DateStart'], rc['DateEnd'])
-
-                                if rc['DateEnd']:
-                                    # there is a DateEnd -> DateStart of new record should not be between any DateStart-DateEnd pair
-                                    if record['DateStart'] < rc['DateEnd'] and record['DateEnd'] > rc['DateStart']:
-                                        raise pyStationInfoException(
-                                            'Error trying to insert station.info record %s -> %s: conflicts with existing station.info record %s -> %s' % (
-                                            ds1.strip(), de1.strip(), ds2.strip(), de2.strip()))
-                                else:
-                                    # this record in db has no DateEnd (last record), DateStart of current record should not be <= DateStart
-                                    # and record DateEnd should not be > current record's DateStart
-                                    if record['DateStart'] < rc['DateStart'] and record['DateEnd'] > rc['DateStart']:
-                                        raise pyStationInfoException(
-                                            'Error trying to insert station.info record %s -> %s: conflicts with existing station.info record %s -> %s' % (
-                                            ds1.strip(), de1.strip(), ds2.strip(), de2.strip()))
-                                    elif record['DateEnd'] <= rc['DateStart']:
-                                        # it's a record that goes before rc, insert
-                                        self.cnn.insert('stationinfo', record)
-                                    else:
-                                        # update last record to stop the session
-                                        self.cnn.update('stationinfo', rc,
-                                                        DateEnd=record['DateStart'] - datetime.timedelta(seconds=1))
-                        else:
-                            # safe to insert.
-                            self.cnn.insert('stationinfo', record)
-                else:
-                    # no station information for the station, allow insertion
-                    self.cnn.insert('stationinfo', record)
-
-                # after executing everything, try to load possible new records
+                # reload the records
                 self.load_stationinfo_records()
-
             else:
                 ds1, de1 = self.datetime2stninfodate(record['DateStart'], record['DateEnd'])
                 raise pyStationInfoException('Record %s -> %s already exists in station.info' % (ds1.strip(), de1.strip()))

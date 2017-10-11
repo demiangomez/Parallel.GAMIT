@@ -10,6 +10,38 @@ class UtilsException(Exception):
 def get_resource_delimiter():
     return '.';
 
+def process_stnlist(cnn, stnlist_in):
+
+    stnlist = []
+
+    if 'all' in stnlist_in:
+        # plot all stations
+        rs = cnn.query('SELECT * FROM stations WHERE "NetworkCode" NOT LIKE \'?%%\' ORDER BY "NetworkCode", "StationCode"')
+
+        for rstn in rs.dictresult():
+            stnlist += [{'NetworkCode': rstn['NetworkCode'], 'StationCode': rstn['StationCode']}]
+
+    else:
+        for stn in stnlist_in:
+            if '.' in stn:
+                # a net.stnm given
+                if 'all' in stn.split('.')[1]:
+                    # all stations from a network
+                    rs = cnn.query('SELECT * FROM stations WHERE "NetworkCode" = \'%s\' ORDER BY "NetworkCode", "StationCode"' % (stn.split('.')[0]))
+
+                else:
+                    rs = cnn.query(
+                        'SELECT * FROM stations WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' ORDER BY "NetworkCode", "StationCode"' % (stn.split('.')[0], stn.split('.')[1]))
+
+            else:
+                # just a station name
+                rs = cnn.query(
+                    'SELECT * FROM stations WHERE "StationCode" = \'%s\' ORDER BY "NetworkCode", "StationCode"' % (stn))
+
+            for rstn in rs.dictresult():
+                stnlist += [{'NetworkCode': rstn['NetworkCode'], 'StationCode': rstn['StationCode']}]
+
+    return stnlist
 
 def get_norm_year_str(year):
     

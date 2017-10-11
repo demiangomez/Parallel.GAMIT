@@ -128,6 +128,8 @@ def main():
 
     cnn = dbConnection.Cnn('gnss_data.cfg')
 
+    import pyPPPETM_new2
+
     #atx = pyParseAntex.ParseAntexFile('igs08.atx')
 
     #stninfo2 = pyStationInfo.StationInfo(cnn, 'rnx', 'igm1', pyDate.Date(year=2017, doy=40))
@@ -143,6 +145,8 @@ def main():
     #rs = cnn.query('select * from stations where "StationCode" = \'lhcl\'')
     #igm1 = rs.dictresult()
 
+    etm = pyPPPETM_new2.ETM(cnn, 'cap', 'crrl', True)
+
 
     rs = cnn.query('SELECT * FROM stations WHERE "NetworkCode" NOT LIKE \'?%%\' ORDER BY "NetworkCode", "StationCode"')
 
@@ -150,9 +154,10 @@ def main():
 
     for stn in stns:
         try:
-            etm = pyPPPETM.ETM(cnn,stn['NetworkCode'],stn['StationCode'], False)
+            etm = pyPPPETM_new2.ETM(cnn,stn['NetworkCode'],stn['StationCode'], False)
             etm.plot('production/' + etm.NetworkCode + '.' + etm.StationCode + '.png')
         except IndexError:
+            print stn['NetworkCode'] + '.' + stn['StationCode']
             pass
 
     return

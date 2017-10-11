@@ -34,6 +34,7 @@ import pySp3
 import pyPPP
 from tqdm import tqdm
 import getopt
+import argparse
 import numpy
 import pyOptions
 import time
@@ -634,23 +635,14 @@ def output_handle(callback):
 
     return []
 
-def scan_rinex(cnn, JobServer, pyArchive, archive_path, Config):
-
-    print " >> Searching for master.list..."
-
-    if os.path.isfile('master.list'):
-        # try to load the file
-        master_list = [line.strip() for line in open("master.list", 'r')]
-        print " -- master.list found!"
-    else:
-        master_list = []
+def scan_rinex(cnn, JobServer, pyArchive, archive_path, Config, master_list):
 
     print " >> Analyzing the archive's structure..."
     archivefiles, path2rinex = pyArchive.scan_archive_struct(archive_path)
 
     print "   >> Beginning with the recursive search for CRINEX files..."
     if master_list:
-        print "   -- NOTE: since master.list is present the number of files reported in the progress bar might be larger than the processed list."
+        print "   -- NOTE: the number of files reported in the progress bar might be larger than the processed list."
 
     pbar = tqdm(total=len(archivefiles), ncols=80)
 
@@ -679,30 +671,23 @@ def scan_rinex(cnn, JobServer, pyArchive, archive_path, Config):
 
             # it was a valid archive entry, insert in database
             # print "About to execute "+rinexpath
-            if Config.run_parallel:
-
-                if not master_list or NetworkCode + '::' + StationCode in master_list:
-
+            if not master_list or NetworkCode + '.' + StationCode in master_list:
+                if Config.run_parallel:
                     arguments = (NetworkCode, StationCode, year, doy, rinexpath)
 
                     JobServer.SubmitJob(try_insert, arguments, depfuncs, modules, callback, callback_class(pbar), 'callbackfunc')
 
+                    if JobServer.process_callback:
+                        tqdm.write(' >> Done processing 300 jobs.')
+                        # handle any output messages during this batch
+                        callback = output_handle(callback)
+
                 else:
-                    pbar.update(1)
-
-                if JobServer.process_callback:
-                    tqdm.write(' >> Done processing 300 jobs.')
-                    # handle any output messages during this batch
-                    callback = output_handle(callback)
-
-            else:
-                callback.append(callback_class(pbar))
-
-                if not master_list or NetworkCode + '::' + StationCode in master_list:
+                    callback.append(callback_class(pbar))
                     callback[0].callbackfunc(try_insert(NetworkCode, StationCode, year, doy, rinexpath))
                     callback = output_handle(callback)
-                else:
-                    pbar.update(1)
+            else:
+                pbar.update(1)
 
     if Config.run_parallel:
         tqdm.write(' >> waiting for jobs to finish...')
@@ -720,11 +705,11 @@ def scan_rinex(cnn, JobServer, pyArchive, archive_path, Config):
     return
 
 
-def process_conflicts(cnn, pyArchive, archive_path):
+def process_conflicts(cnn, pyArchive, archive_path, master_list):
 
     print " >> About to process RINEX conflicts..."
 
-    rs = cnn.query('SELECT * FROM rinex_extra')
+    rs = cnn.query('SELECT * FROM rinex_extra WHERE "NetworkCode" || \'.\' || "StationCode" IN (\'' + '\',\''.join(master_list) + '\') ')
     records = rs.dictresult()
 
     for record in tqdm(records):
@@ -742,7 +727,7 @@ def process_conflicts(cnn, pyArchive, archive_path):
     return
 
 
-def process_otl(cnn, JobServer, run_parallel, archive_path, brdc_path, sp3types, sp3altrn):
+def process_otl(cnn, JobServer, run_parallel, archive_path, brdc_path, sp3types, sp3altrn, master_list):
 
     print ""
     print " >> Calculating coordinates and OTL for new stations..."
@@ -750,10 +735,9 @@ def process_otl(cnn, JobServer, run_parallel, archive_path, brdc_path, sp3types,
     rs = cnn.query('SELECT stations."NetworkCode", stations."StationCode", count(rinex."ObservationMonth") FROM stations '
                     'RIGHT JOIN rinex ON rinex."NetworkCode" = stations."NetworkCode" AND rinex."StationCode" = stations."StationCode" '
                     'WHERE auto_x is null OR auto_y is null OR auto_z is null OR "Harpos_coeff_otl" is null '
+                    'AND stations."NetworkCode" || \'.\' || stations."StationCode" IN (\'' + '\',\''.join(master_list) + '\') '
                     'GROUP BY stations."NetworkCode", stations."StationCode"')
 
-    # rs = cnn.query('SELECT * FROM stations WHERE auto_x is null or auto_y is null or auto_z is null or "Harpos_coeff_otl" is null')
-    #rs = cnn.query('SELECT * FROM stations WHERE "StationCode" = \'cjnt\' OR "StationCode" = \'bue2\'')
     records = rs.dictresult()
 
     pbar = tqdm(total=len(records), ncols=80)
@@ -842,7 +826,7 @@ def scan_station_info(JobServer, run_parallel, pyArchive, archive_path):
 
     return
 
-def scan_station_info_manual(cnn, pyArchive, stn_info_path, stn_info_stn, stn_info_net, stdin=None):
+def scan_station_info_manual(cnn, pyArchive, stn_info_path, stations, stn_info_net, stdin=None):
 
     print " >> Manual scan of station info files in " + stn_info_path
 
@@ -852,57 +836,28 @@ def scan_station_info_manual(cnn, pyArchive, stn_info_path, stn_info_stn, stn_in
         stn_info_obj = pyStationInfo.StationInfo(cnn)
         stn_list = stn_info_obj.parse_station_info(stdin)
 
-        if stn_info_stn.lower() == 'all':
-            # parse the station info and get all the stations to go one by one
-            print "   >> All stations from station info requested to be added using network code %s" % (NetworkCode)
+        for StationCode in tqdm(stations, total=len(stations)):
+            if StationCode in [stn['StationCode'].lower() for stn in stn_list]:
+                tqdm.write("   >> Processing %s using network code %s" % (StationCode, NetworkCode))
+                out = insert_stninfo(NetworkCode, StationCode, stdin)
 
-            for stn in tqdm(stn_list, total=len(stn_list)):
-                tqdm.write("     >> Processing %s using network code %s" % (stn['StationCode'].lower(), NetworkCode))
-                out = insert_stninfo(NetworkCode, stn.get('StationCode').lower(), stdin)
                 if out:
                     tqdm.write(out)
-        else:
-            if ',' in stn_info_stn:
-                stations = stn_info_stn.lower().split(',')
             else:
-                stations = [stn_info_stn.lower()]
+                tqdm.write('   >> Station %s was not found in the station info file %s' % (StationCode, 'standard input'))
 
-            for StationCode in tqdm(stations, total=len(stations)):
-                if StationCode in [stn['StationCode'].lower() for stn in stn_list]:
-                    tqdm.write("   >> Processing %s using network code %s" % (StationCode, NetworkCode))
-                    out = insert_stninfo(NetworkCode, StationCode, stdin)
-
-                    if out:
-                        tqdm.write(out)
-                else:
-                    tqdm.write('   >> Station %s was not found in the station info file %s' % (StationCode, 'standard input'))
-
-    if os.path.isfile(stn_info_path):
-        path2stninfo = [stn_info_path]
     else:
-        _, path2stninfo = pyArchive.scan_archive_struct_stninfo(stn_info_path)
-
-    print "   >> Found %i Station Info files." % (len(path2stninfo))
-
-    for stninfopath in path2stninfo:
-
-        stn_info_obj = pyStationInfo.StationInfo(cnn)
-        stn_list = stn_info_obj.parse_station_info(stninfopath)
-
-        if stn_info_stn.lower() == 'all':
-            # parse the station info and get all the stations to go one by one
-            print "   >> All stations from station info requested to be added using network code %s" % (NetworkCode)
-
-            for stn in tqdm(stn_list, total=len(stn_list)):
-                tqdm.write("     >> Processing %s using network code %s" % (stn['StationCode'].lower(), NetworkCode))
-                out = insert_stninfo(NetworkCode, stn['StationCode'].lower(), stninfopath)
-                if out:
-                    tqdm.write(out)
+        if os.path.isfile(stn_info_path):
+            path2stninfo = [stn_info_path]
         else:
-            if ',' in stn_info_stn:
-                stations = stn_info_stn.lower().split(',')
-            else:
-                stations = [stn_info_stn.lower()]
+            _, path2stninfo = pyArchive.scan_archive_struct_stninfo(stn_info_path)
+
+        print "   >> Found %i station information files." % (len(path2stninfo))
+
+        for stninfopath in path2stninfo:
+
+            stn_info_obj = pyStationInfo.StationInfo(cnn)
+            stn_list = stn_info_obj.parse_station_info(stninfopath)
 
             for StationCode in tqdm(stations, total=len(stations)):
                 if StationCode in [stn['StationCode'].lower() for stn in stn_list]:
@@ -916,7 +871,7 @@ def scan_station_info_manual(cnn, pyArchive, stn_info_path, stn_info_stn, stn_in
 
     return
 
-def process_ppp(cnn, pyArchive, archive_path, JobServer, run_parallel):
+def process_ppp(cnn, pyArchive, archive_path, JobServer, run_parallel, master_list):
 
     print " >> Running PPP on the RINEX files in the archive..."
 
@@ -928,6 +883,7 @@ def process_ppp(cnn, pyArchive, archive_path, JobServer, run_parallel):
                        'rinex."ObservationYear" = ppp_soln."Year" AND '
                        'rinex."ObservationDOY" = ppp_soln."DOY" '
                        'WHERE ppp_soln."NetworkCode" is null '
+                       'AND rinex."NetworkCode" || \'.\' || rinex."StationCode" IN (\'' + '\',\''.join(master_list) + '\') '
                        'ORDER BY "ObservationSTime"')
 
     tblrinex = rs_rnx.dictresult()
@@ -977,115 +933,96 @@ def process_ppp(cnn, pyArchive, archive_path, JobServer, run_parallel):
         print '\n'
         JobServer.job_server.print_stats()
 
-def print_help():
-    print "  usage: "
-    print "         --rinex  : scan for rinex"
-    print "         --rnxcft : resolve rinex conflicts (multiple files per day)"
-    print "         --otl    : calculate OTL parameters for stations in the database"
-    print "         --stninfo: scan for station info files in the archive"
-    print "                    if no arguments, searches the archive for station info files and uses their location to determine network"
-    print "                    else, use: --stninfo_path --stn --network, where"
-    print "                    --stninfo_path: path to a dir with station info files, or single station info file. Type 'stdin' to use standard input"
-    print "                    --stn         : station to search for in the station info, of list of stations separated by comma, no spaces between ('all' will try to add all of them)"
-    print "                    --net         : network name that has to be used to add the station information"
-    print "         --ppp    : run ppp to the rinex files in the archive"
-    print "         --all    : do all of the above"
+def print_columns(l):
 
+    for a, b, c, d, e, f, g, h in zip(l[::8], l[1::8], l[2::8], l[3::8], l[4::8], l[5::8], l[6::8], l[7::8]):
+        print('    {:<10}{:<10}{:<10}{:<10}{:<10}{:<10}{:<10}{:<}'.format(a, b, c, d, e, f, g, h))
 
-def main(argv):
+    if len(l) % 8 != 0:
+        sys.stdout.write('    ')
+        for i in range(len(l) - len(l) % 8, len(l)):
+            sys.stdout.write('{:<10}'.format(l[i]))
+        sys.stdout.write('\n')
 
-    run_stninfo = False
-    run_otl = False
-    run_rinex = False
-    run_ppp = False
-    run_conflicts = False
-    stn_info_path = None
-    stn_info_stn = None
-    stn_info_net = None
-    stn_info_stdin = None
+def main():
 
-    if not argv:
-        print "Scan the archive using configuration file gnss_data.cfg"
-        print_help()
-        exit()
+    parser = argparse.ArgumentParser(description='Plot ETM for stations in the database')
 
-    try:
-        aoptions, arguments = getopt.getopt(argv,'',['rinex', 'rnxcft', 'otl', 'stninfo', 'ppp', 'all', 'stninfo_path=', 'stn=', 'net=', 'noparallel'])
-    except getopt.GetoptError:
-        print "invalid argument/s"
-        print_help()
-        sys.exit(2)
+    parser.add_argument('stnlist', type=str, nargs='+', help="List of networks/stations to process given in [net].[stnm] format or just [stnm] (separated by spaces; if [stnm] is not unique in the database, all stations with that name will be processed). Use keyword 'all' to process all stations in the database. If [net].all is given, all stations from network [net] will be processed. Alternatevily, a file with the station list can be provided.")
+    parser.add_argument('-np', '--noparallel', action='store_true', help="Execute command without parallelization.")
+    parser.add_argument('-rinex', '--rinex', action='store_true', help="Scan the current archive for RINEX files (d.Z).")
+    parser.add_argument('-rnxcft', '--rinex_conflicts', action='store_true', help="Resolve rinex conflicts (multiple files per day).")
+    parser.add_argument('-otl', '--ocean_loading', action='store_true', help="Calculate ocean loading coefficients.")
+    parser.add_argument('-stninfo', '--station_info', nargs='*', help="Insert station information to the database. "
+        "If no arguments are given, then scan the archive for station info files and use their location (folder) to determine the network to use during insertion. "
+        "Only stations in the station list will be processed. "
+        "If a filename is provided, then scan that file only, in which case a second argument specifies the network to use during insertion. Eg: -stninfo ~/station.info arg. "
+        "In cases where multiple networks are being processed, the network argument will be used to desambiguate station code conflicts. "
+        "Eg: pyScanArchive all -stninfo ~/station.info arg -> if a station named igm1 exists in networks 'igs' and 'arg', only 'arg.igm1' will get the station information insert. "
+        "Use keyword 'stdin' to read the station information data from the pipeline.")
+    parser.add_argument('-ppp', '--ppp', action='store_true', help="Run ppp on the rinex files in the database.")
+    parser.add_argument('-all', '--do_all', action='store_true', help="Do all of the above in the right order.")
+
+    args = parser.parse_args()
+
+    if not args.station_info is None and (not len(args.station_info) in (0,2)):
+        parser.error('-stninfo requires 0 or 2 arguments. {} given.'.format(len(args.station_info)))
+
 
     Config = pyOptions.ReadOptions("gnss_data.cfg") # type: pyOptions.ReadOptions
 
-    for opt, args in aoptions:
-        if opt == '--stninfo':
-            run_stninfo = True
-        if opt == '--stninfo_path':
-            stn_info_path = args
-        if opt == '--stn':
-            stn_info_stn = args
-        if opt == '--net':
-            stn_info_net = args
-        elif opt == '--otl':
-            run_otl = True
-        elif opt == '--rinex':
-            run_rinex = True
-        elif opt == '--ppp':
-            run_ppp = True
-        elif opt == '--noparallel':
-            Config.run_parallel = False
-        elif opt == '--all':
-            run_stninfo = True
-            run_conflicts = True
-            run_otl = True
-            run_rinex = True
-            run_ppp = True
-
-    if stn_info_path == 'stdin' and run_stninfo:
-        print '--stn_info_path stdin: reading from stdin'
-        stn_info_stdin = []
-        for line in sys.stdin:
-            stn_info_stdin.append(line)
-        stn_info_path = 'stdin?'
-
-    if (stn_info_stn or stn_info_net) and not run_stninfo:
-        print "invalid arguments without --stninfo"
-        print_help()
-        exit(2)
-
     cnn = dbConnection.Cnn("gnss_data.cfg")
+
+    # get the station list
+    if len(args.stnlist) == 1 and os.path.isfile(args.stnlist[0]):
+        print ' >> Station list read from ' + args.stnlist
+        stnlist = [line.strip() for line in open(args.stnlist, 'r')]
+
+    else:
+        stnlist = Utils.process_stnlist(cnn, args.stnlist)
+        stnlist = [item['NetworkCode'] + '.' + item['StationCode'] for item in stnlist]
+
+    print ' >> Selected station list:'
+    print_columns(stnlist)
 
     pyArchive = pyArchiveStruct.RinexStruct(cnn)
 
     # initialize the PP job server
-    JobServer = pyJobServer.JobServer(Config) # type: pyJobServer.JobServer
+    if not args.noparallel:
+        JobServer = pyJobServer.JobServer(Config) # type: pyJobServer.JobServer
+    else:
+        JobServer = None
+        Config.run_parallel = False
+    #########################################
+
+    if args.rinex:
+        scan_rinex(cnn, JobServer, pyArchive, Config.archive_path, Config, stnlist)
+
+    if args.rinex_conflicts:
+        process_conflicts(cnn, pyArchive, Config.archive_path, stnlist)
 
     #########################################
 
-    if run_rinex:
-        scan_rinex(cnn, JobServer, pyArchive, Config.archive_path, Config)
-
-    if run_conflicts:
-        process_conflicts(cnn, pyArchive, Config.archive_path)
+    if args.ocean_loading:
+        process_otl(cnn, JobServer, Config.run_parallel, Config.archive_path, Config.brdc_path, Config.sp3types, Config.sp3altrn, stnlist)
 
     #########################################
 
-    if run_otl:
-        process_otl(cnn, JobServer, Config.run_parallel, Config.archive_path, Config.brdc_path, Config.sp3types, Config.sp3altrn)
-
-    #########################################
-
-    if run_stninfo:
-        if stn_info_path is None:
+    if not args.station_info is None:
+        if len(args.station_info) == 0:
             scan_station_info(JobServer, Config.run_parallel, pyArchive, Config.archive_path)
         else:
-            scan_station_info_manual(cnn, pyArchive, stn_info_path, stn_info_stn, stn_info_net, stn_info_stdin)
+            stn_info_stdin = []
+            if args.station_info[0] == 'stdin':
+                for line in sys.stdin:
+                    stn_info_stdin.append(line)
+
+            scan_station_info_manual(cnn, pyArchive, args.station_info[0], stnlist, args.station_info[1], stn_info_stdin)
 
     #########################################
 
-    if run_ppp:
-        process_ppp(cnn, pyArchive, Config.archive_path, JobServer, Config.run_parallel)
+    if args.ppp:
+        process_ppp(cnn, pyArchive, Config.archive_path, JobServer, Config.run_parallel, stnlist)
 
     #########################################
 
@@ -1095,4 +1032,4 @@ def main(argv):
 
 if __name__ == '__main__':
 
-    main(sys.argv[1:])
+    main()
