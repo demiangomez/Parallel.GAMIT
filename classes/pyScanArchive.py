@@ -512,7 +512,7 @@ def remove_from_archive(cnn, record, Rinex, Config):
         rinex_path = os.path.join(Config.archive_path, rinex_path)
 
         # ppp this rinex newly added rinex file (from the rinex_extra table)
-        execute_ppp(rnx[0], rinex_path, Config)
+        execute_ppp(rnx[0], rinex_path)
     else:
         cnn.insert_warning(
             'After running PPP it was found that the rinex file %s does not belong to %s.%s. This file will be removed from the rinex table (no rinex_extra found to be promoted to rinex) and moved to the repository/data_in_retry to add it to the corresponding station.' % (
@@ -544,24 +544,26 @@ def execute_ppp(record, rinex_path):
     # we need to check the RF of the orbit to see if we have this solution in the DB
     try:
 
-        rootdir = 'production/' + NetworkCode + '/' + StationCode
+        #rootdir = 'production/' + NetworkCode + '/' + StationCode
 
-        try:
-            if not os.path.exists(rootdir):
-                os.makedirs(rootdir)
-        except OSError:
-            # folder exists from a concurring instance, ignore the error
-            sys.exc_clear()
-        except:
-            raise
+        #try:
+        #    if not os.path.exists(rootdir):
+        #        os.makedirs(rootdir)
+        #except OSError:
+        #    # folder exists from a concurring instance, ignore the error
+        #    sys.exc_clear()
+        #except:
+        #    raise
 
-        date = pyDate.Date(year=year,doy=doy)
-        orbit = pySp3.GetSp3Orbits(Config.options['sp3'], date, Config.sp3types, rootdir)
+        #date = pyDate.Date(year=year,doy=doy)
+        #orbit = pySp3.GetSp3Orbits(Config.options['sp3'], date, Config.sp3types, rootdir)
 
         # check to see if record exists for this file in ppp_soln
+        # DDG: fixed frame to avoid problems with bad frame in the IGS sp3 files. Need to find a good way to determine
+        # the frame of the orbits (probably in the config file)
         ppp_soln = cnn.query('SELECT * FROM ppp_soln WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND '
                              '"Year" = %s AND "DOY" = %s AND "ReferenceFrame" = \'%s\''
-                             % (NetworkCode, StationCode, year, doy, orbit.RF))
+                             % (NetworkCode, StationCode, year, doy, 'IGb08'))
 
         if ppp_soln.ntuples() == 0:
 
@@ -577,7 +579,7 @@ def execute_ppp(record, rinex_path):
 
             Rinex.normalize_header(StationInfo=stninfo, x=stn[0]['auto_x'], y=stn[0]['auto_y'], z=stn[0]['auto_z'])
 
-            ppp = pyPPP.RunPPP(Rinex, stn[0]['Harpos_coeff_otl'], Config.options, Config.sp3types, Config.sp3altrn, stninfo.AntennaHeight)
+            ppp = pyPPP.RunPPP(Rinex, stn[0]['Harpos_coeff_otl'], Config.options, Config.sp3types, Config.sp3altrn, stninfo.AntennaHeight,hash=stninfo.hash)
             ppp.exec_ppp()
 
             # verify that the solution is from the station it claims to be
@@ -595,7 +597,7 @@ def execute_ppp(record, rinex_path):
                     # insert record in DB
                     cnn.insert('ppp_soln', ppp.record)
                     # DDG: Eric's request to generate a date of PPP solution
-                    cnn.insert_info('A new PPP solution was created for %s.%s %i %i (frame %s)' % (NetworkCode, StationCode, int(year), int(doy), orbit.RF))
+                    cnn.insert_info('A new PPP solution was created for %s.%s %i %i (frame %s)' % (NetworkCode, StationCode, int(year), int(doy), 'IGb08'))
                 else:
                     remove_from_archive(cnn, record, Rinex, Config)
             else:
@@ -642,6 +644,7 @@ def scan_rinex(cnn, JobServer, pyArchive, archive_path, Config, master_list):
 
     print "   >> Beginning with the recursive search for CRINEX files..."
     if master_list:
+        master_list = [item['NetworkCode'] + '.' + item['StationCode'] for item in master_list]
         print "   -- NOTE: the number of files reported in the progress bar might be larger than the processed list."
 
     pbar = tqdm(total=len(archivefiles), ncols=80)
@@ -709,6 +712,8 @@ def process_conflicts(cnn, pyArchive, archive_path, master_list):
 
     print " >> About to process RINEX conflicts..."
 
+    master_list = [item['NetworkCode'] + '.' + item['StationCode'] for item in master_list]
+
     rs = cnn.query('SELECT * FROM rinex_extra WHERE "NetworkCode" || \'.\' || "StationCode" IN (\'' + '\',\''.join(master_list) + '\') ')
     records = rs.dictresult()
 
@@ -731,6 +736,8 @@ def process_otl(cnn, JobServer, run_parallel, archive_path, brdc_path, sp3types,
 
     print ""
     print " >> Calculating coordinates and OTL for new stations..."
+
+    master_list = [item['NetworkCode'] + '.' + item['StationCode'] for item in master_list]
 
     rs = cnn.query('SELECT stations."NetworkCode", stations."StationCode", count(rinex."ObservationMonth") FROM stations '
                     'RIGHT JOIN rinex ON rinex."NetworkCode" = stations."NetworkCode" AND rinex."StationCode" = stations."StationCode" '
@@ -782,13 +789,15 @@ def process_otl(cnn, JobServer, run_parallel, archive_path, brdc_path, sp3types,
     return
 
 
-def scan_station_info(JobServer, run_parallel, pyArchive, archive_path):
+def scan_station_info(JobServer, run_parallel, pyArchive, archive_path, master_list):
 
     print " >> Searching for station info files in the archive..."
 
     stninfo, path2stninfo = pyArchive.scan_archive_struct_stninfo(archive_path)
 
     print "   >> Processing Station Info files..."
+
+    master_list = [item['NetworkCode'] + '.' + item['StationCode'] for item in master_list]
 
     pbar = tqdm(total=len(stninfo), ncols=80)
     callback = []
@@ -799,7 +808,7 @@ def scan_station_info(JobServer, run_parallel, pyArchive, archive_path):
 
         valid, NetworkCode, StationCode, _, _, _, _ = pyArchive.parse_archive_keys(stninfofile, key_filter=('network','station'))
 
-        if valid:
+        if valid and NetworkCode + '.' + StationCode in master_list:
             # we were able to get the network and station code, add it to the database
             if run_parallel:
                 arguments = (NetworkCode, StationCode, stninfopath)
@@ -827,6 +836,7 @@ def scan_station_info(JobServer, run_parallel, pyArchive, archive_path):
     return
 
 def scan_station_info_manual(cnn, pyArchive, stn_info_path, stations, stn_info_net, stdin=None):
+    # input "stations" has a list in net.stnm format
 
     print " >> Manual scan of station info files in " + stn_info_path
 
@@ -836,15 +846,16 @@ def scan_station_info_manual(cnn, pyArchive, stn_info_path, stations, stn_info_n
         stn_info_obj = pyStationInfo.StationInfo(cnn)
         stn_list = stn_info_obj.parse_station_info(stdin)
 
-        for StationCode in tqdm(stations, total=len(stations)):
-            if StationCode in [stn['StationCode'].lower() for stn in stn_list]:
-                tqdm.write("   >> Processing %s using network code %s" % (StationCode, NetworkCode))
-                out = insert_stninfo(NetworkCode, StationCode, stdin)
+        for Station in tqdm(stations, total=len(stations)):
+            # input "stations" has a list in net.stnm format
+            if Station['StationCode'] in [stn['StationCode'].lower() for stn in stn_list]:
+                tqdm.write("   >> Processing %s using network code %s" % (Station['StationCode'], NetworkCode))
+                out = insert_stninfo(NetworkCode, Station['StationCode'], stdin)
 
                 if out:
                     tqdm.write(out)
             else:
-                tqdm.write('   >> Station %s was not found in the station info file %s' % (StationCode, 'standard input'))
+                tqdm.write('   >> Station %s.%s was not found in the station info file %s' % (Station['NetworkCode'], Station['StationCode'], 'standard input'))
 
     else:
         if os.path.isfile(stn_info_path):
@@ -859,21 +870,67 @@ def scan_station_info_manual(cnn, pyArchive, stn_info_path, stations, stn_info_n
             stn_info_obj = pyStationInfo.StationInfo(cnn)
             stn_list = stn_info_obj.parse_station_info(stninfopath)
 
-            for StationCode in tqdm(stations, total=len(stations)):
-                if StationCode in [stn['StationCode'].lower() for stn in stn_list]:
-                    tqdm.write("   >> Processing %s using network code %s" % (StationCode, NetworkCode))
-                    out = insert_stninfo(NetworkCode,StationCode,stninfopath)
+            for Station in tqdm(stations, total=len(stations)):
+                # input "stations" has a list in net.stnm format
+                if Station['StationCode'] in [stn['StationCode'].lower() for stn in stn_list]:
+                    tqdm.write("   >> Processing %s using network code %s" % (Station['StationCode'], NetworkCode))
+                    out = insert_stninfo(NetworkCode,Station['StationCode'],stninfopath)
 
                     if out:
                         tqdm.write(out)
                 else:
-                    tqdm.write('   >> Station %s was not found in the station info file %s' % (StationCode, stninfopath))
+                    tqdm.write('   >> Station %s.%s was not found in the station info file %s' % (Station['NetworkCode'], Station['StationCode'], stninfopath))
 
     return
 
-def process_ppp(cnn, pyArchive, archive_path, JobServer, run_parallel, master_list):
+def hash_check(cnn, master_list, sdate, edate, rehash=False):
+
+    print " >> Running hash check to the PPP solutions..."
+
+    master_list = [item['NetworkCode'] + '.' + item['StationCode'] for item in master_list]
+
+    ppp_soln = cnn.query('SELECT ppp_soln.* FROM ppp_soln '
+                         'LEFT JOIN rinex ON '
+                         'ppp_soln."NetworkCode" = rinex."NetworkCode" AND '
+                         'ppp_soln."StationCode" = rinex."StationCode" AND '
+                         'ppp_soln."Year" = rinex."ObservationYear" AND '
+                         'ppp_soln."DOY" = rinex."ObservationDOY" '
+                         'WHERE ppp_soln."NetworkCode" || \'.\' || ppp_soln."StationCode" IN (\'' + '\',\''.join(master_list) + '\') '
+                         'AND rinex."ObservationSTime" >= \'' + sdate.yyyymmdd() + '\' '
+                         'AND rinex."ObservationETime" <= \'' + edate.yyyymmdd() + '\' '
+                         'ORDER BY "ObservationSTime", ppp_soln."NetworkCode", ppp_soln."StationCode"')
+
+    tbl = ppp_soln.dictresult()
+
+    # check the hash values if specified
+    if not rehash:
+        print ' -- Checking hash values.'
+    else:
+        print ' -- Rehashing all records. This may take a while...'
+
+    for soln in tqdm(tbl,ncols=80):
+        # load station info object
+        stninfo = pyStationInfo.StationInfo(cnn, soln['NetworkCode'], soln['StationCode'], pyDate.Date(year=soln['Year'],doy=soln['DOY']))
+
+        if stninfo.hash != soln['hash']:
+            if not rehash:
+                tqdm.write(" -- Hash value for %s.%s %i %03i does not match with Station Information hash. PPP coordinate will be recalculated." % (soln['NetworkCode'], soln['StationCode'], soln['Year'], soln['DOY']))
+                cnn.delete('ppp_soln', soln)
+            else:
+                tqdm.write(" -- %s.%s %i %03i has been rehashed." % (soln['NetworkCode'], soln['StationCode'], soln['Year'], soln['DOY']))
+                cnn.update('ppp_soln', soln, hash=stninfo.hash)
+
+    if not rehash:
+        print ' -- Done checking hash values.'
+    else:
+        print ' -- Done rehashing PPP records.'
+
+
+def process_ppp(cnn, pyArchive, archive_path, JobServer, run_parallel, master_list, sdate, edate):
 
     print " >> Running PPP on the RINEX files in the archive..."
+
+    master_list = [item['NetworkCode'] + '.' + item['StationCode'] for item in master_list]
 
     # for each rinex in the db, run PPP and get a coordinate
     rs_rnx = cnn.query('SELECT rinex.* FROM rinex '
@@ -884,6 +941,8 @@ def process_ppp(cnn, pyArchive, archive_path, JobServer, run_parallel, master_li
                        'rinex."ObservationDOY" = ppp_soln."DOY" '
                        'WHERE ppp_soln."NetworkCode" is null '
                        'AND rinex."NetworkCode" || \'.\' || rinex."StationCode" IN (\'' + '\',\''.join(master_list) + '\') '
+                       'AND rinex."ObservationSTime" >= \'' + sdate.yyyymmdd() + '\' '
+                       'AND rinex."ObservationETime" <= \'' + edate.yyyymmdd() + '\' '
                        'ORDER BY "ObservationSTime"')
 
     tblrinex = rs_rnx.dictresult()
@@ -944,12 +1003,22 @@ def print_columns(l):
             sys.stdout.write('{:<10}'.format(l[i]))
         sys.stdout.write('\n')
 
+
+def process_date(arg):
+
+    if '.' in arg:
+        date = pyDate.Date(year=arg.split('.')[0], doy=arg.split('.')[1])
+    else:
+        date = pyDate.Date(year=arg.split('/')[0], month=arg.split('/')[1], day=arg.split('/')[2])
+
+    return date
+
+
 def main():
 
     parser = argparse.ArgumentParser(description='Plot ETM for stations in the database')
 
     parser.add_argument('stnlist', type=str, nargs='+', help="List of networks/stations to process given in [net].[stnm] format or just [stnm] (separated by spaces; if [stnm] is not unique in the database, all stations with that name will be processed). Use keyword 'all' to process all stations in the database. If [net].all is given, all stations from network [net] will be processed. Alternatevily, a file with the station list can be provided.")
-    parser.add_argument('-np', '--noparallel', action='store_true', help="Execute command without parallelization.")
     parser.add_argument('-rinex', '--rinex', action='store_true', help="Scan the current archive for RINEX files (d.Z).")
     parser.add_argument('-rnxcft', '--rinex_conflicts', action='store_true', help="Resolve rinex conflicts (multiple files per day).")
     parser.add_argument('-otl', '--ocean_loading', action='store_true', help="Calculate ocean loading coefficients.")
@@ -960,8 +1029,9 @@ def main():
         "In cases where multiple networks are being processed, the network argument will be used to desambiguate station code conflicts. "
         "Eg: pyScanArchive all -stninfo ~/station.info arg -> if a station named igm1 exists in networks 'igs' and 'arg', only 'arg.igm1' will get the station information insert. "
         "Use keyword 'stdin' to read the station information data from the pipeline.")
-    parser.add_argument('-ppp', '--ppp', action='store_true', help="Run ppp on the rinex files in the database.")
-    parser.add_argument('-all', '--do_all', action='store_true', help="Do all of the above in the right order.")
+    parser.add_argument('-ppp', '--ppp', nargs='*', help="Run ppp on the rinex files in the database. Append [date_start] and (optionally) [date_end] to limit the range of the processing. Allowed formats are yyyy.doy or yyyy/mm/dd. Append keyword 'hash' to the end to check the PPP hash values against the station information records. If hash doesn't match, recalculate the PPP solutions.")
+    parser.add_argument('-rehash', '--rehash', nargs='*', help="Check PPP hash against station information hash. Rehash PPP solutions to match the station information hash without recalculating the PPP solution. Optionally append [date_start] and (optionally) [date_end] to limit the rehashing time window. Allowed formats are yyyy.doy or yyyy/mm/dd.")
+    parser.add_argument('-np', '--noparallel', action='store_true', help="Execute command without parallelization.")
 
     args = parser.parse_args()
 
@@ -980,10 +1050,9 @@ def main():
 
     else:
         stnlist = Utils.process_stnlist(cnn, args.stnlist)
-        stnlist = [item['NetworkCode'] + '.' + item['StationCode'] for item in stnlist]
 
     print ' >> Selected station list:'
-    print_columns(stnlist)
+    print_columns([item['NetworkCode'] + '.' + item['StationCode'] for item in stnlist])
 
     pyArchive = pyArchiveStruct.RinexStruct(cnn)
 
@@ -1010,7 +1079,7 @@ def main():
 
     if not args.station_info is None:
         if len(args.station_info) == 0:
-            scan_station_info(JobServer, Config.run_parallel, pyArchive, Config.archive_path)
+            scan_station_info(JobServer, Config.run_parallel, pyArchive, Config.archive_path, stnlist)
         else:
             stn_info_stdin = []
             if args.station_info[0] == 'stdin':
@@ -1021,8 +1090,43 @@ def main():
 
     #########################################
 
-    if args.ppp:
-        process_ppp(cnn, pyArchive, Config.archive_path, JobServer, Config.run_parallel, stnlist)
+    if args.rehash is not None:
+        dates = [pyDate.Date(year=1980, doy=1), pyDate.Date(year=2100, doy=1)]
+
+        if len(args.rehash) > 0:
+
+            for i, arg in enumerate(args.ppp):
+                try:
+                    dates[i] = process_date(arg)
+                except Exception as e:
+                    parser.error('Error while reading the date start/end hash parameters: ' + str(e) + '\n' +  traceback.format_exc())
+
+        hash_check(cnn, stnlist, dates[0], dates[1], rehash=True)
+
+    #########################################
+
+    if not args.ppp is None:
+        # check other possible arguments
+        dates = [pyDate.Date(year=1980, doy=1), pyDate.Date(year=2100, doy=1)]
+        do_hash = False
+
+        if len(args.ppp) > 0:
+
+            for i, arg in enumerate(args.ppp):
+
+                if not arg == 'hash':
+                    try:
+                        dates[i] = process_date(arg)
+                    except Exception as e:
+                        parser.error('Error while reading the date start/end hash parameters: ' + str(e) + '\n' +  traceback.format_exc())
+                else:
+                    do_hash = True
+                    break
+
+        if do_hash:
+            hash_check(cnn, stnlist, dates[0], dates[1], rehash=False)
+
+        process_ppp(cnn, pyArchive, Config.archive_path, JobServer, Config.run_parallel, stnlist, dates[0], dates[1])
 
     #########################################
 

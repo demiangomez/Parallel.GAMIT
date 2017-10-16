@@ -7,6 +7,7 @@ Author: Demian D. Gomez
 import struct
 import datetime
 import pyDate
+import zlib
 
 class pyStationInfoException(Exception):
     def __init__(self, value):
@@ -33,6 +34,7 @@ class StationInfoRecord():
         self.ReceiverVers = None
         self.records = None
         self.currentrecord = None
+        self.hash = None
 
     def load_data(self, record):
 
@@ -52,6 +54,10 @@ class StationInfoRecord():
         self.HeightCode = record['HeightCode']
         self.RadomeCode = record['RadomeCode']
         self.ReceiverVers = record['ReceiverVers']
+
+        # create a hash record using the station information
+        # use only the information that can actually generate a change in the antenna position
+        self.hash = zlib.crc32('%.3f %.3f %.3f %s %s' % (self.AntennaNorth, self.AntennaEast, self.AntennaHeight, self.AntennaCode, self.RadomeCode))
 
         return
 
@@ -167,6 +173,7 @@ class StationInfo(StationInfoRecord):
 
         StationInfoRecord.__init__(self, NetworkCode, StationCode)
 
+        self.record_count = 0
         self.allow_empty = allow_empty
         self.header = '*SITE  Station Name      Session Start      Session Stop       Ant Ht   HtCod  Ant N    Ant E    Receiver Type         Vers                  SwVer  Receiver SN           Antenna Type     Dome   Antenna SN          '
 
@@ -230,10 +237,11 @@ class StationInfo(StationInfoRecord):
                 # allow no station info if explicitly requested by the user.
                 # Purpose: insert a station info for a new station!
                 raise pyStationInfoException('Could not find a station info entry for ' + self.NetworkCode + ' ' + self.StationCode)
-
+            self.record_count = 0
             return False
         else:
             self.records = stninfo.dictresult()
+            self.record_count = stninfo.ntuples()
             return True
 
     def return_stninfo(self, record=None):
@@ -244,16 +252,17 @@ class StationInfo(StationInfoRecord):
         else:
             records = self.records
 
-        for record in records:
+        if not records is None:
+            for record in records:
 
-            strDateStart,strDateEnd = self.datetime2stninfodate(record['DateStart'],record['DateEnd'])
+                strDateStart,strDateEnd = self.datetime2stninfodate(record['DateStart'],record['DateEnd'])
 
-            stninfo.append(' ' + str(record['StationCode']).ljust(6).upper() + ''.ljust(18) + strDateStart + strDateEnd + str(record['AntennaHeight']).rjust(7) + '  ' +
-                           str(record['HeightCode']).ljust(7)      +        str(record['AntennaNorth']).rjust(7)     + '  ' +
-                           str(record['AntennaEast']).rjust(7)     + '  ' + str(record['ReceiverCode']).ljust(22)    +
-                           str(record['ReceiverVers']).ljust(23)   +        str(record['ReceiverFirmware']).ljust(5) + ' ' +
-                           str(record['ReceiverSerial']).ljust(22) +        str(record['AntennaCode']).ljust(17)     +
-                           str(record['RadomeCode']).ljust(7)      +        str(record['AntennaSerial']).ljust(20))
+                stninfo.append(' ' + str(record['StationCode']).ljust(6).upper() + ''.ljust(18) + strDateStart + strDateEnd + str(record['AntennaHeight']).rjust(7) + '  ' +
+                               str(record['HeightCode']).ljust(7)      +        str(record['AntennaNorth']).rjust(7)     + '  ' +
+                               str(record['AntennaEast']).rjust(7)     + '  ' + str(record['ReceiverCode']).ljust(22)    +
+                               str(record['ReceiverVers']).ljust(23)   +        str(record['ReceiverFirmware']).ljust(5) + ' ' +
+                               str(record['ReceiverSerial']).ljust(22) +        str(record['AntennaCode']).ljust(17)     +
+                               str(record['RadomeCode']).ljust(7)      +        str(record['AntennaSerial']).ljust(20))
 
         return '\n'.join(stninfo)
 

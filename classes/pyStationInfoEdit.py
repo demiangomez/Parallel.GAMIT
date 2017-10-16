@@ -4,7 +4,6 @@ Date: 10/10/17 3:07 PM
 Author: Demian D. Gomez
 """
 
-import pyTerminal
 import pyOptions
 import argparse
 import dbConnection
@@ -12,18 +11,63 @@ import pyStationInfo
 from datetime import datetime
 import curses
 from curses import panel
-import time
+import curses.ascii
+from curses.textpad import Textbox, rectangle
 
 cnn = dbConnection.Cnn('gnss_data.cfg')
 Config = pyOptions.ReadOptions("gnss_data.cfg")  # type: pyOptions.ReadOptions
-tc = pyTerminal.TerminalController()
 selection = 0
 stn = None
 records = []
 
+class _Textbox(Textbox):
+    """
+    curses.textpad.Textbox requires users to ^g on completion, which is sort
+    of annoying for an interactive chat client such as this, which typically only
+    reuquires an enter. This subclass fixes this problem by signalling completion
+    on Enter as well as ^g. Also, map <Backspace> key to ^h.
+    """
+
+    def __init__(self, win, insert_mode=False, text=''):
+        Textbox.__init__(self, win, insert_mode)
+
+        for chr in text:
+            if chr == '\n':
+                Textbox.do_command(self, curses.ascii.NL)
+            else:
+                Textbox.do_command(self, chr)
+
+    def edit(self, validate=None):
+        "Edit in the widget window and collect the results."
+        while 1:
+            ch = self.win.getch()
+            if validate:
+                ch = validate(ch)
+            if not ch:
+                continue
+            r = self.do_command(ch)
+            if not r or r == -1:
+                break
+            self.win.refresh()
+
+        if r != -1:
+            return self.gather()
+        else:
+            return None
+
+    def do_command(self, ch):
+        if ch == 127:  # backspace
+            Textbox.do_command(self,curses.KEY_BACKSPACE)
+            self.win.refresh()
+            return 1
+        if ch == 27:
+            Textbox.gather(self)
+            return -1
+        return Textbox.do_command(self, ch)
+
 class Menu(object):
 
-    def __init__(self, items, stdscreen, title='', type='main', record_index=None):
+    def __init__(self, cnn, items, stdscreen, title='', type='main', record_index=None):
         self.window = stdscreen.subwin(0,0)
         self.window.keypad(1)
         self.panel = panel.new_panel(self.window)
@@ -39,10 +83,9 @@ class Menu(object):
 
         self.title = title
         self.type = type
-        self.edit_field = ''
-        self.edit_mode = False
         self.edited_fields = dict()
         self.record_index = record_index
+        self.cnn = cnn
 
     def navigate(self, n):
         self.position += n
@@ -73,12 +116,8 @@ class Menu(object):
                     mode = curses.A_NORMAL
 
                 if self.type == 'edit' and index < len(self.items)-1:
-                    if index == self.position and self.edit_mode:
-                        msg = '%2d. %s' % (index, item['field'] + ': ' + self.edit_field)
-                        self.window.addstr(sx + index, 1, msg, curses.color_pair(2))
-                    else:
-                        msg = '%2d. %s' % (index, item['field'] + ': ' + item['value'])
-                        self.window.addstr(sx + index, 1, msg, mode)
+                    msg = '%2d. %20s: %-30s' % (index, item['field'], item['value'].replace('\n',' ') if len(item['value']) <= 30 else item['value'].replace('\n',' ')[0:25] + '...')
+                    self.window.addstr(sx + index, 1, msg, mode)
                 else:
                     msg = '%2d. %s' % (index, item['field'])
                     self.window.addstr(sx+index, 1, msg, mode)
@@ -93,32 +132,22 @@ class Menu(object):
                     self.items[self.position]['function'](self)
 
                 else:
-                    if not self.edit_mode:
-                        if self.position == len(self.items) - 1:
-                            # save changes
-                            if save_changes(self):
-                                break
-
-                        else:
-                            # enter edit mode
-                            self.enter_edit_mode()
-
+                    if self.position == len(self.items) - 1:
+                        # save changes
+                        if save_changes(self):
+                            break
                     else:
-                        if self.exit_edit_mode():
-                            self.navigate(1)
+                        # enter edit mode
+                        self.enter_edit_mode()
 
-            elif key == curses.KEY_UP and not self.edit_mode:
+            elif key == curses.KEY_UP:
                 self.navigate(-1)
 
-            elif key == curses.KEY_DOWN and not self.edit_mode:
+            elif key == curses.KEY_DOWN:
                 self.navigate(1)
 
-            elif key == 27:
-                if self.edit_mode:
-                    self.cancel_edit()
-                else:
-                    # exit screen
-                    break
+            elif key == 27: # escape (cancel)
+                break
             else:
                 if self.type == 'edit':
                     # edit mode, hightlight the field and replace text
@@ -131,14 +160,8 @@ class Menu(object):
                             delete_record(self)
                             break
                     else:
-                        if not self.edit_mode:
-                            self.enter_edit_mode(clear=True)
-
-                        if key == curses.KEY_BACKSPACE or key == 127:
-                            self.edit_field = self.edit_field[0:-1]
-
-                        elif key < 256:
-                            self.edit_field += chr(key)
+                        if key < 256:
+                            self.enter_edit_mode(chr(key))
 
                     self.window.clear()
 
@@ -147,36 +170,79 @@ class Menu(object):
         panel.update_panels()
         curses.doupdate()
 
-    def enter_edit_mode(self, clear=False):
-        self.edit_mode = True
-        if not clear:
-            self.edit_field = self.items[self.position]['value']
+    def enter_edit_mode(self, value=None):
+
+        if self.items[self.position]['field'] == 'Comments':
+            editwin = curses.newwin(10, 60, self.position+2, 27)
+            rectangle(self.window, self.position + 1, 26, self.position + 12, 26 + 61)
         else:
-            self.edit_field = ''
+            editwin = curses.newwin(1, 30, self.position+2, 27)
+
+        editwin.attron(curses.color_pair(2))
+        curses.curs_set(1)
+        if value:
+            box = _Textbox(editwin, True, text=value)
+        else:
+            box = _Textbox(editwin, True, text=self.items[self.position]['value'])
+
+        _Textbox.stripspaces = True
+
+        self.window.refresh()
+
+        while True:
+            edit_field = box.edit()
+            if not edit_field is None:
+                result = self.validate(edit_field.strip())
+                if result:
+                    self.navigate(1)
+                    break
+            else:
+                break
+
+        curses.curs_set(0)
+
         self.window.clear()
 
-    def exit_edit_mode(self):
+    def validate(self, edit_field):
 
         if self.items[self.position]['field'] in ['DateStart', 'DateEnd']:
             # VALIDATE THE date strings
             stninfo = pyStationInfo.StationInfoRecord()
 
             try:
-                if self.edit_field == '' and self.items[self.position]['field'] == 'DateEnd':
-                    _, self.edit_field = stninfo.datetime2stninfodate(datetime(2010,01,01), None)
+                if edit_field == '' and self.items[self.position]['field'] == 'DateEnd':
+                    _, edit_field = stninfo.datetime2stninfodate(datetime(2010,01,01), None)
                 else:
-                    date,_ = stninfo.stninfodate2datetime(self.edit_field, self.edit_field)
+                    date,_ = stninfo.stninfodate2datetime(edit_field, edit_field)
                     # if success, then reformat the datetime
-                    self.edit_field, _ = stninfo.datetime2stninfodate(date, date)
+                    edit_field, _ = stninfo.datetime2stninfodate(date, date)
 
             except Exception:
                 self.ShowError('Invalid station information datetime format!')
                 return False
 
+        elif self.items[self.position]['field'] == 'AntennaCode':
+            rs = self.cnn.query('SELECT * FROM antennas WHERE "AntennaCode" = \'%s\'' % (edit_field.upper()))
+
+            if rs.ntuples() == 0:
+                self.ShowError('Antenna code could not be found!')
+                return False
+            else:
+                edit_field = rs.dictresult()[0]['AntennaCode']
+
+        elif self.items[self.position]['field'] == 'ReceiverCode':
+            rs = self.cnn.query('SELECT * FROM receivers WHERE "ReceiverCode" = \'%s\'' % (edit_field.upper()))
+
+            if rs.ntuples() == 0:
+                self.ShowError('Receiver code could not be found!')
+                return False
+            else:
+                edit_field = rs.dictresult()[0]['ReceiverCode']
+
         elif self.items[self.position]['field'] in ['AntennaEast', 'AntennaNorth', 'AntennaHeight']:
             # field has to be numeric
             try:
-                _ = float(self.edit_field)
+                _ = float(edit_field)
 
             except Exception:
                 self.ShowError('Value must be numeric!')
@@ -184,38 +250,21 @@ class Menu(object):
 
         elif self.items[self.position]['field'] == 'HeightCode':
 
-            if not self.edit_field.upper() in ['DHTGP', 'DHPAB', 'SLBDN', 'SLBCR', 'SLTEP', 'DHBCR', 'SLHGP', 'SLTGN', 'DHARP', 'SLBCE']:
+            if not edit_field.upper() in ['DHTGP', 'DHPAB', 'SLBDN', 'SLBCR', 'SLTEP', 'DHBCR', 'SLHGP', 'SLTGN', 'DHARP', 'SLBCE']:
                 self.ShowError('Value must be one of the following: ' + ' '.join(['DHTGP', 'DHPAB', 'SLBDN', 'SLBCR', 'SLTEP', 'DHBCR', 'SLHGP', 'SLTGN', 'DHARP', 'SLBCE']))
                 return False
-
             else:
-                self.edit_field = self.edit_field.upper()
+                edit_field = edit_field.upper()
         else:
-            self.edit_field = self.edit_field.upper()
+            edit_field = edit_field.upper()
 
-        self.edited_fields[self.items[self.position]['field']] = self.edit_field
-        self.items[self.position]['value'] = self.edit_field
-        self.edit_field = ''
-        self.edit_mode = False
-        self.window.clear()
+        self.edited_fields[self.items[self.position]['field']] = edit_field
+        self.items[self.position]['value'] = edit_field
         return True
 
-    def cancel_edit(self):
-        self.edit_field = ''
-        self.edit_mode = False
-        self.window.clear()
-
-    def abort_changes(self):
-        exit()
-
     def ShowError(self, error):
-        self.window.addstr(self.position + 2, 40, ' -> ' + error, curses.color_pair(2))
+        self.window.addstr(self.position + 2, 60, ' -> ' + error, curses.color_pair(2))
         self.window.refresh()
-        time.sleep(2)
-        if self.position < len(self.items)-1:
-            self.edit_field = self.items[self.position]['value']
-        self.window.clear()
-        self.edit_mode = False
 
 
 def delete_record(menu):
@@ -273,11 +322,13 @@ def get_records():
     global StnInfo
     StnInfo = pyStationInfo.StationInfo(cnn, stn['NetworkCode'], stn['StationCode'], allow_empty=True)
 
-    records = StnInfo.return_stninfo_short().split('\n')
     out = []
 
-    for record in records:
-        out.append({'field': record, 'function': selection_main_menu})
+    if StnInfo.record_count > 0:
+        records = StnInfo.return_stninfo_short().split('\n')
+
+        for record in records:
+            out.append({'field': record, 'function': selection_main_menu})
 
     return out
 
@@ -285,11 +336,11 @@ def get_records():
 def selection_main_menu(menu):
     global StnInfo
 
-    if menu.position < len(StnInfo.records):
+    if menu.position < StnInfo.record_count:
         # edit
         edit_record(menu.position)
 
-    elif menu.position == len(StnInfo.records):
+    elif menu.position == StnInfo.record_count:
         # insert new record
         record = dict()
         record['ReceiverCode'] = ''
@@ -302,6 +353,7 @@ def selection_main_menu(menu):
         record['AntennaEast'] = '0.000'
         record['HeightCode'] = 'DHARP'
         record['RadomeCode'] = ''
+        record['Comments'] = ''
         record['ReceiverVers'] = ''
         record['DateStart'] = ''
         record['DateEnd'] = ''
@@ -313,11 +365,11 @@ def selection_main_menu(menu):
 
         new_record = sorted(new_record, key=lambda k: k['field'])
 
-        edit_menu = Menu(new_record, screen, 'New station information record (ESC to cancel)', 'edit')
+        edit_menu = Menu(cnn, new_record, screen, 'New station information record (ESC to cancel)', 'edit')
 
         edit_menu.display()
 
-    elif menu.position == len(StnInfo.records)+1:
+    elif menu.position == StnInfo.record_count+1:
         exit()
 
     # reload the main menu
@@ -333,7 +385,7 @@ def edit_record(position):
 
     items = get_fields(position)
 
-    menu = Menu(items, screen, 'Editing (ESC to cancel): ' + StnInfo.return_stninfo_short().split('\n')[position], 'edit', record_index=position)
+    menu = Menu(cnn, items, screen, 'Editing (ESC to cancel): ' + StnInfo.return_stninfo_short().split('\n')[position], 'edit', record_index=position)
 
     menu.display()
 
@@ -368,6 +420,7 @@ class MyApp(object):
 
         curses.init_pair(1, curses.COLOR_GREEN, curses.COLOR_BLACK)
         curses.init_pair(2, curses.COLOR_RED, curses.COLOR_WHITE)
+        curses.init_pair(2, curses.COLOR_GREEN, curses.COLOR_BLACK)
 
         global screen
         screen = stdscreen
@@ -378,7 +431,7 @@ class MyApp(object):
 
         main_menu_items += [{'field': 'Insert new station information record', 'function': selection_main_menu}]
 
-        main_menu = Menu(main_menu_items, self.screen, 'Station information new/edit/delete - %s.%s' % (stn['NetworkCode'], stn['StationCode']))
+        main_menu = Menu(cnn, main_menu_items, self.screen, 'Station information new/edit/delete - %s.%s' % (stn['NetworkCode'], stn['StationCode']))
 
         main_menu.display()
 

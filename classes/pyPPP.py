@@ -128,7 +128,7 @@ class PPPSpatialCheck():
 
 
 class RunPPP(PPPSpatialCheck):
-    def __init__(self,rinexobj,otl_coeff,options,sp3types,sp3altrn,antenna_height,strict=True,apply_met=True,kinematic=False):
+    def __init__(self,rinexobj,otl_coeff,options,sp3types,sp3altrn,antenna_height,strict=True,apply_met=True,kinematic=False,hash=0):
         assert isinstance(rinexobj,pyRinex.ReadRinex)
 
         PPPSpatialCheck.__init__(self)
@@ -153,6 +153,7 @@ class RunPPP(PPPSpatialCheck):
         self.sigmaxy   = None
         self.sigmaxz   = None
         self.sigmayz   = None
+        self.hash      = hash
 
         self.sp3altrn  = sp3altrn
         self.sp3types  = sp3types
@@ -164,7 +165,7 @@ class RunPPP(PPPSpatialCheck):
         self.pos       = ''
 
         fieldnames = ['NetworkCode', 'StationCode', 'X', 'Y', 'Z', 'Year', 'DOY', 'ReferenceFrame', 'sigmax', 'sigmay',
-                      'sigmaz', 'sigmaxy', 'sigmaxz', 'sigmayz']
+                      'sigmaz', 'sigmaxy', 'sigmaxz', 'sigmayz', 'hash']
 
         self.record = dict.fromkeys(fieldnames)
 
@@ -497,6 +498,7 @@ orbits/%s
         self.record['sigmaxy'] = self.sigmaxy
         self.record['sigmaxz'] = self.sigmaxz
         self.record['sigmayz'] = self.sigmayz
+        self.record['hash']    = self.hash
 
         return
 
