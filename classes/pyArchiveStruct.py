@@ -10,6 +10,7 @@ It can also scan the dirs of the archive for d.Z and station.info files
 
 import os
 import sys
+import scandir
 
 class RinexStruct():
 
@@ -66,7 +67,7 @@ class RinexStruct():
 
         rnx = []
         path2rnx = []
-        for path, dirs, files in os.walk(rootdir):
+        for path, dirs, files in scandir.walk(rootdir):
             for file in files:
                 if file.endswith("d.Z"):
                     # only add valid rinex compressed files
@@ -89,7 +90,7 @@ class RinexStruct():
 
         stninfo = []
         path2stninfo = []
-        for path, dirs, files in os.walk(rootdir):
+        for path, dirs, files in scandir.walk(rootdir):
             for file in files:
                 if file.endswith(".info"):
                     # only add valid rinex compressed files

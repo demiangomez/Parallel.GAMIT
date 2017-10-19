@@ -44,6 +44,7 @@ import os
 import numpy
 import shutil
 import time
+import argparse
 
 class stninfo_rinex():
 
@@ -78,6 +79,7 @@ def compare_stninfo_rinex(NetworkCode, StationCode, STime, ETime, rinex_serial):
 
     return (None,None)
 
+
 def get_differences(differences):
 
     err = [diff.error for diff in differences if diff.error]
@@ -87,6 +89,7 @@ def get_differences(differences):
         sys.stdout.write(error + '\n')
 
     return [diff.diff for diff in differences if not diff.diff is None]
+
 
 def StnInfoRinexIntegrity(cnn, NetworkCode,StationCode, start_date, end_date, Config, job_server):
 
@@ -590,6 +593,24 @@ def get_all_stations(cnn, NetworkCode=''):
     return [stn.get('stn') for stn in stns]
 
 def main(argv):
+
+    parser = argparse.ArgumentParser(description='Database integrity tools, metadata check and fixing tools program')
+
+    parser.add_argument('stnlist', type=str, nargs='+', metavar='all|net.stnm',
+                        help="List of networks/stations to process given in [net].[stnm] format or just [stnm] (separated by spaces; if [stnm] is not unique in the database, all stations with that name will be processed). Use keyword 'all' to process all stations in the database. If [net].all is given, all stations from network [net] will be processed. Alternatevily, a file with the station list can be provided.")
+    parser.add_argument('-d', '--date_filter', nargs='+', metavar='date', help='Date range filter for all operations. Can be specified in yyyy/mm/dd or yyyy.doy format')
+    parser.add_argument('-stnr', '--station_info_rinex', action='store_true', help='Check that the receiver serial number in the rinex headers agrees with the station info receiver serial number. Also, check that the RINEX files fall within a valid station information record.')
+    parser.add_argument('-stns', '--station_info_solutions', action='store_true', help='Check that the PPP hash values match the station info hash.')
+    parser.add_argument('-stnp', '--station_info_proposed', nargs='?', metavar='ignore_days', help='Output a proposed station.info using the RINEX metadata. Optional, specify [ignore_days] to ignore station.info records <= days.')
+    parser.add_argument('-stnc', '--station_info_check', help='Check the consistency of the station information records in the database. Date range does not apply.')
+    parser.add_argument('-g', '--data_gaps', metavar='ignore_days', nargs='?', help='Check the RINEX files in the database and look for gaps (missing days). Optional,[ignore_days] with the smallest gap to display.')
+    parser.add_argument('-sc', '--spatial_coherence', metavar='exclude/delete', nargs='?', help='Check that the RINEX files correspond to the stations they are linked to using their PPP coordinate. If keyword [exclude] or [delete], add the PPP solution to the excluded table or delete the PPP solution.')
+    parser.add_argument('-print', '--print_stninfo', metavar='long/short', args=1, help='Output the station info to stdout. [long] outputs the full line of the station info. [short] outputs a short version (better for screen visualization).')
+    parser.add_argument('-r', '--rename', metavar='net.stnm', args=1, help="Takes the data from the station list and renames (merges) it to net.stnm."
+                                                         "It also changes the rinex filenames in the archive to match those of the new destiny station."
+                                                         "If multiple stations are given as origins, all of them will be renamed as net.stnm."
+                                                         "Limit the date range using the -d option.")
+    parser.add_argument('-np', '--noparallel', action='store_true', help="Execute command without parallelization.")
 
     if not argv:
         print "Integrity check utility of the database."

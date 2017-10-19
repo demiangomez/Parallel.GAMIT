@@ -128,7 +128,10 @@ def main():
 
     cnn = dbConnection.Cnn('gnss_data.cfg')
 
-    import pyPPPETM_new2
+    archive = pyArchiveStruct.RinexStruct(cnn)
+    file = archive.build_rinex_path('rms','guay',2016,107)
+
+    rinexinfo = pyRinex.ReadRinex('rms', 'guay', os.path.join(Config.archive_path, file))  # type: pyRinex.ReadRinex
 
     #atx = pyParseAntex.ParseAntexFile('igs08.atx')
 
@@ -166,7 +169,7 @@ def main():
 
     date = pyDate.Date(year=2016, doy=190)
 
-    rinexinfo = pyRinex.ReadRinex('rms', 'mgva', 'mgva2570.12d.Z')  # type: pyRinex.ReadRinex
+
     brdc = pyBrdc.GetBrdcOrbits(Config.brdc_path, pyDate.Date(year=2012, doy=257), rinexinfo.rootdir)
 
     _, x = rinexinfo.auto_coord(brdc)

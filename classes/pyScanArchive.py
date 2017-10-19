@@ -33,14 +33,13 @@ import sys
 import pySp3
 import pyPPP
 from tqdm import tqdm
-import getopt
 import argparse
 import numpy
 import pyOptions
-import time
 import Utils
 import platform
 import pyJobServer
+import scandir
 
 class callback_class():
     def __init__(self, pbar):
@@ -51,6 +50,7 @@ class callback_class():
         msg = args
         self.errors = msg
         self.pbar.update(1)
+
 
 def verify_rinex_date_multiday(cnn, date, rinexinfo, Config):
     # function to verify if rinex is multiday or if the file is from the date it was stored in the archive
@@ -94,6 +94,7 @@ def verify_rinex_date_multiday(cnn, date, rinexinfo, Config):
 
     return True
 
+
 def check_rinex_timespan_int(rinex, stn):
 
     # DDG: in some unknown cases, stn['ObservationSTime'] and stn['ObservationETime'] comes back as a string.
@@ -126,22 +127,23 @@ def try_insert(NetworkCode, StationCode, year, doy, rinex):
         cnn = dbConnection.Cnn("gnss_data.cfg")
         Config = pyOptions.ReadOptions("gnss_data.cfg")
     except Exception:
-        return traceback.format_exc() + ' processing rinex: ' + NetworkCode + ' ' + StationCode + ' using node ' + platform.node()
-    except:
-        raise
+        return traceback.format_exc() + ' processing rinex: ' + rinex + ' (' + NetworkCode + ' ' + StationCode + ' ' + year + ' ' + doy + ') using node ' + platform.node()
 
     try:
         # get the rinex file name
         filename = rinex.split('/')[-1].replace('d.Z', 'o')
 
         # build the archive level sql string
+        # the file has not to exist in the RINEX table
+        # or in the RINEX extra table with the same name
         rs = cnn.query(
-            'SELECT * FROM rinex WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "ObservationYear" = \'%s\' AND "ObservationDOY" = \'%s\''
-            % (NetworkCode, StationCode, year, doy))
+            'SELECT * FROM rinex       WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "ObservationYear" = %s AND "ObservationDOY" = %s UNION '
+            'SELECT * FROM rinex_extra WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "ObservationYear" = %s AND "ObservationDOY" = %s AND "Filename" = \'%s\''
+            % (NetworkCode, StationCode, year, doy, NetworkCode, StationCode, year, doy, filename))
 
         if rs.ntuples() == 0:
             # no record found, new rinex file for this day
-            # examine the rinex
+            # examine the rinex. This is NOT a RINEX that exists in rinex_extra
             rinexinfo = pyRinex.ReadRinex(NetworkCode, StationCode, rinex)
 
             date = pyDate.Date(year=year, doy=doy)
@@ -154,14 +156,22 @@ def try_insert(NetworkCode, StationCode, year, doy, rinex):
                 except dbConnection.dbErrInsert:
                     # insert duplicate values: two parallel processes tried to insert different filenames of the same station
                     # to the db: insert to the rinex_extra and let the parent process decide (in serial mode)
+                    # DDG: this insert can also fail. Example:
+                    # two files from the same day: riog2040.04d -> rinex and riog2041.04d -> rinex_extra
+                    # delete riog2040.04d from rinex because, say, bad interval (due to bug)
+                    # then scan_archive tries to insert record riog2040.04d and riog2041.04d at the same time
+                    # only riog2040.04d make it in
+                    # then we try to insert riog2041.04d in rinex_extra
+                    # but it already exists, so it fails insertion too.
+                    # DDG: now, we check to see if the file exists either in rinex or rinex_extra.
+                    # If in rinex_extra, ignore too
                     cnn.insert('rinex_extra', rinexinfo.record)
         else:
-            # this record was in the database.
-            # save the rinex table record
+            # one or more records found, see if it's in rinex or rinex_extra
             rnx = rs.dictresult()[0]
 
             # Check if the filename is the same
-            rs = cnn.query('SELECT * FROM rinex WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "ObservationYear" = \'%s\' AND "ObservationDOY" = \'%s\' AND "Filename" = \'%s\''
+            rs = cnn.query('SELECT * FROM rinex WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "ObservationYear" = %s AND "ObservationDOY" = %s AND "Filename" = \'%s\''
                 % (NetworkCode, StationCode, year, doy, filename))
 
             # if there is a record, it's the same file being reprocessed. Just ignore it
@@ -171,7 +181,7 @@ def try_insert(NetworkCode, StationCode, year, doy, rinex):
 
                 # first, verify that this file isn't in the rinex_extra table
                 # if it's in the table, do nothing
-                rs = cnn.query('SELECT * FROM rinex_extra WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "ObservationYear" = \'%s\' AND "ObservationDOY" = \'%s\' AND "Filename" = \'%s\''
+                rs = cnn.query('SELECT * FROM rinex_extra WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "ObservationYear" = %s AND "ObservationDOY" = %s AND "Filename" = \'%s\''
                     % (NetworkCode, StationCode, year, doy, filename))
 
                 if rs.ntuples() == 0:
@@ -204,11 +214,8 @@ def try_insert(NetworkCode, StationCode, year, doy, rinex):
 
     except Exception:
 
-        return traceback.format_exc() + ' processing rinex: ' + NetworkCode + ' ' + StationCode + ' using node ' + platform.node()
+        return traceback.format_exc() + ' processing rinex: ' + rinex + ' (' + NetworkCode + ' ' + StationCode + ' ' + year + ' ' + doy + ') using node ' + platform.node()
 
-    except:
-
-        raise
 
 def process_extra_rinex(NetworkCode, StationCode, year, doy, rinex):
 
@@ -216,14 +223,12 @@ def process_extra_rinex(NetworkCode, StationCode, year, doy, rinex):
         # try to open a connection to the database
         cnn = dbConnection.Cnn("gnss_data.cfg")
     except Exception:
-        return traceback.format_exc() + ' processing rinex: ' + NetworkCode + ' ' + StationCode + ' using node ' + platform.node()
-    except:
-        raise
+        return traceback.format_exc() + ' processing rinex_extra: ' + rinex + ' (' + NetworkCode + ' ' + StationCode + ' ' + year + ' ' + doy + ') using node ' + platform.node()
 
     try:
         # load the current_rinex
         rs = cnn.query(
-            'SELECT * FROM rinex WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "ObservationYear" = \'%s\' AND "ObservationDOY" = \'%s\''
+            'SELECT * FROM rinex WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "ObservationYear" = %s AND "ObservationDOY" = %s'
             % (NetworkCode, StationCode, year, doy))
 
         # save the information of the current rinex in the db
@@ -262,11 +267,8 @@ def process_extra_rinex(NetworkCode, StationCode, year, doy, rinex):
 
     except Exception:
 
-        traceback.format_exc() + ' (process_extra_rinex) processing: ' + NetworkCode + ' ' + StationCode + ' using node ' + platform.node()
+        return traceback.format_exc() + ' processing rinex_extra: ' + rinex + ' (' + NetworkCode + ' ' + StationCode + ' ' + year + ' ' + doy + ') using node ' + platform.node()
 
-    except:
-
-        raise
 
 def ecef2lla(ecefArr):
     # convert ECEF coordinates to LLA
@@ -365,8 +367,6 @@ def obtain_otl(NetworkCode, StationCode, archive_path, brdc_path, sp3types, sp3a
                 continue
             except Exception:
                 return traceback.format_exc() + ' processing: ' + NetworkCode + ' ' + StationCode + ' using node ' + platform.node()
-            except:
-                raise
 
         # average the x y z values
         if len(x) > 0:
@@ -406,10 +406,6 @@ def obtain_otl(NetworkCode, StationCode, archive_path, brdc_path, sp3types, sp3a
         # print 'problem!' + traceback.format_exc()
         outmsg = traceback.format_exc() + ' processing otl: ' + NetworkCode + ' ' + StationCode + ' using node ' + platform.node() + '\n Debug info and errors follow: \n' + errors
 
-    except:
-
-        raise
-
     return outmsg
 
 
@@ -421,8 +417,6 @@ def insert_stninfo(NetworkCode, StationCode, stninfofile):
         cnn = dbConnection.Cnn("gnss_data.cfg")
     except Exception:
         return traceback.format_exc() + ' insert_stninfo: ' + NetworkCode + ' ' + StationCode + ' using node ' + platform.node()
-    except:
-        raise
 
     try:
         stnInfo = pyStationInfo.StationInfo(cnn,NetworkCode,StationCode, allow_empty=True)
@@ -430,8 +424,6 @@ def insert_stninfo(NetworkCode, StationCode, stninfofile):
 
     except pyStationInfo.pyStationInfoException as e:
         return traceback.format_exc() + ' insert_stninfo: ' + NetworkCode + ' ' + StationCode + ' using node ' + platform.node()
-    except:
-        raise
 
     # insert all the receivers and antennas in the db
     for stn in stninfo:
@@ -460,8 +452,6 @@ def insert_stninfo(NetworkCode, StationCode, stninfofile):
             except Exception:
                 errors.append(traceback.format_exc() + ' insert_stninfo: ' + NetworkCode + ' ' + StationCode + ' using node ' + platform.node())
                 continue
-            except:
-                raise
 
     if not errors:
         return
@@ -537,8 +527,6 @@ def execute_ppp(record, rinex_path):
         Config = pyOptions.ReadOptions("gnss_data.cfg")
     except Exception:
         return traceback.format_exc() + ' processing rinex: ' + NetworkCode + ' ' + StationCode + ' using node ' + platform.node()
-    except:
-        raise
 
     # create a temp folder in production to put the orbit in
     # we need to check the RF of the orbit to see if we have this solution in the DB
@@ -615,8 +603,6 @@ def execute_ppp(record, rinex_path):
     except Exception:
         return traceback.format_exc() + ' processing: ' + NetworkCode + ' ' + StationCode + ' ' + str(year) + ' ' + str(doy) + ' using node ' + platform.node()
 
-    except:
-        raise
 
 def output_handle(callback):
 
@@ -649,7 +635,7 @@ def scan_rinex(cnn, JobServer, pyArchive, archive_path, Config, master_list):
 
     pbar = tqdm(total=len(archivefiles), ncols=80)
 
-    depfuncs = (verify_rinex_date_multiday, check_rinex_timespan_int),
+    depfuncs = (verify_rinex_date_multiday, check_rinex_timespan_int)
     modules = ('dbConnection', 'pyDate', 'pyRinex', 'shutil', 'platform', 'datetime', 'traceback', 'pyOptions')
 
     callback = []
@@ -681,9 +667,10 @@ def scan_rinex(cnn, JobServer, pyArchive, archive_path, Config, master_list):
                     JobServer.SubmitJob(try_insert, arguments, depfuncs, modules, callback, callback_class(pbar), 'callbackfunc')
 
                     if JobServer.process_callback:
-                        tqdm.write(' >> Done processing 300 jobs.')
+                        tqdm.write(' -- Done processing 300 jobs.')
                         # handle any output messages during this batch
                         callback = output_handle(callback)
+                        JobServer.process_callback = False
 
                 else:
                     callback.append(callback_class(pbar))
@@ -693,9 +680,9 @@ def scan_rinex(cnn, JobServer, pyArchive, archive_path, Config, master_list):
                 pbar.update(1)
 
     if Config.run_parallel:
-        tqdm.write(' >> waiting for jobs to finish...')
+        tqdm.write(' -- waiting for jobs to finish...')
         JobServer.job_server.wait()
-        tqdm.write(' >> Done.')
+        tqdm.write(' -- Done.')
 
     # handle any output messages during this batch
     output_handle(callback)
@@ -767,6 +754,7 @@ def process_otl(cnn, JobServer, run_parallel, archive_path, brdc_path, sp3types,
                 tqdm.write(' >> Done processing 300 jobs.')
                 # handle any output messages during this batch
                 callback = output_handle(callback)
+                JobServer.process_callback = False
 
         else:
             callback.append(callback_class(pbar))
@@ -910,15 +898,20 @@ def hash_check(cnn, master_list, sdate, edate, rehash=False):
 
     for soln in tqdm(tbl,ncols=80):
         # load station info object
-        stninfo = pyStationInfo.StationInfo(cnn, soln['NetworkCode'], soln['StationCode'], pyDate.Date(year=soln['Year'],doy=soln['DOY']))
+        try:
+            stninfo = pyStationInfo.StationInfo(cnn, soln['NetworkCode'], soln['StationCode'], pyDate.Date(year=soln['Year'],doy=soln['DOY']))
 
-        if stninfo.hash != soln['hash']:
-            if not rehash:
-                tqdm.write(" -- Hash value for %s.%s %i %03i does not match with Station Information hash. PPP coordinate will be recalculated." % (soln['NetworkCode'], soln['StationCode'], soln['Year'], soln['DOY']))
-                cnn.delete('ppp_soln', soln)
-            else:
-                tqdm.write(" -- %s.%s %i %03i has been rehashed." % (soln['NetworkCode'], soln['StationCode'], soln['Year'], soln['DOY']))
-                cnn.update('ppp_soln', soln, hash=stninfo.hash)
+            if stninfo.hash != soln['hash']:
+                if not rehash:
+                    tqdm.write(" -- Hash value for %s.%s %i %03i does not match with Station Information hash. PPP coordinate will be recalculated." % (soln['NetworkCode'], soln['StationCode'], soln['Year'], soln['DOY']))
+                    cnn.delete('ppp_soln', soln)
+                else:
+                    tqdm.write(" -- %s.%s %i %03i has been rehashed." % (soln['NetworkCode'], soln['StationCode'], soln['Year'], soln['DOY']))
+                    cnn.update('ppp_soln', soln, hash=stninfo.hash)
+        except pyStationInfo.pyStationInfoException as e:
+            tqdm.write(str(e))
+        except Exception:
+            raise
 
     if not rehash:
         print ' -- Done checking hash values.'
@@ -973,6 +966,7 @@ def process_ppp(cnn, pyArchive, archive_path, JobServer, run_parallel, master_li
             if JobServer.process_callback:
                 # handle any output messages during this batch
                 callback = output_handle(callback)
+                JobServer.process_callback = False
 
         else:
             callback.append(callback_class(pbar))
@@ -1016,21 +1010,21 @@ def process_date(arg):
 
 def main():
 
-    parser = argparse.ArgumentParser(description='Plot ETM for stations in the database')
+    parser = argparse.ArgumentParser(description='Archive operations Main Program')
 
-    parser.add_argument('stnlist', type=str, nargs='+', help="List of networks/stations to process given in [net].[stnm] format or just [stnm] (separated by spaces; if [stnm] is not unique in the database, all stations with that name will be processed). Use keyword 'all' to process all stations in the database. If [net].all is given, all stations from network [net] will be processed. Alternatevily, a file with the station list can be provided.")
+    parser.add_argument('stnlist', type=str, nargs='+', metavar='all|net.stnm', help="List of networks/stations to process given in [net].[stnm] format or just [stnm] (separated by spaces; if [stnm] is not unique in the database, all stations with that name will be processed). Use keyword 'all' to process all stations in the database. If [net].all is given, all stations from network [net] will be processed. Alternatevily, a file with the station list can be provided.")
     parser.add_argument('-rinex', '--rinex', action='store_true', help="Scan the current archive for RINEX files (d.Z).")
     parser.add_argument('-rnxcft', '--rinex_conflicts', action='store_true', help="Resolve rinex conflicts (multiple files per day).")
     parser.add_argument('-otl', '--ocean_loading', action='store_true', help="Calculate ocean loading coefficients.")
-    parser.add_argument('-stninfo', '--station_info', nargs='*', help="Insert station information to the database. "
+    parser.add_argument('-stninfo', '--station_info', nargs='*', metavar='argument', help="Insert station information to the database. "
         "If no arguments are given, then scan the archive for station info files and use their location (folder) to determine the network to use during insertion. "
         "Only stations in the station list will be processed. "
         "If a filename is provided, then scan that file only, in which case a second argument specifies the network to use during insertion. Eg: -stninfo ~/station.info arg. "
         "In cases where multiple networks are being processed, the network argument will be used to desambiguate station code conflicts. "
         "Eg: pyScanArchive all -stninfo ~/station.info arg -> if a station named igm1 exists in networks 'igs' and 'arg', only 'arg.igm1' will get the station information insert. "
         "Use keyword 'stdin' to read the station information data from the pipeline.")
-    parser.add_argument('-ppp', '--ppp', nargs='*', help="Run ppp on the rinex files in the database. Append [date_start] and (optionally) [date_end] to limit the range of the processing. Allowed formats are yyyy.doy or yyyy/mm/dd. Append keyword 'hash' to the end to check the PPP hash values against the station information records. If hash doesn't match, recalculate the PPP solutions.")
-    parser.add_argument('-rehash', '--rehash', nargs='*', help="Check PPP hash against station information hash. Rehash PPP solutions to match the station information hash without recalculating the PPP solution. Optionally append [date_start] and (optionally) [date_end] to limit the rehashing time window. Allowed formats are yyyy.doy or yyyy/mm/dd.")
+    parser.add_argument('-ppp', '--ppp', nargs='*', metavar='argument', help="Run ppp on the rinex files in the database. Append [date_start] and (optionally) [date_end] to limit the range of the processing. Allowed formats are yyyy.doy or yyyy/mm/dd. Append keyword 'hash' to the end to check the PPP hash values against the station information records. If hash doesn't match, recalculate the PPP solutions.")
+    parser.add_argument('-rehash', '--rehash', nargs='*', metavar='argument', help="Check PPP hash against station information hash. Rehash PPP solutions to match the station information hash without recalculating the PPP solution. Optionally append [date_start] and (optionally) [date_end] to limit the rehashing time window. Allowed formats are yyyy.doy or yyyy/mm/dd.")
     parser.add_argument('-np', '--noparallel', action='store_true', help="Execute command without parallelization.")
 
     args = parser.parse_args()
@@ -1045,9 +1039,9 @@ def main():
 
     # get the station list
     if len(args.stnlist) == 1 and os.path.isfile(args.stnlist[0]):
-        print ' >> Station list read from ' + args.stnlist
-        stnlist = [line.strip() for line in open(args.stnlist, 'r')]
-
+        print ' >> Station list read from ' + args.stnlist[0]
+        stnlist = [line.strip() for line in open(args.stnlist[0], 'r')]
+        stnlist = [{'NetworkCode': item.split('.')[0], 'StationCode': item.split('.')[1]} for item in stnlist]
     else:
         stnlist = Utils.process_stnlist(cnn, args.stnlist)
 

@@ -176,6 +176,7 @@ class StationInfo(StationInfoRecord):
         self.record_count = 0
         self.allow_empty = allow_empty
         self.header = '*SITE  Station Name      Session Start      Session Stop       Ant Ht   HtCod  Ant N    Ant E    Receiver Type         Vers                  SwVer  Receiver SN           Antenna Type     Dome   Antenna SN          '
+        self.date = None
 
         # connect to the db and load the station info table
         if NetworkCode is not None and StationCode is not None:

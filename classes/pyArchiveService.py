@@ -21,7 +21,6 @@ import pyPPP
 import pyBrdc
 import sys
 import os
-import pp
 import pyOptions
 import Utils
 import pyOTL
@@ -120,6 +119,7 @@ def error_handle(cnn, message, crinex, folder, filename, no_db_log=False):
         cnn.insert_warning(message)
 
     return
+
 
 def insert_data(Config, cnn, StationCode, rs_stn, rinexinfo, year, doy, retry_folder):
 
@@ -226,6 +226,7 @@ def verify_rinex_multiday(cnn, rinexinfo, Config):
 
     return True
 
+
 def process_crinex_file(crinex, filename, data_rejected, data_retry):
 
     # create a uuid temporary folder in case we cannot read the year and doy from the file (and gets rejected)
@@ -268,6 +269,28 @@ def process_crinex_file(crinex, filename, data_rejected, data_retry):
         # we don't have station info data! Still, good enough
         # the final PPP coordinate will be calculated by pyScanArchive on a different process
 
+        # make sure that the file has the appropriate coordinates in the header for PPP.
+        # put the correct APR coordinates in the header.
+        # ppp didn't work, try using sh_rx2apr
+        brdc = pyBrdc.GetBrdcOrbits(Config.brdc_path, rinexinfo.date, rinexinfo.rootdir)
+
+        # initialize a station information object necessary to normalize the header
+        stninfo = pyStationInfo.StationInfo(None, allow_empty=True)
+
+        stninfo.AntennaCode = rinexinfo.antType
+        stninfo.ReceiverCode = rinexinfo.recType
+        stninfo.AntennaEast = 0
+        stninfo.AntennaNorth = 0
+        stninfo.AntennaHeight = rinexinfo.antOffset
+        stninfo.RadomeCode = rinexinfo.antDome
+        stninfo.AntennaSerial = rinexinfo.antNo
+        stninfo.ReceiverSerial = rinexinfo.recNo
+
+        # inflate the chi**2 limit to make sure it will pass (even if we get a crappy coordinate)
+        rinexinfo.auto_coord(brdc, chi_limit=20)
+        # normalize header to add the APR coordinate
+        rinexinfo.normalize_header(stninfo)
+
         ppp = pyPPP.RunPPP(rinexinfo, '', Config.options, Config.sp3types, Config.sp3altrn, rinexinfo.antOffset, False, False) # type: pyPPP.RunPPP
 
         try:
@@ -275,9 +298,7 @@ def process_crinex_file(crinex, filename, data_rejected, data_retry):
 
         except pyPPP.pyRunPPPException as e:
 
-            # ppp didn't work, try using sh_rx2apr
-            brdc = pyBrdc.GetBrdcOrbits(Config.brdc_path, rinexinfo.date, rinexinfo.rootdir)
-
+            # run again without inflating chi**2
             auto_coords_xyz, auto_coords_lla, auto_error = rinexinfo.auto_coord(brdc)
 
             if auto_coords_lla:
@@ -441,7 +462,7 @@ PSQL# INSERT INTO stations ("NetworkCode", "StationCode", "auto_x", "auto_y", "a
 
         return (None, None)
 
-    except:
+    except Exception:
 
         retry_folder = retry_folder.replace('%reason%', 'general_exception')
 
@@ -451,6 +472,7 @@ PSQL# INSERT INTO stations ("NetworkCode", "StationCode", "auto_x", "auto_y", "a
         return (error, None)
 
     return (None, None)
+
 
 def insert_station_w_lock(cnn, StationCode, filename, lat, lon, h, x, y, z, otl):
 
@@ -468,7 +490,7 @@ def insert_station_w_lock(cnn, StationCode, filename, lat, lon, h, x, y, z, otl)
     else:
         # insert this new record in the stations table using a default network name (???)
         # this network name is a flag that tells the ArchiveService that no data should be added to this station
-        # until a proper networkname is assigned.
+        # until a proper NetworkCode is assigned.
 
         # check if network code exists
         NetworkCode = '???'
@@ -502,12 +524,13 @@ def insert_station_w_lock(cnn, StationCode, filename, lat, lon, h, x, y, z, otl)
         except dbConnection.dbErrInsert:
             # another process did the insert before, ignore the error
             pass
-        except:
+        except Exception:
             raise
 
         # update the lock information for this station
         cnn.update('locks', {'filename': filename}, NetworkCode=NetworkCode, StationCode=StationCode)
         cnn.commit_transac()
+
 
 def output_handle(cnn, callback):
 
@@ -555,14 +578,6 @@ def output_handle(cnn, callback):
 
     return []
 
-def print_help():
-    print "  usage: "
-    print "  pyArchiveService : scan for rinex file in [repo directory]/data_in"
-    print "    The repository should have the following folders (created if they don't exist):"
-    print "    - data_in      : a folder to put incoming data (in any structure)."
-    print "    - data_in_retry: that has some failure and that was moved out of the directory to allow the used to identify problems"
-    print "                     will be moved back into data_in when the program is restarted."
-    print "    - data_reject  : rejected data due to not having been able to run ppp on it."
 
 def remove_empty_folders(folder):
 
@@ -583,7 +598,8 @@ def remove_empty_folders(folder):
 
     return
 
-def main(argv):
+
+def main():
 
     # bind to the repository directory
 
@@ -591,7 +607,6 @@ def main(argv):
 
     if not os.path.isdir(Config.repository):
         print "the provided repository path in gnss_data.cfg is not a folder"
-        print_help()
         exit()
 
     # initialize the PP job server
@@ -713,4 +728,4 @@ def main(argv):
 
 if __name__ == '__main__':
 
-    main(sys.argv[1:])
+    main()

@@ -128,6 +128,65 @@ class ReadRinex(RinexRecord):
 
         return fields
 
+    def check_interval(self):
+
+        interval_record = {'INTERVAL': [('%10.3f',), False, (30,)]}
+
+        header = self.get_header()
+        new_header = []
+
+        for line in header:
+
+            if any(key in line for key in interval_record.keys()):
+                # get the first occurrence only!
+                record = [key for key in interval_record.keys() if key in line][0]
+
+                # get the data section by spliting the line using the record text
+                data = line.split(record)[0]
+
+                fields = self.read_fields(line, data, interval_record[record][0])
+
+                if fields[0] != self.interval:
+                    # interval not equal. Replace record
+                    data = ''.join(interval_record[record][0]) % self.interval
+                    data = '%-60s' % data + record
+
+                    new_header += [data + '\n']
+                else:
+                    # record matches, leave it untouched
+                    new_header += [line]
+            else:
+                # not a critical field, just put it back in
+                if not 'END OF HEADER' in line:
+                    # leave END OF HEADER until the end to add possible missing records
+                    new_header += [line]
+
+        new_header += [''.ljust(60, ' ') + 'END OF HEADER\n']
+
+        if new_header != header:
+
+            try:
+                with open(self.rinex_path, 'r') as fileio:
+                    rinex = fileio.readlines()
+            except:
+                raise
+
+            # find the end of header
+            index = [i for i, item in enumerate(rinex) if 'END OF HEADER' in item][0]
+            # delete header
+            del rinex[0:index+1]
+            # add new header
+            rinex = new_header + rinex
+
+            try:
+                f = open(self.rinex_path, 'w')
+                f.writelines(rinex)
+                f.close()
+            except:
+                raise
+
+        return
+
     def check_header(self):
 
         # list of required header records and a flag to know if they were found or not in the current header
@@ -157,7 +216,7 @@ class ReadRinex(RinexRecord):
                 record = [key for key in required_records.keys() if key in line][0]
 
                 # mark the record as found
-                required_records[record] = [required_records[record][0], True, required_records[record][2]]
+                required_records[record][1] = True
 
                 # get the data section by spliting the line using the record text
                 data = line.split(record)[0]
@@ -332,6 +391,14 @@ class ReadRinex(RinexRecord):
         # process the output
         self.process(out)
 
+        # DDG: after process(out), interval should be numeric
+        if self.interval is None:
+            raise pyRinexException('RINEX sampling interval could not be determined. The output from RinSum was:\n' + out)
+
+        # DDG: new interval checking after running RinSum
+        # check the sampling interval
+        self.check_interval()
+
         if (not self.firstObs or not self.lastObs):
             # first and lastobs cannot be None
             raise pyRinexException(self.rinex_path + ': error in ReadRinex.process: the output for first/last obs is empty. The output from RinSum was:\n' + out)
@@ -424,7 +491,6 @@ class ReadRinex(RinexRecord):
 
         return
 
-
     def process(self,output):
 
         for line in output.split('\n'):
@@ -453,13 +519,23 @@ class ReadRinex(RinexRecord):
                 try:
                     self.antOffset = float(find_between(line, 'Antenna Delta (HEN,m) : (',',').strip())
                 except:
-                    self.antOffset = []
+                    self.antOffset = 0 # DDG: antenna offset default value set to zero, not to []
 
-            if r'Computed interval' in line:
+            if r'Computed interval' in line and r'Warning' not in line:
+                # added condition that skips a warning stating that header does not agree with computed interval
                 try:
                     self.interval = float(find_between(line, 'Computed interval','seconds.').strip())
                 except:
                     self.interval = 0
+
+                if self.interval == 0:
+                    # maybe single epoch or bad file. Raise an error
+                    epochs = [find_between(xline, 'There were', 'epochs').strip() for xline in output.split('\n') if 'There were' in xline]
+                    if len(epochs) > 0:
+                        raise pyRinexException('RINEX interval equal to zero. Single epoch or bad RINEX file. Reported epochs in file were %s' %(epochs[0]))
+                    else:
+                        raise pyRinexException('RINEX interval equal to zero. Single epoch or bad RINEX file. No epoch information to report. The output from RinSum was:\n' + output)
+
 
             if r'Computed first epoch:' in line:
                 self.firstObs = find_between(line, 'Computed first epoch:','=').strip()
@@ -496,7 +572,6 @@ class ReadRinex(RinexRecord):
             self.antType = re.sub(r'[^\x00-\x7f]+', '', self.antType).strip()
         if self.antDome:
             self.antDome = re.sub(r'[^\x00-\x7f]+', '', self.antDome).strip()
-
 
     def get_header(self):
 
@@ -543,7 +618,7 @@ class ReadRinex(RinexRecord):
 
         return numpy.array([lat]), numpy.array([lon]), numpy.array([alt])
 
-    def auto_coord(self, brdc):
+    def auto_coord(self, brdc, chi_limit=3):
         # use gamit's sh_rx2apr to obtain a coordinate of the station
 
         cmd = pyRunWithRetry.RunCommand('sh_rx2apr -site ' + self.rinex + ' -nav ' + brdc.brdc_filename, 10, self.rootdir)
@@ -560,7 +635,7 @@ class ReadRinex(RinexRecord):
 
                     if chi == 'NaN':
                         return None, None
-                    elif float(chi) < 3:
+                    elif float(chi) < chi_limit:
                         # open the APR file and read the coordinates
                         if os.path.isfile(os.path.join(self.rootdir, self.rinex[0:4] + '.apr')):
                             with open(os.path.join(self.rootdir, self.rinex[0:4] + '.apr')) as apr:
@@ -632,7 +707,7 @@ class ReadRinex(RinexRecord):
         # this function gets rid of the heaer information and replaces it with the station info (trusted)
         # should be executed before calling PPP or before rebuilding the Archive
 
-        if StationInfo.date != self.date:
+        if StationInfo.date is not None and StationInfo.date != self.date:
             raise pyRinexException('The StationInfo object was initialized for a different date than that of the RINEX file')
 
         if StationInfo.AntennaCode is not None and StationInfo.ReceiverCode is not None:
@@ -688,13 +763,16 @@ class ReadRinex(RinexRecord):
                         break
 
             # always replace the APPROX POSITION XYZ
-            if x is None and brdc is None:
+            if x is None and brdc is None and self.x is None:
                 raise pyRinexException('Cannot normalize the header\'s APPROX POSITION XYZ without a coordinate or a valid broadcast ephemeris object')
-            else:
-                if x is None:
-                    self.auto_coord(brdc)
-                else:
-                    self.x = x; self.y = y; self.z = z
+
+            elif self.x is None and brdc is not None:
+                self.auto_coord(brdc)
+
+            elif x is not None:
+                self.x = x
+                self.y = y
+                self.z = z
 
             for i, line in enumerate(rinex):
                 if line.strip().endswith('APPROX POSITION XYZ'):
@@ -805,7 +883,6 @@ class ReadRinex(RinexRecord):
             raise pyRinexException(e)
 
         return
-
 
     def rename_crinex_rinex(self, new_name, NetworkCode=None, StationCode=None):
 
