@@ -226,6 +226,8 @@ class Date():
                 self.hour = arg
             elif key == 'minute': #DDG 03-28-2017: include minute to work with station info object
                 self.minute = arg
+            elif key == 'second': #DDG 03-28-2017: include second to work with station info object
+                self.second = arg
             elif key == 'datetime': #DDG 03-28-2017: handle conversion from datetime to pyDate
                 if isinstance(arg, datetime):
                     self.day = arg.day

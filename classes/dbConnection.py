@@ -100,7 +100,13 @@ class Cnn(pg.DB):
         except Exception as e:
             raise dbErrDelete(e)
 
-    def insert_event(self,type,module,desc):
+    def insert_event(self, event):
+
+        self.insert('events', event.db_dict())
+
+        return
+
+    def insert_event_bak(self, type, module,desc):
 
         # do not insert if record exists
         desc = '%s%s' % (module, desc.replace('\'', ''))
@@ -126,7 +132,7 @@ class Cnn(pg.DB):
         module = '[%s:%s(%s)]\n' % (mod, caller, str(line))
 
         # get the module calling for insert_warning to make clear how is logging this message
-        self.insert_event('warn', module, desc)
+        self.insert_event_bak('warn', module, desc)
 
     def insert_error(self, desc):
         line = inspect.stack()[1][2]
@@ -137,7 +143,7 @@ class Cnn(pg.DB):
         module = '[%s:%s(%s)]\n' % (mod, caller, str(line))
 
         # get the module calling for insert_warning to make clear how is logging this message
-        self.insert_event('error', module, desc)
+        self.insert_event_bak('error', module, desc)
 
     def insert_info(self, desc):
         line = inspect.stack()[1][2]
@@ -147,7 +153,7 @@ class Cnn(pg.DB):
 
         module = '[%s:%s(%s)]\n' % (mod, caller, str(line))
 
-        self.insert_event('info', module, desc)
+        self.insert_event_bak('info', module, desc)
 
     def __del__(self):
         if self.active_transaction:

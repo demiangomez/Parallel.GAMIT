@@ -8,10 +8,12 @@ This class fetches statellite clock files from the orbits folder (specified in t
 
 import pyProducts
 import os
+import pyEvents
 
 class pyClkException(Exception):
     def __init__(self, value):
         self.value = value
+        self.event = pyEvents.Event(Description=value, EventType='error', module=type(self).__name__)
     def __str__(self):
         return str(self.value)
 

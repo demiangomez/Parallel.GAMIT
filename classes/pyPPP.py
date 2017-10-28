@@ -19,6 +19,7 @@ from shutil import copyfile
 from shutil import rmtree
 import numpy
 from math import isnan
+import pyEvents
 
 def find_between(s, first, last):
     try:
@@ -31,6 +32,7 @@ def find_between(s, first, last):
 class pyRunPPPException(Exception):
     def __init__(self, value):
         self.value = value
+        self.event = pyEvents.Event(Description=value, EventType='error')
     def __str__(self):
         return str(self.value)
 
@@ -260,16 +262,16 @@ class RunPPP(PPPSpatialCheck):
 ' IONOSPHERIC GRID INPUT          (1=NO,2=YES)'               1
 ' SOLVE STATION COORDINATES       (1=NO,2=YES)'               2
 ' SOLVE TROP. (1=NO,2-5=RW MM/HR) (+100=grad) '             105
-' BACKWARD SUBSTITUTION           (1=NO,2=YES)'               2
+' BACKWARD SUBSTITUTION           (1=NO,2=YES)'               1
 ' REFERENCE SYSTEM            (1=NAD83,2=ITRF)'               2
 ' COORDINATE SYSTEM(1=ELLIPSOIDAL,2=CARTESIAN)'               2
-' A-PRIORI PSEUDORANGE SIGMA               (m)'           5.000
-' A-PRIORI CARRIER PHASE SIGMA             (m)'            .010
+' A-PRIORI PSEUDORANGE SIGMA               (m)'           2.000
+' A-PRIORI CARRIER PHASE SIGMA             (m)'            .015
 ' LATITUDE  (ddmmss.sss,+N) or ECEF X      (m)'          0.0000
 ' LONGITUDE (ddmmss.sss,+E) or ECEF Y      (m)'          0.0000
 ' HEIGHT (m)                or ECEF Z      (m)'          0.0000
 ' ANTENNA HEIGHT                           (m)'          %s
-' CUTOFF ELEVATION                       (deg)'           5.000
+' CUTOFF ELEVATION                       (deg)'          10.000
 ' GDOP CUTOFF                                 '          20.000
         """ % (kin, self.antH)
 
@@ -408,22 +410,32 @@ orbits/%s
 
         cmd = pyRunWithRetry.RunCommand(self.ppp, 45, self.rootdir, 'input.inp')
         try:
-            out, err = cmd.run_shell()
+            # DDG: handle the error found in PPP (happens every now and then)
+            # Fortran runtime error: End of file
+            for i in range(2):
+                out, err = cmd.run_shell()
 
-            if not '*END - NORMAL COMPLETION' in out:
-                msg = 'PPP ended abnormally for ' + self.rinex.rinex_path + ':\n' + err
-                if raise_error:
-                    raise pyRunPPPException(msg)
+                if not '*END - NORMAL COMPLETION' in out:
+
+                    if 'Fortran runtime error: End of file' in err and i == 0:
+                        # error detected, try again!
+                        continue
+
+                    msg = 'PPP ended abnormally for ' + self.rinex.rinex_path + ':\n' + err
+                    if raise_error:
+                        raise pyRunPPPException(msg)
+                    else:
+                        return False, msg
                 else:
-                    return False, msg
-            else:
-                f = open(os.path.join(self.rootdir, self.rinex.rinex[:-3] + 'sum'), 'r')
-                self.out = f.readlines()
-                f.close()
+                    f = open(os.path.join(self.rootdir, self.rinex.rinex[:-3] + 'sum'), 'r')
+                    self.out = f.readlines()
+                    f.close()
 
-                f = open(os.path.join(self.rootdir, self.rinex.rinex[:-3] + 'pos'), 'r')
-                self.pos = f.readlines()
-                f.close()
+                    f = open(os.path.join(self.rootdir, self.rinex.rinex[:-3] + 'pos'), 'r')
+                    self.pos = f.readlines()
+                    f.close()
+                    break
+
         except pyRunWithRetry.RunCommandWithRetryExeception as e:
             msg = str(e)
             if raise_error:

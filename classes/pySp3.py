@@ -6,10 +6,12 @@ Author: Demian D. Gomez
 
 import pyProducts
 import os
+import pyEvents
 
 class pySp3Exception(Exception):
     def __init__(self, value):
         self.value = value
+        self.event = pyEvents.Event(Description=value, EventType='error', module=type(self).__name__)
     def __str__(self):
         return str(self.value)
 

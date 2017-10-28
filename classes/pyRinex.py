@@ -17,6 +17,7 @@ from shutil import rmtree
 import re
 import numpy
 import struct
+import pyEvents
 
 def find_between(s, first, last):
     try:
@@ -29,6 +30,7 @@ def find_between(s, first, last):
 class pyRinexException(Exception):
     def __init__(self, value):
         self.value = value
+        self.event = pyEvents.Event(Description=value, EventType='error')
     def __str__(self):
         return str(self.value)
 
@@ -60,11 +62,14 @@ class RinexRecord():
         self.no_cleanup = None
         self.multiday = False
         self.multiday_rnx_list = []
+        self.epochs = None
+        self.completion = None
+        self.rel_completion = None
 
         fieldnames = ['NetworkCode','StationCode','ObservationYear','ObservationMonth','ObservationDay',
                       'ObservationDOY','ObservationFYear','ObservationSTime','ObservationETime','ReceiverType',
                       'ReceiverSerial','ReceiverFw','AntennaType','AntennaSerial','AntennaDome','Filename','Interval',
-                      'AntennaOffset']
+                      'AntennaOffset', 'Completion']
 
         self.record = dict.fromkeys(fieldnames)
 
@@ -88,7 +93,7 @@ class RinexRecord():
         self.record['Filename'] = self.rinex
         self.record['Interval'] = self.interval
         self.record['AntennaOffset'] = self.antOffset
-
+        self.record['Completion'] = self.completion
 
 
 class ReadRinex(RinexRecord):
@@ -125,6 +130,8 @@ class ReadRinex(RinexRecord):
                 except ValueError:
                     # invalid number in the field!, replace with something harmless
                     fields[i] = int(1)
+            elif 's' in format_tuple[i]:
+                fields[i] = fields[i].strip()
 
         return fields
 
@@ -143,6 +150,7 @@ class ReadRinex(RinexRecord):
 
                 # get the data section by spliting the line using the record text
                 data = line.split(record)[0]
+                interval_record[record][1] = True
 
                 fields = self.read_fields(line, data, interval_record[record][0])
 
@@ -161,15 +169,25 @@ class ReadRinex(RinexRecord):
                     # leave END OF HEADER until the end to add possible missing records
                     new_header += [line]
 
+        # now check that all the records where included! there's missing ones, then force them
+        if not interval_record['INTERVAL'][1]:
+            data = ''.join(interval_record['INTERVAL'][0]) % self.interval
+            data = '%-60s' % data + 'INTERVAL'
+            new_header = new_header + [data + '\n']
+            data = '%-60s' % 'pyRinex: WARN! added interval to fix file!' + 'COMMENT'
+            new_header = new_header + [data + '\n']
+
         new_header += [''.ljust(60, ' ') + 'END OF HEADER\n']
 
         if new_header != header:
-
             try:
                 with open(self.rinex_path, 'r') as fileio:
                     rinex = fileio.readlines()
-            except:
+            except Exception:
                 raise
+
+            if not any("END OF HEADER" in s for s in rinex):
+                raise pyRinexException('Invalid header: could not find END OF HEADER tag.')
 
             # find the end of header
             index = [i for i, item in enumerate(rinex) if 'END OF HEADER' in item][0]
@@ -182,12 +200,18 @@ class ReadRinex(RinexRecord):
                 f = open(self.rinex_path, 'w')
                 f.writelines(rinex)
                 f.close()
-            except:
+            except Exception:
                 raise
 
         return
 
     def check_header(self):
+
+        header = self.get_header()
+        first_obs = self.get_firstobs()
+
+        if first_obs is None:
+            raise pyRinexException('Could not find a first observation in RINEX file. Truncated file? Header follows:\n' + ''.join(header))
 
         # list of required header records and a flag to know if they were found or not in the current header
         # also, have a tuple of default values in case there is a missing record
@@ -201,11 +225,11 @@ class ReadRinex(RinexRecord):
                             'ANTENNA: DELTA H/E/N': [('%14.4f','%14.4f','%14.4f'), False, (float(0), float(0), float(0))],
                             'APPROX POSITION XYZ' : [('%14.4f','%14.4f','%14.4f'), False, (float(0), float(0), float(6371000))],
                              #'# / TYPES OF OBSERV' : [('%6i',), False, ('',)],
-                            'TIME OF FIRST OBS'   : [('%6i','%6i','%6i','%6i','%6i','%13.7f','%8s'), False, (int(2000), int(1), int(1),  int(0),  int(0),  float(0), 'GPS')],
-                            'TIME OF LAST OBS'    : [('%6i','%6i','%6i','%6i','%6i','%13.7f','%8s'), True, (int(2000), int(1), int(1), int(23), int(59), float(59), 'GPS')],
+                            'TIME OF FIRST OBS'   : [('%6i','%6i','%6i','%6i','%6i','%13.7f','%8s'), False, (int(first_obs.year), int(first_obs.month), int(first_obs.day),  int(first_obs.hour),  int(first_obs.minute),  float(first_obs.second), 'GPS')],
+                             # DDG: remove time of last observation all together. It just creates problems and is not mandatory
+                             #'TIME OF LAST OBS'    : [('%6i','%6i','%6i','%6i','%6i','%13.7f','%8s'), True, (int(first_obs.year), int(first_obs.month), int(first_obs.day), int(23), int(59), float(59), 'GPS')],
                             'COMMENT'             : [('%60s',), True, ('',)]}
 
-        header = self.get_header()
         new_header = []
         system = ''
 
@@ -238,6 +262,20 @@ class ReadRinex(RinexRecord):
                     if record == 'TIME OF FIRST OBS' or record == 'TIME OF LAST OBS':
                         if system == 'M' and not fields[6].strip():
                             fields[6] = 'GPS'
+                        # check if the first observation is meaningful or not
+                        if record == 'TIME OF FIRST OBS' and (fields[0] != first_obs.year or
+                                        fields[1] != first_obs.month or
+                                        fields[2] != first_obs.day or
+                                        fields[3] != first_obs.hour or
+                                        fields[4] != first_obs.minute or
+                                        fields[5] != first_obs.second):
+                            # bad first observation! replace with the real one
+                            fields[0] = first_obs.year
+                            fields[1] = first_obs.month
+                            fields[2] = first_obs.day
+                            fields[3] = first_obs.hour
+                            fields[4] = first_obs.minute
+                            fields[5] = first_obs.second
 
                 #if record == '# / TYPES OF OBSERV':
                 # re-read this time with the correct number of fields
@@ -252,7 +290,7 @@ class ReadRinex(RinexRecord):
                 new_header += [data + '\n']
             else:
                 # not a critical field, just put it back in
-                if not 'END OF HEADER' in line:
+                if ('END OF HEADER' not in line) and ('TIME OF LAST OBS' not in line):
                     # leave END OF HEADER until the end to add possible missing records
                     new_header += [line]
 
@@ -282,8 +320,11 @@ class ReadRinex(RinexRecord):
             try:
                 with open(self.rinex_path, 'r') as fileio:
                     rinex = fileio.readlines()
-            except:
+            except Exception:
                 raise
+
+            if not any("END OF HEADER" in s for s in rinex):
+                raise pyRinexException('Invalid header: could not find END OF HEADER tag.')
 
             # find the end of header
             index = [i for i, item in enumerate(rinex) if 'END OF HEADER' in item][0]
@@ -296,11 +337,14 @@ class ReadRinex(RinexRecord):
                 f = open(self.rinex_path, 'w')
                 f.writelines(rinex)
                 f.close()
-            except:
+            except Exception:
                 raise
 
     def __init__(self, NetworkCode, StationCode, origin_file, no_cleanup=False):
-
+        """
+        pyRinex initialization
+        if file is multiday, DO NOT TRUST date object for initial file. Only use pyRinex objects contained in the multiday list
+        """
         RinexRecord.__init__(self)
 
         self.StationCode = StationCode
@@ -319,7 +363,7 @@ class ReadRinex(RinexRecord):
         except OSError as e:
             # folder exists from a concurring instance, ignore the error
             sys.exc_clear()
-        except:
+        except Exception:
             raise
 
         # get the crinex and rinex names
@@ -361,8 +405,8 @@ class ReadRinex(RinexRecord):
                 _, err = cmd.run_shell()
             except pyRunWithRetry.RunCommandWithRetryExeception as e:
                 # catch the timeout except and pass it as a pyRinexException
-                raise pyRinexException(e)
-            except:
+                raise pyRinexException(str(e))
+            except Exception:
                 raise
 
             # the uncompressed-unhatanaked file size must be at least > than the crinex
@@ -374,13 +418,13 @@ class ReadRinex(RinexRecord):
         self.check_header()
 
         # run RinSum to get file information
-        cmd = pyRunWithRetry.RunCommand('RinSum --notable ' + self.rinex_path, 21)
+        cmd = pyRunWithRetry.RunCommand('RinSum --notable ' + self.rinex_path, 45)  # DDG: increased from 21 to 45.
         try:
             out,_ = cmd.run_shell()
         except pyRunWithRetry.RunCommandWithRetryExeception as e:
             # catch the timeout except and pass it as a pyRinexException
             raise pyRinexException(e)
-        except:
+        except Exception:
             raise
 
         # write RinSum output to a log file (debug purposes)
@@ -438,7 +482,7 @@ class ReadRinex(RinexRecord):
             except ValueError:
                 self.datetime_firstObs = datetime.datetime.strptime(self.firstObs, '%y/%m/%d %H:%M:%S')
                 self.datetime_lastObs = datetime.datetime.strptime(self.lastObs, '%y/%m/%d %H:%M:%S')
-            except:
+            except Exception:
                 raise
 
             # check for files that have more than one day inside (yes, there are some like this... amazing)
@@ -450,13 +494,35 @@ class ReadRinex(RinexRecord):
                 # the file has more than one day in it...
                 # use teqc to window the data
                 self.tbin()
-                self.multiday = True
+                if len(self.multiday_rnx_list) > 1:
+                    # truly a multiday file
+                    self.multiday = True
+                elif len(self.multiday_rnx_list) == 1:
+                    # maybe one of the files has a single epoch in it. Drop the current rinex and use the binned version
+                    self.cleanup()
+                    temp_path = self.multiday_rnx_list[0].rootdir
+                    # set to no cleanup so that the files survive the __init__ statement
+                    self.multiday_rnx_list[0].no_cleanup = True
+                    # reinitialize self
+                    self.__init__(self.multiday_rnx_list[0].NetworkCode, self.multiday_rnx_list[0].StationCode, self.multiday_rnx_list[0].rinex_path)
+                    # the origin file should still be the rinex passed to init the object, not the multiday file
+                    self.origin_file = origin_file
+                    # remove the temp directory
+                    rmtree(temp_path)
+                    # now self points the the binned version of the rinex
+                    return
 
             # reported date for this file is session/2
             self.date = pyDate.Date(datetime=self.datetime_firstObs+(self.datetime_lastObs-self.datetime_firstObs)/2)
 
             self.firstObs = self.datetime_firstObs.strftime('%Y/%m/%d %H:%M:%S')
             self.lastObs = self.datetime_lastObs.strftime('%Y/%m/%d %H:%M:%S')
+
+            # DDG: calculate the completion of the file (at sampling rate)
+            # completion of day
+            self.completion = self.epochs * self.interval / 86400
+            # completion of time window in file
+            self.rel_completion = self.epochs * self.interval / ((self.datetime_lastObs - self.datetime_firstObs).total_seconds() + self.interval)
 
             # load the RinexRecord class
             self.load_record()
@@ -472,7 +538,7 @@ class ReadRinex(RinexRecord):
         except pyRunWithRetry.RunCommandWithRetryExeception as e:
             # catch the timeout except and pass it as a pyRinexException
             raise pyRinexException(e)
-        except:
+        except Exception:
             raise
 
         # successfully tbinned the file
@@ -485,9 +551,13 @@ class ReadRinex(RinexRecord):
                 # rename file
                 move(os.path.join(self.rootdir,file),os.path.join(self.rootdir,file.replace('rnx', self.StationCode)))
                 # get the info for this file
-                rnx = ReadRinex(self.NetworkCode,self.StationCode,os.path.join(self.rootdir,file.replace('rnx', self.StationCode)))
-                # append this rinex object to the multiday list
-                self.multiday_rnx_list.append(rnx)
+                try:
+                    rnx = ReadRinex(self.NetworkCode,self.StationCode,os.path.join(self.rootdir,file.replace('rnx', self.StationCode)))
+                    # append this rinex object to the multiday list
+                    self.multiday_rnx_list.append(rnx)
+                except pyRinexException:
+                    # there was a problem with one of the multiday files. Do not append
+                    pass
 
         return
 
@@ -528,11 +598,16 @@ class ReadRinex(RinexRecord):
                 except:
                     self.interval = 0
 
+                self.epochs = [int(find_between(xline, 'There were', 'epochs').strip()) for xline in output.split('\n') if 'There were' in xline]
+                if not self.epochs:
+                    self.epochs = 0
+                else:
+                    self.epochs = self.epochs[0]
+
                 if self.interval == 0:
                     # maybe single epoch or bad file. Raise an error
-                    epochs = [find_between(xline, 'There were', 'epochs').strip() for xline in output.split('\n') if 'There were' in xline]
-                    if len(epochs) > 0:
-                        raise pyRinexException('RINEX interval equal to zero. Single epoch or bad RINEX file. Reported epochs in file were %s' %(epochs[0]))
+                    if self.epochs > 0:
+                        raise pyRinexException('RINEX interval equal to zero. Single epoch or bad RINEX file. Reported epochs in file were %s' %(self.epochs))
                     else:
                         raise pyRinexException('RINEX interval equal to zero. Single epoch or bad RINEX file. No epoch information to report. The output from RinSum was:\n' + output)
 
@@ -573,15 +648,64 @@ class ReadRinex(RinexRecord):
         if self.antDome:
             self.antDome = re.sub(r'[^\x00-\x7f]+', '', self.antDome).strip()
 
+    def get_firstobs(self):
+
+        fs = struct.Struct('1s2s1s2s1s2s1s2s1s2s11s2s1s3s')
+        parse = fs.unpack_from
+
+        date = None
+        with open(self.rinex_path,'r') as fileio:
+
+            found = False
+            for line in fileio:
+                if 'END OF HEADER' in line:
+                    found = True
+                    break
+
+            if found:
+                skip = 0
+                for line in fileio:
+                    if skip == 0:
+                        fields = list(parse(line))
+
+                        if int(fields[12]) <= 1: # OK FLAG
+                            # read first observation
+                            year = int(fields[1])
+                            month = int(fields[3])
+                            day = int(fields[5])
+                            hour = int(fields[7])
+                            minute = int(fields[9])
+                            second = float(fields[10])
+
+                            date = pyDate.Date(year=year, month=month, day=day, hour=hour, minute=minute, second=second)
+                            break
+                        elif int(fields[12]) > 1:
+                            # event, skip lines indicated in next field
+                            skip = int(fields[13])
+                    else:
+                        skip -= 1
+
+        return date
+
     def get_header(self):
 
         header = []
-        with open(self.rinex_path,'r') as fileio:
+        # retry reading. Every now and then there is a problem during file read.
+        for i in range(2):
+            try:
+                with open(self.rinex_path,'r') as fileio:
 
-            for line in fileio:
-                header.append(line)
-                if 'END OF HEADER' in line:
+                    for line in fileio:
+                        header.append(line)
+                        if 'END OF HEADER' in line:
+                            break
                     break
+            except IOError:
+                # try again
+                if i == 0:
+                    continue
+                else:
+                    raise
 
         return header
 
@@ -621,7 +745,7 @@ class ReadRinex(RinexRecord):
     def auto_coord(self, brdc, chi_limit=3):
         # use gamit's sh_rx2apr to obtain a coordinate of the station
 
-        cmd = pyRunWithRetry.RunCommand('sh_rx2apr -site ' + self.rinex + ' -nav ' + brdc.brdc_filename, 10, self.rootdir)
+        cmd = pyRunWithRetry.RunCommand('sh_rx2apr -site ' + self.rinex + ' -nav ' + brdc.brdc_filename, 40, self.rootdir)
         # leave errors un-trapped on purpose (will raise an error to the parent)
         out, err = cmd.run_shell()
 
@@ -634,7 +758,7 @@ class ReadRinex(RinexRecord):
                     chi = line.split()[-1]
 
                     if chi == 'NaN':
-                        return None, None
+                        return None, None, 'chi2 = NaN! ' + err + '\n' + out
                     elif float(chi) < chi_limit:
                         # open the APR file and read the coordinates
                         if os.path.isfile(os.path.join(self.rootdir, self.rinex[0:4] + '.apr')):
@@ -715,7 +839,7 @@ class ReadRinex(RinexRecord):
             try:
                 with open(self.rinex_path, 'r') as fileio:
                     rinex = fileio.readlines()
-            except:
+            except Exception:
                 raise
 
             insert_comment_antcode = False
@@ -805,7 +929,7 @@ class ReadRinex(RinexRecord):
                 f = open(self.rinex_path, 'w')
                 f.writelines(rinex)
                 f.close()
-            except:
+            except Exception:
                 raise
         else:
             raise pyRinexException('The StationInfo object was not initialized correctly.')
@@ -863,7 +987,7 @@ class ReadRinex(RinexRecord):
             except pyRunWithRetry.RunCommandWithRetryExeception as e:
                 # catch the timeout except and pass it as a pyRinexException
                 raise pyRinexException(e)
-            except:
+            except Exception:
                 raise
 
             index = 1

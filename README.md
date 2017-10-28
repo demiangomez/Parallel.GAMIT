@@ -18,7 +18,7 @@ PP is a Python wrapper for the NRCAN PPP (not included in this repository) which
 - Merge stations with different names that in reality are the same station (but renamed or moved a couple of meters), if desired.
 - Merge, delete and add metadata directly from GAMIT station info files or from the pipeline using UNAVCO's GSAC (https://www.unavco.org/software/data-management/gsac/user-info/user-info.html)
 - Both PP and PG tolerate station duplicates by using a three-letter network code. Although this is not supported by GAMIT, PG converts duplicate station codes (stored in different networks) to unique IDs that are used during processing, which are later converted back to the original names after the GLOBK combination of the subnetworks.
-- Because all the information is stored in a relational database, PP and PG can handle very large datasets very easily (it has been tested with ~ 600,000 station-days but Postgres can easily handle millions of records in a regular home computer). Also, the relational database guarantees then consistency of the data and does not allow accidental duplicates in metadata.
+- Because all the information is stored in a relational database, PP and PG can handle very large datasets very easily (it has been tested with ~ 4,600,000 station-days but Postgres can easily handle more than 10 million records in a regular computer). Also, the relational database guarantees then consistency of the data and does not allow accidental duplicates in metadata.
 
 PG and PP require the following dependencies:
 
@@ -35,7 +35,8 @@ PG and PP require the following dependencies:
 - compress/gzip
 - Parallel Python (pp-1.6.5)
 - matplotlib
-- Numpy
+- numpy
+- scandir
 - Neicio: the USGS NEIC Python interface and its dependencies found in https://github.com/usgs/neicio
 
 About the scripts "execute_localy.sh" and "execute_server.sh"

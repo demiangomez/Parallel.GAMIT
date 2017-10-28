@@ -9,16 +9,18 @@ This class fetches broadcast orbits from the brdc folder (specified in the gnss_
 from shutil import copyfile
 import os
 import pyProducts
+import pyEvents
 
 class pyBrdcException(Exception):
     def __init__(self, value):
         self.value = value
+        self.event = pyEvents.Event(Description=value, EventType='error', module=type(self).__name__)
     def __str__(self):
         return str(self.value)
 
 class GetBrdcOrbits(pyProducts.OrbitalProduct):
 
-    def __init__(self,brdc_archive, date, copyto, no_cleanup=False):
+    def __init__(self, brdc_archive, date, copyto, no_cleanup=False):
 
         self.brdc_archive = brdc_archive
         self.brdc_path = None

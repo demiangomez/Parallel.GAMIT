@@ -8,10 +8,12 @@ This class fetches earth orientation parameters files from the orbits folder (sp
 """
 
 import pyProducts
+import pyEvents
 
 class pyEOPException(Exception):
     def __init__(self, value):
         self.value = value
+        self.event = pyEvents.Event(Description=value, EventType='error', module=type(self).__name__)
     def __str__(self):
         return str(self.value)
 

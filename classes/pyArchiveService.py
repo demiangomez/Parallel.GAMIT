@@ -33,6 +33,7 @@ from tqdm import tqdm
 import traceback
 import platform
 import pyJobServer
+import pyEvents
 
 # class to handle the output of the parallel processing
 class callback_class():
@@ -83,7 +84,7 @@ def write_error(folder, filename, msg):
     return
 
 
-def error_handle(cnn, message, crinex, folder, filename, no_db_log=False):
+def error_handle(cnn, event, crinex, folder, filename, no_db_log=False):
 
     # rollback any active transactions
     if cnn.active_transaction:
@@ -99,6 +100,8 @@ def error_handle(cnn, message, crinex, folder, filename, no_db_log=False):
     except:
         raise
 
+    message = event['Description']
+
     try:
         index = 1
         # if the parent process could not read the name of the station, year and doy, then it created a uuid folder
@@ -110,13 +113,13 @@ def error_handle(cnn, message, crinex, folder, filename, no_db_log=False):
 
         shutil.move(crinex, os.path.join(folder, filename))
     except Exception as e:
-        message = 'could not move file into this folder!' + str(e) + '\n' + message
+        message = 'could not move file into this folder!' + str(e) + '\n. Original error: ' + event['Description']
 
     error_file = filename.replace('d.Z','.log')
     write_error(folder, error_file, message)
 
     if not no_db_log:
-        cnn.insert_warning(message)
+        cnn.insert_event(event)
 
     return
 
@@ -161,7 +164,13 @@ def insert_data(Config, cnn, StationCode, rs_stn, rinexinfo, year, doy, retry_fo
         # again, the "archive" for this rinexinfo object is the repository
         rinexinfo.move_origin_file(path2archive)
 
-        cnn.insert_info('New data was found and added to the archive: %s.%s for %s' % (rs_stn['NetworkCode'], rs_stn['StationCode'], rinexinfo.date.yyyyddd()))
+        event = pyEvents.Event(Description='New data was found and added to the archive',
+                               NetworkCode=rs_stn['NetworkCode'],
+                               StationCode=rs_stn['StationCode'],
+                               Year=int(rinexinfo.date.year),
+                               DOY=int(rinexinfo.date.doy))
+
+        cnn.insert_event(event)
 
         cnn.commit_transac()
 
@@ -191,8 +200,12 @@ def insert_data(Config, cnn, StationCode, rs_stn, rinexinfo, year, doy, retry_fo
 
         cnn.insert('rinex_extra', rinexinfo.record)
 
-        cnn.insert_info(
-            'More data for %s was found and added to rinex_extra for %s.%s' % (rinexinfo.date.yyyyddd(), rs_stn['NetworkCode'], rs_stn['StationCode']))
+        event = pyEvents.Event(Description='New data was found and added to rinex_extra',
+                               NetworkCode=rs_stn['NetworkCode'],
+                               StationCode=rs_stn['StationCode'],
+                               Year=int(rinexinfo.date.year),
+                               DOY=int(rinexinfo.date.doy))
+        cnn.insert_event(event)
 
         cnn.commit_transac()
         # these cases can be solved by running pyScanArhive -rinex (resolve conflicts)
@@ -217,8 +230,14 @@ def verify_rinex_multiday(cnn, rinexinfo, Config):
             rnx.compress_local_copyto(retry_folder)
 
         # if the file corresponding to this session is found, assign its object to rinexinfo
-        cnn.insert_info('%s was a multi-day rinex file. The following rinex files where generated and moved to the repository/data_in_retry: %s. The file %s  did not enter the database at this time.' % (
-            rinexinfo.origin_file, ','.join(rnxlist), rinexinfo.crinex))
+        event = pyEvents.Event(Description='%s was a multi-day rinex file. The following rinex files where generated and moved to the repository/data_in_retry: %s. The file %s did not enter the database at this time.' % (rinexinfo.origin_file, ','.join(rnxlist), rinexinfo.crinex),
+                               NetworkCode=rinexinfo.NetworkCode,
+                               StationCode=rinexinfo.StationCode,
+                               Year=int(rinexinfo.date.year),
+                               DOY=int(rinexinfo.date.doy))
+
+        cnn.insert_event(event)
+
         # remove crinex from the repository (origin_file points to the repository, not to the archive in this case)
         os.remove(rinexinfo.origin_file)
 
@@ -235,6 +254,8 @@ def process_crinex_file(crinex, filename, data_rejected, data_retry):
     try:
         cnn = dbConnection.Cnn("gnss_data.cfg")
         Config = pyOptions.ReadOptions("gnss_data.cfg")
+        # apply local configuration (path to repo) in the executing node
+        crinex = os.path.join(Config.repository_data_in, crinex)
     except:
         return (traceback.format_exc() + ' open de database when processing file ' + crinex, None)
 
@@ -246,9 +267,11 @@ def process_crinex_file(crinex, filename, data_rejected, data_retry):
         year = int(Utils.get_norm_year_str(int(crinex.split('/')[-1][9:11])))
         doy = int(crinex.split('/')[-1][4:7])
     except:
-        error = traceback.format_exc() + ' could not read the station code, year or doy for file ' + crinex
-        error_handle(cnn, error,crinex,reject_folder,filename,True)
-        return (error, None)
+        event = pyEvents.Event(
+            Description=traceback.format_exc() + ' could not read the station code, year or doy for file ' + crinex,
+            EventType='error')
+        error_handle(cnn, event,crinex,reject_folder,filename,True)
+        return (event['Description'], None)
 
     # we can now make better reject and retry folders
     reject_folder = os.path.join(data_rejected, '%reason%/' + Utils.get_norm_year_str(year) + '/' + Utils.get_norm_doy_str(doy))
@@ -313,10 +336,10 @@ def process_crinex_file(crinex, filename, data_rejected, data_retry):
                 if auto_error is None:
                     auto_error = 'no report!'
 
-                raise pyPPP.pyRunPPPException('Both PPP and sh_rx2apr failed to obtain a coordinate for ' + crinex +
-                                              '.\nThe file has been moved into the rejection folder. '
-                                              'Summary PPP file and error (if exists) follows:\n' + ppp.summary +
-                                              '\n\n' + 'ERROR section:\n' + str(e) + '\nauto_coord error follows:\n' + auto_error)
+                raise pyPPP.pyRunPPPException('Both PPP and sh_rx2apr failed to obtain a coordinate for ' + crinex + '.\n'
+                                              'The file has been moved into the rejection folder. '
+                                              'Summary PPP file and error (if exists) follows:\n' + ppp.summary + '\n\n'
+                                               'ERROR section:\n' + str(e) + '\nauto_coord error follows:\n' + auto_error)
 
         # check for unreasonable heights
         if ppp.h[0] > 9000 or ppp.h[0] < -400:
@@ -324,7 +347,16 @@ def process_crinex_file(crinex, filename, data_rejected, data_retry):
             reject_folder = reject_folder.replace('%reason%','rinex_issues')
 
             # elevation cannot be higher or lower than the tallest and lowest point on the Earth
-            error_handle(cnn, crinex + ' : unreasonable geodetic height (%.3f). RINEX file will not enter the archive.' % (ppp.h[0]), crinex, reject_folder, filename)
+            event = pyEvents.Event(
+                Description=crinex + ' : unreasonable geodetic height (%.3f). RINEX file will not enter the archive.' % (ppp.h[0]),
+                EventType='error',
+                StationCode=StationCode,
+                NetworkCode='???',
+                Year=year,
+                DOY=doy)
+
+            error_handle(cnn, event, crinex, reject_folder, filename)
+
             return (None, None)
 
         Result, match, closest_stn = ppp.verify_spatial_coherence(cnn, StationCode)
@@ -343,12 +375,20 @@ def process_crinex_file(crinex, filename, data_rejected, data_retry):
 Please verify that this file belongs to %s.%s, rename it and try again. The file was moved to the retry folder. Rename script and pSQL sentence follows:
 BASH# mv %s %s
 PSQL# INSERT INTO stations ("NetworkCode", "StationCode", "auto_x", "auto_y", "auto_z", "lat", "lon", "height") VALUES ('???','%s', %12.3f, %12.3f, %12.3f, %10.6f, %10.6f, %8.3f)
-                """ % (crinex, match['NetworkCode'], match['StationCode'], float(match['distance']), StationCode, match['NetworkCode'],
+                """ % (crinex.replace(Config.repository_data_in,''), match['NetworkCode'], match['StationCode'], float(match['distance']), StationCode, match['NetworkCode'],
                        match['StationCode'], os.path.join(retry_folder, filename),
                        os.path.join(retry_folder,filename.replace(StationCode, match['StationCode'])),
                        StationCode, ppp.x, ppp.y, ppp.z, ppp.lat[0], ppp.lon[0], ppp.h[0])
 
-                error_handle(cnn, error, crinex, retry_folder, filename)
+                event = pyEvents.Event(
+                    Description=error,
+                    EventType='error',
+                    StationCode=StationCode,
+                    NetworkCode='???',
+                    Year=year,
+                    DOY=doy)
+
+                error_handle(cnn, event, crinex, retry_folder, filename)
 
         else:
             # a number of things could have happened:
@@ -363,11 +403,19 @@ PSQL# INSERT INTO stations ("NetworkCode", "StationCode", "auto_x", "auto_y", "a
                 # no match, but we have some candidates
                 matches = ', '.join(['%s.%s: %.3f m' % (m['NetworkCode'], m['StationCode'], m['distance']) for m in match])
 
-                error = """Solution for rinex in repository (%s %s) did not match a station code or a unique station location within 5 km. Possible cantidate(s): %s. This file has been moved to data_in_retry. pSQL sentence follows:
+                error = """Solution for RINEX in repository (%s %s) did not match a station code or a unique station location within 5 km. Possible cantidate(s): %s. This file has been moved to data_in_retry. pSQL sentence follows:
 PSQL# INSERT INTO stations ("NetworkCode", "StationCode", "auto_x", "auto_y", "auto_z", "lat", "lon", "height") VALUES ('???','%s', %12.3f, %12.3f, %12.3f, %10.6f, %10.6f, %8.3f)
-                """ % (crinex, rinexinfo.date.yyyyddd(), matches, StationCode, ppp.x, ppp.y, ppp.z, ppp.lat[0], ppp.lon[0], ppp.h[0])
+                """ % (crinex.replace(Config.repository_data_in,''), rinexinfo.date.yyyyddd(), matches, StationCode, ppp.x, ppp.y, ppp.z, ppp.lat[0], ppp.lon[0], ppp.h[0])
 
-                error_handle(cnn, error, crinex, retry_folder, filename)
+                event = pyEvents.Event(
+                    Description=error,
+                    EventType='error',
+                    StationCode=StationCode,
+                    NetworkCode='???',
+                    Year=year,
+                    DOY=doy)
+
+                error_handle(cnn, event, crinex, retry_folder, filename)
 
                 return (None, None)
 
@@ -391,21 +439,32 @@ PSQL# INSERT INTO stations ("NetworkCode", "StationCode", "auto_x", "auto_y", "a
                 # return a string with the relevant information to insert into the database (NetworkCode = default (rnx))
                 return (None, [StationCode, (ppp.x, ppp.y, ppp.z), coeff, (ppp.lat[0], ppp.lon[0], ppp.h[0]), crinex])
 
-
     except pyRinex.pyRinexException as e:
 
         reject_folder = reject_folder.replace('%reason%','rinex_issues')
+
+        # add more verbose output
+        e.event['Description'] = e.event['Description'] + '\n' + crinex.replace(Config.repository_data_in,'') + ': (file moved to ' + reject_folder + ')'
+        e.event['StationCode'] = StationCode
+        e.event['NetworkCode'] = '???'
+        e.event['Year'] = year
+        e.event['DOY'] = doy
         # error, move the file to rejected folder
-        error_handle(cnn, crinex + ' : (file moved to rejected folder)\n' + str(e), crinex, reject_folder, filename)
+        error_handle(cnn, e.event, crinex, reject_folder, filename)
 
         return (None, None)
 
     except pyPPP.pyRunPPPException as e:
 
-        #msg = 'Error in PPP while processing: ' + crinex + ' : \n' + str(e) + '\nThe file has been moved into the rejection folder. Summary PPP file (if exists) follows:\n' + ppp.summary
+        # msg = 'Error in PPP while processing: ' + crinex + ' : \n' + str(e) + '\nThe file has been moved into the rejection folder. Summary PPP file (if exists) follows:\n' + ppp.summary
         reject_folder = reject_folder.replace('%reason%','no_ppp_solution')
 
-        error_handle(cnn, str(e), crinex, reject_folder, filename)
+        e.event['StationCode'] = StationCode
+        e.event['NetworkCode'] = '???'
+        e.event['Year'] = year
+        e.event['DOY'] = doy
+
+        error_handle(cnn, e.event, crinex, reject_folder, filename)
 
         return (None, None)
 
@@ -413,8 +472,13 @@ PSQL# INSERT INTO stations ("NetworkCode", "StationCode", "auto_x", "auto_y", "a
 
         retry_folder = retry_folder.replace('%reason%','station_info_exception')
 
-        msg = 'pyStationInfoException: ' + str(e) + '. The file will stay in the repository and will be processed during the next cycle of pyArchiveService.'
-        error_handle(cnn, msg, crinex, retry_folder, filename)
+        e.event['Description'] = e.event['Description'] + '. The file will stay in the repository and will be processed during the next cycle of pyArchiveService.'
+        e.event['StationCode'] = StationCode
+        e.event['NetworkCode'] = '???'
+        e.event['Year'] = year
+        e.event['DOY'] = doy
+
+        error_handle(cnn, e.event, crinex, retry_folder, filename)
 
         return (None, None)
 
@@ -422,8 +486,13 @@ PSQL# INSERT INTO stations ("NetworkCode", "StationCode", "auto_x", "auto_y", "a
 
         retry_folder = retry_folder.replace('%reason%','otl_exception')
 
-        msg = "Error while calculating OTL for " + crinex + ": " + str(e) + '. The file has been moved into the retry folder.'
-        error_handle(cnn, msg, crinex, retry_folder, filename)
+        e.event['Description'] = e.event['Description'] + ' while calculating OTL for ' + crinex.replace(Config.repository_data_in,'') + '. The file has been moved into the retry folder.'
+        e.event['StationCode'] = StationCode
+        e.event['NetworkCode'] = '???'
+        e.event['Year'] = year
+        e.event['DOY'] = doy
+
+        error_handle(cnn, e.event, crinex, retry_folder, filename)
 
         return (None, None)
 
@@ -432,8 +501,13 @@ PSQL# INSERT INTO stations ("NetworkCode", "StationCode", "auto_x", "auto_y", "a
         # if PPP fails and ArchiveService tries to run sh_rnx2apr and it doesn't find the orbits, send to retry
         retry_folder = retry_folder.replace('%reason%', 'sp3_exception')
 
-        msg = "Error while obtaining broadcast orbit for " + crinex + ": " + str(e) + '\nMost likely PPP failed and sh_rnx2apr was run to try to the a coordinate (but failed due to missing broadcast orbit file). The file has been moved into the retry folder.'
-        error_handle(cnn, msg, crinex, retry_folder, filename)
+        e.event['Description'] = e.event['Description'] + ' while obtaining broadcast orbit for ' + crinex.replace(Config.repository_data_in,'') + '. Most likely PPP failed and sh_rnx2apr was run to try to the a coordinate (but failed due to missing broadcast orbit file). The file has been moved into the retry folder.'
+        e.event['StationCode'] = StationCode
+        e.event['NetworkCode'] = '???'
+        e.event['Year'] = year
+        e.event['DOY'] = doy
+
+        error_handle(cnn, e.event, crinex, retry_folder, filename)
 
         return (None, None)
 
@@ -441,12 +515,18 @@ PSQL# INSERT INTO stations ("NetworkCode", "StationCode", "auto_x", "auto_y", "a
 
         retry_folder = retry_folder.replace('%reason%', 'sp3_exception')
 
+        e.event['Description'] = e.event['Description'] + ' while obtaining orbit for ' + crinex.replace(Config.repository_data_in,'') + '. The file has been moved into the retry folder. Most likely bad RINEX header/data. RINEX header follows:\n%s' % (''.join(rinexinfo.get_header()))
+        e.event['StationCode'] = StationCode
+        e.event['NetworkCode'] = '???'
+        e.event['Year'] = year
+        e.event['DOY'] = doy
+
         # DDG: changed from rejected to retry because the logic was rejecting files when no orbit file was found
         # it should move the files to the retry folder, not to the rejected
         # another case is when the date is crewed up and there are negative or non-reasonable values for gps week
         # should split the pySp3Exception into "file not found" and "unreasonable gps week
-        msg = "Error while obtaining orbit for " + crinex + ": " + str(e) + '\nThe file has been moved into the retry folder. Most likely bad rinex header/data. Rinex header follows:\n%s' % (''.join(rinexinfo.get_header()))
-        error_handle(cnn, msg, crinex, retry_folder, filename)
+
+        error_handle(cnn, e.event, crinex, retry_folder, filename)
 
         return (None, None)
 
@@ -457,8 +537,14 @@ PSQL# INSERT INTO stations ("NetworkCode", "StationCode", "auto_x", "auto_y", "a
         # insert duplicate values: two parallel processes tried to insert different filenames (or the same) of the same station
         # to the db: move it to the rejected folder. The user might want to retry later. Log it in events
         # this case should be very rare
+        event = pyEvents.Event(Description='Duplicate rinex insertion attempted while processing ' + crinex.replace(Config.repository_data_in,'') + ' : (file moved to rejected folder)',
+                               EventType='error',
+                               StationCode=StationCode,
+                               NetworkCode='???',
+                               Year=year,
+                               DOY=doy)
 
-        error_handle(cnn, crinex + ' : (file moved to rejected folder)' + str(e), crinex, reject_folder, filename)
+        error_handle(cnn, event, crinex, reject_folder, filename)
 
         return (None, None)
 
@@ -466,10 +552,11 @@ PSQL# INSERT INTO stations ("NetworkCode", "StationCode", "auto_x", "auto_y", "a
 
         retry_folder = retry_folder.replace('%reason%', 'general_exception')
 
-        error = traceback.format_exc() + ' processing: ' + crinex + ' in node ' + platform.node() + ' (file moved to retry folder)'
-        error_handle(cnn, error, crinex, retry_folder, filename, no_db_log=True)
+        event = pyEvents.Event(Description=traceback.format_exc() + ' processing: ' + crinex.replace(Config.repository_data_in,'') + ' in node ' + platform.node() + ' (file moved to retry folder)', EventType='error')
 
-        return (error, None)
+        error_handle(cnn, event, crinex, retry_folder, filename, no_db_log=True)
+
+        return (event['Description'], None)
 
     return (None, None)
 
@@ -613,6 +700,8 @@ def main():
     JobServer = pyJobServer.JobServer(Config)
 
     cnn = dbConnection.Cnn('gnss_data.cfg')
+    # create the execution log
+    cnn.insert('executions', script='pyArchiveService.py')
 
     # set the data_xx directories
     data_in = os.path.join(Config.repository,'data_in')
@@ -631,29 +720,26 @@ def main():
 
     # look for data in the data_in_retry and move it to data_in
     print " >> Moving files from data_in_retry to data_in. This process may take a while..."
-    for path, dirs, files in os.walk(data_in_retry):
-        for file in files:
-            if file.endswith("d.Z") and file[0:2] != '._':
-                file_to_process = os.path.join(path, file)
-                # create a folder in data_in
-                uid_folder = os.path.join(data_in, path.replace(data_in_retry + '/','').replace('/' + file,''))
-                if not os.path.isdir(uid_folder):
-                    os.makedirs(uid_folder)
-                # move the file into the folder
-                shutil.move(file_to_process,os.path.join(uid_folder, file))
-                # remove folder from data_in_retry (also removes the log file)
-                try:
-                    # remove the log file that accompanies this Z file
-                    os.remove(file_to_process.replace('d.Z','.log'))
-                except:
-                    sys.exc_clear()
 
-            if file.endswith('DS_Store') or file[0:2] == '._':
-                # delete the stupid mac files
-                try:
-                    os.remove(os.path.join(path, file))
-                except:
-                    sys.exc_clear()
+    archive = pyArchiveStruct.RinexStruct(cnn)
+
+    rfiles, paths, _ = archive.scan_archive_struct(data_in_retry)
+
+    for rfile, path in zip(rfiles, paths):
+
+        dest_file = os.path.join(data_in, rfile)
+
+        if not os.path.isdir(os.path.dirname(dest_file)):
+            os.makedirs(os.path.dirname(dest_file))
+
+        # move the file into the folder
+        shutil.move(path, dest_file)
+        # remove folder from data_in_retry (also removes the log file)
+        try:
+            # remove the log file that accompanies this Z file
+            os.remove(path.replace('d.Z', '.log'))
+        except Exception:
+            sys.exc_clear()
 
     remove_empty_folders(data_in_retry)
 
@@ -668,17 +754,14 @@ def main():
 
     files_path = []
     files_list = []
-    tqdm.write("\n >> " +  datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ": Starting repository recursive walk...")
+    tqdm.write("\n >> " + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ": Starting repository recursive walk...")
 
-    for path, dirs, files in os.walk(data_in):
-        for file in files:
-            if file.endswith("d.Z"):
-                # send this file to process
-                file_to_process = os.path.join(path, file)
+    rpaths, _, files = archive.scan_archive_struct(data_in)
 
-                if file_to_process not in [lock['filename'] for lock in locks]:
-                    files_path.append(file_to_process)
-                    files_list.append(file)
+    for file, path in zip(files, rpaths):
+        if path not in [lock['filename'] for lock in locks]:
+            files_path.append(path)
+            files_list.append(file)
 
     tqdm.write("Found %i files in the lock list..." % (len(locks)))
     tqdm.write("Found %i files to process..." % (len(files_list)))
@@ -688,12 +771,12 @@ def main():
     # dependency functions
     depfuncs = (check_rinex_timespan_int, write_error, error_handle, insert_data, verify_rinex_multiday)
     # import modules
-    modules = ('pyRinex', 'pyArchiveStruct', 'pyOTL', 'pyPPP', 'pyStationInfo', 'dbConnection', 'Utils', 'shutil', 'os', 'uuid',
-    'datetime', 'pyDate', 'numpy', 'pySp3', 'traceback', 'platform', 'pyBrdc', 'pyOptions')
+    modules = ('pyRinex', 'pyArchiveStruct', 'pyOTL', 'pyPPP', 'pyStationInfo', 'dbConnection', 'Utils', 'shutil', 'os',
+            'uuid', 'datetime', 'pyDate', 'numpy', 'pySp3', 'traceback', 'platform', 'pyBrdc', 'pyOptions', 'pyEvents')
 
     callback = []
 
-    for file_to_process, file in zip(files_path,files_list):
+    for file_to_process, file in zip(files_path, files_list):
 
         if Config.run_parallel:
 
@@ -702,7 +785,6 @@ def main():
             JobServer.SubmitJob(process_crinex_file, arguments, depfuncs, modules, callback, callback_class(pbar), 'callbackfunc')
 
             if JobServer.process_callback:
-                tqdm.write(' >> Done processing 300 jobs.')
                 # handle any output messages during this batch
                 callback = output_handle(cnn, callback)
                 JobServer.process_callback = False

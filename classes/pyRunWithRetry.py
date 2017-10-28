@@ -6,10 +6,12 @@ Author: Demian D. Gomez
 
 import pyRunCommand
 import os
+import pyEvents
 
 class RunCommandWithRetryExeception(Exception):
     def __init__(self, value):
         self.value = value
+        self.event = pyEvents.Event(Description=value, EventType='error', module=type(self).__name__)
     def __str__(self):
         return str(self.value)
 

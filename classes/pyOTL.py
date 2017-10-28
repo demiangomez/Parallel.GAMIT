@@ -9,10 +9,12 @@ Ocean loading coefficients class. It runs and reads grdtab (from GAMIT).
 import os
 import uuid
 import pyRunWithRetry
+import pyEvents
 
 class pyOTLException(Exception):
     def __init__(self, value):
         self.value = value
+        self.event = pyEvents.Event(Description=value, EventType='error', module=type(self).__name__)
     def __str__(self):
         return str(self.value)
 

@@ -11,6 +11,8 @@ It can also scan the dirs of the archive for d.Z and station.info files
 import os
 import sys
 import scandir
+import re
+import pyDate
 
 class RinexStruct():
 
@@ -21,6 +23,9 @@ class RinexStruct():
         # read the structure definition table
         levels = cnn.query('SELECT rinex_tank_struct.*, keys.* FROM rinex_tank_struct LEFT JOIN keys ON keys."KeyCode" = rinex_tank_struct."KeyCode" ORDER BY "Level"')
         self.levels = levels.dictresult()
+
+        keys = cnn.query('SELECT * FROM keys')
+        self.keys = keys.dictresult()
 
         # read the station and network tables
         networks = cnn.query('SELECT * FROM networks')
@@ -61,27 +66,48 @@ class RinexStruct():
 
         return
 
+    def parse_crinex_filename(self, filename):
+        # parse a crinex filename
+        sfile = re.findall('(\w{4})(\d{3})(\w{1})\.(\d{2})([d])\.[Z]', filename)
+
+        if sfile:
+            return sfile[0]
+        else:
+            return []
+
+    def parse_rinex_filename(self, filename):
+        # parse a rinex filename
+        sfile = re.findall('(\w{4})(\d{3})(\w{1})\.(\d{2})([o])', filename)
+
+        if sfile:
+            return sfile[0]
+        else:
+            return []
+
     def scan_archive_struct(self,rootdir):
 
         self.archiveroot = rootdir
 
         rnx = []
         path2rnx = []
-        for path, dirs, files in scandir.walk(rootdir):
+        fls = []
+        for path, _, files in scandir.walk(rootdir):
             for file in files:
-                if file.endswith("d.Z"):
+                # DDG issue #15: match the name of the file to a valid rinex filename
+                if self.parse_crinex_filename(file):
                     # only add valid rinex compressed files
+                    fls.append(file)
                     rnx.append(os.path.join(path,file).rsplit(rootdir+'/')[1])
                     path2rnx.append(os.path.join(path,file))
+                else:
+                    if file.endswith('DS_Store') or file[0:2] == '._':
+                        # delete the stupid mac files
+                        try:
+                            os.remove(os.path.join(path, file))
+                        except:
+                            sys.exc_clear()
 
-                if file.endswith('DS_Store') or file[0:2] == '._':
-                    # delete the stupid mac files
-                    try:
-                        os.remove(os.path.join(path, file))
-                    except:
-                        sys.exc_clear()
-
-        return rnx,path2rnx
+        return rnx, path2rnx, fls
 
     def scan_archive_struct_stninfo(self,rootdir):
 
@@ -96,6 +122,13 @@ class RinexStruct():
                     # only add valid rinex compressed files
                     stninfo.append(os.path.join(path,file).rsplit(rootdir+'/')[1])
                     path2stninfo.append(os.path.join(path,file))
+                else:
+                    if file.endswith('DS_Store') or file[0:2] == '._':
+                        # delete the stupid mac files
+                        try:
+                            os.remove(os.path.join(path, file))
+                        except:
+                            sys.exc_clear()
 
         return stninfo,path2stninfo
 
@@ -129,68 +162,42 @@ class RinexStruct():
 
     def parse_archive_keys(self, path, key_filter=()):
 
-        day = None
-        month = None
-        year = None
-        network = None
-        station = None
-        doy = None
-
-        # split the fields and verify if everything is OK
         try:
-            valid = True
-            keys = []
-            for level in self.levels:
-                if not level.get('KeyCode') in key_filter and len(key_filter) > 0:
-                    # skip this key if not requested in key_filter
-                    continue
-                keys.append(path.split('/')[level.get('Level')-1])
+            pathparts = path.split('/')
+            filename = path.split('/')[-1]
+            if not filename.endswith('.info'):
+                fileparts = self.parse_crinex_filename(filename)
+            else:
+                # parsing a station info file, fill with dummy the doy and year
+                fileparts = ('dddd', '1', '0', '80')
 
-                if len(keys[-1]) != level.get('TotalChars'):
-                    # invalid key in this level
-                    valid = False
+            if fileparts:
+                keys = dict()
 
-            if valid:
-                for level in self.levels:
-                    if not level.get('KeyCode') in key_filter and len(key_filter) > 0:
-                        # skip this key if not requested in key_filter
-                        continue
-                    if level.get('isnumeric') == 1:
-                        exec("%s = %d" % (level.get('KeyCode'), int(path.split('/')[level.get('Level') - 1])))
+                # fill in all the possible keys using the crinex file info
+                keys['station'] = fileparts[0]
+                keys['doy'] = int(fileparts[1])
+                keys['session'] = fileparts[2]
+                keys['year'] = int(fileparts[3])
+                keys['network'] = 'rnx'
+
+                # now look in the different levels to match more data (or replace filename keys)
+                for key in self.levels:
+
+                    if key['isnumeric'] == '1':
+                        keys[key['KeyCode']] = int(pathparts[key['Level']-1])
                     else:
-                        exec("%s = '%s'.lower()" % (level.get('KeyCode'), path.split('/')[level.get('Level') - 1]))
+                       keys[key['KeyCode']] = pathparts[key['Level'] - 1].lower()
 
-            if not station and 'station' in key_filter:
-                # station code not defined (and it was requested), parse it from the file
-                station = path.split('/')[-1][0:4].lower()
+                # check date is valid and also fill day and month keys
+                date = pyDate.Date(year=keys['year'], doy=keys['doy'])
+                keys['day'] = date.day
+                keys['month'] = date.month
 
-            if not network and 'network' in key_filter:
-                # network code not defined, assign default (if requested)
-                network = 'rnx'
+                return True, {key: keys[key] for key in keys.keys() if key in key_filter}
+            else:
+                return False, {}
 
-            if not doy and 'doy' in key_filter:
-                # doy not defined (and it was requested), try to parse it from the file
-                try:
-                    doy = int(path.split('/')[-1][4:3])
-                except:
-                    valid = False
-        except IndexError:
-            return False, network, station, year, doy, month, day
+        except Exception as e:
+            return False, {}
 
-        return valid,network,station,year,doy,month,day
-
-    def get_archive_filelist(self,archive,network,station):
-
-        varnames = []
-        for level in self.levels:
-            if level.get('KeyCode') == 'network' or level.get('KeyCode') == 'station':
-                varnames.append(level.get('KeyCode'))
-
-        exec('filter = %s' % (' + "/" + '.join(varnames)))
-
-        filter_archive = []
-        for rinex in archive:
-            if filter in rinex:
-                filter_archive.append(rinex)
-
-        return filter_archive

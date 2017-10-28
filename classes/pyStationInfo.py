@@ -8,10 +8,13 @@ import struct
 import datetime
 import pyDate
 import zlib
+import pyEvents
+import pyEvents
 
 class pyStationInfoException(Exception):
     def __init__(self, value):
         self.value = value
+        self.event = pyEvents.Event(Description=value, EventType='error')
     def __str__(self):
         return str(self.value)
 
@@ -306,9 +309,12 @@ class StationInfo(StationInfoRecord):
 
     def DeleteStationInfo(self, record):
 
-        self.cnn.insert_info('The station information record for ' + self.NetworkCode + '.' + self.StationCode + ': ' +
-                record['DateStart'].strftime('%Y-%m-%d %H:%M:%S') + ' has been deleted:\n' +
-                self.return_stninfo(record))
+        event = pyEvents.Event(Description=record['DateStart'].strftime('%Y-%m-%d %H:%M:%S') + ' has been deleted:\n' +
+                                    self.return_stninfo(record),
+                               StationCode=self.StationCode,
+                               NetworkCode=self.NetworkCode)
+
+        self.cnn.insert_event(event)
 
         self.cnn.delete('stationinfo', record)
         self.load_stationinfo_records()
@@ -343,13 +349,15 @@ class StationInfo(StationInfoRecord):
                     raise pyStationInfoException('Record %s -> %s overlaps with existing station.info records: %s -> %s' % (ds1.strip(), de1.strip(), ds2.strip(), de2.strip()))
 
             # insert event (before updating to save all information)
-            self.cnn.insert_info(
-                'The station information record for ' + self.NetworkCode + '.' + self.StationCode + ': ' +
-                record['DateStart'].strftime('%Y-%m-%d %H:%M:%S') + ' has been updated:\n' +
-                self.return_stninfo(new_record) +
-                '\n+++++++++++++++++++++++++++++++++++++\n' +
-                'Previous record:\n' +
-                self.return_stninfo(record))
+            event = pyEvents.Event(Description=record['DateStart'].strftime('%Y-%m-%d %H:%M:%S') + ' has been updated:\n' +
+                                                self.return_stninfo(new_record) +
+                                                '\n+++++++++++++++++++++++++++++++++++++\n' +
+                                                'Previous record:\n' +
+                                                self.return_stninfo(record),
+                                  NetworkCode=self.NetworkCode,
+                                  StationCode=self.StationCode)
+
+            self.cnn.insert_event(event)
 
             if new_record['DateStart'] != record['DateStart']:
                 self.cnn.query('UPDATE stationinfo SET "DateStart" = \'%s\' WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "DateStart" = \'%s\'' %
@@ -394,7 +402,10 @@ class StationInfo(StationInfoRecord):
                                 self.records[0]['DateStart'].strftime('%Y-%m-%d %H:%M:%S')))
 
                             # insert event
-                            self.cnn.insert_info('The start date of the station information record for ' + self.NetworkCode + '.' + self.StationCode + ': ' + self.records[0]['DateStart'].strftime('%Y-%m-%d %H:%M:%S') + ' has been been modified to ' + record['DateStart'].strftime('%Y-%m-%d %H:%M:%S'))
+                            event = pyEvents.Event(Description='The start date of the station information record ' + self.records[0]['DateStart'].strftime('%Y-%m-%d %H:%M:%S') + ' has been been modified to ' + record['DateStart'].strftime('%Y-%m-%d %H:%M:%S'),
+                                                   StationCode=self.StationCode,
+                                                   NetworkCode=self.NetworkCode)
+                            self.cnn.insert_event(event)
                         else:
                             # new and different record, stop the Session with
                             # EndDate = self.records[0]['DateStart'] - datetime.timedelta(seconds=1) and insert
@@ -402,8 +413,13 @@ class StationInfo(StationInfoRecord):
                             self.cnn.insert('stationinfo', record)
 
                             # insert event
-                            self.cnn.insert_info(
-                                'A new station information record was added for ' + self.NetworkCode + '.' + self.StationCode + ':\n' + self.return_stninfo(record))
+                            event = pyEvents.Event(
+                                        Description='A new station information record was added:\n'
+                                                    + self.return_stninfo(record),
+                                        StationCode=self.StationCode,
+                                        NetworkCode=self.NetworkCode)
+
+                            self.cnn.insert_event(event)
 
                     elif len(overlaps) == 1 and overlaps[0] == self.records[-1] and not self.records[-1]['DateEnd']:
                         # overlap with the last session
@@ -414,9 +430,13 @@ class StationInfo(StationInfoRecord):
                         self.cnn.insert('stationinfo', record)
 
                         # insert event
-                        self.cnn.insert_info(
-                            'A new station information record was added for ' + self.NetworkCode + '.' + self.StationCode + ':\n' +
-                            self.return_stninfo(record) + '\nThe last record`s DateEnd value was updated to ' + self.records[-1]['DateEnd'].strftime('%Y-%m-%d %H:%M:%S'))
+                        event = pyEvents.Event(
+                                    Description='A new station information record was added:\n'
+                                        + self.return_stninfo(record) + '\nThe previous DateEnd value was updated to ' + self.records[-1]['DateEnd'].strftime('%Y-%m-%d %H:%M:%S'),
+                                    StationCode=self.StationCode,
+                                    NetworkCode=self.NetworkCode)
+
+                        self.cnn.insert_event(event)
 
                     else:
                         ds1, de1 = self.datetime2stninfodate(record['DateStart'], record['DateEnd'])
@@ -433,9 +453,10 @@ class StationInfo(StationInfoRecord):
                     self.cnn.insert('stationinfo', record)
 
                     # insert event
-                    self.cnn.insert_info(
-                        'A new station information record was added for ' + self.NetworkCode + '.' + self.StationCode +
-                        ':\n' + self.return_stninfo(record))
+                    event = pyEvents.Event(Description='A new station information record was added:\n' + self.return_stninfo(record),
+                                           StationCode=self.StationCode,
+                                           NetworkCode=self.NetworkCode)
+                    self.cnn.insert_event(event)
 
                 # reload the records
                 self.load_stationinfo_records()

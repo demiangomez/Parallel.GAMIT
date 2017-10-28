@@ -1,14 +1,37 @@
 
-import os, re, subprocess;
+import os, re, subprocess, sys, pyDate
+
 
 class UtilsException(Exception):
     def __init__(self, value):
         self.value = value
     def __str__(self):
         return str(self.value)
-    
+
+
+def process_date(arg):
+
+    if '.' in arg:
+        date = pyDate.Date(year=arg.split('.')[0], doy=arg.split('.')[1])
+    else:
+        date = pyDate.Date(year=arg.split('/')[0], month=arg.split('/')[1], day=arg.split('/')[2])
+
+    return date
+
+
+def print_columns(l):
+
+    for a, b, c, d, e, f, g, h in zip(l[::8], l[1::8], l[2::8], l[3::8], l[4::8], l[5::8], l[6::8], l[7::8]):
+        print('    {:<10}{:<10}{:<10}{:<10}{:<10}{:<10}{:<10}{:<}'.format(a, b, c, d, e, f, g, h))
+
+    if len(l) % 8 != 0:
+        sys.stdout.write('    ')
+        for i in range(len(l) - len(l) % 8, len(l)):
+            sys.stdout.write('{:<10}'.format(l[i]))
+        sys.stdout.write('\n')
+
 def get_resource_delimiter():
-    return '.';
+    return '.'
 
 def process_stnlist(cnn, stnlist_in):
 

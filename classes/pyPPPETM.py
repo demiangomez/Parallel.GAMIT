@@ -434,7 +434,7 @@ class Periodic():
             self.frequencies = 0
 
         # variables to store the periodic amplitudes
-        self.sin = np.zeros([])
+        self.sin = np.array([])
         self.cos = np.array([])
 
         self.params = self.frequencies * 2

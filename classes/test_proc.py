@@ -19,6 +19,7 @@ import pyPPPETM
 import pyOptions
 import atexit
 import os
+import pyEvents
 
 class run_command(threading.Thread):
     def __init__(self,command):
@@ -129,9 +130,26 @@ def main():
     cnn = dbConnection.Cnn('gnss_data.cfg')
 
     archive = pyArchiveStruct.RinexStruct(cnn)
-    file = archive.build_rinex_path('rms','guay',2016,107)
+    file = archive.build_rinex_path('rms','tuc1',2010,186)
 
-    rinexinfo = pyRinex.ReadRinex('rms', 'guay', os.path.join(Config.archive_path, file))  # type: pyRinex.ReadRinex
+    try:
+        rinexinfo = pyRinex.ReadRinex('rms', 'tuc1', os.path.join(Config.archive_path, file))  # type: pyRinex.ReadRinex
+
+        brdc = pyBrdc.GetBrdcOrbits(Config.brdc_path, rinexinfo.date, rinexinfo.rootdir)
+
+        stninfo = pyStationInfo.StationInfo(cnn, 'rms', rinexinfo.StationCode, rinexinfo.date)
+        rinexinfo.normalize_header(stninfo,brdc)
+
+        ppp = pyPPP.RunPPP(rinexinfo, '', Config.options, Config.sp3types, Config.sp3altrn, 0, False)
+        ppp.exec_ppp()
+
+    except pyRinex.pyRinexException as e:
+        print e.event['stack']
+    except pyPPP.pyRunPPPException as e:
+        pass
+
+    event = pyEvents.Event(Description='hola')
+    print rinexinfo.event['stack']
 
     #atx = pyParseAntex.ParseAntexFile('igs08.atx')
 
@@ -148,31 +166,10 @@ def main():
     #rs = cnn.query('select * from stations where "StationCode" = \'lhcl\'')
     #igm1 = rs.dictresult()
 
-    etm = pyPPPETM_new2.ETM(cnn, 'cap', 'crrl', True)
-
-
-    rs = cnn.query('SELECT * FROM stations WHERE "NetworkCode" NOT LIKE \'?%%\' ORDER BY "NetworkCode", "StationCode"')
-
-    stns = rs.dictresult()
-
-    for stn in stns:
-        try:
-            etm = pyPPPETM_new2.ETM(cnn,stn['NetworkCode'],stn['StationCode'], False)
-            etm.plot('production/' + etm.NetworkCode + '.' + etm.StationCode + '.png')
-        except IndexError:
-            print stn['NetworkCode'] + '.' + stn['StationCode']
-            pass
-
-    return
-
-    etm.get_xyz_s(2010, 7)
-
     date = pyDate.Date(year=2016, doy=190)
 
 
-    brdc = pyBrdc.GetBrdcOrbits(Config.brdc_path, pyDate.Date(year=2012, doy=257), rinexinfo.rootdir)
 
-    _, x = rinexinfo.auto_coord(brdc)
 
     stninfo1 = pyStationInfo.StationInfo(cnn, 'rms', 'rufi', date)
     #rinexinfo.normalize_header(stninfo1,x=igm1[0].get('auto_x'),y=igm1[0].get('auto_y'),z=igm1[0].get('auto_z'))
