@@ -124,7 +124,7 @@ def error_handle(cnn, event, crinex, folder, filename, no_db_log=False):
     return
 
 
-def insert_data(Config, cnn, StationCode, rs_stn, rinexinfo, year, doy, retry_folder):
+def insert_data(Config, cnn, StationCode, rs_stn, rinexinfo, year, doy):
 
     # does the name of the file agree with the StationCode found in the database?
     # also, check the doy and year
@@ -134,17 +134,18 @@ def insert_data(Config, cnn, StationCode, rs_stn, rinexinfo, year, doy, retry_fo
         # NO! rename the file before moving to the archive
         filename = rs_stn['StationCode'] + rinexinfo.date.ddd() + '0.' + rinexinfo.date.yyyy()[2:4] + 'd.Z'
 
-    #try:
+
     # must rename filename to assign the correct network to the rinex record
     rinexinfo.rename_crinex_rinex(filename, rs_stn['NetworkCode'], rs_stn['StationCode'])
 
     # get the path to access the archive
     Archive = pyArchiveStruct.RinexStruct(cnn)
 
-    # is this day already in the database?
-    rsdoy = cnn.query('SELECT * FROM rinex WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "ObservationYear" = %i AND "ObservationDOY" = %i' % (rs_stn['NetworkCode'], rs_stn['StationCode'], int(rinexinfo.date.year), int(rinexinfo.date.doy)))
-
-    rnx = rsdoy.dictresult()
+    # is this file already in the database?
+    rsdoy = cnn.query('SELECT * FROM rinex WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND '
+                      '"ObservationYear" = %i AND "ObservationDOY" = %i AND "Filename" = \'%s\''
+                      % (rs_stn['NetworkCode'], rs_stn['StationCode'], int(rinexinfo.date.year),
+                         int(rinexinfo.date.doy), rinexinfo.rinex))
 
     if rsdoy.ntuples() == 0:
         # this is a new day that wasn't previously in the db
@@ -159,7 +160,7 @@ def insert_data(Config, cnn, StationCode, rs_stn, rinexinfo, year, doy, retry_fo
 
         # move the crinex to the archive
         # first check that all the structure exists. This might be the first file of a new station
-        path2archive = os.path.join(Config.options['path'], Archive.build_rinex_path(rs_stn['NetworkCode'], rs_stn['StationCode'], rinexinfo.date.year, rinexinfo.date.doy, False))
+        path2archive = os.path.join(Config.archive_path, Archive.build_rinex_path(rs_stn['NetworkCode'], rs_stn['StationCode'], rinexinfo.date.year, rinexinfo.date.doy, with_filename=False))
 
         # again, the "archive" for this rinexinfo object is the repository
         rinexinfo.move_origin_file(path2archive)
@@ -173,44 +174,6 @@ def insert_data(Config, cnn, StationCode, rs_stn, rinexinfo, year, doy, retry_fo
         cnn.insert_event(event)
 
         cnn.commit_transac()
-
-        # this file is ready to be processed by pyScanArchive -ppp
-    else:
-
-        # before inserting a rinex_extra, verify the time span
-        if not check_rinex_timespan_int(rinexinfo, rnx[0]):
-            # this is the same file in the db (maybe with different sampling interval)
-            # or has less observations than the present file
-            # delete it from data_in and don't insert it in the database
-            os.remove(rinexinfo.origin_file)
-            return
-
-        # there is a file in the db already. Add it to the rinex_extra table for later time span check (first check passed: new > current)
-        # the time span check cannot be done here because we could be checking in parallel and there isn't a unique answer when more than 2 files
-        cnn.begin_transac()
-
-        path2archive = os.path.join(Config.options['path'],
-                                    Archive.build_rinex_path(rs_stn['NetworkCode'], rs_stn['StationCode'],
-                                                             rinexinfo.date.year, rinexinfo.date.doy, False))
-
-        Archive.check_directory_struct(Config.options['path'], rs_stn['NetworkCode'], rs_stn['StationCode'], rinexinfo.date)
-
-        # renaming of the file is taken care by move_origin_file
-        rinexinfo.move_origin_file(path2archive)
-
-        cnn.insert('rinex_extra', rinexinfo.record)
-
-        event = pyEvents.Event(Description='New data was found and added to rinex_extra',
-                               NetworkCode=rs_stn['NetworkCode'],
-                               StationCode=rs_stn['StationCode'],
-                               Year=int(rinexinfo.date.year),
-                               DOY=int(rinexinfo.date.doy))
-        cnn.insert_event(event)
-
-        cnn.commit_transac()
-        # these cases can be solved by running pyScanArhive -rinex (resolve conflicts)
-    #except:
-    #    error_handle(cnn, 'An unexpected error ocurred while inserting a record for ' + rinexinfo.crinex_path + ' : (file moved to retry folder)\n' + traceback.format_exc(), rinexinfo.crinex_path, retry_folder, filename)
 
 
 def verify_rinex_multiday(cnn, rinexinfo, Config):
@@ -254,6 +217,7 @@ def process_crinex_file(crinex, filename, data_rejected, data_retry):
     try:
         cnn = dbConnection.Cnn("gnss_data.cfg")
         Config = pyOptions.ReadOptions("gnss_data.cfg")
+        archive = pyArchiveStruct.RinexStruct(cnn)
         # apply local configuration (path to repo) in the executing node
         crinex = os.path.join(Config.repository_data_in, crinex)
     except:
@@ -262,15 +226,17 @@ def process_crinex_file(crinex, filename, data_rejected, data_retry):
     # assume a default networkcode
     NetworkCode = 'rnx'
     # get the station code year and doy from the filename
-    try:
-        StationCode = crinex.split('/')[-1][0:4].lower()
-        year = int(Utils.get_norm_year_str(int(crinex.split('/')[-1][9:11])))
-        doy = int(crinex.split('/')[-1][4:7])
-    except:
+    fileparts = archive.parse_crinex_filename(filename)
+
+    if fileparts:
+        StationCode = fileparts[0].lower()
+        doy = int(fileparts[1])
+        year = int(fileparts[3])
+    else:
         event = pyEvents.Event(
-            Description=traceback.format_exc() + ' could not read the station code, year or doy for file ' + crinex,
+            Description='Could not read the station code, year or doy for file ' + crinex,
             EventType='error')
-        error_handle(cnn, event,crinex,reject_folder,filename,True)
+        error_handle(cnn, event, crinex, reject_folder, filename, no_db_log=True)
         return (event['Description'], None)
 
     # we can now make better reject and retry folders
@@ -321,7 +287,7 @@ def process_crinex_file(crinex, filename, data_rejected, data_retry):
 
         except pyPPP.pyRunPPPException as e:
 
-            # run again without inflating chi**2
+            # run again without inflating chi**2 (for better quality of answer)
             auto_coords_xyz, auto_coords_lla, auto_error = rinexinfo.auto_coord(brdc)
 
             if auto_coords_lla:
@@ -336,7 +302,7 @@ def process_crinex_file(crinex, filename, data_rejected, data_retry):
                 if auto_error is None:
                     auto_error = 'no report!'
 
-                raise pyPPP.pyRunPPPException('Both PPP and sh_rx2apr failed to obtain a coordinate for ' + crinex + '.\n'
+                raise pyPPP.pyRunPPPException('Both PPP and sh_rx2apr failed to obtain a coordinate for ' + crinex.replace(Config.repository_data_in,'') + '.\n'
                                               'The file has been moved into the rejection folder. '
                                               'Summary PPP file and error (if exists) follows:\n' + ppp.summary + '\n\n'
                                                'ERROR section:\n' + str(e) + '\nauto_coord error follows:\n' + auto_error)
@@ -348,7 +314,7 @@ def process_crinex_file(crinex, filename, data_rejected, data_retry):
 
             # elevation cannot be higher or lower than the tallest and lowest point on the Earth
             event = pyEvents.Event(
-                Description=crinex + ' : unreasonable geodetic height (%.3f). RINEX file will not enter the archive.' % (ppp.h[0]),
+                Description=crinex.replace(Config.repository_data_in,'') + ' : unreasonable geodetic height (%.3f). RINEX file will not enter the archive.' % (ppp.h[0]),
                 EventType='error',
                 StationCode=StationCode,
                 NetworkCode='???',
@@ -365,7 +331,7 @@ def process_crinex_file(crinex, filename, data_rejected, data_retry):
             if match['StationCode'] == StationCode:
                 # no further verification need because we don't know anything about the network code
                 # even if the station code is wrong, if result is True we insert (there is only 1 match)
-                insert_data(Config, cnn, StationCode, match, rinexinfo, year, doy, retry_folder)
+                insert_data(Config, cnn, StationCode, match, rinexinfo, year, doy)
             else:
 
                 retry_folder = retry_folder.replace('%reason%','coord_conflicts')
@@ -439,7 +405,7 @@ PSQL# INSERT INTO stations ("NetworkCode", "StationCode", "auto_x", "auto_y", "a
                 # return a string with the relevant information to insert into the database (NetworkCode = default (rnx))
                 return (None, [StationCode, (ppp.x, ppp.y, ppp.z), coeff, (ppp.lat[0], ppp.lon[0], ppp.h[0]), crinex])
 
-    except pyRinex.pyRinexException as e:
+    except (pyRinex.pyRinexException, pyRinex.pyRinexExceptionBadFile) as e:
 
         reject_folder = reject_folder.replace('%reason%','rinex_issues')
 

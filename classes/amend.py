@@ -60,11 +60,13 @@ def verify_rinex_date_multiday(date, rinexinfo, Config):
 
     return True
 
+
 def UpdateRecord(rinex, path):
 
+    cnn = dbConnection.Cnn('gnss_data.cfg')
+    Config = pyOptions.ReadOptions('gnss_data.cfg')
+
     try:
-        cnn = dbConnection.Cnn('gnss_data.cfg')
-        Config = pyOptions.ReadOptions('gnss_data.cfg')
         rnxobj = pyRinex.ReadRinex(rinex['NetworkCode'], rinex['StationCode'], path)
 
         date = pyDate.Date(year=rinex['ObservationYear'], doy=rinex['ObservationDOY'])
@@ -87,8 +89,14 @@ def UpdateRecord(rinex, path):
         else:
             cnn.update('rinex', rinex, Completion=rnxobj.completion)
 
+    except pyRinex.pyRinexExceptionBadFile:
+        # empty file or problem with crinex format, move out
+        archive = pyArchiveStruct.RinexStruct(cnn)
+        archive.remove_rinex(rinex, os.path.join(Config.repository_data_reject, 'bad_rinex/%i/%03i' % (rinex['ObservationYear'], rinex['ObservationDOY'])))
+
     except Exception:
         return traceback.format_exc() + ' processing rinex: ' + rinex['NetworkCode'] + '.' + rinex['StationCode'] + ' ' + str(rinex['ObservationYear']) + ' ' + str(rinex['ObservationDOY']) + ' using node ' + platform.node()
+
 
 def output_handle(callback):
 
@@ -115,7 +123,7 @@ options = pyOptions.ReadOptions('gnss_data.cfg')
 JobServer = pyJobServer.JobServer(options)
 archive = pyArchiveStruct.RinexStruct(cnn)
 
-for table in ['rinex', 'rinex_extra']:
+for table in ['rinex']:
 
     print " >> Processing " + table
 
@@ -127,7 +135,7 @@ for table in ['rinex', 'rinex_extra']:
     pbar = tqdm(total=len(rnx), ncols=80)
 
     depfuncs = (verify_rinex_date_multiday,)
-    modules = ('pyRinex', 'dbConnection', 'traceback', 'platform', 'pyDate', 'pyOptions')
+    modules = ('pyRinex', 'dbConnection', 'traceback', 'platform', 'pyDate', 'pyOptions', 'pyArchiveStruct')
 
     for rinex in rnx:
         path = archive.build_rinex_path(rinex['NetworkCode'], rinex['StationCode'], rinex['ObservationYear'], rinex['ObservationDOY'])

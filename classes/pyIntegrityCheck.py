@@ -9,27 +9,78 @@ Integrity check utility of the database. Checks the following:
  - Searches for data gaps in the rinex table
  - Prints the station info records
  - renames or merges two stations into one
- usage
-         --stn [net.]stn                    : Station to run integrity check on, comma separated stations allowed. If 'all', integrity check is run for all stations."
-         --net network                      : Network of stations in --stn (if --stn is not in net.stn format). If --stn is not set, checks all stations in the network."
-         --date StartDate[,EndDate]         : Date range to work on; can be yyyy/mm/dd or yyyy.doy or 'all'. If not specified, 'all' is assumed"
-         --stninfo_rinex                    : Check that the receiver serial number in the rinex headers agrees with the station info receiver serial number. Output message if it doesn't."
-         --stninfo_proposed [--ignore days] : Output a proposed station.info using the RINEX metadata. Optional, specify --ignore to ignore station.info records <= days."
-         --stninfo                          : Check the consistency of the station information records in the database. Date range does not apply."
-         --gaps [--ignore days]             : Check the RINEX files in the database and look for gaps (missing days). Optional, specify --ignore with the smallest gap to display."
-         --spatial_coherence [--fix/del]    : Check that the RINEX files correspond to the stations they are linked to using their PPP coordinate."
-                                              Add --fix to try to solve problems. In case the problem cannot be solved, add the RINEX file to the excluded table."
-                                              Add --del to delete problems instead of moving data to the excluded table."
-         --print_stninfo long|short         : Output the station info to stdout. long outputs the full line of the station info. short outputs a short version (better for screen visualization)."
-         --rename [dest net].[dest stn]     : Takes the data from station --stn --net and renames (merges) it to [dest net].[dest stn]."
-                                              It also changes the rinex filenames in the archive to match those of the new destiny station."
-                                              If multiple stations are given as origins, all of them will be renamed as [dest net].[dest stn]."
-                                              Limit the date range using the --date option"
+
+usage: pyIntegrityCheck.py [-h] [-d date [date ...]] [-rinex] [-stnr] [-stns]
+                           [-stnp [ignore_days]] [-stnc] [-g [ignore_days]]
+                           [-sc {exclude,delete,noop}] [-print {long,short}]
+                           [-r net.stnm] [-np]
+                           all|net.stnm [all|net.stnm ...]
+
+Database integrity tools, metadata check and fixing tools program
+
+positional arguments:
+  all|net.stnm          List of networks/stations to process given in
+                        [net].[stnm] format or just [stnm] (separated by
+                        spaces; if [stnm] is not unique in the database, all
+                        stations with that name will be processed). Use
+                        keyword 'all' to process all stations in the database.
+                        If [net].all is given, all stations from network [net]
+                        will be processed. Alternatevily, a file with the
+                        station list can be provided.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -d date [date ...], --date_filter date [date ...]
+                        Date range filter for all operations. Can be specified
+                        in yyyy/mm/dd or yyyy.doy format
+  -rinex, --check_rinex
+                        Check the RINEX integrity of the archive-database by
+                        verifying that the RINEX files reported in the rinex
+                        table exist in the archive. If a RINEX file does not
+                        exist, remove the record. PPP records or gamit_soln
+                        are deleted.
+  -stnr, --station_info_rinex
+                        Check that the receiver serial number in the rinex
+                        headers agrees with the station info receiver serial
+                        number.
+  -stns, --station_info_solutions
+                        Check that the PPP hash values match the station info
+                        hash.
+  -stnp [ignore_days], --station_info_proposed [ignore_days]
+                        Output a proposed station.info using the RINEX
+                        metadata. Optional, specify [ignore_days] to ignore
+                        station.info records <= days.
+  -stnc, --station_info_check
+                        Check the consistency of the station information
+                        records in the database. Date range does not apply.
+                        Also, check that the RINEX files fall within a valid
+                        station information record.
+  -g [ignore_days], --data_gaps [ignore_days]
+                        Check the RINEX files in the database and look for
+                        gaps (missing days). Optional, [ignore_days] with the
+                        smallest gap to display.
+  -sc {exclude,delete,noop}, --spatial_coherence {exclude,delete,noop}
+                        Check that the RINEX files correspond to the stations
+                        they are linked to using their PPP coordinate. If
+                        keyword [exclude] or [delete], add the PPP solution to
+                        the excluded table or delete the PPP solution. If
+                        [noop], then only report but do not exlude or delete.
+  -print {long,short}, --print_stninfo {long,short}
+                        Output the station info to stdout. [long] outputs the
+                        full line of the station info. [short] outputs a short
+                        version (better for screen visualization).
+  -r net.stnm, --rename net.stnm
+                        Takes the data from the station list and renames
+                        (merges) it to net.stnm.It also changes the rinex
+                        filenames in the archive to match those of the new
+                        destiny station. Only a single station can be given as
+                        the origin and destiny. Limit the date range using the
+                        -d option.
+  -np, --noparallel     Execute command without parallelization.
 
 """
 
 import sys
-import getopt
 import pyOptions
 import dbConnection
 import traceback
@@ -39,15 +90,13 @@ import pyArchiveStruct
 import pyPPP
 import Utils
 from tqdm import tqdm
-import pp
 import os
 import numpy
 import shutil
-import time
 import argparse
-import pyScanArchive
 from Utils import print_columns
 from Utils import process_date
+from Utils import ecef2lla
 import pyJobServer
 import platform
 import pyEvents
@@ -67,7 +116,7 @@ def compare_stninfo_rinex(NetworkCode, StationCode, STime, ETime, rinex_serial):
 
     try:
         cnn = dbConnection.Cnn("gnss_data.cfg")
-    except:
+    except Exception:
         return (traceback.format_exc() + ' open de database when processing processing %s.%s' % (NetworkCode, StationCode), None)
 
     try:
@@ -117,81 +166,31 @@ def CheckRinexStn(NetworkCode, StationCode, start_date, end_date):
 
         rnxtbl = rs.dictresult()
         missing_files = []
-        # response object for pyScanArchive --ppp
-        response = []
 
         for rnx in rnxtbl:
 
-            path = os.path.join(Config.archive_path, Archive.build_rinex_path(NetworkCode, StationCode, rnx['ObservationYear'], rnx['ObservationDOY'], with_filename=False))
-            crinex_path = os.path.join(path, rnx['Filename'].replace(rnx['Filename'].split('.')[-1], rnx['Filename'].split('.')[-1].replace('o', 'd.Z')))
+            crinex_path = os.path.join(Config.archive_path,
+                                       Archive.build_rinex_path(NetworkCode, StationCode, rnx['ObservationYear'],
+                                                                rnx['ObservationDOY'], filename=rnx['Filename']))
 
             if not os.path.exists(crinex_path):
                 # problem with file! does not appear to be in the archive
 
-                # any files to promote to rinex?
-                rs = cnn.query('SELECT * FROM '
-                               '(SELECT *, "ObservationETime" - "ObservationSTime" as timespan from rinex) as rinex '
-                               'WHERE '
-                               '"NetworkCode"     = \'%s\' AND '
-                               '"StationCode"     = \'%s\' AND '
-                               '"ObservationYear" = %i     AND '
-                               '"ObservationDOY"  = %i '
-                               'ORDER BY timespan DESC' % (NetworkCode, StationCode, rnx['ObservationYear'], rnx['ObservationDOY']))
+                Archive.remove_rinex(rnx)
 
-                # get the dictionary of the results
-                rnxe = rs.dictresult()
+                event = pyEvents.Event(
+                    Description='A missing RINEX file was found during RINEX integrity check: ' + crinex_path +
+                                '. It has been removed from the database. Consider rerunning PPP for this station.',
+                    NetworkCode=NetworkCode,
+                    StationCode=StationCode,
+                    Year=rnx['ObservationYear'],
+                    DOY=rnx['ObservationDOY'])
 
-                # delete from ppp_soln table
-                cnn.query('DELETE FROM ppp_soln WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "Year" = %i AND "DOY" = %i' % (rnx['NetworkCode'], rnx['StationCode'], rnx['ObservationYear'], rnx['ObservationDOY']))
-                # delete from rinex table
-                cnn.query('DELETE FROM rinex WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "ObservationYear" = %i AND "ObservationDOY" = %i' % (rnx['NetworkCode'], rnx['StationCode'], rnx['ObservationYear'], rnx['ObservationDOY']))
-
-                found = False
-                for rxe in rnxe:
-                    crinex_path_r = os.path.join(path, rxe['Filename'].replace(rxe['Filename'].split('.')[-1], rxe['Filename'].split('.')[-1].replace('o', 'd.Z')))
-                    # check if rinex extra exists
-                    if os.path.exists(crinex_path_r):
-                        cnn.begin_transac()
-                        # move rinex_extra record to the the principal table
-                        cnn.insert('rinex', rxe)
-                        cnn.query('DELETE FROM rinex_extra WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "ObservationYear" = %i AND "ObservationDOY" = %i AND "Filename" = \'%s\'' % (rxe['NetworkCode'], rxe['StationCode'], rxe['ObservationYear'], rxe['ObservationDOY'], rxe['Filename']))
-
-                        event = pyEvents.Event(Description='A missing RINEX file was found during RINEX integrity check ' + crinex_path + ' and was replaced with ' + crinex_path_r + '. A new PPP solution was executed for this file.',
-                                               NetworkCode=NetworkCode,
-                                               StationCode=StationCode,
-                                               Year=rnx['ObservationYear'],
-                                               DOY=rnx['ObservationDOY'])
-                        cnn.insert_event(event)
-                        cnn.commit_transac()
-                        # sucess. Time to re-run the ppp solution for this station-day
-                        resp = pyScanArchive.execute_ppp(rxe, crinex_path_r)
-                        if resp:
-                            response.append(resp)
-
-                        found = True
-                        break
-                    else:
-                        # non-existent rinex_extra, delete
-                        cnn.query('DELETE FROM rinex_extra WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "ObservationYear" = %i AND "ObservationDOY" = %i AND "Filename" = \'%s\'' % (rxe['NetworkCode'], rxe['StationCode'], rxe['ObservationYear'], rxe['ObservationDOY'], rxe['Filename']))
-
-                if not found:
-                    event = pyEvents.Event(
-                        Description='A missing RINEX file was found during RINEX integrity check ' + crinex_path + ' but it could not be replaced with a rinex_extra record.',
-                        NetworkCode=NetworkCode,
-                        StationCode=StationCode,
-                        Year=rnx['ObservationYear'],
-                        DOY=rnx['ObservationDOY'])
-
-                    cnn.insert_event(event)
+                cnn.insert_event(event)
 
                 missing_files += [crinex_path]
 
-        # process the possible errors
-        response_str = '\n'.join(response)
-        if response_str == '':
-            response_str = None
-
-        return (response_str, missing_files)
+        return (None, missing_files)
 
     except Exception:
         return traceback.format_exc() + ' processing: ' + NetworkCode + ' ' + StationCode + ' using node ' + platform.node(), None
@@ -199,7 +198,7 @@ def CheckRinexStn(NetworkCode, StationCode, start_date, end_date):
 
 def CheckRinexIntegrity(stnlist, start_date, end_date, Config, JobServer):
 
-    modules = ('os', 'pyArchiveStruct', 'dbConnection', 'pyOptions', 'traceback', 'pyScanArchive', 'platform', 'pyEvents')
+    modules = ('os', 'pyArchiveStruct', 'dbConnection', 'pyOptions', 'traceback', 'platform', 'pyEvents')
 
     pbar = tqdm(total=len(stnlist),ncols=80)
     rinex_css = []
@@ -243,7 +242,7 @@ def StnInfoRinexIntegrity(cnn, stnlist, start_date, end_date, Config, JobServer)
         StationCode = stn['StationCode']
         NetworkCode = stn['NetworkCode']
 
-        rs = cnn.query('SELECT * FROM rinex WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "ObservationSTime" BETWEEN \'%s\' AND \'%s\' ORDER BY "ObservationSTime"' % (NetworkCode, StationCode, start_date.yyyymmdd(), end_date.yyyymmdd()))
+        rs = cnn.query('SELECT * FROM rinex_proc WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "ObservationSTime" BETWEEN \'%s\' AND \'%s\' ORDER BY "ObservationSTime"' % (NetworkCode, StationCode, start_date.yyyymmdd(), end_date.yyyymmdd()))
 
         rnxtbl = rs.dictresult()
 
@@ -333,7 +332,7 @@ def StnInfoCheck(cnn, stnlist):
                             list_problems.append([ds2, de2, ds1, de1])
 
             # there should not be RINEX data outside the station info window
-            rs = cnn.query('SELECT min("ObservationSTime") as first_obs, max("ObservationSTime") as last_obs FROM rinex WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\'' % (NetworkCode, StationCode))
+            rs = cnn.query('SELECT min("ObservationSTime") as first_obs, max("ObservationSTime") as last_obs FROM rinex_proc WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\'' % (NetworkCode, StationCode))
 
             rnxtbl = rs.dictresult()
 
@@ -369,39 +368,6 @@ def StnInfoCheck(cnn, stnlist):
 
         except pyStationInfo.pyStationInfoException as e:
             tqdm.write(str(e))
-
-def ecef2lla(ecefArr):
-    # convert ECEF coordinates to LLA
-    # test data : test_coord = [2297292.91, 1016894.94, -5843939.62]
-    # expected result : -66.8765400174 23.876539914 999.998386689
-
-    x = float(ecefArr[0])
-    y = float(ecefArr[1])
-    z = float(ecefArr[2])
-
-    a = 6378137
-    e = 8.1819190842622e-2
-
-    asq = numpy.power(a, 2)
-    esq = numpy.power(e, 2)
-
-    b = numpy.sqrt(asq * (1 - esq))
-    bsq = numpy.power(b, 2)
-
-    ep = numpy.sqrt((asq - bsq) / bsq)
-    p = numpy.sqrt(numpy.power(x, 2) + numpy.power(y, 2))
-    th = numpy.arctan2(a * z, b * p)
-
-    lon = numpy.arctan2(y, x)
-    lat = numpy.arctan2((z + numpy.power(ep, 2) * b * numpy.power(numpy.sin(th), 3)),
-                     (p - esq * a * numpy.power(numpy.cos(th), 3)))
-    N = a / (numpy.sqrt(1 - esq * numpy.power(numpy.sin(lat), 2)))
-    alt = p / numpy.cos(lat) - N
-
-    lon = lon * 180 / numpy.pi
-    lat = lat * 180 / numpy.pi
-
-    return numpy.array([lat]), numpy.array([lon]), numpy.array([alt])
 
 
 def CheckSpatialCoherence(cnn, stnlist, start_date, end_date):
@@ -457,6 +423,7 @@ def CheckSpatialCoherence(cnn, stnlist, start_date, end_date):
         else:
             tqdm.write('\nNo PPP solutions found for %s.%s...' % (NetworkCode, StationCode), sys.stderr)
 
+
 def GetStnGaps(cnn, stnlist, ignore_val, start_date, end_date):
 
     for stn in stnlist:
@@ -464,7 +431,7 @@ def GetStnGaps(cnn, stnlist, ignore_val, start_date, end_date):
         StationCode = stn['StationCode']
 
         rs = cnn.query(
-            'SELECT * FROM rinex WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "ObservationSTime" BETWEEN \'%s\' AND \'%s\' ORDER BY "ObservationSTime"' % (NetworkCode, StationCode, start_date.yyyymmdd(), end_date.yyyymmdd()))
+            'SELECT * FROM rinex_proc WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "ObservationSTime" BETWEEN \'%s\' AND \'%s\' ORDER BY "ObservationSTime"' % (NetworkCode, StationCode, start_date.yyyymmdd(), end_date.yyyymmdd()))
 
         rnxtbl = rs.dictresult()
         gap_begin = None
@@ -513,6 +480,7 @@ def PrintStationInfo(cnn, stnlist, short=False):
         except pyStationInfo.pyStationInfoException as e:
             sys.stdout.write(str(e))
 
+
 def RenameStation(cnn, NetworkCode, StationCode, DestNetworkCode, DestStationCode, start_date, end_date, archive_path):
 
     # make sure the destiny station exists
@@ -539,7 +507,7 @@ def RenameStation(cnn, NetworkCode, StationCode, DestNetworkCode, DestStationCod
             for src_rinex in tqdm(original_rs):
                 # rename files
                 Archive = pyArchiveStruct.RinexStruct(cnn) # type: pyArchiveStruct.RinexStruct
-                src_file_path = Archive.build_rinex_path(NetworkCode, StationCode, src_rinex['ObservationYear'], src_rinex['ObservationDOY'])
+                src_file_path = Archive.build_rinex_path(NetworkCode, StationCode, src_rinex['ObservationYear'], src_rinex['ObservationDOY'], filename=src_rinex['Filename'])
 
                 src_path = os.path.split(os.path.join(archive_path, src_file_path))[0]
                 src_file = os.path.split(os.path.join(archive_path, src_file_path))[1]
@@ -551,8 +519,8 @@ def RenameStation(cnn, NetworkCode, StationCode, DestNetworkCode, DestStationCod
                 # update the NetworkCode and StationCode and filename information in the db
                 cnn.query(
                     'UPDATE rinex SET "NetworkCode" = \'%s\', "StationCode" = \'%s\', "Filename" = \'%s\' '
-                    'WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "ObservationYear" = %i AND "ObservationDOY" = %i'
-                    % (DestNetworkCode, DestStationCode, dest_file.replace('d.Z','o'), NetworkCode, StationCode, src_rinex['ObservationYear'], src_rinex['ObservationDOY']))
+                    'WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "ObservationYear" = %i AND "ObservationDOY" = %i AND "Filename" = \'%s\''
+                    % (DestNetworkCode, DestStationCode, dest_file.replace('d.Z','o'), NetworkCode, StationCode, src_rinex['ObservationYear'], src_rinex['ObservationDOY'], src_rinex['Filename']))
 
                 # DO NOT USE pyArchiveStruct because we have an active transaction and the change is not visible yet
                 # because we don't know anything about the archive's stucture, we just try to replace the names and that should suffice
@@ -590,173 +558,10 @@ def RenameStation(cnn, NetworkCode, StationCode, DestNetworkCode, DestStationCod
                         tqdm.write(' -- Error while updating Station Information! %s' % (str(e)))
 
 
-    except:
+    except Exception:
         cnn.rollback_transac()
         raise
 
-def print_help():
-    print "  usage: "
-    print "         --stn [net.]stn                    : Station to run integrity check on, comma separated stations allowed. If 'all', integrity check is run for all stations."
-    print "         --net network                      : Network of stations in --stn (if --stn is not in net.stn format). If --stn is not set, checks all stations in the network."
-    print "         --date StartDate[,EndDate]         : Date range to work on; can be yyyy/mm/dd or yyyy.doy or 'all'. If not specified, 'all' is assumed"
-    print "         --stninfo_rinex                    : Check that the receiver serial number in the rinex headers agrees with the station info receiver serial number. Output message if it doesn't."
-    print "         --stninfo_proposed [--ignore days] : Output a proposed station.info using the RINEX metadata. Optional, specify --ignore to ignore station.info records <= days."
-    print "         --stninfo                          : Check the consistency of the station information records in the database. Date range does not apply."
-    print "         --gaps [--ignore days]             : Check the RINEX files in the database and look for gaps (missing days). Optional, specify --ignore with the smallest gap to display."
-    print "         --spatial_coherence [--fix/del]    : Check that the RINEX files correspond to the stations they are linked to using their PPP coordinate."
-    print "                                              Add --fix to try to solve problems. In case the problem cannot be solved, add the RINEX file to the excluded table."
-    print "                                              Add --del to delete problems instead of moving data to the excluded table."
-    print "         --print_stninfo long|short         : Output the station info to stdout. long outputs the full line of the station info. short outputs a short version (better for screen visualization)."
-    print "         --rename [dest net].[dest stn]     : Takes the data from station --stn --net and renames (merges) it to [dest net].[dest stn]."
-    print "                                              It also changes the rinex filenames in the archive to match those of the new destiny station."
-    print "                                              If multiple stations are given as origins, all of them will be renamed as [dest net].[dest stn]."
-    print "                                              Limit the date range using the --date option"
-
-def parse_input(argv, cnn):
-
-    stn_list = ''
-    net_list = ''
-    ignore_val = 0
-    run_stninfo_rinex_check = False
-    run_stninfo_check = False
-    run_spatial_coherence = False
-    run_gaps = False
-    run_print_stninfo_long = False
-    run_print_stninfo_short = False
-    run_rename_station = False
-    run_proposed = False
-    no_parallel = False
-    start_date = None
-    end_date = None
-
-    DestNetworkCode = None
-    DestStationCode = None
-
-    try:
-        aoptions, arguments = getopt.getopt(argv, '',
-                                            ['stn=', 'net=', 'date=', 'stninfo_rinex', 'stninfo', 'gaps', 'ignore=',
-                                             'spatial_coherence', 'print_stninfo=', 'stninfo_proposed',
-                                             'rename=','noparallel'])
-    except getopt.GetoptError:
-        print "invalid argument/s"
-        print_help()
-        sys.exit(2)
-
-    for opt, args in aoptions:
-        if opt == '--stn':
-            if ',' in args:
-                stn_list = args.lower().split(',')
-            elif 'all' in args:
-                stn_list = get_all_stations(cnn)
-            else:
-                stn_list = [args.lower()]
-        if opt == '--net':
-            net_list = args.lower()
-
-        elif opt == '--noparallel':
-            no_parallel = True
-
-        if opt == '--date':
-            if ',' in args:
-                sdate = args.split(',')[0]
-                edate = args.split(',')[1]
-
-                if '/' in args:
-                    start_date = pyDate.Date(year=sdate.split('/')[0], month=sdate.split('/')[1],
-                                             day=sdate.split('/')[2])
-                    end_date = pyDate.Date(year=edate.split('/')[0], month=edate.split('/')[1],
-                                           day=edate.split('/')[2])
-                elif '.' in args:
-                    start_date = pyDate.Date(year=sdate.split('.')[0], doy=sdate.split('.')[1])
-                    end_date = pyDate.Date(year=edate.split('.')[0], doy=edate.split('.')[1])
-
-            elif 'all' in args:
-                start_date = pyDate.Date(year=1900, month=1, day=1)
-                end_date = pyDate.Date(year=2100, month=1, day=1)
-            elif '/' in args:
-                # single date, assume start only
-                start_date = pyDate.Date(year=args.split('/')[0], month=args.split('/')[1], day=args.split('/')[2])
-                end_date = pyDate.Date(year=2100, month=1, day=1)
-            elif '.' in args:
-                start_date = pyDate.Date(year=args.split('.')[0], doy=args.split('.')[1])
-                end_date = pyDate.Date(year=2100, month=1, day=1)
-            else:
-                print "Invalid date format!"
-                print_help()
-                exit(2)
-
-        if opt == '--stninfo_rinex':
-            run_stninfo_rinex_check = True
-
-        if opt == '--stninfo':
-            run_stninfo_check = True
-
-        if opt == '--gaps':
-            run_gaps = True
-
-        if opt == '--stninfo_proposed':
-            run_proposed = True
-
-        if opt == '--ignore':
-            try:
-                ignore_val = int(args)
-            except:
-                print "invalid ignore interval"
-                exit(2)
-
-        if opt == '--spatial_coherence':
-            run_spatial_coherence = True
-
-        if opt == '--print_stninfo':
-            if args == 'short':
-                run_print_stninfo_short = True
-            elif args == 'long':
-                run_print_stninfo_long = True
-            else:
-                print "Invalid --print_stninfo argument: must select between short or long"
-                print_help()
-                exit(2)
-
-        if opt == '--rename':
-            run_rename_station = True
-            try:
-                DestNetworkCode = args.lower().split('.')[0]
-                DestStationCode = args.lower().split('.')[1]
-            except:
-                print "invalid destiny station"
-                exit(2)
-
-    if stn_list == '' and net_list == '':
-        print 'Invalid input, must specify at least one: --stn --net'
-
-    if stn_list == '':
-        stn_list = get_all_stations(cnn, net_list)
-
-    if net_list == '':
-        for stn in stn_list:
-            if not '.' in stn:
-                print "No --net specified. All stations must be in net.stn format"
-                print_help()
-                exit(2)
-
-    if not start_date:
-        start_date = pyDate.Date(year=1900, month=1, day=1)
-        end_date = pyDate.Date(year=2100, month=1, day=1)
-
-    return stn_list, net_list, start_date, end_date, run_stninfo_rinex_check, run_stninfo_check, \
-           run_gaps, ignore_val, run_spatial_coherence, run_print_stninfo_short, run_print_stninfo_long, \
-           run_proposed, run_rename_station, DestNetworkCode, DestStationCode, no_parallel
-
-def get_all_stations(cnn, NetworkCode=''):
-
-    if NetworkCode == '':
-        rs = cnn.query('SELECT "NetworkCode" || \'.\' || "StationCode" as stn FROM stations WHERE "NetworkCode" not like \'?%%\' ORDER BY "NetworkCode", "StationCode"')
-    else:
-        rs = cnn.query('SELECT "NetworkCode" || \'.\' || "StationCode" as stn FROM stations WHERE "NetworkCode" = \'%s\' ORDER BY "NetworkCode", "StationCode"' % (NetworkCode))
-
-    stns = rs.dictresult()
-
-    return [stn.get('stn') for stn in stns]
 
 def main():
 
@@ -766,7 +571,7 @@ def main():
                         help="List of networks/stations to process given in [net].[stnm] format or just [stnm] (separated by spaces; if [stnm] is not unique in the database, all stations with that name will be processed). Use keyword 'all' to process all stations in the database. If [net].all is given, all stations from network [net] will be processed. Alternatevily, a file with the station list can be provided.")
 
     parser.add_argument('-d', '--date_filter', nargs='+', metavar='date', help='Date range filter for all operations. Can be specified in yyyy/mm/dd or yyyy.doy format')
-    parser.add_argument('-rinex', '--check_rinex', action='store_true', help='Check the RINEX integrity of the archive-database by verifying that the RINEX files reported in rinex and rinex_extra exist in the archive. If a RINEX file does not exist, remove the record and promote a rinex_extra file to the rinex table (if exists). PPP record is deleted and a new PPP coordinates is calculated for the promoted file.')
+    parser.add_argument('-rinex', '--check_rinex', action='store_true', help='Check the RINEX integrity of the archive-database by verifying that the RINEX files reported in the rinex table exist in the archive. If a RINEX file does not exist, remove the record. PPP records or gamit_soln are deleted.')
     parser.add_argument('-stnr', '--station_info_rinex', action='store_true', help='Check that the receiver serial number in the rinex headers agrees with the station info receiver serial number.')
     parser.add_argument('-stns', '--station_info_solutions', action='store_true', help='Check that the PPP hash values match the station info hash.')
     parser.add_argument('-stnp', '--station_info_proposed', metavar='ignore_days', const=0, type=int, nargs='?', help='Output a proposed station.info using the RINEX metadata. Optional, specify [ignore_days] to ignore station.info records <= days.')

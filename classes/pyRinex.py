@@ -34,6 +34,13 @@ class pyRinexException(Exception):
     def __str__(self):
         return str(self.value)
 
+class pyRinexExceptionBadFile(Exception):
+    def __init__(self, value):
+        self.value = value
+        self.event = pyEvents.Event(Description=value, EventType='error')
+    def __str__(self):
+        return str(self.value)
+
 class RinexRecord():
 
     def __init__(self):
@@ -411,7 +418,7 @@ class ReadRinex(RinexRecord):
 
             # the uncompressed-unhatanaked file size must be at least > than the crinex
             if err and os.path.getsize(self.rinex_path) <= crinex_size:
-                raise pyRinexException("Error in ReadRinex.__init__ -- crz2rnx (error and empty file): " + err)
+                raise pyRinexExceptionBadFile("Error in ReadRinex.__init__ -- crz2rnx (error and empty file): " + err)
 
 
         # check basic infor in the rinex header to avoid problems with RinSum
@@ -555,7 +562,7 @@ class ReadRinex(RinexRecord):
                     rnx = ReadRinex(self.NetworkCode,self.StationCode,os.path.join(self.rootdir,file.replace('rnx', self.StationCode)))
                     # append this rinex object to the multiday list
                     self.multiday_rnx_list.append(rnx)
-                except pyRinexException:
+                except (pyRinexException, pyRinexExceptionBadFile):
                     # there was a problem with one of the multiday files. Do not append
                     pass
 

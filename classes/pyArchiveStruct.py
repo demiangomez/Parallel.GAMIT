@@ -13,6 +13,9 @@ import sys
 import scandir
 import re
 import pyDate
+import shutil
+import pyOptions
+import pyEvents
 
 class RinexStruct():
 
@@ -34,22 +37,66 @@ class RinexStruct():
         stations = cnn.query('SELECT * FROM stations')
         self.stations = stations.dictresult()
 
-    def archive_dict(self,rootdir):
-        """
-        Creates a nested dictionary that represents the folder structure of rootdir
-        """
-        dir = {}
-        rootdir = rootdir.rstrip(os.sep)
-        start = rootdir.rfind(os.sep) + 1
-        for path, dirs, files in os.walk(rootdir):
-            folders = path[start:].split(os.sep)
-            subdir = dict.fromkeys(files)
-            parent = reduce(dict.get, folders[:-1], dir)
-            parent[folders[-1]] = subdir
+        self.Config = pyOptions.ReadOptions('gnss_data.cfg')
 
-        # the first item in the dict is the root folder (e.g. rinex), we just return the folders inside the root,
-        # which should be the level 1 information
-        return dir.values()[0]
+    def remove_rinex(self, record, move_to_dir=None):
+        # function to remove a file from the archive
+        # should receive a rinex record
+        # if move_to is None, file is deleted
+        # otherwise, moves file to specified location
+        try:
+            self.cnn.begin_transac()
+            # propagate the deletes
+            # check if this rinex file is the file that was processed and used for solutions
+            rs = self.cnn.query(
+                    'SELECT * FROM rinex_proc WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "ObservationYear" = %i AND "ObservationDOY" = %i AND "Filename" = \'%s\''
+                    % (record['NetworkCode'], record['StationCode'], record['ObservationYear'], record['ObservationDOY'], record['Filename']))
+
+            if rs.ntuples() > 0:
+                self.cnn.query(
+                    'DELETE FROM gamit_soln WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "Year" = %i AND "DOY" = %i'
+                    % (record['NetworkCode'], record['StationCode'], record['ObservationYear'], record['ObservationDOY']))
+                self.cnn.query(
+                    'DELETE FROM ppp_soln WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "Year" = %i AND "DOY" = %i'
+                    % (record['NetworkCode'], record['StationCode'], record['ObservationYear'], record['ObservationDOY']))
+
+            # get the filename
+            rinex_path = self.build_rinex_path(record['NetworkCode'], record['StationCode'], record['ObservationYear'], record['ObservationDOY'], filename=record['Filename'])
+            rinex_path = os.path.join(self.Config.archive_path, rinex_path)
+
+            # delete the rinex record
+            self.cnn.query(
+                'DELETE FROM rinex WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "ObservationYear" = %i AND "ObservationDOY" = %i AND "Filename" = \'%s\''
+                % (record['NetworkCode'], record['StationCode'], record['ObservationYear'], record['ObservationDOY'], record['Filename']))
+
+            if os.path.isfile(rinex_path):
+                if move_to_dir:
+                    if not os.path.isdir(move_to_dir):
+                        os.makedirs(move_to_dir)
+
+                    shutil.move(rinex_path, move_to_dir)
+                    description = 'RINEX %s was removed from the database and archive. File moved to %s. See next events for reason.' % (record['Filename'], move_to_dir)
+                else:
+                    os.remove(rinex_path)
+                    description = 'RINEX %s was removed from the database and archive. File was deleted. See next events for reason.' % (record['Filename'])
+            else:
+                description = 'RINEX %s was removed from the database and archive. File was NOT found so no deletion was performed. See next events for reason.' % (record['Filename'])
+
+            # insert an event
+            event = pyEvents.Event(
+                Description=description,
+                NetworkCode=record['NetworkCode'],
+                StationCode=record['StationCode'],
+                EventType='info',
+                Year=record['ObservationYear'],
+                DOY=record['ObservationDOY'])
+
+            self.cnn.insert_event(event)
+
+            self.cnn.commit_transac()
+        except Exception:
+            self.cnn.rollback_transac()
+            raise
 
     def check_directory_struct(self, ArchivePath, NetworkCode, StationCode, date):
 
@@ -132,7 +179,7 @@ class RinexStruct():
 
         return stninfo,path2stninfo
 
-    def build_rinex_path(self, NetworkCode, StationCode, ObservationYear, ObservationDOY, with_filename=True):
+    def build_rinex_path(self, NetworkCode, StationCode, ObservationYear, ObservationDOY, with_filename=True, filename=None):
 
         # build the levels struct
         sql_list = []
@@ -143,8 +190,18 @@ class RinexStruct():
 
         sql_string = ", ".join(sql_list)
 
-        rs = self.cnn.query('SELECT ' + sql_string + ' FROM rinex WHERE "NetworkCode" = \'' + NetworkCode + '\' AND "StationCode" = \'' + StationCode + '\' AND "ObservationYear" = ' + str(
-            ObservationYear) + ' AND "ObservationDOY" = ' + str(ObservationDOY))
+        if filename:
+            if self.parse_crinex_filename(filename):
+                filename = filename.replace('d.Z','o')
+
+            # if filename is set, user requesting a specific file: query rinex table
+            rs = self.cnn.query('SELECT ' + sql_string + ' FROM rinex WHERE "NetworkCode" = \'' + NetworkCode + '\' AND "StationCode" = \'' + StationCode + '\' AND "ObservationYear" = ' + str(
+                ObservationYear) + ' AND "ObservationDOY" = ' + str(ObservationDOY) + ' AND "Filename" = \'' + filename + '\'')
+        else:
+            # if filename is NOT set, user requesting a the processing file: query rinex_proc
+            rs = self.cnn.query(
+                'SELECT ' + sql_string + ' FROM rinex_proc WHERE "NetworkCode" = \'' + NetworkCode + '\' AND "StationCode" = \'' + StationCode + '\' AND "ObservationYear" = ' + str(
+                    ObservationYear) + ' AND "ObservationDOY" = ' + str(ObservationDOY))
 
         if rs.ntuples() != 0:
             field = rs.dictresult()[0]

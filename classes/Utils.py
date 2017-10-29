@@ -1,5 +1,5 @@
 
-import os, re, subprocess, sys, pyDate
+import os, re, subprocess, sys, pyDate, numpy
 
 
 class UtilsException(Exception):
@@ -7,6 +7,40 @@ class UtilsException(Exception):
         self.value = value
     def __str__(self):
         return str(self.value)
+
+
+def ecef2lla(ecefArr):
+    # convert ECEF coordinates to LLA
+    # test data : test_coord = [2297292.91, 1016894.94, -5843939.62]
+    # expected result : -66.8765400174 23.876539914 999.998386689
+
+    x = float(ecefArr[0])
+    y = float(ecefArr[1])
+    z = float(ecefArr[2])
+
+    a = 6378137
+    e = 8.1819190842622e-2
+
+    asq = numpy.power(a, 2)
+    esq = numpy.power(e, 2)
+
+    b = numpy.sqrt(asq * (1 - esq))
+    bsq = numpy.power(b, 2)
+
+    ep = numpy.sqrt((asq - bsq) / bsq)
+    p = numpy.sqrt(numpy.power(x, 2) + numpy.power(y, 2))
+    th = numpy.arctan2(a * z, b * p)
+
+    lon = numpy.arctan2(y, x)
+    lat = numpy.arctan2((z + numpy.power(ep, 2) * b * numpy.power(numpy.sin(th), 3)),
+                     (p - esq * a * numpy.power(numpy.cos(th), 3)))
+    N = a / (numpy.sqrt(1 - esq * numpy.power(numpy.sin(lat), 2)))
+    alt = p / numpy.cos(lat) - N
+
+    lon = lon * 180 / numpy.pi
+    lat = lat * 180 / numpy.pi
+
+    return numpy.array([lat]), numpy.array([lon]), numpy.array([alt])
 
 
 def process_date(arg):
