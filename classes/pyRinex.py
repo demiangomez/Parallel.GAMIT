@@ -11,7 +11,7 @@ import pyDate
 import pyRunWithRetry
 import pyStationInfo
 import datetime
-import sys
+import Utils
 import uuid
 from shutil import rmtree
 import re
@@ -34,12 +34,14 @@ class pyRinexException(Exception):
     def __str__(self):
         return str(self.value)
 
-class pyRinexExceptionBadFile(Exception):
-    def __init__(self, value):
-        self.value = value
-        self.event = pyEvents.Event(Description=value, EventType='error')
-    def __str__(self):
-        return str(self.value)
+class pyRinexExceptionBadFile(pyRinexException):
+    pass
+
+class pyRinexExceptionSingleEpoch(pyRinexException):
+    pass
+
+class pyRinexExceptionNoAutoCoord(pyRinexException):
+    pass
 
 class RinexRecord():
 
@@ -72,6 +74,7 @@ class RinexRecord():
         self.epochs = None
         self.completion = None
         self.rel_completion = None
+        self.rinex_version = None
 
         fieldnames = ['NetworkCode','StationCode','ObservationYear','ObservationMonth','ObservationDay',
                       'ObservationDOY','ObservationFYear','ObservationSTime','ObservationETime','ReceiverType',
@@ -194,7 +197,7 @@ class ReadRinex(RinexRecord):
                 raise
 
             if not any("END OF HEADER" in s for s in rinex):
-                raise pyRinexException('Invalid header: could not find END OF HEADER tag.')
+                raise pyRinexExceptionBadFile('Invalid header: could not find END OF HEADER tag.')
 
             # find the end of header
             index = [i for i, item in enumerate(rinex) if 'END OF HEADER' in item][0]
@@ -215,10 +218,6 @@ class ReadRinex(RinexRecord):
     def check_header(self):
 
         header = self.get_header()
-        first_obs = self.get_firstobs()
-
-        if first_obs is None:
-            raise pyRinexException('Could not find a first observation in RINEX file. Truncated file? Header follows:\n' + ''.join(header))
 
         # list of required header records and a flag to know if they were found or not in the current header
         # also, have a tuple of default values in case there is a missing record
@@ -232,7 +231,7 @@ class ReadRinex(RinexRecord):
                             'ANTENNA: DELTA H/E/N': [('%14.4f','%14.4f','%14.4f'), False, (float(0), float(0), float(0))],
                             'APPROX POSITION XYZ' : [('%14.4f','%14.4f','%14.4f'), False, (float(0), float(0), float(6371000))],
                              #'# / TYPES OF OBSERV' : [('%6i',), False, ('',)],
-                            'TIME OF FIRST OBS'   : [('%6i','%6i','%6i','%6i','%6i','%13.7f','%8s'), False, (int(first_obs.year), int(first_obs.month), int(first_obs.day),  int(first_obs.hour),  int(first_obs.minute),  float(first_obs.second), 'GPS')],
+                            'TIME OF FIRST OBS'   : [('%6i','%6i','%6i','%6i','%6i','%13.7f','%8s'), False, (1, 1, 1, 1, 1, 0, 'GPS')],
                              # DDG: remove time of last observation all together. It just creates problems and is not mandatory
                              #'TIME OF LAST OBS'    : [('%6i','%6i','%6i','%6i','%6i','%13.7f','%8s'), True, (int(first_obs.year), int(first_obs.month), int(first_obs.day), int(23), int(59), float(59), 'GPS')],
                             'COMMENT'             : [('%60s',), True, ('',)]}
@@ -258,6 +257,15 @@ class ReadRinex(RinexRecord):
                     # read the information about the RINEX type
                     # save the system to use during TIME OF FIRST OBS
                     system = fields[4].strip()
+
+                    self.rinex_version = float(fields[0])
+
+                    # now that we know the version, we can get the first obs
+                    first_obs = self.get_firstobs()
+
+                    if first_obs is None:
+                        raise pyRinexExceptionBadFile(
+                            'Could not find a first observation in RINEX file. Truncated file? Header follows:\n' + ''.join(header))
 
                     if not system in (' ', 'G', 'R', 'S', 'E', 'M'):
                         # assume GPS
@@ -303,7 +311,7 @@ class ReadRinex(RinexRecord):
 
         if system == '':
             # if we are out of the loop and we could not determine the system, raise error
-            raise pyRinexException('Unfixable RINEX header: could not find RINEX VERSION / TYPE')
+            raise pyRinexExceptionBadFile('Unfixable RINEX header: could not find RINEX VERSION / TYPE')
 
         # now check that all the records where included! there's missing ones, then force them
         if not all([item[1] for item in required_records.values()]):
@@ -312,7 +320,7 @@ class ReadRinex(RinexRecord):
 
             for record in missing_records:
                 if '# / TYPES OF OBSERV' in record:
-                    raise pyRinexException('Unfixable RINEX header: could not find # / TYPES OF OBSERV')
+                    raise pyRinexExceptionBadFile('Unfixable RINEX header: could not find # / TYPES OF OBSERV')
 
                 data = ''.join(missing_records[record][0]) % missing_records[record][2]
                 data = '%-60s' % data + record
@@ -331,7 +339,7 @@ class ReadRinex(RinexRecord):
                 raise
 
             if not any("END OF HEADER" in s for s in rinex):
-                raise pyRinexException('Invalid header: could not find END OF HEADER tag.')
+                raise pyRinexExceptionBadFile('Invalid header: could not find END OF HEADER tag.')
 
             # find the end of header
             index = [i for i, item in enumerate(rinex) if 'END OF HEADER' in item][0]
@@ -360,6 +368,10 @@ class ReadRinex(RinexRecord):
 
         self.origin_file = origin_file
 
+        # check that the rinex file name is valid!
+        if not Utils.parse_crinex_rinex_filename(os.path.basename(origin_file)):
+            raise pyRinexException('File name does not follow the RINEX/CRINEX naming convention: %s' % (os.path.basename(origin_file)))
+
         self.rootdir = os.path.join('production', 'rinex')
         self.rootdir = os.path.join(self.rootdir, str(uuid.uuid4()))
 
@@ -367,9 +379,9 @@ class ReadRinex(RinexRecord):
             # create a production folder to analyze the rinex file
             if not os.path.exists(self.rootdir):
                 os.makedirs(self.rootdir)
-        except OSError as e:
-            # folder exists from a concurring instance, ignore the error
-            sys.exc_clear()
+        #except OSError as e:
+        #    # folder exists from a concurring instance, ignore the error
+        #    sys.exc_clear()
         except Exception:
             raise
 
@@ -399,7 +411,7 @@ class ReadRinex(RinexRecord):
                 copyfile(origin_file, self.crinex_path)
             else:
                 copyfile(origin_file, self.rinex_path)
-        except:
+        except Exception:
             raise
 
         if run_crz2rnx:
@@ -417,12 +429,41 @@ class ReadRinex(RinexRecord):
                 raise
 
             # the uncompressed-unhatanaked file size must be at least > than the crinex
-            if err and os.path.getsize(self.rinex_path) <= crinex_size:
-                raise pyRinexExceptionBadFile("Error in ReadRinex.__init__ -- crz2rnx (error and empty file): " + err)
-
+            if os.path.isfile(self.rinex_path):
+                if err and os.path.getsize(self.rinex_path) <= crinex_size:
+                    raise pyRinexExceptionBadFile("Error in ReadRinex.__init__ -- crz2rnx (error and empty file): " + err)
+            else:
+                if err:
+                    raise pyRinexException('Could not create RINEX file. crz2rnx stderr follows: ' + err)
+                else:
+                    raise pyRinexException('Could not create RINEX file. Unknown reason. Possible problem with crz2rnx?')
 
         # check basic infor in the rinex header to avoid problems with RinSum
         self.check_header()
+
+        if self.rinex_version >= 3:
+            # most programs still don't support RINEX 3 (partially implemented in this code)
+            # convert to RINEX 2.11 using RinEdit
+            cmd = pyRunWithRetry.RunCommand('RinEdit --IF %s --OF %s.t --ver2' % (self.rinex, self.rinex), 15, self.rootdir)
+
+            try:
+                out, _ = cmd.run_shell()
+
+                if 'exception' in out.lower():
+                    raise pyRinexExceptionBadFile('RinEdit returned error converting to RINEX 2.11:\n' + out)
+
+                if not os.path.exists(self.rinex_path + '.t'):
+                    raise pyRinexExceptionBadFile('RinEdit failed to convert to RINEX 2.11:\n' + out)
+
+                # if all ok, move converted file to rinex_path
+                os.remove(self.rinex_path)
+                move(self.rinex_path + '.t', self.rinex_path)
+                # change version
+                self.rinex_version = 2.11
+
+            except pyRunWithRetry.RunCommandWithRetryExeception as e:
+                # catch the timeout except and pass it as a pyRinexException
+                raise pyRinexException(str(e))
 
         # run RinSum to get file information
         cmd = pyRunWithRetry.RunCommand('RinSum --notable ' + self.rinex_path, 45)  # DDG: increased from 21 to 45.
@@ -430,7 +471,7 @@ class ReadRinex(RinexRecord):
             out,_ = cmd.run_shell()
         except pyRunWithRetry.RunCommandWithRetryExeception as e:
             # catch the timeout except and pass it as a pyRinexException
-            raise pyRinexException(e)
+            raise pyRinexException(str(e))
         except Exception:
             raise
 
@@ -444,7 +485,12 @@ class ReadRinex(RinexRecord):
 
         # DDG: after process(out), interval should be numeric
         if self.interval is None:
-            raise pyRinexException('RINEX sampling interval could not be determined. The output from RinSum was:\n' + out)
+            raise pyRinexExceptionBadFile('RINEX sampling interval could not be determined. The output from RinSum was:\n' + out)
+        elif self.interval > 120:
+            raise pyRinexExceptionBadFile('RINEX sampling interval > 120s. The output from RinSum was:\n' + out)
+        else:
+            if self.epochs * self.interval < 3600:
+                raise pyRinexExceptionBadFile('RINEX file with < 1 hr of observation time. The output from RinSum was:\n' + out)
 
         # DDG: new interval checking after running RinSum
         # check the sampling interval
@@ -525,10 +571,15 @@ class ReadRinex(RinexRecord):
             self.firstObs = self.datetime_firstObs.strftime('%Y/%m/%d %H:%M:%S')
             self.lastObs = self.datetime_lastObs.strftime('%Y/%m/%d %H:%M:%S')
 
+            if self.datetime_lastObs <= self.datetime_firstObs:
+                # bad rinex! first obs > last obs
+                raise pyRinexExceptionBadFile('Last observation (' + self.lastObs + ') <= first observation (' + self.firstObs + ')')
+
             # DDG: calculate the completion of the file (at sampling rate)
             # completion of day
             self.completion = self.epochs * self.interval / 86400
             # completion of time window in file
+
             self.rel_completion = self.epochs * self.interval / ((self.datetime_lastObs - self.datetime_firstObs).total_seconds() + self.interval)
 
             # load the RinexRecord class
@@ -544,7 +595,7 @@ class ReadRinex(RinexRecord):
             _, err = cmd.run_shell()
         except pyRunWithRetry.RunCommandWithRetryExeception as e:
             # catch the timeout except and pass it as a pyRinexException
-            raise pyRinexException(e)
+            raise pyRinexException(str(e))
         except Exception:
             raise
 
@@ -576,7 +627,7 @@ class ReadRinex(RinexRecord):
                 self.recType = find_between(line, 'Type:', 'Vers:').replace(',','').strip()
                 try:
                     self.recVers = line.split('Vers:')[1].strip()
-                except:
+                except Exception:
                     self.recVers = ''
 
             if r'Antenna # :' in line:
@@ -588,21 +639,21 @@ class ReadRinex(RinexRecord):
                         self.antType = self.antType.split(' ')[0]
                     else:
                         self.antDome = 'NONE'
-                except:
+                except Exception:
                     self.antType = ''
                     self.antDome = ''
 
             if r'Antenna Delta (HEN,m) :' in line:
                 try:
                     self.antOffset = float(find_between(line, 'Antenna Delta (HEN,m) : (',',').strip())
-                except:
+                except Exception:
                     self.antOffset = 0 # DDG: antenna offset default value set to zero, not to []
 
             if r'Computed interval' in line and r'Warning' not in line:
                 # added condition that skips a warning stating that header does not agree with computed interval
                 try:
                     self.interval = float(find_between(line, 'Computed interval','seconds.').strip())
-                except:
+                except Exception:
                     self.interval = 0
 
                 self.epochs = [int(find_between(xline, 'There were', 'epochs').strip()) for xline in output.split('\n') if 'There were' in xline]
@@ -614,9 +665,9 @@ class ReadRinex(RinexRecord):
                 if self.interval == 0:
                     # maybe single epoch or bad file. Raise an error
                     if self.epochs > 0:
-                        raise pyRinexException('RINEX interval equal to zero. Single epoch or bad RINEX file. Reported epochs in file were %s' %(self.epochs))
+                        raise pyRinexExceptionSingleEpoch('RINEX interval equal to zero. Single epoch or bad RINEX file. Reported epochs in file were %s' %(self.epochs))
                     else:
-                        raise pyRinexException('RINEX interval equal to zero. Single epoch or bad RINEX file. No epoch information to report. The output from RinSum was:\n' + output)
+                        raise pyRinexExceptionSingleEpoch('RINEX interval equal to zero. Single epoch or bad RINEX file. No epoch information to report. The output from RinSum was:\n' + output)
 
 
             if r'Computed first epoch:' in line:
@@ -657,7 +708,11 @@ class ReadRinex(RinexRecord):
 
     def get_firstobs(self):
 
-        fs = struct.Struct('1s2s1s2s1s2s1s2s1s2s11s2s1s3s')
+        if self.rinex_version < 3:
+            fs = struct.Struct('1s2s1s2s1s2s1s2s1s2s11s2s1s3s')
+        else:
+            fs = struct.Struct('2s4s1s2s1s2s1s2s1s2s11s2s1s3s')
+
         parse = fs.unpack_from
 
         date = None
@@ -684,7 +739,11 @@ class ReadRinex(RinexRecord):
                             minute = int(fields[9])
                             second = float(fields[10])
 
-                            date = pyDate.Date(year=year, month=month, day=day, hour=hour, minute=minute, second=second)
+                            try:
+                                date = pyDate.Date(year=year, month=month, day=day, hour=hour, minute=minute, second=second)
+                            except pyDate.pyDateException as e:
+                                raise pyRinexExceptionBadFile(str(e))
+
                             break
                         elif int(fields[12]) > 1:
                             # event, skip lines indicated in next field
@@ -752,12 +811,29 @@ class ReadRinex(RinexRecord):
     def auto_coord(self, brdc, chi_limit=3):
         # use gamit's sh_rx2apr to obtain a coordinate of the station
 
-        cmd = pyRunWithRetry.RunCommand('sh_rx2apr -site ' + self.rinex + ' -nav ' + brdc.brdc_filename, 40, self.rootdir)
+        # do not work with the original file. Decimate and remove other systems (to increase speed)
+        try:
+            dst_gen = Utils._increment_filename(self.rinex_path)
+            dst = next(dst_gen)
+            # decimate in a copy
+            self.decimate(30, dst)
+            # read the decimated copy
+            rnx = ReadRinex(self.NetworkCode, self.StationCode, dst)
+            # remove the systems
+            rnx.remove_systems()
+            # copy brdc orbit
+            copyfile(brdc.brdc_path, os.path.join(rnx.rootdir, brdc.brdc_filename))
+
+        except pyRinexException as e:
+            # ooops, something went wrong, try with local file
+            raise pyRinexExceptionBadFile('During decimation or remove_systems (to run auto_coord), teqc returned: %s' + str(e))
+
+        cmd = pyRunWithRetry.RunCommand('sh_rx2apr -site ' + rnx.rinex + ' -nav ' + brdc.brdc_filename, 40, rnx.rootdir)
         # leave errors un-trapped on purpose (will raise an error to the parent)
         out, err = cmd.run_shell()
 
         if err != '':
-            return None, None, err + '\n' + out
+            raise pyRinexExceptionNoAutoCoord(err + '\n' + out)
         else:
             # check that the Final chi**2 is < 3
             for line in out.split('\n'):
@@ -765,11 +841,12 @@ class ReadRinex(RinexRecord):
                     chi = line.split()[-1]
 
                     if chi == 'NaN':
-                        return None, None, 'chi2 = NaN! ' + err + '\n' + out
+                        raise pyRinexExceptionNoAutoCoord('chi2 = NaN! ' + err + '\n' + out)
+
                     elif float(chi) < chi_limit:
                         # open the APR file and read the coordinates
-                        if os.path.isfile(os.path.join(self.rootdir, self.rinex[0:4] + '.apr')):
-                            with open(os.path.join(self.rootdir, self.rinex[0:4] + '.apr')) as apr:
+                        if os.path.isfile(os.path.join(rnx.rootdir, rnx.rinex[0:4] + '.apr')):
+                            with open(os.path.join(rnx.rootdir, rnx.rinex[0:4] + '.apr')) as apr:
                                 line = apr.readline().split()
 
                                 self.x = float(line[1])
@@ -778,9 +855,9 @@ class ReadRinex(RinexRecord):
 
                                 self.lat, self.lon, self.h = self.ecef2lla([self.x, self.y, self.z])
 
-                            return (float(line[1]), float(line[2]), float(line[3])), (self.lat, self.lon, self.h), None
+                            return (float(line[1]), float(line[2]), float(line[3])), (self.lat, self.lon, self.h)
 
-            return None, None, out + '\nLIMIT FOR CHI**2 is 3!'
+            raise pyRinexExceptionNoAutoCoord(out + '\nLIMIT FOR CHI**2 was %i' % chi_limit)
 
     def auto_coord_teqc(self,brdc):
         # calculate an autonomous coordinate using broadcast orbits
@@ -816,18 +893,47 @@ class ReadRinex(RinexRecord):
 
         return None
 
-    def decimate(self, decimate_rate):
+    def decimate(self, decimate_rate, copyto=None):
 
-        cmd = pyRunWithRetry.RunCommand('teqc -igs -O.dec %i +obs %s.t %s' % (decimate_rate, self.rinex_path, self.rinex_path), 5)
+        if self.rinex_version < 3:
+            cmd = pyRunWithRetry.RunCommand('teqc -igs -O.dec %i +obs %s.t %s' % (decimate_rate, self.rinex_path, self.rinex_path), 5)
+            # leave errors un-trapped on purpose (will raise an error to the parent)
+        else:
+            cmd = pyRunWithRetry.RunCommand('RinEdit --IF %s --OF %s.t --TN %i --TB %i,%i,%i,%i,%i,%i' % (self.rinex, self.rinex, decimate_rate, self.date.year, self.date.month, self.date.day, 0, 0, 0), 15, self.rootdir)
+        out, err = cmd.run_shell()
+
+        if not 'teqc: failure to read' in str(err):
+            # delete the original file and replace with .t
+            if copyto is None:
+                os.remove(self.rinex_path)
+                move(self.rinex_path + '.t', self.rinex_path)
+                self.interval = decimate_rate
+            else:
+                move(self.rinex_path + '.t', copyto)
+        else:
+            raise pyRinexException(err)
+
+        return
+
+    def remove_systems(self, systems=('R', 'E', 'S'), copyto=None):
+
+        if self.rinex_version < 3:
+            rsys = '-' + ' -'.join(systems)
+            cmd = pyRunWithRetry.RunCommand('teqc -igs %s +obs %s.t %s' % (rsys, self.rinex_path, self.rinex_path), 5)
+        else:
+            rsys = ' --DS '.join(systems)
+            cmd = pyRunWithRetry.RunCommand('RinEdit --IF %s --OF %s.t --DS %s' % (self.rinex, self.rinex, rsys), 15, self.rootdir)
+
         # leave errors un-trapped on purpose (will raise an error to the parent)
         out, err = cmd.run_shell()
 
         if not 'teqc: failure to read' in str(err):
             # delete the original file and replace with .t
-            os.remove(self.rinex_path)
-            move(self.rinex_path + '.t', self.rinex_path)
-
-            self.interval = decimate_rate
+            if copyto is None:
+                os.remove(self.rinex_path)
+                move(self.rinex_path + '.t', self.rinex_path)
+            else:
+                copyfile(self.rinex_path + '.t', copyto)
         else:
             raise pyRinexException(err)
 
@@ -943,107 +1049,96 @@ class ReadRinex(RinexRecord):
 
         return
 
+    def apply_file_naming_convention(self):
+        """
+        function to rename a file to make it consistent with the RINEX naming convention
+        :return:
+        """
+        # is the current rinex filename valid?
+        fileparts = Utils.parse_crinex_rinex_filename(self.rinex)
+
+        if fileparts:
+            doy = int(fileparts[1])
+            year = int(Utils.get_norm_year_str(fileparts[3]))
+        else:
+            # invalid RINEX filename! Assign some values to the variables
+            doy = 0
+            year = 1900
+
+        if self.record['ObservationDOY'] != doy or self.record['ObservationYear'] != year:
+            # this if still remains here but we do not allow this condition any more to happen. See process_crinex_file -> if Result...
+            # NO! rename the file before moving to the archive
+            filename = self.StationCode + self.date.ddd() + '0.' + self.date.yyyy()[2:4] + 'o'
+            # rename file
+            self.rename_crinex_rinex(filename)
+
     def move_origin_file(self, path):
         # this function moves the ARCHIVE file out to another location indicated by path
         # it also makes sure that it doesn' overwrite any existing file
-        try:
-            # make the folders if they don't exist
-            if not os.path.isdir(path):
-                os.makedirs(path)
 
-            index = 0
-            # make sure that the destiny filename is in lowercase.
-            filename = self.crinex.lower().replace('d.z','d.Z')
-            while os.path.isfile(os.path.join(path, filename)):
-                filename_parts = filename.split('.')
-                filename = filename_parts[0][0:-1] + str(index) + '.' + filename_parts[1] + '.' + filename_parts[2]
-                index += 1
+        # intelligent move (creates folder and checks for file existence)
+        filename = Utils.move(self.origin_file, os.path.join(path, self.crinex))
 
-            # to keep everything consistent, also change the local copies of the file
-            self.rename_crinex_rinex(filename)
-
-            move(self.origin_file, os.path.join(path, filename))
-
-        except pyRinexException as e:
-            raise
-
-        except Exception as e:
-            raise pyRinexException(e)
+        # to keep everything consistent, also change the local copies of the file
+        self.rename_crinex_rinex(os.path.basename(filename))
 
         return
 
     def compress_local_copyto(self, path):
         # this function compresses and moves the local copy of the rinex
         # meant to be used when a multiday rinex file is encountered and we need to move it to the repository
+
+        # compress the rinex into crinex. Make the filename
+        crinex = self.crinex_from_rinex(self.rinex)
+
+        # we make the crinex again (don't use the existing from the database) to apply any corrections
+        # made during the __init__ stage. Notice the -f in rnx2crz
+        cmd = pyRunWithRetry.RunCommand('rnx2crz -f ' + self.rinex_path, 45)
         try:
-            # make the folders if they don't exist
-            if not os.path.isdir(path):
-                os.makedirs(path)
+            _, err = cmd.run_shell()
 
-            # compress the rinex into crinex. Make the filename
-            crinex = self.crinex_from_rinex(self.rinex)
+            if os.path.getsize(os.path.join(self.rootdir, crinex)) == 0:
+                raise pyRinexException('Error in compress_local_copyto: compressed version of ' + self.rinex_path + ' has zero size!')
+        except pyRunWithRetry.RunCommandWithRetryExeception as e:
+            # catch the timeout except and pass it as a pyRinexException
+            raise pyRinexException(str(e))
+        except Exception:
+            raise
 
-            # we make the crinex again (don't use the existing from the database) to apply any corrections
-            # made during the __init__ stage. Notice the -f in rnx2crz
-            cmd = pyRunWithRetry.RunCommand('rnx2crz -f ' + self.rinex_path, 45)
-            try:
-                _, err = cmd.run_shell()
+        filename = Utils.copyfile(os.path.join(self.rootdir, crinex), os.path.join(path, crinex))
 
-                if os.path.getsize(os.path.join(self.rootdir, crinex)) == 0:
-                    raise pyRinexException('Error in compress_local_copyto: compressed version of ' + self.rinex_path + ' has zero size!')
-            except pyRunWithRetry.RunCommandWithRetryExeception as e:
-                # catch the timeout except and pass it as a pyRinexException
-                raise pyRinexException(e)
-            except Exception:
-                raise
+        return filename
 
-            index = 1
-            # if the parent process could not read the name of the station, year and doy, then it created a uuid folder
-            # in that case, it will not try to parse the filename since it will be the only file in the folder
-            filename = crinex
-            while os.path.isfile(os.path.join(path, filename)):
-                filename_parts = filename.split('.')
-                filename = filename_parts[0][0:-1] + str(index) + '.' + filename_parts[1] + '.' + filename_parts[2]
-                index += 1
-
-            copyfile(os.path.join(self.rootdir, crinex), os.path.join(path, filename))
-
-        except pyRinexException as e:
-            raise pyRinexException(e)
-        except Exception as e:
-            raise pyRinexException(e)
-
-        return
-
-    def rename_crinex_rinex(self, new_name, NetworkCode=None, StationCode=None):
+    def rename_crinex_rinex(self, new_name=None, NetworkCode=None, StationCode=None):
 
         # function that renames the local crinex and rinex file based on the provided information
         # it also changes the variables in the object to reflect this change
         # new name can be either a d.Z or .??o
 
-        if new_name.endswith('d.Z'):
-            crinex_new_name = new_name
-            rinex_new_name = self.rinex_from_crinex(new_name)
-        elif new_name.endswith('o'):
-            crinex_new_name = self.crinex_from_rinex(new_name)
-            rinex_new_name = new_name
-        else:
-            raise pyRinexException('%s: Invalid name for rinex or crinex file.' % (new_name))
+        if new_name:
+            if new_name.endswith('d.Z'):
+                crinex_new_name = new_name
+                rinex_new_name = self.rinex_from_crinex(new_name)
+            elif new_name.endswith('o'):
+                crinex_new_name = self.crinex_from_rinex(new_name)
+                rinex_new_name = new_name
+            else:
+                raise pyRinexException('%s: Invalid name for rinex or crinex file.' % (new_name))
 
-        # rename the files
-        # check if local crinex exists (possibly made by compress_local_copyto)
-        if os.path.isfile(self.crinex_path):
-            move(self.crinex_path, os.path.join(self.rootdir, crinex_new_name))
-        # update the crinex record
-        self.crinex_path = os.path.join(self.rootdir, crinex_new_name)
-        self.crinex = crinex_new_name
+            # rename the files
+            # check if local crinex exists (possibly made by compress_local_copyto)
+            if os.path.isfile(self.crinex_path):
+                move(self.crinex_path, os.path.join(self.rootdir, crinex_new_name))
+            # update the crinex record
+            self.crinex_path = os.path.join(self.rootdir, crinex_new_name)
+            self.crinex = crinex_new_name
 
-        move(self.rinex_path, os.path.join(self.rootdir, rinex_new_name))
-        self.rinex_path = os.path.join(self.rootdir, rinex_new_name)
-        self.rinex = rinex_new_name
+            move(self.rinex_path, os.path.join(self.rootdir, rinex_new_name))
+            self.rinex_path = os.path.join(self.rootdir, rinex_new_name)
+            self.rinex = rinex_new_name
 
-        # update the database dictionary record
-        self.record['Filename'] = self.rinex
+            # update the database dictionary record
+            self.record['Filename'] = self.rinex
 
         # we don't touch the metadata StationCode and NetworkCode unless explicitly passed
         if NetworkCode:

@@ -42,7 +42,7 @@ class run_command(threading.Thread):
         if self.is_alive():
             try:
                 self.p.kill()
-            except:
+            except Exception:
                 # the process was done
                 return False
             return True

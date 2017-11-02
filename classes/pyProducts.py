@@ -6,16 +6,30 @@ Author: Demian D. Gomez
 import os
 from shutil import copyfile
 import pyRunWithRetry
+import pyEvents
+import pyDate
+from datetime import datetime
 
 class pyProductsException(Exception):
     def __init__(self, value):
         self.value = value
+        self.event = pyEvents.Event(Description=value, EventType='error', module=type(self).__name__)
+
     def __str__(self):
         return str(self.value)
+
+class pyProductsExceptionUnreasonableDate(pyProductsException):
+    pass
 
 class OrbitalProduct():
 
     def __init__(self,archive, date, filename, copyto):
+
+        if date.gpsWeek < 0 or date > pyDate.Date(datetime=datetime.now()):
+            # do not allow negative weeks or future orbit downloads!
+            raise pyProductsExceptionUnreasonableDate('Orbit requested for an unreasonable date: week '
+                                                      + str(date.gpsWeek) + ' day ' + str(date.gpsWeekDay) +
+                                                      ' (' + date.yyyyddd() + ')')
 
         archive = archive.replace('$year', str(date.year))
         archive = archive.replace('$doy', str(date.doy).zfill(3))

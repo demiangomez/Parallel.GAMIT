@@ -6,18 +6,13 @@ Author: Demian D. Gomez
 
 import pyProducts
 import os
-import pyEvents
 
-class pySp3Exception(Exception):
-    def __init__(self, value):
-        self.value = value
-        self.event = pyEvents.Event(Description=value, EventType='error', module=type(self).__name__)
-    def __str__(self):
-        return str(self.value)
+class pySp3Exception(pyProducts.pyProductsException):
+    pass
 
 class GetSp3Orbits(pyProducts.OrbitalProduct):
 
-    def __init__(self,sp3archive,date,sp3types,copyto,no_cleanup=False):
+    def __init__(self, sp3archive, date, sp3types, copyto, no_cleanup=False):
 
         # try both compressed and non-compressed sp3 files
         # loop through the types of sp3 files to try
@@ -33,12 +28,11 @@ class GetSp3Orbits(pyProducts.OrbitalProduct):
                 self.sp3_path = self.file_path
                 self.type = sp3type
                 break
+            except pyProducts.pyProductsExceptionUnreasonableDate:
+                raise
             except pyProducts.pyProductsException:
                 # if the file was not found, go to next
                 pass
-            except:
-                # some other error, raise to parent
-                raise
 
         # if we get here and self.sp3_path is still none, then no type of sp3 file was found
         if self.sp3_path is None:

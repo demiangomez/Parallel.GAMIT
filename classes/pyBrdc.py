@@ -6,17 +6,11 @@ Author: Demian D. Gomez
 This class fetches broadcast orbits from the brdc folder (specified in the gnss_data.cfg file) passed as an argument (brdc_archive)
 """
 
-from shutil import copyfile
 import os
 import pyProducts
-import pyEvents
 
-class pyBrdcException(Exception):
-    def __init__(self, value):
-        self.value = value
-        self.event = pyEvents.Event(Description=value, EventType='error', module=type(self).__name__)
-    def __str__(self):
-        return str(self.value)
+class pyBrdcException(pyProducts.pyProductsException):
+    pass
 
 class GetBrdcOrbits(pyProducts.OrbitalProduct):
 
@@ -33,11 +27,11 @@ class GetBrdcOrbits(pyProducts.OrbitalProduct):
             pyProducts.OrbitalProduct.__init__(self, self.brdc_archive, date, self.brdc_filename, copyto)
             self.brdc_path = self.file_path
 
+        except pyProducts.pyProductsExceptionUnreasonableDate:
+            raise
         except pyProducts.pyProductsException:
             raise pyBrdcException(
                 'Could not find the broadcast ephemeris file for ' + str(date.year) + ' ' + str(date.doy))
-        except:
-            raise
 
 
         return

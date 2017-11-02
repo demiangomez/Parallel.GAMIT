@@ -1,12 +1,172 @@
 
-import os, re, subprocess, sys, pyDate, numpy
-
+import os, re, subprocess, sys, pyDate, numpy, filecmp
 
 class UtilsException(Exception):
     def __init__(self, value):
         self.value = value
     def __str__(self):
         return str(self.value)
+
+
+def parse_crinex_rinex_filename(filename):
+    # parse a crinex filename
+    sfile = re.findall('(\w{4})(\d{3})(\w{1})\.(\d{2})([d]\.[Z])$', filename)
+
+    if sfile:
+        return sfile[0]
+    else:
+        sfile = re.findall('(\w{4})(\d{3})(\w{1})\.(\d{2})([o])$', filename)
+
+        if sfile:
+            return sfile[0]
+        else:
+            return []
+
+
+def _increment_filename(filename):
+    """
+    Returns a generator that yields filenames with a counter. This counter
+    is placed before the file extension, and incremented with every iteration.
+    For example:
+        f1 = increment_filename("myimage.jpeg")
+        f1.next() # myimage-1.jpeg
+        f1.next() # myimage-2.jpeg
+        f1.next() # myimage-3.jpeg
+    If the filename already contains a counter, then the existing counter is
+    incremented on every iteration, rather than starting from 1.
+    For example:
+        f2 = increment_filename("myfile-3.doc")
+        f2.next() # myfile-4.doc
+        f2.next() # myfile-5.doc
+        f2.next() # myfile-6.doc
+    The default marker is an underscore, but you can use any string you like:
+        f3 = increment_filename("mymovie.mp4", marker="_")
+        f3.next() # mymovie_1.mp4
+        f3.next() # mymovie_2.mp4
+        f3.next() # mymovie_3.mp4
+    Since the generator only increments an integer, it is practically unlimited
+    and will never raise a StopIteration exception.
+    """
+    # First we split the filename into three parts:
+    #
+    #  1) a "base" - the part before the counter
+    #  2) a "counter" - the integer which is incremented
+    #  3) an "extension" - the file extension
+
+    sessions = [0,1,2,3,4,5,6,7,8,9] + [chr(x) for x in xrange(ord('a'), ord('z')+1)]
+
+    path = os.path.dirname(filename)
+    filename = os.path.basename(filename)
+    fileparts = parse_crinex_rinex_filename(filename)
+
+    if not fileparts:
+        raise ValueError('Invalid file naming convention: {}'.format(filename))
+
+    # Check if there's a counter in the filename already - if not, start a new
+    # counter at 0.
+    value = 0
+
+    filename = os.path.join(path, '%s%03i%s.%02i%s' % (fileparts[0].lower(), int(fileparts[1]), sessions[value], int(fileparts[3]), fileparts[4]))
+
+    # The counter is just an integer, so we can increment it indefinitely.
+    while True:
+        if value == 0:
+            yield filename
+
+        value += 1
+
+        if value == len(sessions):
+            raise ValueError('Maximum number of sessions reached: %s%03i%s.%02i%s' % (fileparts[0].lower(), int(fileparts[1]), sessions[value-1], int(fileparts[3]), fileparts[4]))
+
+        yield os.path.join(path, '%s%03i%s.%02i%s' % (fileparts[0].lower(), int(fileparts[1]), sessions[value], int(fileparts[3]), fileparts[4]))
+
+
+def copyfile(src, dst):
+    """
+    Copies a file from path src to path dst.
+    If a file already exists at dst, it will not be overwritten, but:
+     * If it is the same as the source file, do nothing
+     * If it is different to the source file, pick a new name for the copy that
+       is distinct and unused, then copy the file there.
+    Returns the path to the copy.
+    """
+    if not os.path.exists(src):
+        raise ValueError('Source file does not exist: {}'.format(src))
+
+    # make the folders if they don't exist
+    # careful! racing condition between different workers
+    try:
+        if not os.path.exists(os.path.dirname(dst)):
+            os.makedirs(os.path.dirname(dst))
+    except OSError:
+        # some other process created the folder an instant before
+        pass
+
+    # Keep trying to copy the file until it works
+    dst_gen = _increment_filename(dst)
+
+    while True:
+
+        dst = next(dst_gen)
+
+        # Check if there is a file at the destination location
+        if os.path.exists(dst):
+
+            # If the namesake is the same as the source file, then we don't
+            # need to do anything else.
+            if filecmp.cmp(src, dst):
+                return dst
+
+        else:
+
+            # If there is no file at the destination, then we attempt to write
+            # to it. There is a risk of a race condition here: if a file
+            # suddenly pops into existence after the `if os.path.exists()`
+            # check, then writing to it risks overwriting this new file.
+            #
+            # We write by transferring bytes using os.open(). Using the O_EXCL
+            # flag on the dst file descriptor will cause an OSError to be
+            # raised if the file pops into existence; the O_EXLOCK stops
+            # anybody else writing to the dst file while we're using it.
+            try:
+                src_fd = os.open(src, os.O_RDONLY)
+                dst_fd = os.open(dst, os.O_WRONLY | os.O_EXCL | os.O_CREAT)
+
+                # Read 100 bytes at a time, and copy them from src to dst
+                while True:
+                    data = os.read(src_fd, 100)
+                    os.write(dst_fd, data)
+
+                    # When there are no more bytes to read from the source
+                    # file, 'data' will be an empty string
+                    if not data:
+                        break
+
+                os.close(src_fd)
+                os.close(dst_fd)
+                # If we get to this point, then the write has succeeded
+                return dst
+
+            # An OSError errno 17 is what happens if a file pops into existence
+            # at dst, so we print an error and try to copy to a new location.
+            # Any other exception is unexpected and should be raised as normal.
+            except OSError as e:
+                if e.errno != 17 or e.strerror != 'File exists':
+                    raise
+
+
+def move(src, dst):
+    """
+    Moves a file from path src to path dst.
+    If a file already exists at dst, it will not be overwritten, but:
+     * If it is the same as the source file, do nothing
+     * If it is different to the source file, pick a new name for the copy that
+       is distinct and unused, then copy the file there.
+    Returns the path to the new file.
+    """
+    dst = copyfile(src, dst)
+    os.remove(src)
+    return dst
 
 
 def ecef2lla(ecefArr):
@@ -104,8 +264,8 @@ def get_norm_year_str(year):
     
     # mk 4 digit year
     try:
-        year = int(year);
-    except:
+        year = int(year)
+    except Exception:
         raise UtilsException('must provide a positive integer year YY or YYYY');
     
     # defensively, make sure that the year is positive
@@ -123,8 +283,8 @@ def get_norm_year_str(year):
 def get_norm_doy_str(doy):
     
     try:
-        doy = int(doy);
-    except:
+        doy = int(doy)
+    except Exception:
         raise UtilsException('must provide an integer day of year'); 
        
     # create string version up fround
@@ -187,20 +347,20 @@ def get_processor_count():
     
     # try to turn the process response into an integer
     try:
-        num_cpu = int(nstr);
-    except:
+        num_cpu = int(nstr)
+    except Exception:
         # nothing else we can do here
-        num_cpu = None;
+        num_cpu = None
         
     # that's all folks
     # return the number of PHYSICAL CORES, not the logical number (usually double)
-    return num_cpu/2;
+    return num_cpu/2
     
     
 def human_readable_time(secs):
     
     # start with work time in seconds
-    unit = 'secs'; time = secs;
+    unit = 'secs'; time = secs
     
     # make human readable work time with units
     if time > 60 and time < 3600:

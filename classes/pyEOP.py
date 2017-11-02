@@ -10,7 +10,7 @@ This class fetches earth orientation parameters files from the orbits folder (sp
 import pyProducts
 import pyEvents
 
-class pyEOPException(Exception):
+class pyEOPException(pyProducts.pyProductsException):
     def __init__(self, value):
         self.value = value
         self.event = pyEvents.Event(Description=value, EventType='error', module=type(self).__name__)
@@ -32,6 +32,9 @@ class GetEOP(pyProducts.OrbitalProduct):
                 try:
                     pyProducts.OrbitalProduct.__init__(self, sp3archive, date, self.eop_filename, copyto)
                     self.eop_path = self.file_path
+
+                except pyProducts.pyProductsExceptionUnreasonableDate:
+                    raise
 
                 except pyProducts.pyProductsException:
                     # rapid orbits do not have 7.erp, try wwwwd.erp

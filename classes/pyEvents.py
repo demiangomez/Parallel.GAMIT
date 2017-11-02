@@ -49,7 +49,10 @@ class Event(dict):
 
     def db_dict(self):
         # remove any invalid chars that can cause problems in the database
-        val = self
+        # also, remove the timestamp so that we use the default now() in the databasae
+        # out of sync clocks in nodes can cause problems.
+        val = self.copy()
+        val.pop('EventDate')
 
         for key in val:
             if type(val[key]) is str:

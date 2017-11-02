@@ -33,8 +33,12 @@ class pyRunPPPException(Exception):
     def __init__(self, value):
         self.value = value
         self.event = pyEvents.Event(Description=value, EventType='error')
+
     def __str__(self):
         return str(self.value)
+
+class pyRunPPPExceptionCoordConflict(pyRunPPPException):
+    pass
 
 class PPPSpatialCheck():
 
@@ -388,7 +392,7 @@ orbits/%s
                 self.x = float(xyz[0])
                 self.y = float(xyz[1])
                 self.z = float(xyz[2])
-            except:
+            except Exception:
                 return False, (None, None)
 
         if self.kinematic:

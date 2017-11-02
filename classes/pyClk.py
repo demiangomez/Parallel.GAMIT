@@ -8,14 +8,9 @@ This class fetches statellite clock files from the orbits folder (specified in t
 
 import pyProducts
 import os
-import pyEvents
 
-class pyClkException(Exception):
-    def __init__(self, value):
-        self.value = value
-        self.event = pyEvents.Event(Description=value, EventType='error', module=type(self).__name__)
-    def __str__(self):
-        return str(self.value)
+class pyClkException(pyProducts.pyProductsException):
+    pass
 
 class GetClkFile(pyProducts.OrbitalProduct):
 
@@ -33,12 +28,11 @@ class GetClkFile(pyProducts.OrbitalProduct):
                 pyProducts.OrbitalProduct.__init__(self, clk_archive, date, self.clk_filename, copyto)
                 self.clk_path = self.file_path
                 break
+            except pyProducts.pyProductsExceptionUnreasonableDate:
+                raise
             except pyProducts.pyProductsException:
                 # if the file was not found, go to next
                 pass
-            except:
-                # some other error, raise to parent
-                raise
 
         # if we get here and self.sp3_path is still none, then no type of sp3 file was found
         if self.clk_path is None:

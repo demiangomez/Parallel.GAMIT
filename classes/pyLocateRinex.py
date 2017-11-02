@@ -80,11 +80,7 @@ def execute_ppp(rinexinfo, args, stnm, options, sp3types, sp3altrn, brdc_path):
     stninfo.ReceiverSerial = rinexinfo.recNo
 
     # inflate the chi**2 limit
-    _, _, out = rinexinfo.auto_coord(brdc=pyBrdc.GetBrdcOrbits(brdc_path, rinexinfo.date, rinexinfo.rootdir), chi_limit=20)
-
-    if out is not None:
-        # warn the user that the chi**2 of the result is too high!
-        print out
+    rinexinfo.auto_coord(brdc=pyBrdc.GetBrdcOrbits(brdc_path, rinexinfo.date, rinexinfo.rootdir), chi_limit=20)
 
     try:
         rinexinfo.normalize_header(stninfo)

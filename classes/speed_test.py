@@ -33,7 +33,7 @@ def speed_test():
 
         return str(rnx['cuenta'])
 
-    except:
+    except Exception:
 
         return traceback.format_exc()
 

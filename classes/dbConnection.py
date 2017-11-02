@@ -62,6 +62,15 @@ class Cnn(pg.DB):
             except Exception as e:
                 raise e
 
+    def get_columns(self, table):
+        tblinfo = self.query('select column_name, data_type from information_schema.columns where table_name=\'%s\'' % table)
+
+        field_dict = dict()
+
+        for field in tblinfo.dictresult():
+            field_dict[field['column_name']] = field['data_type']
+
+        return field_dict
 
     def begin_transac(self):
         # do not begin a new transaction with another one active.

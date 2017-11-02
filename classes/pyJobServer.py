@@ -15,7 +15,7 @@ import types
 
 def test_node():
     # test node: function that makes sure that all required packages and tools are present in the nodes
-
+    import traceback
     import platform
     import os
     import sys
@@ -44,11 +44,11 @@ def test_node():
         import traceback
         import numpy
         import pyPPPETM
-        import pyRunCommand
+        import pyRunWithRetry
         import pyDate
 
-    except Exception as e:
-        return ' -- %s: Problem found while importing modules: %s' % (platform.node(), e.message)
+    except Exception:
+        return ' -- %s: Problem found while importing modules:\n%s' % (platform.node(), traceback.format_exc())
 
     # continue with a test SQL connection
     # make sure that the gnss_data.cfg is present
@@ -57,16 +57,16 @@ def test_node():
 
         q = cnn.query('SELECT count(*) FROM networks')
 
-    except Exception as e:
-        return ' -- %s: Problem found while connecting to postgres: %s ' % (platform.node(), e.message)
+    except Exception:
+        return ' -- %s: Problem found while connecting to postgres:\n%s ' % (platform.node(), traceback.format_exc())
 
     # make sure we can create the production folder
     try:
         test_dir = os.path.join('production/node_test')
         if not os.path.exists(test_dir):
             os.makedirs(test_dir)
-    except Exception as e:
-        return ' -- %s: Could not create production folder: %s ' % (platform.node(), e.message)
+    except Exception:
+        return ' -- %s: Could not create production folder:\n%s ' % (platform.node(), traceback.format_exc())
 
     # test
     try:
@@ -81,24 +81,24 @@ def test_node():
 
         # pick a test date to replace any possible parameters in the config file
         date = pyDate.Date(year=2010,doy=1)
-    except Exception as e:
-        return ' -- %s: Problem while reading config file and/or testing archive access: %s' % (platform.node(), str(e))
+    except Exception:
+        return ' -- %s: Problem while reading config file and/or testing archive access:\n%s' % (platform.node(), traceback.format_exc())
 
     try:
         brdc = pyBrdc.GetBrdcOrbits(Config.brdc_path, date, test_dir)
-    except Exception as e:
-        return ' -- %s: Problem while testing the broadcast ephemeris archive (%s) access: %s' % (platform.node(), Config.brdc_path, str(e))
+    except Exception:
+        return ' -- %s: Problem while testing the broadcast ephemeris archive (%s) access:\n%s' % (platform.node(), Config.brdc_path, traceback.format_exc())
 
     try:
         sp3 = pySp3.GetSp3Orbits(Config.sp3_path, date, Config.sp3types, test_dir)
-    except Exception as e:
-        return ' -- %s: Problem while testing the sp3 orbits archive (%s) access: %s' % (platform.node(), Config.sp3_path, str(e))
+    except Exception:
+        return ' -- %s: Problem while testing the sp3 orbits archive (%s) access:\n%s' % (platform.node(), Config.sp3_path, traceback.format_exc())
 
     # check that all executables and GAMIT bins are in the path
-    list_of_prgs = ['crz2rnx', 'crx2rnx', 'rnx2crx', 'rnx2crz', 'RinSum', 'teqc', 'svdiff', 'svpos', 'tform', 'sh_rx2apr', 'doy']
+    list_of_prgs = ['crz2rnx', 'crx2rnx', 'rnx2crx', 'rnx2crz', 'RinSum', 'teqc', 'svdiff', 'svpos', 'tform', 'sh_rx2apr', 'doy', 'RinEdit']
 
     for prg in list_of_prgs:
-        run = pyRunCommand.command('which ' + prg)
+        run = pyRunWithRetry.command('which ' + prg)
         run.run()
         if run.stdout == '':
             return ' -- %s: Could not find path to %s' % (platform.node(), prg)
