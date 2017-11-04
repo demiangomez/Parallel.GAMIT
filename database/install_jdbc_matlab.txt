@@ -1,0 +1,9 @@
+Instructions to install JDBC for MATLAB
+1) Download the jar file in this folder or from https://jdbc.postgresql.org/download.html
+2) Run the prefdir function in MATLAB's Command Window. The output of this command is a file path to the MATLAB® preferences folder on your computer. For details, see prefdir.
+3) Close MATLAB.
+4) Navigate to the folder from step 2, and create a file named javaclasspath.txt in the folder.
+5) Open javaclasspath.txt. Add the full path to the database driver JAR file in javaclasspath.txt. The full path includes the path to the folder where you downloaded the JAR file from the database provider followed by the JAR file name. The following is an example of the path: /home/user/DB_Drivers/postgresql-8.4-702.jdbc4.jar. Save and close javaclasspath.txt.
+6) Restart MATLAB.
+
+Instruction extracted from https://www.mathworks.com/help/database/ug/postgresql-jdbc-mac.html

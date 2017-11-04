@@ -431,7 +431,7 @@ class ReadRinex(RinexRecord):
             # the uncompressed-unhatanaked file size must be at least > than the crinex
             if os.path.isfile(self.rinex_path):
                 if err and os.path.getsize(self.rinex_path) <= crinex_size:
-                    raise pyRinexExceptionBadFile("Error in ReadRinex.__init__ -- crz2rnx (error and empty file): " + err)
+                    raise pyRinexExceptionBadFile("Error in ReadRinex.__init__ -- crz2rnx: error and empty file: " + self.origin_file + ' -> ' + err)
             else:
                 if err:
                     raise pyRinexException('Could not create RINEX file. crz2rnx stderr follows: ' + err)
@@ -892,6 +892,41 @@ class ReadRinex(RinexRecord):
                 return (float(x),float(y),float(z))
 
         return None
+
+    def window_data(self, start=None, end=None, copyto=None):
+        """
+        Window the RINEX data using TEQC
+        :param start: a start datetime or self.firstObs if None
+        :param end: a end datetime or self.lastObs if None
+        :return:
+        """
+        if start is None:
+            start = self.datetime_firstObs
+
+        if end is None:
+            end = self.datetime_lastObs
+
+        cmd = pyRunWithRetry.RunCommand('teqc -igs -st %i%02i%02i%02i%02i%02i -e %i%02i%02i%02i%02i%02i +obs %s.t %s' % (
+                start.year, start.month, start.day, start.hour, start.minute, start.second,
+                end.year, end.month, end.day, end.hour, end.minute, end.second, self.rinex_path, self.rinex_path), 5)
+
+        out, err = cmd.run_shell()
+
+        if not 'teqc: failure to read' in str(err):
+            # delete the original file and replace with .t
+            if copyto is None:
+                os.remove(self.rinex_path)
+                move(self.rinex_path + '.t', self.rinex_path)
+                self.datetime_firstObs = start
+                self.datetime_lastObs = end
+                self.firstObs = self.datetime_firstObs.strftime('%Y/%m/%d %H:%M:%S')
+                self.lastObs = self.datetime_lastObs.strftime('%Y/%m/%d %H:%M:%S')
+            else:
+                move(self.rinex_path + '.t', copyto)
+        else:
+            raise pyRinexException(err)
+
+        return
 
     def decimate(self, decimate_rate, copyto=None):
 

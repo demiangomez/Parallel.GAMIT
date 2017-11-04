@@ -89,7 +89,8 @@ class StationInstance():
                 'destiny'     : filename,
                 'lat'         : self.Station.lat,
                 'lon'         : self.Station.lon,
-                'height'      : self.Station.height}
+                'height'      : self.Station.height,
+                'jumps'       : self.Station.etm.Jumps.table}
 
 
     def GetApr(self):

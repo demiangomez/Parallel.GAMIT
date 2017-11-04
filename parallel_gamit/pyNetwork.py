@@ -8,6 +8,7 @@ from pyStation import Station
 from pyStation import StationInstance
 from pyGamitSession import GamitSession
 from pyStationInfo import pyStationInfoException
+from pyPPPETM import pyPPPETMException
 from tqdm import tqdm
 import numpy as np
 import random
@@ -66,7 +67,7 @@ class NetClass():
                         tqdm.write(' -- %s -> ___.%s: not found' % (self.Name, Stn))
                         found = False
                     else:
-                        raise NetworkException('Station %s had no assined network, but more than one station with that name was found in the database. Disambiguate using net.stn format.'
+                        raise NetworkException('Station %s had no assined network, but more than one station with that name was found in the database. Disambiguate using net.stnm format.'
                                                % (Stn))
 
                 if found:
@@ -80,10 +81,12 @@ class NetClass():
                                 continue
 
                         tqdm.write(' -- %s -> %s.%s: adding...' % (self.Name, NetworkCode, StationCode))
-
-                        self.Stations.append(Station(cnn, NetworkCode, StationCode))
-                        # make also a list of string values
-                        self.StrStns.append('%s.%s' % (NetworkCode, StationCode))
+                        try:
+                            self.Stations.append(Station(cnn, NetworkCode, StationCode))
+                            # make also a list of string values
+                            self.StrStns.append('%s.%s' % (NetworkCode, StationCode))
+                        except pyPPPETMException:
+                            tqdm.write(' -- %s -> %s.%s: station exists, but no PPP solutions for requested time window' % (self.Name, NetworkCode, StationCode))
                     else:
                         tqdm.write(' -- %s -> %s.%s: no data for requested time window' % (self.Name, NetworkCode,StationCode))
 

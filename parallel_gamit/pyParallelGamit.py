@@ -342,7 +342,7 @@ def ExecuteGamit(Config, Sessions):
 
                 # do not submit the task if the session is ready!
                 job_server.submit(Task.start, args=(),
-                              modules=('pyRinex', 'datetime', 'os', 'shutil', 'pyBrdc', 'pySp3', 'subprocess', 're'),
+                              modules=('pyRinex', 'datetime', 'os', 'shutil', 'pyBrdc', 'pySp3', 'subprocess', 're', 'pyPPPETM'),
                               callback=(update_gamit_progress_bar))
             else:
                 gamit_pbar.write(' -- Session already processed: ' + GamitSession.NetName + ' ' + GamitSession.date.yyyyddd())

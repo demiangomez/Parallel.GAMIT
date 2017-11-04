@@ -28,11 +28,13 @@ class Event(dict):
         self['stack'] = None
 
         module = inspect.getmodule(inspect.stack()[1][0])
+        stack = traceback.extract_stack()[0:-2]
 
         if module is None:
             self['module'] = inspect.stack()[1][3]  # just get the calling module
         else:
-            self['module'] = module.__name__ + '.' + inspect.stack()[1][3]  # just get the calling module
+            # self['module'] = module.__name__ + '.' + inspect.stack()[1][3]  # just get the calling module
+            self['module'] = module.__name__ + '.' + stack[-1][2]  # just get the calling module
 
         # initialize the dictionary based on the input
         for key in kwargs:
@@ -43,7 +45,7 @@ class Event(dict):
             self[key] = arg
 
         if self['EventType'] == 'error':
-            self['stack'] = ''.join(traceback.format_stack()[0:-1])  # print the traceback until just before this call
+            self['stack'] = ''.join(traceback.format_stack()[0:-2])  # print the traceback until just before this call
         else:
             self['stack'] = None
 

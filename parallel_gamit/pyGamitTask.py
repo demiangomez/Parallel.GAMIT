@@ -76,15 +76,31 @@ class GamitTask:
                         # These files are not allowed by pyArchiveService, but the "start point" of the database
                         # (i.e. the files already in the folders read by pyScanArchive) has such problems.
 
+                        # figure out if this station has been affected by an earthquake
+                        # if so, window the data
+                        window = None
+                        for jump in rinex['jumps']:
+                            if jump.date == self.date and jump.T != 0:
+                                # determine the window
+                                window = jump.date
+
                         if Rinex.multiday:
                             # find the rinex that corresponds to the session being processed
                             for Rnx in Rinex.multiday_rnx_list:
                                 if Rnx.date == self.date:
                                     Rnx.rename_crinex_rinex(rinex['destiny'])
+
+                                    if window is not None:
+                                        self.window_rinex(Rnx, window)
+
                                     Rnx.compress_local_copyto(self.pwd_rinex)
                                     break
                         else:
                             Rinex.rename_crinex_rinex(rinex['destiny'])
+
+                            if window is not None:
+                                self.window_rinex(Rinex, window)
+
                             Rinex.compress_local_copyto(self.pwd_rinex)
 
                 except (OSError, IOError):
@@ -147,6 +163,15 @@ class GamitTask:
                     nrms = 100
 
         return {'Session': '%s %s' % (self.params['NetName'], self.date.yyyyddd()), 'Success': self.success, 'NRMS': nrms, 'WL': wl, 'NL': nl}
+
+    def window_rinex(self, Rinex, window):
+
+        # windows the data:
+        # check which side of the earthquake yields more data: window before or after the earthquake
+        if (window.datetime().hour + window.datetime().minutes/60.0) < 12:
+            Rinex.window_data(start=window.datetime())
+        else:
+            Rinex.window_data(end=window.datetime())
 
     def finish(self, args):
         return None

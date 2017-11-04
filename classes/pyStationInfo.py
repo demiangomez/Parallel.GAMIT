@@ -240,7 +240,7 @@ class StationInfo(StationInfoRecord):
             if not self.allow_empty:
                 # allow no station info if explicitly requested by the user.
                 # Purpose: insert a station info for a new station!
-                raise pyStationInfoException('Could not find a station info entry for ' + self.NetworkCode + ' ' + self.StationCode)
+                raise pyStationInfoException('Could not find a station info entry for ' + self.NetworkCode + '.' + self.StationCode)
             self.record_count = 0
             return False
         else:

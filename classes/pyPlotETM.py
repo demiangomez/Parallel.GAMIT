@@ -61,6 +61,9 @@ def main():
 
                 print 'Successfully plotted ' + stn['NetworkCode'] + '.' + stn['StationCode']
 
+            except pyPPPETM.pyPPPETMException as e:
+                print str(e)
+                
             except Exception:
                 print 'Error during processing of ' + stn['NetworkCode'] + '.' + stn['StationCode']
                 print traceback.format_exc()

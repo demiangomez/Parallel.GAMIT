@@ -12,7 +12,14 @@ from numpy import cos
 from numpy import pi
 from scipy.stats import chi2
 import matplotlib.pyplot as plt
-import sys
+import pyEvents
+
+class pyPPPETMException(Exception):
+    def __init__(self, value):
+        self.value = value
+        self.event = pyEvents.Event(Description=value, EventType='error')
+    def __str__(self):
+        return str(self.value)
 
 def ecef2lla(ecefArr):
     # convert ECEF coordinates to LLA
@@ -111,13 +118,13 @@ class PPP_soln():
             '  WHERE p2."NetworkCode" = p1."NetworkCode" AND'
             '        p2."StationCode" = p1."StationCode" AND'
             '        p2."Year"        = p1."Year"        AND'
-            '        p2."DOY"         = p1."DOY") ORDER BY "Year", "DOY") as PPP WHERE PPP.dist <= 100 ORDER BY PPP."Year", PPP."DOY"' % (
+            '        p2."DOY"         = p1."DOY") ORDER BY "Year", "DOY") as PPP WHERE PPP.dist <= 20 ORDER BY PPP."Year", PPP."DOY"' % (
             NetworkCode, StationCode))
 
         self.table     = ppp.dictresult()
         self.solutions = len(self.table)
 
-        if self.solutions > 1:
+        if self.solutions >= 1:
             X = [float(item['X']) for item in self.table]
             Y = [float(item['Y']) for item in self.table]
             Z = [float(item['Z']) for item in self.table]
@@ -138,44 +145,47 @@ class PPP_soln():
             self.ts = ts
 
             self.lat, self.lon, self.height = ecef2lla([np.mean(self.x).tolist(),np.mean(self.y).tolist(),np.mean(self.z).tolist()])
+        else:
+            raise pyPPPETMException('No PPP solutions available for %s.%s' % (NetworkCode, StationCode))
 
 
 class Jump():
     """
     Co-seismic or antenna change jump class
     """
-    def __init__(self, year, decay, t):
+    def __init__(self, date, decay, t):
         """"
         Possible types:
             0 = ongoing decay before the start of the data
             1 = Antenna jump with no decay
             2 = Co-seismic jump with decay
         """
-        self.a = np.array([]) # log decay amplitude
-        self.b = np.array([]) # jump amplitude
-        self.T = decay        # relaxation time
-        self.year = year      # fyear of jump
+        self.a = np.array([])  # log decay amplitude
+        self.b = np.array([])  # jump amplitude
+        self.T = decay         # relaxation time
+        self.date = date       # save the date object
+        self.year = date.fyear # fyear of jump
 
-        if year <= t.min() and decay == 0:
+        if self.year <= t.min() and decay == 0:
             # antenna change or some other jump BEFORE the start of the data
             self.type = None
             self.params = 0
 
-        elif year >= t.max():
+        elif self.year >= t.max():
             # antenna change or some other jump AFTER the end of the data
             self.type   = None
             self.params = 0
 
-        elif year <= t.min() and decay != 0:
+        elif self.year <= t.min() and decay != 0:
             # earthquake before the start of the data, leave the decay but not the jump
             self.type   = 0
             self.params = 1
 
-        elif year > t.min() and year < t.max() and decay == 0:
+        elif self.year > t.min() and self.year < t.max() and decay == 0:
             self.type   = 1
             self.params = 1
 
-        elif year > t.min() and year < t.max() and decay != 0:
+        elif self.year > t.min() and self.year < t.max() and decay != 0:
             self.type   = 2
             self.params = 2
 
@@ -232,7 +242,9 @@ class JumpsTable():
         jumps = cnn.query('SELECT * FROM earthquakes ORDER BY date')
         jumps = jumps.dictresult()
 
-        eq = [[float(jump.get('lat')), float(jump.get('lon')), float(jump.get('mag')), float(jump.get('date').year), float(jump.get('date').month), float(jump.get('date').day)] for jump in jumps]
+        eq = [[float(jump['lat']), float(jump['lon']), float(jump['mag']),
+               int(jump['date'].year), int(jump['date'].month), int(jump['date'].day),
+               int(jump['date'].hour), int(jump['date'].minute), int(jump['date'].second)] for jump in jumps]
         eq = np.array(list(eq))
 
         dist = distance(float(stn['lon']), float(stn['lat']), eq[:, 1], eq[:, 0])
@@ -241,7 +253,7 @@ class JumpsTable():
         # build the earthquake jump table
         # remove event events that happened the same day
 
-        eq_jumps = list(set(pyDate.Date(year=eq[0], month=eq[1], day=eq[2]).fyear for eq in eq[m > 0, 3:6]))
+        eq_jumps = list(set(pyDate.Date(year=int(eq[0]), month=int(eq[1]), day=int(eq[2]), hour=int(eq[3]), minute=int(eq[4]), second=int(eq[5])) for eq in eq[m > 0, 3:9]))
 
         eq_jumps.sort()
 
@@ -249,17 +261,17 @@ class JumpsTable():
         for i, jump in enumerate(eq_jumps):
             if i < len(eq_jumps)-1 and len(eq_jumps) > 1:
                 nxjump = eq_jumps[i+1]
-                if jump < t.min() and nxjump > t.min():
+                if jump.fyear < t.min() and nxjump.fyear > t.min():
                     # if the eq jump occurred before the start date and the next eq jump is within the data, add it
                     # otherwise, we would be adding multiple decays to the beginning of the time series
                     self.table.append(Jump(jump, 0.5, t))
 
-                elif jump >= t.min():
+                elif jump.fyear >= t.min():
                     # if there is another earthquake within 10 days of this earthquake, i.e.
                     # if eq_jumps[i+1] - jump < 6 days, add an offset but don't allow the log transient
                     # a log transient with less than 6 days if not worth adding the log decay
                     # (which destabilizes the sys. of eq.)
-                    if (nxjump - jump)*365 < 10: #or t[np.where((t <= nxjump) & (t > jump))].size < 10:
+                    if (nxjump.fyear - jump.fyear)*365 < 10: #or t[np.where((t <= nxjump) & (t > jump))].size < 10:
                         self.table.append(Jump(jump, 0, t))
                     else:
                         self.table.append(Jump(jump, 0.5, t))
@@ -272,7 +284,7 @@ class JumpsTable():
             for i, jump in enumerate(StnInfo.records):
                 if i > 0:
                     date = pyDate.Date(year=jump.get('DateStart').year, month=jump.get('DateStart').month, day=jump.get('DateStart').day)
-                    self.table.append(Jump(date.fyear, 0, t))
+                    self.table.append(Jump(date, 0, t))
 
         # sort jump table (using the key year)
         self.table.sort(key=lambda jump: jump.year)
@@ -397,37 +409,42 @@ class Periodic():
             ppp_soln = PPP_soln(cnn, NetworkCode, StationCode)
             t = ppp_soln.t
 
-        # wrap around the solutions
-        wt = np.sort(np.unique(t - np.fix(t)))
+        if t.size > 1:
+            # wrap around the solutions
+            wt = np.sort(np.unique(t - np.fix(t)))
 
-        # analyze the gaps in the data
-        dt = np.diff(wt)
+            # analyze the gaps in the data
+            dt = np.diff(wt)
 
-        # max dt (internal)
-        dtmax = np.max(dt)
+            # max dt (internal)
+            dtmax = np.max(dt)
 
-        # dt wrapped around
-        dt_interyr = 1 - wt[-1] + wt[0]
+            # dt wrapped around
+            dt_interyr = 1 - wt[-1] + wt[0]
 
-        if dt_interyr > dtmax:
-            dtmax = dt_interyr
+            if dt_interyr > dtmax:
+                dtmax = dt_interyr
 
-        # save the value of the max wrapped delta time
-        self.dt_max = dtmax
+            # save the value of the max wrapped delta time
+            self.dt_max = dtmax
 
-        # if dtmax < 3 months (90 days = 0.1232), then we can fit the annual
-        # if dtmax < 1.5 months (45 days = 0.24657), then we can fit the semi-annual too
+            # if dtmax < 3 months (90 days = 0.1232), then we can fit the annual
+            # if dtmax < 1.5 months (45 days = 0.24657), then we can fit the semi-annual too
 
-        if dtmax <= 0.1232:
-            # all components (annual and semi-annual)
-            self.A = np.array([sin(2 * pi * t), cos(2 * pi * t), sin(4 * pi * t), cos(4 * pi * t)]).transpose()
-            self.frequencies = 2
+            if dtmax <= 0.1232:
+                # all components (annual and semi-annual)
+                self.A = np.array([sin(2 * pi * t), cos(2 * pi * t), sin(4 * pi * t), cos(4 * pi * t)]).transpose()
+                self.frequencies = 2
 
-        elif dtmax <= 0.2465:
-            # only annual
-            self.A = np.array([sin(2 * pi * t), cos(2 * pi * t)]).transpose()
-            self.frequencies = 1
+            elif dtmax <= 0.2465:
+                # only annual
+                self.A = np.array([sin(2 * pi * t), cos(2 * pi * t)]).transpose()
+                self.frequencies = 1
 
+            else:
+                # no periodic terms
+                self.A = np.array([])
+                self.frequencies = 0
         else:
             # no periodic terms
             self.A = np.array([])
@@ -616,13 +633,13 @@ class ETM():
         # to work locally
         ppp = self.ppp_soln
 
+        # save the function objects
+        self.Periodic = Periodic(t=ppp.t)
+        self.Jumps = JumpsTable(cnn, NetworkCode, StationCode, ppp.t, add_antenna_jumps=self.Periodic.params)
+        self.Linear = Linear(t=ppp.t)
+
         # anything less than four is not worth it
         if ppp.solutions > 4:
-
-            # save the function objects
-            self.Periodic = Periodic(t=ppp.t)
-            self.Jumps    = JumpsTable(cnn, NetworkCode, StationCode, ppp.t, add_antenna_jumps=self.Periodic.params)
-            self.Linear   = Linear(t=ppp.t)
 
             # to obtain the parameters
             self.A = Design(self.Linear, self.Jumps, self.Periodic)
@@ -655,10 +672,11 @@ class ETM():
                 self.factor.append(f)
                 self.P = P
 
-            if plotit:
-                self.plot()
+        if plotit:
+            self.plot()
 
     def plot(self, file=None):
+        # new behaviour: plots the time series even if there is no ETM fit
 
         if self.A is not None:
             f, axis = plt.subplots(nrows=3, ncols=2, sharex=True, figsize=(15,10)) # type: plt.subplots
@@ -736,12 +754,51 @@ class ETM():
                             ax.plot((jump.year, jump.year), ax.get_ylim(), 'r:')
 
             f.subplots_adjust(left=0.16)
+        else:
+            f, axis = plt.subplots(nrows=3, ncols=1, sharex=True, figsize=(15, 10))  # type: plt.subplots
+            f.suptitle('Station: ' + self.NetworkCode + '.' + self.StationCode + '\nNot enough solutions to fit an ETM.', fontsize=9, family='monospace')
+            m = []
+            for i in range(3):
+                if i == 0:
+                    L = self.ppp_soln.x
+                elif i == 1:
+                    L = self.ppp_soln.y
+                else:
+                    L = self.ppp_soln.z
 
-            if not file:
-                plt.show()
-            else:
-                plt.savefig(file)
-                plt.close()
+                m.append(np.mean(L))
+
+            oneu = ct2lg(self.ppp_soln.x - m[0], self.ppp_soln.y - m[1], self.ppp_soln.z - m[2], self.ppp_soln.lat, self.ppp_soln.lon)
+
+            for i, ax in enumerate((axis[0],axis[1], axis[2])):
+                ax.plot(self.ppp_soln.t, oneu[i], 'ob', markersize=2)
+                plt.xlim((self.ppp_soln.t.min() - 0.01, self.ppp_soln.t.max() + 0.01))
+                plt.ylim((oneu[i].min() - 0.001, oneu[i].max() + 0.001))
+                #ax.autoscale(enable=True, axis='x', tight=True)
+                #ax.autoscale(enable=True, axis='y', tight=True)
+
+                if i == 0:
+                    ax.set_ylabel('North [m]')
+                elif i == 1:
+                    ax.set_ylabel('East [m]')
+                elif i == 2:
+                    ax.set_ylabel('Up [m]')
+
+                ax.grid(True)
+                for jump in self.Jumps.table:
+                    if jump.year >= self.ppp_soln.t.min() and not jump.type is None:
+                        # the post-seismic jumps that happened before t.min() should not be plotted
+                        if jump.T == 0:
+                            ax.plot((jump.year, jump.year), ax.get_ylim(), 'b:')
+                        else:
+                            ax.plot((jump.year, jump.year), ax.get_ylim(), 'r:')
+
+
+        if not file:
+            plt.show()
+        else:
+            plt.savefig(file)
+            plt.close()
 
     def todictionary(self, time_series=False):
         # convert the ETM adjustment into a dirtionary
@@ -749,9 +806,11 @@ class ETM():
 
         # start with the parameters
         etm = dict()
-        etm['Linear'] = {'tref': self.Linear.tref, 'params': self.Linear.values.tolist()}
-        etm['Jumps'] = [{'type':jump.type, 'year': jump.year, 'a': jump.a.tolist(), 'b': jump.b.tolist(), 'T': jump.T} for jump in self.Jumps.table]
-        etm['Periodic'] = {'frequencies': self.Periodic.frequencies, 'sin': self.Periodic.sin.tolist(), 'cos': self.Periodic.cos.tolist()}
+        etm['Jumps'] = [{'type': jump.type, 'year': jump.year, 'a': jump.a.tolist(), 'b': jump.b.tolist(), 'T': jump.T}
+                        for jump in self.Jumps.table]
+        if self.A is not None:
+            etm['Linear'] = {'tref': self.Linear.tref, 'params': self.Linear.values.tolist()}
+            etm['Periodic'] = {'frequencies': self.Periodic.frequencies, 'sin': self.Periodic.sin.tolist(), 'cos': self.Periodic.cos.tolist()}
 
         if time_series:
             ts = dict()
@@ -769,12 +828,15 @@ class ETM():
         # find this epoch in the t vector
         date = pyDate.Date(year=year,doy=doy)
 
-        index, _ = np.where(self.ppp_soln.mdj == date.mjd)
+        index = np.where(self.ppp_soln.mdj == date.mjd)
+        index = index[0]
 
         s = np.zeros((3, 1))
         x = np.zeros((3, 1))
 
-        if index:
+        dneu = [None, None, None]
+
+        if index.size:
             # found a valid epoch in the t vector
             # now see if this epoch was filtered
             for i in range(3):
@@ -785,45 +847,65 @@ class ETM():
                 else:
                     L = self.ppp_soln.z
 
-                if self.F[i][index]:
-                    # the coordinate is good
-                    if self.R[i][index] >= 0.005:
-                        # do not allow uncertainties lower than 5 mm
-                        s[i,0] = self.R[i][index]
+                if self.A is not None:
+                    if self.F[i][index]:
+                        # the coordinate is good
+                        if self.R[i][index] >= 0.005:
+                            # do not allow uncertainties lower than 5 mm (it's simply unrealistic)
+                            s[i,0] = self.R[i][index]
+                        else:
+                            s[i,0] = 0.005
+
+                        x[i,0] = L[index]
                     else:
-                        s[i,0] = 0.005
+                        # the coordinate is marked as bad
+                        # get the requested epoch from the ETM
+                        idt = np.argmin(np.abs(self.ppp_soln.ts - date.fyear))
 
-                    x[i,0] = L[index]
+                        Ax = np.dot(self.As[idt, :], self.C[i])
+                        x[i,0] = Ax
+                        # Use the deviation from the ETM to estimate the error (which will be multiplied by 2.5 later)
+                        s[i,0] = L[index] - Ax
                 else:
-                    # the coordinate is marked as bad
-                    idt = np.argmin(np.abs(self.ppp_soln.ts - date.fyear))
+                    # no ETM (too few points), but we have a solution for the requested day
+                    x[i, 0] = L[index]
+                    dneu[i] = 3
 
-                    Ax = np.dot(self.A()[idt, :], self.C[i])
-                    x[i,0] = Ax
-                    # since there is no way to estimate the error, use 10 cm (which will be multiplied by 2.5 later)
-                    s[i,0] = L[index] - Ax
         else:
-            # the coordinate doesn't exist, get it from the ETM
-            idt = np.argmin(np.abs(self.ppp_soln.ts - date.fyear))
+            if self.A is not None:
+                # the coordinate doesn't exist, get it from the ETM
+                idt = np.argmin(np.abs(self.ppp_soln.ts - date.fyear))
 
-            for i in range(3):
-                x[i, 0] = np.dot(self.A()[idt, :], self.C[i])
-                # since there is no way to estimate the error,
-                # use the nominal sigma (which will be multiplied by 2.5 later)
-                s[i, 0] = np.std(self.R[i][self.F[i]])
+                for i in range(3):
+                    x[i, 0] = np.dot(self.As[idt, :], self.C[i])
+                    # since there is no way to estimate the error,
+                    # use the nominal sigma (which will be multiplied by 2.5 later)
+                    s[i, 0] = np.std(self.R[i][self.F[i]])
+            else:
+                # no ETM (too few points), get average
+                for i in range(3):
+                    if i == 0:
+                        x[i, 0] = np.mean(self.ppp_soln.x)
+                    elif i == 1:
+                        x[i, 0] = np.mean(self.ppp_soln.y)
+                    else:
+                        x[i, 0] = np.mean(self.ppp_soln.z)
+                    # set the uncertainties in NEU by hand
+                    dneu[i] = 3
 
         # crude transformation from XYZ to NEU
-        dn,de,du = ct2lg(s[0],s[1],s[2], self.ppp_soln.lat, self.ppp_soln.lon)
+        if dneu[0] is None:
+            dneu[0], dneu[1], dneu[2] = ct2lg(s[0],s[1],s[2], self.ppp_soln.lat, self.ppp_soln.lon)
 
-        # careful with zeros in the sittbl. file
-        if np.abs(dn) < 0.005:
-            dn = 0.005
-        if np.abs(de) < 0.005:
-            de = 0.005
-        if np.abs(du) < 0.005:
-            du = 0.005
+            # careful with zeros in the sittbl. file
+            if np.abs(dneu[0]) < 0.005:
+                dneu[0] = 0.005
+            if np.abs(dneu[1]) < 0.005:
+                dneu[1] = 0.005
+            if np.abs(dneu[2]) < 0.005:
+                dneu[2] = 0.005
 
-        s = np.row_stack((np.abs(dn),np.abs(de),np.abs(du)))
+        s = np.row_stack((np.abs(dneu[0]),np.abs(dneu[1]),np.abs(dneu[2])))
 
         return x, s
 

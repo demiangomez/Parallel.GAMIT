@@ -368,6 +368,10 @@ class Date():
 
         return Date(mjd=self.mjd-ndays)
 
+    def __hash__(self):
+        # to make the obsject hashable
+        return hash(self.fyear)
+
     def ddd(self):
         doystr = str(self.doy)
         return "0"*(3-len(doystr))+doystr
