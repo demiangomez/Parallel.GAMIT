@@ -18,7 +18,7 @@ class pyDateException(Exception):
     def __str__(self):
         return str(self.value)
 
-def yeardoy2fyear(year,doy,hour=12):
+def yeardoy2fyear(year,doy,hour=12,minute=0,second=0):
 
     # parse to integers (defensive)
     year = int(year)
@@ -26,10 +26,10 @@ def yeardoy2fyear(year,doy,hour=12):
     hour = int(hour)
 
     # default number of days in a year
-    diy=365
+    diy = 365
 
     # check for leap years
-    if year % 4 ==0:
+    if year % 4 == 0:
         diy += 1.
 
     # make sure day of year is valid
@@ -37,7 +37,7 @@ def yeardoy2fyear(year,doy,hour=12):
         raise pyDateException('invalid day of year')
 
     # compute the fractional year
-    fractionalYear = year + ((doy-1)+hour/24.)/diy
+    fractionalYear = year + ((doy-1) + hour/24. + minute/1440. + second/86400.)/diy
 
     # that's all ...
     return fractionalYear
@@ -48,13 +48,21 @@ def fyear2yeardoy(fyear):
     fractionOfyear = fyear - year
 
     if year % 4 == 0:
-        doy = math.floor(366*fractionOfyear)+1
+        days = 366
     else:
-        doy = math.floor(365*fractionOfyear)+1
+        days = 365
 
-    return int(year),int(doy)
+    doy = math.floor(days*fractionOfyear)+1
+    hh = (days*fractionOfyear - math.floor(days*fractionOfyear))*24.
+    hour = math.floor(hh)
+    mm = (hh - math.floor(hh))*60.
+    minute = math.floor(mm)
+    ss = (mm - math.floor(mm))*60.
+    second = math.floor(ss)
 
-def date2doy(year,month,day,hour=12):
+    return int(year),int(doy), int(hour), int(minute), int(second)
+
+def date2doy(year,month,day,hour=12,minute=0,second=0):
 
     # parse to integers (defensive)
     year  = int(year)
@@ -72,7 +80,7 @@ def date2doy(year,month,day,hour=12):
     doy=lday[month - 1]+day
 
     # finally, compute fractional year
-    fyear = yeardoy2fyear(year,doy,hour)
+    fyear = yeardoy2fyear(year,doy,hour,minute,second)
 
     # that's a [w]rap
     return doy,fyear
@@ -248,7 +256,7 @@ class Date():
             self.month,self.day = doy2date(self.year, self.doy)
 
             # compute the fractional year
-            self.fyear = yeardoy2fyear(self.year,self.doy,self.hour)
+            self.fyear = yeardoy2fyear(self.year,self.doy,self.hour,self.minute,self.second)
 
             # compute the gps date
             self.gpsWeek,self.gpsWeekDay = date2gpsDate(self.year,self.month,self.day)
@@ -264,12 +272,12 @@ class Date():
             self.year,self.month,self.day = mjd2date(self.mjd)
 
             # compute day of year from month and day of month
-            self.doy,self.fyear = date2doy(self.year,self.month,self.day,self.hour)
+            self.doy,self.fyear = date2doy(self.year,self.month,self.day,self.hour,self.minute,self.second)
 
         elif self.year != None and self.month != None and self.day:
 
             # initialize day of year and fractional year from date
-            self.doy,self.fyear = date2doy(self.year,self.month,self.day,self.hour)
+            self.doy,self.fyear = date2doy(self.year,self.month,self.day,self.hour,self.minute,self.second)
 
             # compute the gps date
             self.gpsWeek,self.gpsWeekDay = date2gpsDate(self.year,self.month,self.day)
@@ -280,7 +288,7 @@ class Date():
         elif self.fyear != None:
 
             # initialize year and day of year
-            self.year,self.doy = fyear2yeardoy(self.fyear)
+            self.year,self.doy,self.hour,self.minute,self.second = fyear2yeardoy(self.fyear)
 
             # set the month and day of month
             # compute the month and day of month
@@ -298,7 +306,7 @@ class Date():
             self.year,self.month,self.day = mjd2date(self.mjd)
 
             # compute day of year from month and day of month
-            self.doy,self.fyear = date2doy(self.year,self.month,self.day,self.hour)
+            self.doy,self.fyear = date2doy(self.year,self.month,self.day,self.hour,self.minute,self.second)
 
             # compute the gps date
             self.gpsWeek,self.gpsWeekDay = date2gpsDate(self.year,self.month,self.day)
@@ -317,28 +325,28 @@ class Date():
         if not isinstance(date,Date):
             raise pyDateException('type: '+type(date)+' invalid.  Can only compare pyDate.Date objects')
 
-        return self.mjd < date.mjd
+        return self.fyear < date.fyear
 
     def __le__(self,date):
 
         if not isinstance(date,Date):
             raise pyDateException('type: '+type(date)+' invalid.  Can only compare pyDate.Date objects')
 
-        return self.mjd <= date.mjd
+        return self.fyear <= date.fyear
 
     def __gt__(self,date):
 
         if not isinstance(date,Date):
             raise pyDateException('type: '+type(date)+' invalid.  Can only compare pyDate.Date objects')
 
-        return self.mjd > date.mjd
+        return self.fyear > date.fyear
 
     def __ge__(self,date):
 
         if not isinstance(date,Date):
             raise pyDateException('type: '+type(date)+' invalid.  Can only compare pyDate.Date objects')
 
-        return self.mjd >= date.mjd
+        return self.fyear >= date.fyear
 
     def __eq__(self,date):
 
@@ -394,7 +402,7 @@ class Date():
         return str(self.year) + ' ' + doystr.rjust(3, '0')
 
     def datetime(self):
-        return datetime(year=self.year, month=self.month, day=self.day, hour=self.hour, minute=self.minute)
+        return datetime(year=self.year, month=self.month, day=self.day, hour=self.hour, minute=self.minute, second=self.second)
 
 
 def main(argv):

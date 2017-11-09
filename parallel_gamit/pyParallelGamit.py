@@ -61,28 +61,16 @@ def parseIntSet(nputstr=""):
     return selection
 
 
-def print_columns(l):
-
-    for a, b, c, d, e, f in zip(l[::6], l[1::6], l[2::6], l[3::6], l[4::6], l[5::6]):
-        print('    {:<10}{:<10}{:<10}{:<10}{:<10}{:<}'.format(a, b, c, d, e, f))
-
-    if len(l) % 6 != 0:
-        sys.stdout.write('    ')
-        for i in range(len(l) - len(l) % 6, len(l)):
-            sys.stdout.write('{:<10}'.format(l[i]))
-        sys.stdout.write('\n')
-
-
 def print_summary(Project, all_missing_data):
     # output a summary of each network
     print('')
     print(' >> Summary of stations in this project')
-    print(' -- Core network stations (%i):' % (len(Project.Core.StrStns)))
-    print_columns(Project.Core.StrStns)
+    print(' -- Core network stations (%i):' % (len(Project.Core.StationList)))
+    Utils.print_columns([item['NetworkCode'] + '.' + item['StationCode'] for item in Project.Core.StationList])
 
     print('')
-    print(' -- Secondary stations (%i):' % (len(Project.Secondary.StrStns)))
-    print_columns(Project.Secondary.StrStns)
+    print(' -- Secondary stations (%i):' % (len(Project.Secondary.StationList)))
+    Utils.print_columns([item['NetworkCode'] + '.' + item['StationCode'] for item in Project.Secondary.StationList])
 
     # output a summary of the missing days per station:
     print('')

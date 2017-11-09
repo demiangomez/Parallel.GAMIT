@@ -12,6 +12,7 @@ import platform
 import ConfigParser
 import inspect
 import re
+from datetime import datetime
 
 class dbErrInsert(Exception):
     pass

@@ -13,6 +13,7 @@ from numpy import pi
 from scipy.stats import chi2
 import matplotlib.pyplot as plt
 import pyEvents
+from zlib import crc32
 
 class pyPPPETMException(Exception):
     def __init__(self, value):
@@ -121,8 +122,22 @@ class PPP_soln():
             '        p2."DOY"         = p1."DOY") ORDER BY "Year", "DOY") as PPP WHERE PPP.dist <= 20 ORDER BY PPP."Year", PPP."DOY"' % (
             NetworkCode, StationCode))
 
+        ppp_blu = cnn.query(
+            'SELECT PPP.* FROM (SELECT p1.*, sqrt((p1."X" - st.auto_x)^2 + (p1."Y" - st.auto_y)^2 + (p1."Z" - st.auto_z)^2) as dist FROM ppp_soln p1 '
+            'LEFT JOIN stations st ON p1."NetworkCode" = st."NetworkCode" AND p1."StationCode" = st."StationCode" '
+            'WHERE p1."NetworkCode" = \'%s\' AND p1."StationCode" = \'%s\' AND '
+            'NOT EXISTS (SELECT * FROM ppp_soln_excl p2'
+            '  WHERE p2."NetworkCode" = p1."NetworkCode" AND'
+            '        p2."StationCode" = p1."StationCode" AND'
+            '        p2."Year"        = p1."Year"        AND'
+            '        p2."DOY"         = p1."DOY") ORDER BY "Year", "DOY") as PPP WHERE PPP.dist > 20 ORDER BY PPP."Year", PPP."DOY"' % (
+                NetworkCode, StationCode))
+
         self.table     = ppp.dictresult()
         self.solutions = len(self.table)
+        # blunders
+        self.blunders = ppp_blu.dictresult()
+        self.ts_blu = np.array([pyDate.Date(year=item['Year'], doy=item['DOY']).fyear for item in self.blunders])
 
         if self.solutions >= 1:
             X = [float(item['X']) for item in self.table]
@@ -130,16 +145,16 @@ class PPP_soln():
             Z = [float(item['Z']) for item in self.table]
 
             T = (pyDate.Date(year=item.get('Year'),doy=item.get('DOY')).fyear for item in self.table)
-            MDJ = (pyDate.Date(year=item.get('Year'),doy=item.get('DOY')).mjd for item in self.table)
+            MJD = (pyDate.Date(year=item.get('Year'),doy=item.get('DOY')).mjd for item in self.table)
 
             self.x = np.array(X)
             self.y = np.array(Y)
             self.z = np.array(Z)
             self.t = np.array(list(T))
-            self.mdj = np.array(list(MDJ))
+            self.mjd = np.array(list(MJD))
 
             # continuous time vector for plots
-            ts = np.arange(np.min(self.mdj), np.max(self.mdj) + 1, 1)
+            ts = np.arange(np.min(self.mjd), np.max(self.mjd) + 1, 1)
             ts = np.array([pyDate.Date(mjd=tts).fyear for tts in ts])
 
             self.ts = ts
@@ -148,6 +163,19 @@ class PPP_soln():
         else:
             raise pyPPPETMException('No PPP solutions available for %s.%s' % (NetworkCode, StationCode))
 
+        # get a list of the epochs with files but no solutions. This will be shown in the outliers plot as a special marker
+        rnx = cnn.query(
+            'SELECT r.* FROM rinex_proc as r '
+            'LEFT JOIN ppp_soln as p ON '
+            'r."NetworkCode" = p."NetworkCode" AND '
+            'r."StationCode" = p."StationCode" AND '
+            'r."ObservationYear" = p."Year"    AND '
+            'r."ObservationDOY"  = p."DOY"'
+            'WHERE r."NetworkCode" = \'%s\' AND r."StationCode" = \'%s\' AND '
+            'p."NetworkCode" IS NULL' % (NetworkCode, StationCode))
+
+        self.rnx_no_ppp = rnx.dictresult()
+        self.ts_ns = np.array([float(item['ObservationFYear']) for item in self.rnx_no_ppp])
 
 class Jump():
     """
@@ -221,6 +249,12 @@ class Jump():
         else:
             return np.array([])
 
+    def __str__(self):
+        return str(self.year)+', '+str(self.type)+', '+str(self.T)
+
+    def __repr__(self):
+        return 'pyDate.Date('+str(self.year)+', '+str(self.type)+', '+str(self.T)+')'
+
 
 class JumpsTable():
     """"class to determine the jump table based on distance to earthquakes and receiver/antenna changes"""
@@ -228,7 +262,9 @@ class JumpsTable():
 
         if t is None:
             ppp_soln = PPP_soln(cnn, NetworkCode, StationCode)
-            t = ppp_soln.t
+            self.t = ppp_soln.t
+        else:
+            self.t = t
 
         # station location
         stn = cnn.query('SELECT * FROM stations WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\'' % (NetworkCode, StationCode))
@@ -258,24 +294,42 @@ class JumpsTable():
         eq_jumps.sort()
 
         self.table = []
+        skip_i = []
+
         for i, jump in enumerate(eq_jumps):
+            if i in skip_i:
+                continue
+
             if i < len(eq_jumps)-1 and len(eq_jumps) > 1:
-                nxjump = eq_jumps[i+1]
-                if jump.fyear < t.min() and nxjump.fyear > t.min():
-                    # if the eq jump occurred before the start date and the next eq jump is within the data, add it
-                    # otherwise, we would be adding multiple decays to the beginning of the time series
-                    self.table.append(Jump(jump, 0.5, t))
-
-                elif jump.fyear >= t.min():
-                    # if there is another earthquake within 10 days of this earthquake, i.e.
-                    # if eq_jumps[i+1] - jump < 6 days, add an offset but don't allow the log transient
-                    # a log transient with less than 6 days if not worth adding the log decay
-                    # (which destabilizes the sys. of eq.)
-                    if (nxjump.fyear - jump.fyear)*365 < 10: #or t[np.where((t <= nxjump) & (t > jump))].size < 10:
-                        self.table.append(Jump(jump, 0, t))
-                    else:
+                while True:
+                    nxjump = eq_jumps[i+1]
+                    if jump.fyear < t.min() and nxjump.fyear > t.min():
+                        # if the eq jump occurred before the start date and the next eq jump is within the data, add it
+                        # otherwise, we would be adding multiple decays to the beginning of the time series
                         self.table.append(Jump(jump, 0.5, t))
+                        break
 
+                    elif jump.fyear >= t.min():
+                        # if there is another earthquake within 10 days of this earthquake, i.e.
+                        # if eq_jumps[i+1] - jump < 6 days, don't add the log transcient of the next jump
+                        # a log transient with less than 6 days if not worth adding the log decay
+                        # (which destabilizes the sys. of eq.)
+
+                        if (nxjump.fyear - jump.fyear)*365 < 10: #or t[np.where((t <= nxjump) & (t > jump))].size < 10:
+                            i += 1
+                            skip_i += [i]
+                            # add the jump but just as an offset. Will be removed if makes the matrix singular
+                            self.table.append(Jump(nxjump, 0, t))
+                            if i == len(eq_jumps)-1:
+                                # we are out of jumps!
+                                self.table.append(Jump(jump, 0.5, t))
+                                break
+                        else:
+                            self.table.append(Jump(jump, 0.5, t))
+                            break
+                    else:
+                        # a jump outside the time window, go to next
+                        break
             else:
                 self.table.append(Jump(jump, 0.5, t))
 
@@ -283,8 +337,14 @@ class JumpsTable():
         if add_antenna_jumps != 0:
             for i, jump in enumerate(StnInfo.records):
                 if i > 0:
-                    date = pyDate.Date(year=jump.get('DateStart').year, month=jump.get('DateStart').month, day=jump.get('DateStart').day)
-                    self.table.append(Jump(date, 0, t))
+                    date = pyDate.Date(year=jump.get('DateStart').year, month=jump.get('DateStart').month, day=jump.get('DateStart').day, hour=jump.get('DateStart').hour, minute=jump.get('DateStart').minute, second=jump.get('DateStart').second)
+                    if i > 1:
+                        # check if this jump should be added (maybe no data to constrain the last one!)
+                        if self.table[-1].eval(t).size and Jump(date, 0, t).eval(t).size:
+                            if any(np.logical_xor(self.table[-1].eval(t), Jump(date, 0, t).eval(t))):
+                                self.table.append(Jump(date, 0, t))
+                    else:
+                        self.table.append(Jump(date, 0, t))
 
         # sort jump table (using the key year)
         self.table.sort(key=lambda jump: jump.year)
@@ -292,8 +352,11 @@ class JumpsTable():
         self.lat = float(stn['lat'])
         self.lon = float(stn['lon'])
 
+        self.UpdateTable()
+
+    def UpdateTable(self):
         # build the design matrix
-        self.A = self.GetDesignTs(t)
+        self.A = self.GetDesignTs(self.t)
 
         if self.A.size:
             self.params = self.A.shape[1]
@@ -306,8 +369,8 @@ class JumpsTable():
                 DOP = np.diag(np.linalg.inv(np.dot(self.A.transpose(), self.A)))
                 self.constrains = np.zeros((np.argwhere(DOP > 5).size, self.A.shape[1]))
             else:
-                DOP = np.diag(np.linalg.inv(np.dot(self.A[:,np.newaxis].transpose(), self.A[:,np.newaxis])))
-                self.constrains = np.zeros((np.argwhere(DOP > 5).size,1))
+                DOP = np.diag(np.linalg.inv(np.dot(self.A[:, np.newaxis].transpose(), self.A[:, np.newaxis])))
+                self.constrains = np.zeros((np.argwhere(DOP > 5).size, 1))
 
             # apply constrains
             if np.any(DOP > 5):
@@ -316,6 +379,28 @@ class JumpsTable():
         else:
             self.constrains = np.array([])
 
+    def RemoveJump(self, cjump):
+        for jump in self.table:
+            if cjump == jump:
+                jump.remove()
+                self.UpdateTable()
+                break
+
+    def ForceConstrain(self, cjump):
+        # force a constrain condition equation on the specified jump
+        pos = 0
+        for jump in self.table:
+            if cjump == jump:
+                if len(self.A.shape) > 1:
+                    self.constrains = np.append(self.constrains, np.zeros((cjump.params, self.A.shape[1])), axis=0)
+                else:
+                    self.constrains = np.append(self.constrains, np.zeros((cjump.params, 1)))
+
+                for i in range(cjump.params):
+                    self.constrains[-1-i, pos+i] = 1
+                break
+            else:
+                pos = pos + jump.params
 
     def GetDesignTs(self, t):
 
@@ -521,6 +606,7 @@ class Linear():
 
         self.values = np.append(self.values, np.array([C[0], C[1]]))
 
+
     def PrintParams(self, lat, lon):
 
         vn, ve, vu = ct2lg(self.values[1], self.values[self.params+1], self.values[2*self.params+1], lat, lon)
@@ -562,8 +648,11 @@ class Design(np.ndarray):
         if ts is None:
             if constrains:
                 if self.J.constrains.size:
-                    A = np.resize(self, (self.shape[0] + self.J.constrains.shape[0], self.shape[1]))
-                    A[-self.J.constrains.shape[0] - 1:-1,self.L.params:self.L.params + self.J.params] = self.J.constrains
+                    A = self.copy()
+                    # resize matrix (use A.resize so that it fills with zeros)
+                    A.resize((self.shape[0] + self.J.constrains.shape[0], self.shape[1]), refcheck=False)
+                    # apply constrains
+                    A[-self.J.constrains.shape[0]:,self.L.params:self.L.params + self.J.params] = self.J.constrains
                     return A
 
                 else:
@@ -586,7 +675,9 @@ class Design(np.ndarray):
 
         if constrains:
             if self.J.constrains.size:
-                return np.resize(L, (L.shape[0] + self.J.constrains.shape[0]))
+                tL = L.copy()
+                tL.resize((L.shape[0] + self.J.constrains.shape[0]), refcheck=False)
+                return tL
 
             else:
                 return L
@@ -598,11 +689,23 @@ class Design(np.ndarray):
         # return a weight matrix full of ones with or without the extra elements for the constrains
         return np.diag(np.ones((self.shape[0]))) if not constrains else np.diag(np.ones((self.shape[0] + self.J.constrains.shape[0])))
 
-    def SaveParameters(self, x):
+    def SaveParameters(self, NetworkCode, StationCode, x, factor, cnn, comp, hash, save_to_db=False):
 
         self.L.LoadParameters(x[0:self.L.params])
         self.J.LoadParameters(x[self.L.params:self.L.params + self.J.params])
         self.P.LoadParameters(x[self.L.params + self.J.params:self.L.params + self.J.params + self.P.params])
+
+        if save_to_db:
+            for i, param in enumerate(x[0:self.L.params]):
+                cnn.query('INSERT INTO etms ("NetworkCode", "StationCode", "Name", "Value", hash) VALUES (\'%s\', \'%s\', \'lin_%s_%02i\', %f, %i)' % (NetworkCode, StationCode, comp, i, param, hash))
+
+            for i, param in enumerate(x[self.L.params:self.L.params + self.J.params]):
+                cnn.query('INSERT INTO etms ("NetworkCode", "StationCode", "Name", "Value", hash) VALUES (\'%s\', \'%s\', \'jump_%s_%02i\', %f, %i)' % (NetworkCode, StationCode, comp, i, param, hash))
+
+            for i, param in enumerate(x[self.L.params + self.J.params:self.L.params + self.J.params + self.P.params]):
+                cnn.query('INSERT INTO etms ("NetworkCode", "StationCode", "Name", "Value", hash) VALUES (\'%s\', \'%s\', \'sincos_%s_%02i\', %f, %i)' % (NetworkCode, StationCode, comp, i, param, hash))
+
+            cnn.query('INSERT INTO etms ("NetworkCode", "StationCode", "Name", "Value", hash) VALUES (\'%s\', \'%s\', \'factor_%s\', %f, %i)' % (NetworkCode, StationCode, comp, factor, hash))
 
     def RemoveConstrains(self, V):
         # remove the constrains to whatever vector is passed
@@ -638,6 +741,9 @@ class ETM():
         self.Jumps = JumpsTable(cnn, NetworkCode, StationCode, ppp.t, add_antenna_jumps=self.Periodic.params)
         self.Linear = Linear(t=ppp.t)
 
+        # calculate the hash value for this station
+        self.hash = crc32(str(ppp.solutions) + ' ' + str(ppp.mjd[0]) + ' ' + str(ppp.mjd[-1]) + ' ' + str(self.Periodic.params) + ' ' + str(self.Jumps.params) + ' ' + '.'.join([str(j.type) for j in self.Jumps.table]))
+
         # anything less than four is not worth it
         if ppp.solutions > 4:
 
@@ -651,6 +757,19 @@ class ETM():
 
             self.As = self.A(ppp.ts)
 
+            # try to load the last ETM solution from the database
+            rs = cnn.query('SELECT * FROM etms WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' ORDER BY "Name"' % (NetworkCode, StationCode))
+
+            params = rs.dictresult()
+            comp = ['x', 'y', 'z']
+
+            if len(params) > 0 and params[0]['hash'] == self.hash:
+                load_from_db = True
+            else:
+                load_from_db = False
+                # purge table
+                cnn.query('DELETE FROM etms WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\''  % (NetworkCode, StationCode))
+
             for i in range(3):
 
                 if i == 0:
@@ -660,16 +779,20 @@ class ETM():
                 else:
                     L = ppp.z
 
-                x, sigma, index, residuals, f, P = self.adjust_lsq(self.A, L)
+                if load_from_db:
+                    # solution valid, load parameters instead of calculating them
+                    x, sigma, index, residuals, factor, P = self.load_params(params, comp[i], self.A, L)
+                else:
+                    x, sigma, index, residuals, factor, P = self.adjust_lsq(self.A, L)
 
                 # save the parameters in each object
-                self.A.SaveParameters(x)
+                self.A.SaveParameters(NetworkCode, StationCode, x, factor, cnn, comp[i], self.hash, not load_from_db)
 
                 self.C.append(x)
                 self.S.append(sigma)
                 self.F.append(index)
                 self.R.append(residuals)
-                self.factor.append(f)
+                self.factor.append(factor)
                 self.P = P
 
         if plotit:
@@ -680,9 +803,11 @@ class ETM():
 
         if self.A is not None:
             f, axis = plt.subplots(nrows=3, ncols=2, sharex=True, figsize=(15,10)) # type: plt.subplots
-            f.suptitle('Station: ' + self.NetworkCode + '.' + self.StationCode + '\n' +
-                       self.Linear.PrintParams(self.ppp_soln.lat, self.ppp_soln.lon) + '\n' +
-                       self.Periodic.PrintParams(self.ppp_soln.lat, self.ppp_soln.lon), fontsize=9, family='monospace')
+            f.suptitle('Station: %s.%s (PPP Completion: %.2f%%)\n%s\n%s' %
+                       (self.NetworkCode, self.StationCode,
+                        100. - float(len(self.ppp_soln.ts_ns))/float(len(self.ppp_soln.t))*100.,
+                        self.Linear.PrintParams(self.ppp_soln.lat, self.ppp_soln.lon),
+                        self.Periodic.PrintParams(self.ppp_soln.lat, self.ppp_soln.lon)), fontsize=9, family='monospace')
 
             table_n, table_e, table_u = self.Jumps.PrintParams(self.ppp_soln.lat, self.ppp_soln.lon)
 
@@ -701,6 +826,8 @@ class ETM():
             oneu = ct2lg(self.ppp_soln.x[filt] - m[0], self.ppp_soln.y[filt] - m[1], self.ppp_soln.z[filt] - m[2], self.ppp_soln.lat, self.ppp_soln.lon)
             rneu = ct2lg(self.ppp_soln.x - m[0], self.ppp_soln.y - m[1], self.ppp_soln.z - m[2], self.ppp_soln.lat, self.ppp_soln.lon)
             tneu = ct2lg(np.dot(self.As, self.C[0]) - m[0], np.dot(self.As, self.C[1]) - m[1], np.dot(self.As, self.C[2]) - m[2], self.ppp_soln.lat, self.ppp_soln.lon)
+            # no solution "extrapolation"
+            #ns_neu = ct2lg(np.dot(A_ns, self.C[0]) - m[0], np.dot(A_ns, self.C[1]) - m[1], np.dot(A_ns, self.C[2]) - m[2], self.ppp_soln.lat, self.ppp_soln.lon)
 
             for i, ax in enumerate((axis[0][0],axis[1][0], axis[2][0])):
                 ax.plot(self.ppp_soln.t[filt], oneu[i], 'ob', markersize=2)
@@ -733,7 +860,8 @@ class ETM():
             for i, ax in enumerate((axis[0][1],axis[1][1], axis[2][1])):
                 ax.plot(self.ppp_soln.t, rneu[i], 'oc', markersize=2)
                 ax.plot(self.ppp_soln.t[filt], oneu[i], 'ob', markersize=2)
-                ax.plot(self.ppp_soln.ts, tneu[i], 'r')
+                # ax.plot(self.ppp_soln.ts, tneu[i], 'r')
+
                 ax.autoscale(enable=True, axis='x', tight=True)
                 ax.autoscale(enable=True, axis='y', tight=True)
 
@@ -745,13 +873,22 @@ class ETM():
                     ax.set_ylabel('Up [m]')
 
                 ax.grid(True)
-                for jump in self.Jumps.table:
-                    if jump.year >= self.ppp_soln.t.min() and not jump.type is None:
-                        # the post-seismic jumps that happened before t.min() should not be plotted
-                        if jump.T == 0:
-                            ax.plot((jump.year, jump.year), ax.get_ylim(), 'b:')
-                        else:
-                            ax.plot((jump.year, jump.year), ax.get_ylim(), 'r:')
+                #for jump in self.Jumps.table:
+                #    if jump.year >= self.ppp_soln.t.min() and not jump.type is None:
+                #        # the post-seismic jumps that happened before t.min() should not be plotted
+                #        if jump.T == 0:
+                #            ax.plot((jump.year, jump.year), ax.get_ylim(), 'b:')
+                #        else:
+                #            ax.plot((jump.year, jump.year), ax.get_ylim(), 'r:')
+
+                # plot missing solutions
+                for missing in self.ppp_soln.ts_ns:
+                    ax.plot((missing, missing), ax.get_ylim(), color=(1, 0, 1, 0.2), linewidth=1)
+
+                # plot the position of the outliers
+                for blunder in self.ppp_soln.ts_blu:
+                    ax.quiver((blunder, blunder), ax.get_ylim(), (0, 0), (-0.01, 0.01), scale_units='height', units='height', pivot='tip', width=0.008, edgecolors='r')
+
 
             f.subplots_adjust(left=0.16)
         else:
@@ -800,12 +937,77 @@ class ETM():
             plt.savefig(file)
             plt.close()
 
+    def load_params(self, params, comp, A, L):
+        s = []
+        c = []
+        j = []
+        v = []
+        factor = 1
+        limit = 2.5
+
+        for param in params:
+            if 'lin_' + comp in param['Name']:
+                v += [float(param['Value'])]
+
+            if 'sincos_' + comp in param['Name']:
+                s += [float(param['Value'])]
+
+            if 'jump_' + comp in param['Name']:
+                j += [float(param['Value'])]
+
+            if 'factor_' + comp in param['Name']:
+                factor = [float(param['Value'])]
+
+        x = np.array(v + j + s + c)
+
+        residuals = L - np.dot(A(constrains=False), x)
+
+        s = np.abs(np.divide(residuals, factor))
+        s[s > 40] = 40  # 40 times sigma in 10^(2.5-40) yields 3x10^-38! small enough. Limit s to avoid an overflow
+        index = s <= limit
+
+        return x, 0, index, residuals, factor, 0
+
+    def save_params(self, cnn, factor, comp):
+
+        for i, param in enumerate(self.Linear.values):
+            cnn.query('INSERT INTO etms ("Name", "Value_%s", hash) IN (\'lin_%02i\', %f, %i)' % (comp, i, param, self.hash))
+
+        s = 0
+        value = []
+        for jump in self.Jumps.table:
+            if not jump.type is None:
+                if jump.params == 1 and jump.T != 0:
+                    value = [jump.a[0]]
+
+                elif jump.params == 1 and jump.T == 0:
+                    value = [jump.b[0]]
+
+                elif jump.params == 2:
+                    value =[jump.b[0], jump.a[0]]
+
+                for i, val in enumerate(value):
+                    cnn.query('INSERT INTO etms ("Name", "Value_%s", hash) IN (\'jump_%02i\', %f, %i)' % (comp, s+i, val, self.hash))
+
+                s = s + jump.params
+
+        for isin, icos in zip(self.Periodic.sin, self.Periodic.cos):
+
+            cnn.query('INSERT INTO etms ("Name", "Value_%s", hash) IN (\'sincos_%02i\', %f, %i)' % (comp, s , isin, self.hash))
+            s += 1
+            cnn.query('INSERT INTO etms ("Name", "Value_%s", hash) IN (\'sincos_%02i\', %f, %i)' % (comp, s+1, icos, self.hash))
+            s += 1
+
+        cnn.query('INSERT INTO etms ("Name", "Value_%s", hash) IN (\'factor\', %f, %i)' % (comp, factor, self.hash))
+
     def todictionary(self, time_series=False):
         # convert the ETM adjustment into a dirtionary
         # optionally, output the whole time series as well
 
         # start with the parameters
         etm = dict()
+        etm['Network'] = self.NetworkCode
+        etm['Station'] = self.StationCode
         etm['Jumps'] = [{'type': jump.type, 'year': jump.year, 'a': jump.a.tolist(), 'b': jump.b.tolist(), 'T': jump.T}
                         for jump in self.Jumps.table]
         if self.A is not None:
@@ -823,12 +1025,33 @@ class ETM():
 
         return etm
 
-    def get_xyz_s(self, year, doy):
+    def get_xyz_s(self, year, doy, jmp=None):
         # this function find the requested epochs and returns an X Y Z and sigmas
-        # find this epoch in the t vector
-        date = pyDate.Date(year=year,doy=doy)
+        # jmp = 'pre' returns the coordinate immediately before a jump
+        # jmp = 'post' returns the coordinate immediately after a jump
+        # jmp = None returns either the coordinate before or after, depending on the time of the jump.
 
-        index = np.where(self.ppp_soln.mdj == date.mjd)
+        # find this epoch in the t vector
+        date = pyDate.Date(year=year, doy=doy)
+        window = None
+
+        for jump in self.Jumps.table:
+            if jump.date == date and jump.type in (1,2):
+                if np.sqrt(np.sum(np.square(jump.b))) > 0.02:
+                    window = jump.date
+                    # if no pre or post specified, then determine using the time of the jump
+                    if jmp is None:
+                        if (jump.date.datetime().hour + jump.date.datetime().minute / 60.0) < 12:
+                            jmp = 'post'
+                        else:
+                            jmp = 'pre'
+                    # now use what it was determined
+                    if jmp == 'pre':
+                        date -= 1
+                    else:
+                        date += 1
+
+        index = np.where(self.ppp_soln.mjd == date.mjd)
         index = index[0]
 
         s = np.zeros((3, 1))
@@ -907,7 +1130,7 @@ class ETM():
 
         s = np.row_stack((np.abs(dneu[0]),np.abs(dneu[1]),np.abs(dneu[2])))
 
-        return x, s
+        return x, s, window
 
     def adjust_lsq(self, Ai, Li):
 

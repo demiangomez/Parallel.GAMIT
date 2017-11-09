@@ -70,8 +70,8 @@ class StationInstance():
         self.date         = date # type: pyDate.Date
         self.Archive_path = Archive_path
 
-        # get the APR and sigmas for this date
-        self.Apr, self.Sigmas = self.Station.etm.get_xyz_s(self.date.year, self.date.doy)
+        # get the APR and sigmas for this date (let get_xyz_s determine which side of the jump returns, if any)
+        self.Apr, self.Sigmas, self.Window = self.Station.etm.get_xyz_s(self.date.year, self.date.doy)
 
         return
 
@@ -90,7 +90,7 @@ class StationInstance():
                 'lat'         : self.Station.lat,
                 'lon'         : self.Station.lon,
                 'height'      : self.Station.height,
-                'jumps'       : self.Station.etm.Jumps.table}
+                'jump'        : self.Window}
 
 
     def GetApr(self):

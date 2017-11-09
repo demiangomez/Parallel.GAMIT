@@ -78,11 +78,8 @@ class GamitTask:
 
                         # figure out if this station has been affected by an earthquake
                         # if so, window the data
-                        window = None
-                        for jump in rinex['jumps']:
-                            if jump.date == self.date and jump.T != 0:
-                                # determine the window
-                                window = jump.date
+                        if rinex['jump'] is not None:
+                            monitor.write('                    -> RINEX file has been windowed: ETM detected jump on ' + rinex['jump'].datetime().strftime('%Y-%m-%d %H:%M:%S') + '\n')
 
                         if Rinex.multiday:
                             # find the rinex that corresponds to the session being processed
@@ -90,16 +87,16 @@ class GamitTask:
                                 if Rnx.date == self.date:
                                     Rnx.rename_crinex_rinex(rinex['destiny'])
 
-                                    if window is not None:
-                                        self.window_rinex(Rnx, window)
+                                    if rinex['jump'] is not None:
+                                        self.window_rinex(Rnx, rinex['jump'])
 
                                     Rnx.compress_local_copyto(self.pwd_rinex)
                                     break
                         else:
                             Rinex.rename_crinex_rinex(rinex['destiny'])
 
-                            if window is not None:
-                                self.window_rinex(Rinex, window)
+                            if rinex['jump'] is not None:
+                                self.window_rinex(Rinex, rinex['jump'])
 
                             Rinex.compress_local_copyto(self.pwd_rinex)
 
@@ -168,7 +165,7 @@ class GamitTask:
 
         # windows the data:
         # check which side of the earthquake yields more data: window before or after the earthquake
-        if (window.datetime().hour + window.datetime().minutes/60.0) < 12:
+        if (window.datetime().hour + window.datetime().minute/60.0) < 12:
             Rinex.window_data(start=window.datetime())
         else:
             Rinex.window_data(end=window.datetime())

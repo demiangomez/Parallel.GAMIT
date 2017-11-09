@@ -828,7 +828,7 @@ class ReadRinex(RinexRecord):
             # ooops, something went wrong, try with local file
             raise pyRinexExceptionBadFile('During decimation or remove_systems (to run auto_coord), teqc returned: %s' + str(e))
 
-        cmd = pyRunWithRetry.RunCommand('sh_rx2apr -site ' + rnx.rinex + ' -nav ' + brdc.brdc_filename, 40, rnx.rootdir)
+        cmd = pyRunWithRetry.RunCommand('sh_rx2apr -site ' + rnx.rinex + ' -nav ' + brdc.brdc_filename + ' -chi ' + str(chi_limit), 40, rnx.rootdir)
         # leave errors un-trapped on purpose (will raise an error to the parent)
         out, err = cmd.run_shell()
 
@@ -859,7 +859,7 @@ class ReadRinex(RinexRecord):
 
             raise pyRinexExceptionNoAutoCoord(out + '\nLIMIT FOR CHI**2 was %i' % chi_limit)
 
-    def auto_coord_teqc(self,brdc):
+    def auto_coord_teqc(self, brdc):
         # calculate an autonomous coordinate using broadcast orbits
         # expects to find the orbits next to the file in question
 
@@ -1177,12 +1177,12 @@ class ReadRinex(RinexRecord):
 
         # we don't touch the metadata StationCode and NetworkCode unless explicitly passed
         if NetworkCode:
-            self.NetworkCode = NetworkCode.lower()
-            self.record['NetworkCode'] = NetworkCode.lower()
+            self.NetworkCode = NetworkCode.strip().lower()
+            self.record['NetworkCode'] = NetworkCode.strip().lower()
 
         if StationCode:
-            self.StationCode = StationCode.lower()
-            self.record['StationCode'] = StationCode.lower()
+            self.StationCode = StationCode.strip().lower()
+            self.record['StationCode'] = StationCode.strip().lower()
 
         return
 

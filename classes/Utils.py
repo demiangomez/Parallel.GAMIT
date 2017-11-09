@@ -1,5 +1,5 @@
 
-import os, re, subprocess, sys, pyDate, numpy, filecmp
+import os, re, subprocess, sys, pyDate, numpy, filecmp, argparse
 
 class UtilsException(Exception):
     def __init__(self, value):
@@ -7,6 +7,15 @@ class UtilsException(Exception):
     def __str__(self):
         return str(self.value)
 
+def required_length(nmin,nmax):
+    class RequiredLength(argparse.Action):
+        def __call__(self, parser, args, values, option_string=None):
+            if not nmin<=len(values)<=nmax:
+                msg='argument "{f}" requires between {nmin} and {nmax} arguments'.format(
+                    f=self.dest,nmin=nmin,nmax=nmax)
+                raise argparse.ArgumentTypeError(msg)
+            setattr(args, self.dest, values)
+    return RequiredLength
 
 def parse_crinex_rinex_filename(filename):
     # parse a crinex filename
@@ -205,12 +214,19 @@ def ecef2lla(ecefArr):
 
 def process_date(arg):
 
-    if '.' in arg:
-        date = pyDate.Date(year=arg.split('.')[0], doy=arg.split('.')[1])
-    else:
-        date = pyDate.Date(year=arg.split('/')[0], month=arg.split('/')[1], day=arg.split('/')[2])
+    dates = [pyDate.Date(year=1980, doy=1), pyDate.Date(year=2100, doy=1)]
 
-    return date
+    if arg:
+        for i, arg in enumerate(arg):
+            try:
+                if '.' in arg:
+                    dates[i] = pyDate.Date(year=arg.split('.')[0], doy=arg.split('.')[1])
+                else:
+                    dates[i] = pyDate.Date(year=arg.split('/')[0], month=arg.split('/')[1], day=arg.split('/')[2])
+            except Exception as e:
+                raise ValueError('Error while reading the date start/end parameters: ' + str(e))
+
+    return dates
 
 
 def print_columns(l):

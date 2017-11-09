@@ -321,7 +321,7 @@ def obtain_otl(NetworkCode, StationCode):
                                           os.path.join(Config.archive_path, file))
 
                 # run ppp without otl and met and in non-strict mode
-                ppp = pyPPP.RunPPP(Rinex, '', Config.options, Config.sp3types, Config.sp3altrn, Rinex.antOffset, False, False)
+                ppp = pyPPP.RunPPP(Rinex, '', Config.options, Config.sp3types, Config.sp3altrn, Rinex.antOffset, strict=False, apply_met=False, clock_interpolation=True)
 
                 ppp.exec_ppp()
 
@@ -519,7 +519,7 @@ def execute_ppp(record, rinex_path):
 
             Rinex.normalize_header(StationInfo=stninfo, x=stn[0]['auto_x'], y=stn[0]['auto_y'], z=stn[0]['auto_z'])
 
-            ppp = pyPPP.RunPPP(Rinex, stn[0]['Harpos_coeff_otl'], Config.options, Config.sp3types, Config.sp3altrn, stninfo.AntennaHeight,hash=stninfo.hash)
+            ppp = pyPPP.RunPPP(Rinex, stn[0]['Harpos_coeff_otl'], Config.options, Config.sp3types, Config.sp3altrn, stninfo.AntennaHeight, hash=stninfo.hash)
             ppp.exec_ppp()
 
             # verify that the solution is from the station it claims to be
@@ -650,7 +650,7 @@ def scan_rinex(cnn, JobServer, pyArchive, archive_path, Config, master_list):
     master_list = [item['NetworkCode'] + '.' + item['StationCode'] for item in master_list]
 
     print " >> Analyzing the archive's structure..."
-    pbar = tqdm(ncols=80, unit='CRZ')
+    pbar = tqdm(ncols=80, unit='crz')
 
     #archivefiles, path2rinex, _ = pyArchive.scan_archive_struct(archive_path, execute_function=post_scan_rinex_job, arguments=(master_list, JobServer, callback, pbar))
     for path, _, files in scandir.walk(archive_path):
@@ -661,7 +661,7 @@ def scan_rinex(cnn, JobServer, pyArchive, archive_path, Config, master_list):
                 rnx = os.path.join(path, file).rsplit(archive_path + '/')[1]
                 path2rnx = os.path.join(path, file)
 
-                pbar.set_postfix(CRINEX=rnx)
+                pbar.set_postfix(crinex=rnx)
                 pbar.update()
 
                 callback = post_scan_rinex_job(cnn, Config, pyArchive, rnx, path2rnx, master_list, JobServer, callback, pbar)
@@ -1027,15 +1027,11 @@ def main():
     #########################################
 
     if args.rehash is not None:
-        dates = [pyDate.Date(year=1980, doy=1), pyDate.Date(year=2100, doy=1)]
-
-        if len(args.rehash) > 0:
-
-            for i, arg in enumerate(args.ppp):
-                try:
-                    dates[i] = process_date(arg)
-                except Exception as e:
-                    parser.error('Error while reading the date start/end hash parameters: ' + str(e) + '\n' +  traceback.format_exc())
+        dates = []
+        try:
+            dates = process_date(args.rehash)
+        except ValueError as e:
+            parser.error(str(e))
 
         hash_check(cnn, stnlist, dates[0], dates[1], rehash=True)
 
@@ -1043,21 +1039,14 @@ def main():
 
     if not args.ppp is None:
         # check other possible arguments
-        dates = [pyDate.Date(year=1980, doy=1), pyDate.Date(year=2100, doy=1)]
-        do_hash = False
+        dates = []
+        do_hash = True if 'hash' in args.ppp else False
+        date_args = [date for date in args.ppp if date != 'hash']
 
-        if len(args.ppp) > 0:
-
-            for i, arg in enumerate(args.ppp):
-
-                if not arg == 'hash':
-                    try:
-                        dates[i] = process_date(arg)
-                    except Exception as e:
-                        parser.error('Error while reading the date start/end hash parameters: ' + str(e) + '\n' +  traceback.format_exc())
-                else:
-                    do_hash = True
-                    break
+        try:
+            dates = process_date(date_args)
+        except ValueError as e:
+            parser.error(str(e))
 
         if do_hash:
             hash_check(cnn, stnlist, dates[0], dates[1], rehash=False)

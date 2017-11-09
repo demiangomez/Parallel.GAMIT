@@ -20,6 +20,9 @@ from shutil import rmtree
 import numpy
 from math import isnan
 import pyEvents
+import re
+from math import isnan
+from Utils import ecef2lla
 
 def find_between(s, first, last):
     try:
@@ -29,6 +32,7 @@ def find_between(s, first, last):
     except ValueError:
         return ""
 
+
 class pyRunPPPException(Exception):
     def __init__(self, value):
         self.value = value
@@ -37,7 +41,23 @@ class pyRunPPPException(Exception):
     def __str__(self):
         return str(self.value)
 
+
 class pyRunPPPExceptionCoordConflict(pyRunPPPException):
+    pass
+
+
+class pyRunPPPExceptionTooFewAcceptedObs(pyRunPPPException):
+    pass
+
+
+class pyRunPPPExceptionNaN(pyRunPPPException):
+    pass
+
+
+class pyRunPPPExceptionZeroProcEpochs(pyRunPPPException):
+    pass
+
+class pyRunPPPExceptionEOPError(pyRunPPPException):
     pass
 
 class PPPSpatialCheck():
@@ -134,7 +154,7 @@ class PPPSpatialCheck():
 
 
 class RunPPP(PPPSpatialCheck):
-    def __init__(self,rinexobj,otl_coeff,options,sp3types,sp3altrn,antenna_height,strict=True,apply_met=True,kinematic=False,hash=0):
+    def __init__(self,rinexobj,otl_coeff,options,sp3types,sp3altrn,antenna_height,strict=True,apply_met=True,kinematic=False, clock_interpolation=False, hash=0):
         assert isinstance(rinexobj,pyRinex.ReadRinex)
 
         PPPSpatialCheck.__init__(self)
@@ -145,6 +165,7 @@ class RunPPP(PPPSpatialCheck):
         self.ppp = options['ppp_exe']
         self.options = options
         self.kinematic = kinematic
+        self.clock_interpolation = clock_interpolation
 
         self.frame     = None
         self.x         = None
@@ -161,14 +182,23 @@ class RunPPP(PPPSpatialCheck):
         self.sigmayz   = None
         self.hash      = hash
 
-        self.sp3altrn  = sp3altrn
-        self.sp3types  = sp3types
-        self.otl_coeff = otl_coeff
-        self.strict    = strict
-        self.apply_met = apply_met
-        self.out       = ''
-        self.summary   = ''
-        self.pos       = ''
+        self.processed_obs = None
+        self.rejected_obs = None
+
+        self.orbit_type = None
+        self.orbits1    = None
+        self.orbits2    = None
+        self.clocks1    = None
+        self.clocks2    = None
+        self.eop_file   = None
+        self.sp3altrn   = sp3altrn
+        self.sp3types   = sp3types
+        self.otl_coeff  = otl_coeff
+        self.strict     = strict
+        self.apply_met  = apply_met
+        self.out        = ''
+        self.summary    = ''
+        self.pos        = ''
 
         fieldnames = ['NetworkCode', 'StationCode', 'X', 'Y', 'Z', 'Year', 'DOY', 'ReferenceFrame', 'sigmax', 'sigmay',
                       'sigmaz', 'sigmaxy', 'sigmaxz', 'sigmayz', 'hash']
@@ -190,233 +220,332 @@ class RunPPP(PPPSpatialCheck):
                 # could not create production dir! FATAL
                 raise
 
-            self.config_session(self.options, sp3types, sp3altrn)
+            try:
+                self.get_orbits(self.sp3types)
+
+            except (pySp3.pySp3Exception, pyClk.pyClkException, pyEOP.pyEOPException):
+
+                if sp3altrn:
+                    self.get_orbits(self.sp3altrn)
+                else:
+                    raise
+
+            self.write_otl()
+            self.copyfiles()
+            self.config_session()
+
+            # make a local copy of the rinex file
+            # decimate the rinex file if the interval is < 15 sec.
+            if self.rinex.interval < 15:
+                self.rinex.decimate(30)
+
+            copyfile(self.rinex.rinex_path, os.path.join(self.rootdir, self.rinex.rinex))
 
         else:
             raise pyRunPPPException('The file ' + self.rinex.rinex_path + ' could not be found. PPP was not executed.')
 
         return
 
-    def config_session(self, options, sp3types, sp3altrn):
+    def copyfiles(self):
+        # prepare all the files required to run PPP
+        if self.apply_met:
+            copyfile(os.path.join(self.ppp_path, 'gpsppp.met'), os.path.join(self.rootdir, 'gpsppp.met'))
 
-        # make a local copy of the rinex file
-        # decimate the rinex file if the interval is < 15 sec.
-        if self.rinex.interval < 15:
-            self.rinex.decimate(30)
+        copyfile(os.path.join(self.ppp_path, 'gpsppp.stc'), os.path.join(self.rootdir, 'gpsppp.stc'))
+        copyfile(os.path.join(self.ppp_path, 'gpsppp.svb_gps_yrly'), os.path.join(self.rootdir, 'gpsppp.svb_gps_yrly'))
+        copyfile(os.path.join(self.ppp_path, 'gpsppp.flt'), os.path.join(self.rootdir, 'gpsppp.flt'))
+        copyfile(os.path.join(self.ppp_path, 'gpsppp.stc'), os.path.join(self.rootdir, 'gpsppp.stc'))
+        copyfile(os.path.join(self.options['atx']), os.path.join(self.rootdir, self.options['atx'].split('/')[-1]))
 
-        copyfile(self.rinex.rinex_path, os.path.join(self.rootdir, self.rinex.rinex))
+        return
 
-        try:
-            orbit1 = pySp3.GetSp3Orbits(options['sp3'],self.rinex.date,sp3types,os.path.join(self.rootdir,'orbits'),True)
-            orbit2 = pySp3.GetSp3Orbits(options['sp3'],self.rinex.date+1,sp3types,os.path.join(self.rootdir,'orbits'),True)
-            clock1 = pyClk.GetClkFile(options['sp3'],self.rinex.date,sp3types,os.path.join(self.rootdir,'orbits'),True)
-            clock2 = pyClk.GetClkFile(options['sp3'],self.rinex.date+1,sp3types,os.path.join(self.rootdir,'orbits'),True)
-            eop_file = pyEOP.GetEOP(options['sp3'],self.rinex.date,sp3types,self.rootdir)
-        except pySp3.pySp3Exception:
-            if sp3altrn:
-                # maybe orbit file was not found. Switch to alternative orbits
-                orbit1 = pySp3.GetSp3Orbits(options['sp3'], self.rinex.date, sp3altrn, os.path.join(self.rootdir, 'orbits'),True)
-                orbit2 = pySp3.GetSp3Orbits(options['sp3'], self.rinex.date + 1, sp3altrn, os.path.join(self.rootdir, 'orbits'), True)
-                clock1 = pyClk.GetClkFile(options['sp3'], self.rinex.date, sp3altrn, os.path.join(self.rootdir, 'orbits'), True)
-                clock2 = pyClk.GetClkFile(options['sp3'], self.rinex.date + 1, sp3altrn,os.path.join(self.rootdir, 'orbits'), True)
-                eop_file = pyEOP.GetEOP(options['sp3'], self.rinex.date, sp3altrn, self.rootdir)
-            else:
-                raise
-        except:
-            raise
+    def write_otl(self):
 
         otl_file = open(os.path.join(self.rootdir, self.rinex.StationCode + '.olc'), 'w')
         otl_file.write(self.otl_coeff)
         otl_file.close()
 
-        # create the def file
-        def_file = open(os.path.join(self.rootdir,'gpsppp.def'),'w')
+        return
 
-        def_file_cont = \
-        """'LNG' 'ENGLISH'
-'TRF' 'gpsppp.trf'
-'SVB' 'gpsppp.svb_gps_yrly'
-'PCV' '%s'
-'FLT' 'gpsppp.flt'
-'OLC' '%s.olc'
-'MET' 'gpsppp.met'
-'ERP' '%s'
-'GSD' '%s'
-'GSD' '%s'
-        """ % (options['atx'].split('/')[-1],self.rinex.StationCode, eop_file.eop_filename, options['institution'], options['info'])
+    def config_session(self):
+
+        options = self.options
+
+        # create the def file
+        def_file = open(os.path.join(self.rootdir,'gpsppp.def'), 'w')
+
+        def_file_cont = ("'LNG' 'ENGLISH'\n"
+                         "'TRF' 'gpsppp.trf'\n"
+                         "'SVB' 'gpsppp.svb_gps_yrly'\n"
+                         "'PCV' '%s'\n"
+                         "'FLT' 'gpsppp.flt'\n"
+                         "'OLC' '%s.olc'\n"
+                         "'MET' 'gpsppp.met'\n"
+                         "'ERP' '%s'\n"
+                         "'GSD' '%s'\n"
+                         "'GSD' '%s'\n"
+                         % (options['atx'].split('/')[-1],
+                            self.rinex.StationCode,
+                            self.eop_file,
+                            options['institution'],
+                            options['info']))
 
         def_file.write(def_file_cont)
         def_file.close()
 
-        cmd_file = open(os.path.join(self.rootdir,'commands.cmd'),'w')
+        cmd_file = open(os.path.join(self.rootdir,'commands.cmd'), 'w')
 
-        if self.kinematic:
-            kin = '2'
-        else:
-            kin = '1'
-
-        cmd_file_cont = \
-        """' UT DAYS OBSERVED                      (1-45)'               1
-' USER DYNAMICS         (1=STATIC,2=KINEMATIC)'               %s
-' OBSERVATION TO PROCESS         (1=COD,2=C&P)'               2
-' FREQUENCY TO PROCESS        (1=L1,2=L2,3=L3)'               3
-' SATELLITE EPHEMERIS INPUT     (1=BRD ,2=SP3)'               2
-' SATELLITE PRODUCT (1=NO,2=Prc,3=RTCA,4=RTCM)'               2
-' SATELLITE CLOCK INTERPOLATION   (1=NO,2=YES)'               1
-' IONOSPHERIC GRID INPUT          (1=NO,2=YES)'               1
-' SOLVE STATION COORDINATES       (1=NO,2=YES)'               2
-' SOLVE TROP. (1=NO,2-5=RW MM/HR) (+100=grad) '             105
-' BACKWARD SUBSTITUTION           (1=NO,2=YES)'               1
-' REFERENCE SYSTEM            (1=NAD83,2=ITRF)'               2
-' COORDINATE SYSTEM(1=ELLIPSOIDAL,2=CARTESIAN)'               2
-' A-PRIORI PSEUDORANGE SIGMA               (m)'           2.000
-' A-PRIORI CARRIER PHASE SIGMA             (m)'            .015
-' LATITUDE  (ddmmss.sss,+N) or ECEF X      (m)'          0.0000
-' LONGITUDE (ddmmss.sss,+E) or ECEF Y      (m)'          0.0000
-' HEIGHT (m)                or ECEF Z      (m)'          0.0000
-' ANTENNA HEIGHT                           (m)'          %s
-' CUTOFF ELEVATION                       (deg)'          10.000
-' GDOP CUTOFF                                 '          20.000
-        """ % (kin, self.antH)
+        cmd_file_cont = ("' UT DAYS OBSERVED                      (1-45)'               1\n"
+                         "' USER DYNAMICS         (1=STATIC,2=KINEMATIC)'               %s\n"
+                         "' OBSERVATION TO PROCESS         (1=COD,2=C&P)'               2\n"
+                         "' FREQUENCY TO PROCESS        (1=L1,2=L2,3=L3)'               3\n"
+                         "' SATELLITE EPHEMERIS INPUT     (1=BRD ,2=SP3)'               2\n"
+                         "' SATELLITE PRODUCT (1=NO,2=Prc,3=RTCA,4=RTCM)'               2\n"
+                         "' SATELLITE CLOCK INTERPOLATION   (1=NO,2=YES)'               %s\n"
+                         "' IONOSPHERIC GRID INPUT          (1=NO,2=YES)'               1\n"
+                         "' SOLVE STATION COORDINATES       (1=NO,2=YES)'               2\n"
+                         "' SOLVE TROP. (1=NO,2-5=RW MM/HR) (+100=grad) '             105\n"
+                         "' BACKWARD SUBSTITUTION           (1=NO,2=YES)'               1\n"
+                         "' REFERENCE SYSTEM            (1=NAD83,2=ITRF)'               2\n"
+                         "' COORDINATE SYSTEM(1=ELLIPSOIDAL,2=CARTESIAN)'               2\n"
+                         "' A-PRIORI PSEUDORANGE SIGMA               (m)'           2.000\n"
+                         "' A-PRIORI CARRIER PHASE SIGMA             (m)'           0.015\n"
+                         "' LATITUDE  (ddmmss.sss,+N) or ECEF X      (m)'          0.0000\n"
+                         "' LONGITUDE (ddmmss.sss,+E) or ECEF Y      (m)'          0.0000\n"
+                         "' HEIGHT (m)                or ECEF Z      (m)'          0.0000\n"
+                         "' ANTENNA HEIGHT                           (m)'          %6.4f\n"
+                         "' CUTOFF ELEVATION                       (deg)'          10.000\n"
+                         "' GDOP CUTOFF                                 '          20.000\n"
+                         % ('1' if not self.kinematic else '2', '1' if not self.clock_interpolation else '2', self.antH))
 
         cmd_file.write(cmd_file_cont)
+
         cmd_file.close()
 
         inp_file = open(os.path.join(self.rootdir, 'input.inp'), 'w')
-        inp_file_cont = \
-            """%s
-commands.cmd
-0 0
-0 0
-orbits/%s
-orbits/%s
-orbits/%s
-orbits/%s
-            """ % (self.rinex.rinex, orbit1.sp3_filename, clock1.clk_filename, orbit2.sp3_filename, clock2.clk_filename)
+
+        inp_file_cont = ("%s\n"
+            "commands.cmd\n"
+            "0 0\n"
+            "0 0\n"
+            "orbits/%s\n"
+            "orbits/%s\n"
+            "orbits/%s\n"
+            "orbits/%s\n"
+            % (self.rinex.rinex,
+               self.orbits1.sp3_filename,
+               self.clocks1.clk_filename,
+               self.orbits2.sp3_filename,
+               self.clocks2.clk_filename))
+
         inp_file.write(inp_file_cont)
+
         inp_file.close()
-
-        #run_script = open(os.path.join(self.rootdir, 'run.sh'), 'w')
-        #run_script.write('#!/bin/bash\n')
-        #run_script.write(self.ppp + ' < input.inp\n')
-        #run_script.close()
-
-        # prepare all the files required to run PPP
-        try:
-            if self.apply_met:
-                copyfile(os.path.join(self.ppp_path, 'gpsppp.met'), os.path.join(self.rootdir, 'gpsppp.met'))
-
-            copyfile(os.path.join(self.ppp_path, 'gpsppp.stc'), os.path.join(self.rootdir, 'gpsppp.stc'))
-            copyfile(os.path.join(self.ppp_path, 'gpsppp.svb_gps_yrly'), os.path.join(self.rootdir, 'gpsppp.svb_gps_yrly'))
-            copyfile(os.path.join(self.ppp_path, 'gpsppp.flt'), os.path.join(self.rootdir, 'gpsppp.flt'))
-            copyfile(os.path.join(self.ppp_path, 'gpsppp.stc'), os.path.join(self.rootdir, 'gpsppp.stc'))
-            copyfile(os.path.join(options['atx']), os.path.join(self.rootdir, options['atx'].split('/')[-1]))
-
-        except:
-            raise
 
         return
 
-    def parse_summary(self):
+    def get_orbits(self, type):
 
-        coord_est = []
-        sigma_cor = []
-        lcount = 0
-        read_cartesian = False
-        read_sigmas = False
+        options = self.options
+
+        orbits1 = pySp3.GetSp3Orbits(options['sp3'],self.rinex.date, type, os.path.join(self.rootdir,'orbits'),True)
+        orbits2 = pySp3.GetSp3Orbits(options['sp3'],self.rinex.date+1, type, os.path.join(self.rootdir,'orbits'),True)
+
+        clocks1 = pyClk.GetClkFile(options['sp3'],self.rinex.date, type, os.path.join(self.rootdir,'orbits'),True)
+        clocks2 = pyClk.GetClkFile(options['sp3'],self.rinex.date+1, type, os.path.join(self.rootdir,'orbits'),True)
+
+        try:
+            eop_file = pyEOP.GetEOP(options['sp3'],self.rinex.date, type, self.rootdir)
+            eop_file = eop_file.eop_filename
+        except pyEOP.pyEOPException:
+            # no eop, continue with out one
+            eop_file = 'dummy.eop'
+
+        self.orbits1 = orbits1
+        self.orbits2 = orbits2
+        self.clocks1 = clocks1
+        self.clocks2 = clocks2
+        self.eop_file = eop_file
+        # get the type of orbit
+        self.orbit_type = orbits1.type
+
+    def get_text(self, summary, start, end):
+        copy = False
+
+        if type(summary) is str:
+            summary = summary.split('\n')
+
+        out = []
+        for line in summary:
+            if start in line.strip():
+                copy = True
+            elif end in line.strip():
+                copy = False
+            elif copy:
+                out += [line]
+
+        return '\n'.join(out)
+
+    @staticmethod
+    def get_xyz(section):
+
+        x = re.findall('X\s\(m\)\s+(-?\d+\.\d+|[nN]a[nN]|\*+)\s+(-?\d+\.\d+|[nN]a[nN]|\*+)', section)[0][1]
+        y = re.findall('Y\s\(m\)\s+(-?\d+\.\d+|[nN]a[nN]|\*+)\s+(-?\d+\.\d+|[nN]a[nN]|\*+)', section)[0][1]
+        z = re.findall('Z\s\(m\)\s+(-?\d+\.\d+|[nN]a[nN]|\*+)\s+(-?\d+\.\d+|[nN]a[nN]|\*+)', section)[0][1]
+
+        if '*' not in x and '*' not in y and '*' not in z:
+            x = float(x)
+            y = float(y)
+            z = float(z)
+        else:
+            raise pyRunPPPExceptionNaN('One or more coordinate is NaN')
+
+        if isnan(x) or isnan(y) or isnan(z):
+            raise pyRunPPPExceptionNaN('One or more coordinate is NaN')
+
+        return x, y, z
+
+    @staticmethod
+    def get_sigmas(section, kinematic):
+
+        if kinematic:
+
+            sx = re.findall('X\s\(m\)\s+-?\d+\.\d+\s+-?\d+\.\d+\s+(-?\d+\.\d+|[nN]a[nN]|\*+)', section)[0]
+            sy = re.findall('Y\s\(m\)\s+-?\d+\.\d+\s+-?\d+\.\d+\s+(-?\d+\.\d+|[nN]a[nN]|\*+)', section)[0]
+            sz = re.findall('Z\s\(m\)\s+-?\d+\.\d+\s+-?\d+\.\d+\s+(-?\d+\.\d+|[nN]a[nN]|\*+)', section)[0]
+
+            if '*' not in sx and '*' not in sy and '*' not in sz:
+                sx = float(sx)
+                sy = float(sy)
+                sz = float(sz)
+                sxy = 0.0
+                sxz = 0.0
+                syz = 0.0
+            else:
+                raise pyRunPPPExceptionNaN('One or more sigma is NaN')
+
+        else:
+            sx, sxy, sxz = re.findall('X\(m\)\s+(-?\d+\.\d+|[nN]a[nN]|\*+)\s+(-?\d+\.\d+|[nN]a[nN]|\*+)\s+(-?\d+\.\d+|[nN]a[nN]|\*+)', section)[0]
+            sy, syz      = re.findall('Y\(m\)\s+(-?\d+\.\d+|[nN]a[nN]|\*+)\s+(-?\d+\.\d+|[nN]a[nN]|\*+)', section)[0]
+            sz           = re.findall('Z\(m\)\s+(-?\d+\.\d+|[nN]a[nN]|\*+)', section)[0]
+
+            if '*' in sx or '*' in sy or '*' in sz or '*' in sxy or '*' in sxz or '*' in syz:
+                raise pyRunPPPExceptionNaN('One or more sigma is NaN')
+            else:
+                sx = float(sx)
+                sy = float(sy)
+                sz = float(sz)
+                sxy = float(sxy)
+                sxz = float(sxz)
+                syz = float(syz)
+
+        if isnan(sx) or isnan(sy) or isnan(sz) or isnan(sxy) or isnan(sxz) or isnan(syz):
+            raise pyRunPPPExceptionNaN('One or more sigma is NaN')
+
+        return sx, sy, sz, sxy, sxz, syz
+
+    @staticmethod
+    def get_pr_observations(section, kinematic):
+
+        processed = re.findall('Number of epochs processed\s+\:\s+(\d+)', section)[0]
+
+        if kinematic:
+            rejected = re.findall('Number of epochs rejected\s+\:\s+(\d+)', section)
+
+            if len(rejected) > 0:
+                rejected = int(rejected[0])
+            else:
+                rejected = 0
+        else:
+            #processed = re.findall('Number of observations processed\s+\:\s+(\d+)', section)[0]
+
+            rejected = re.findall('Number of observations rejected\s+\:\s+(\d+)', section)
+
+            if len(rejected) > 0:
+                rejected = int(rejected[0])
+            else:
+                rejected = 0
+
+        return int(processed), int(rejected)
+
+    @staticmethod
+    def check_phase_center(section):
+
+        if len(re.findall('Antenna phase center.+NOT AVAILABLE', section)) > 0:
+            return False
+        else:
+            return True
+
+    @staticmethod
+    def check_otl(section):
+
+        if len(re.findall('Ocean loading coefficients.+NOT FOUND', section)) > 0:
+            return False
+        else:
+            return True
+
+    @staticmethod
+    def check_eop(section):
+        pole = re.findall('Pole X\s+.\s+(-?\d+\.\d+|nan)\s+(-?\d+\.\d+|nan)', section)
+        if len(pole) > 0:
+            if 'nan' not in pole[0]:
+                return True
+            else:
+                return False
+        else:
+            return True
+
+    @staticmethod
+    def get_frame(section):
+        return re.findall('\s+ITRF\s\((\s*\w+\s*)\)', section)[0].strip()
+
+    def parse_summary(self):
 
         self.summary = ''.join(self.out)
 
-        for line in self.out:
+        self.file_summary = self.get_text(self.summary, 'SECTION 1.', 'SECTION 2.')
+        self.proc_parameters = self.get_text(self.summary, 'SECTION 2. ', ' SECTION 3. ')
+        self.observation_session = self.get_text(self.summary, '3.2 Observation Session', '3.3 Coordinate estimates')
+        self.coordinate_estimate = self.get_text(self.summary, '3.3 Coordinate estimates', '3.4 Coordinate differences ITRF')
 
-            if ' 3.3 Coordinate estimates' in line or lcount > 0:
-                lcount += 1
-                if 'CARTESIAN' in line or read_cartesian:
-                    read_cartesian = True
-                    coord_est.append(line.strip())
-                if 'SIGMA/CORRELATIONS' in line or read_sigmas:
-                    read_sigmas = True
-                    read_cartesian = False
-                    sigma_cor.append(line.strip())
-                if 'ELLIPSOIDAL' in line:
-                    break
+        if self.strict and not self.check_phase_center(self.proc_parameters):
+            raise pyRunPPPException(
+                'Error while running PPP: could not find the antenna and radome in antex file. Check RINEX header for formatting issues in the ANT # / TYPE field. RINEX header follows:\n' + ''.join(
+                    self.rinex.get_header()))
 
-        # read coordinates and sigmas
-        for line in coord_est:
-            if 'ITRF (' in line:
-                # extract the RF of the solution
-                self.frame = find_between(line, 'ITRF (', 'Sigma(m)').strip().replace(')', '').strip()
-            if 'X (m)' in line:
-                self.x = float(line.split()[3])
-                self.sigmax = float(line.split()[4])
-            if 'Y (m)' in line:
-                self.y = float(line.split()[3])
-                self.sigmay = float(line.split()[4])
-            if 'Z (m)' in line:
-                self.z = float(line.split()[3])
-                self.sigmaz = float(line.split()[4])
-                break
+        if self.strict and not self.check_otl(self.proc_parameters):
+            raise pyRunPPPException(
+                'Error while running PPP: could not find the OTL coefficients. Check RINEX header for formatting issues in the APPROX ANT POSITION field')
 
-        # read the correlation values
-        for line in sigma_cor:
-            if 'X(m)' in line and 'Y(m)' not in line:
-                self.sigmaxy = float(line.split()[2])
-                self.sigmaxz = float(line.split()[3])
-            if 'Y(m)' in line and 'X(m)' not in line:
-                self.sigmayz = float(line.split()[2])
+        if not self.check_eop(self.file_summary):
+            raise pyRunPPPExceptionEOPError('EOP returned NaN in Pole XYZ.')
 
-        proc_obs = 0
-        reje_obs = 0
-        for line in self.out:
-            if ' 2.3 Antenna phase center (APC) offsets - MM             NOT AVAILABLE' in line and self.strict:
-                raise pyRunPPPException('Error while running PPP: could not find the antenna and radome in antex file. Check RINEX header for formatting issues in the ANT # / TYPE field. RINEX header follows:\n' + ''.join(self.rinex.get_header()))
+        # parse rejected and accepted observations
+        self.processed_obs, self.rejected_obs = self.get_pr_observations(self.observation_session, self.kinematic)
 
-            if ' 2.5 Ocean loading coefficients                           NOT FOUND' in line and self.strict:
-                raise  pyRunPPPException('Error while running PPP: could not find the OTL coefficients. Check RINEX header for formatting issues in the APPROX ANT POSITION field')
+        if self.processed_obs == 0:
+            raise pyRunPPPExceptionZeroProcEpochs('PPP returned zero processed epochs')
 
-            if 'Number of observations processed  :' in line:
-                proc_obs = float(find_between(line,'Number of observations processed  :','GPS').strip())
+        #if self.strict and (self.processed_obs == 0 or self.rejected_obs > 0.95 * self.processed_obs):
+        #    raise pyRunPPPExceptionTooFewAcceptedObs('The processed observations (' + str(self.processed_obs) +
+        #                                             ') is zero or more than 95% of the observations were rejected (' +
+        #                                             str(self.rejected_obs) + ')')
 
-            if 'Number of observations rejected   :' in line:
-                reje_obs = float(find_between(line,'Number of observations rejected   :','GPS').strip())
+        self.frame = self.get_frame(self.coordinate_estimate)
 
-        if (proc_obs == 0 or proc_obs < reje_obs * 0.1) and self.strict:
-            return False, (proc_obs,reje_obs)
+        self.x, self.y, self.z = self.get_xyz(self.coordinate_estimate)
 
-        if isnan(self.x) or isnan(self.y) or isnan(self.z):
-            # sometimes, the summary file comes with NaNs in the X Y Z coordinates but the pos files did actually converge
-            # try to open the pos file and parse the last line in the file
-            try:
-                position = self.pos[-1]
-                xyz = position[193:].split()
-                self.x = float(xyz[0])
-                self.y = float(xyz[1])
-                self.z = float(xyz[2])
-            except Exception:
-                return False, (None, None)
+        self.sigmax, self.sigmay, self.sigmaz, \
+        self.sigmaxy, self.sigmaxz, self.sigmayz = self.get_sigmas(self.coordinate_estimate, self.kinematic)
 
-        if self.kinematic:
-            # no covariance information in kinematic mode
-            if isnan(self.sigmax) or isnan(self.sigmay) or isnan(self.sigmaz):
-                return False, (None, None)
-        else:
-            if isnan(self.sigmax) or isnan(self.sigmay) or isnan(self.sigmaz) \
-                    or isnan(self.sigmaxy) or isnan(self.sigmaxz) or isnan(self.sigmayz):
-                return False, (None, None)
-
-        return True, (None, None)
 
     def __exec_ppp__(self, raise_error=True):
 
-        # make the script executable
-        #os.system('chmod +x ' + os.path.join(self.rootdir, 'run.sh'))
-        #cmd = pyRunWithRetry.RunCommand('./run.sh', 45, self.rootdir)
-
-        cmd = pyRunWithRetry.RunCommand(self.ppp, 45, self.rootdir, 'input.inp')
         try:
             # DDG: handle the error found in PPP (happens every now and then)
             # Fortran runtime error: End of file
             for i in range(2):
+                cmd = pyRunWithRetry.RunCommand(self.ppp, 45, self.rootdir, 'input.inp')
                 out, err = cmd.run_shell()
 
                 if not '*END - NORMAL COMPLETION' in out:
@@ -448,53 +577,51 @@ orbits/%s
                 return False, msg
         except IOError as e:
             raise pyRunPPPException(e)
-        except:
-            raise
 
         return True, ''
 
     def exec_ppp(self):
 
-        sucess = False
-        proc_obs = (None, None)
+        while True:
+            # execute PPP but do not raise an error if timed out
+            result, message = self.__exec_ppp__(False)
 
-        if self.sp3altrn:
-            for i in range(2):
-                # execute PPP but do not raise an error if timed out
-                result, message = self.__exec_ppp__(False)
+            if result:
+                try:
+                    self.parse_summary()
+                    break
 
-                if result:
-                    # parse the output from the summary file
-                    sucess, proc_obs = self.parse_summary()
+                except pyRunPPPExceptionEOPError:
+                    # problem with EOP!
+                    if self.eop_file != 'dummy.eop':
+                        self.eop_file = 'dummy.eop'
+                        self.config_session()
+                    else:
+                        raise
 
-                    if sucess:
-                        break
-                    elif not sucess and i == 0:
-                        self.config_session(self.options, self.sp3altrn, None)
-                elif not result and i == 0:
-                    # when a timeout happens, tries to rerun PPP using the alternative orbits
-                    self.config_session(self.options, self.sp3altrn, None)
-                elif not result and i == 1:
-                    # execution with alternative orbits, still result = False
-                    raise pyRunPPPException(message + ' - principal and alternative orbits.')
-        else:
-            self.__exec_ppp__(True)
-            sucess, proc_obs = self.parse_summary()
-
-        if not sucess and not proc_obs[0]:
-            if self.sp3altrn:
-                raise pyRunPPPException('PPP returned invalid numbers for the coordinates/sigmas of the station after trying with both principal and the alternative orbits.')
+                except (pyRunPPPExceptionNaN, pyRunPPPExceptionTooFewAcceptedObs, pyRunPPPExceptionZeroProcEpochs):
+                    # Nan in the result
+                    if not self.kinematic:
+                        # first retry, turn to kinematic mode
+                        self.kinematic = True
+                        self.config_session()
+                    elif self.kinematic and self.sp3altrn and self.orbit_type not in self.sp3altrn:
+                        # second retry, kinematic and alternative orbits (if exist)
+                        self.get_orbits(self.sp3altrn)
+                        self.config_session()
+                    else:
+                        # it didn't work in kinematic mode either! raise error
+                        raise
             else:
-                raise pyRunPPPException('PPP returned invalid numbers for the coordinates/sigmas of the station (no alternative orbit types specified.)')
-        elif not sucess and proc_obs[0]:
-            if self.sp3altrn:
-                raise pyRunPPPException('The processed observations (' + str(proc_obs[0]) + ') is zero or < 10 % of rejected observations (' + str(proc_obs[1]) + ')! Both principal and alternative orbits used. No coordinates were returned.')
-            else:
-                raise pyRunPPPException('The processed observations (' + str(proc_obs[0]) + ') is zero or < 10 % of rejected observations (' + str(proc_obs[1]) + ')! No alternative orbits specified. No coordinates were returned.')
-        else:
-            # load the database record dictionary
-            self.load_record()
-            self.lat, self.lon, self.h = self.ecef2lla([self.x, self.y, self.z])
+                # maybe a bad orbit, fall back to alternative
+                if self.sp3altrn and self.orbit_type not in self.sp3altrn:
+                    self.get_orbits(self.sp3altrn)
+                    self.config_session()
+                else:
+                    raise pyRunPPPException(message)
+
+        self.load_record()
+        self.lat, self.lon, self.h = ecef2lla([self.x, self.y, self.z])
 
         return
 
@@ -517,39 +644,6 @@ orbits/%s
         self.record['hash']    = self.hash
 
         return
-
-    def ecef2lla(self, ecefArr):
-        # convert ECEF coordinates to LLA
-        # test data : test_coord = [2297292.91, 1016894.94, -5843939.62]
-        # expected result : -66.8765400174 23.876539914 999.998386689
-
-        x = float(ecefArr[0])
-        y = float(ecefArr[1])
-        z = float(ecefArr[2])
-
-        a = 6378137
-        e = 8.1819190842622e-2
-
-        asq = numpy.power(a, 2)
-        esq = numpy.power(e, 2)
-
-        b = numpy.sqrt(asq * (1 - esq))
-        bsq = numpy.power(b, 2)
-
-        ep = numpy.sqrt((asq - bsq) / bsq)
-        p = numpy.sqrt(numpy.power(x, 2) + numpy.power(y, 2))
-        th = numpy.arctan2(a * z, b * p)
-
-        lon = numpy.arctan2(y, x)
-        lat = numpy.arctan2((z + numpy.power(ep, 2) * b * numpy.power(numpy.sin(th), 3)),
-                            (p - esq * a * numpy.power(numpy.cos(th), 3)))
-        N = a / (numpy.sqrt(1 - esq * numpy.power(numpy.sin(lat), 2)))
-        alt = p / numpy.cos(lat) - N
-
-        lon = lon * 180 / numpy.pi
-        lat = lat * 180 / numpy.pi
-
-        return numpy.array([lat]), numpy.array([lon]), numpy.array([alt])
 
     def cleanup(self):
         if os.path.isdir(self.rootdir):

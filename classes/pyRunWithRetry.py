@@ -9,6 +9,7 @@ import pyEvents
 import subprocess
 import threading
 import time
+import platform
 
 class RunCommandWithRetryExeception(Exception):
     def __init__(self, value):
@@ -50,7 +51,7 @@ class command(threading.Thread):
                         continue
                     else:
                         print self.cmd
-                        raise OSError(str(e) + ' after 3 retries')
+                        raise OSError(str(e) + ' after 3 retries on node: ' + platform.node())
                 else:
                     print self.cmd
                     raise

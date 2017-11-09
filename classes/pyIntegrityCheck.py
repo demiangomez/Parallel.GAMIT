@@ -331,6 +331,34 @@ def StnInfoCheck(cnn, stnlist):
 
                             list_problems.append([ds2, de2, ds1, de1])
 
+            station_list_gaps = []
+            if len(stninfo.records) > 1:
+                # get gaps between stninfo records
+                for erecord, srecord in zip(stninfo.records[0:-1], stninfo.records[1:]):
+                    if not erecord['DateEnd']:
+                        continue
+
+                    sdate = pyDate.Date(datetime=srecord['DateStart'])
+                    edate = pyDate.Date(datetime=erecord['DateEnd'])
+
+                    if sdate != edate:
+                        count = cnn.query('SELECT count(*) as rcount FROM rinex_proc '
+                                          'WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND '
+                                          '"ObservationSTime" > \'%s\' AND "ObservationSTime" < \'%s\''
+                                          % (NetworkCode, StationCode,
+                                             edate.datetime().strftime('%Y-%m-%d %H:%M:%S'),
+                                             sdate.datetime().strftime('%Y-%m-%d %H:%M:%S'))).dictresult()[0]['rcount']
+                        if count != 0:
+                            d1 = sdate.datetime()
+                            d2 = edate.datetime()
+                            try:
+                                # superfluous check, but...
+                                stninfo = pyStationInfo.StationInfo(cnn, NetworkCode, StationCode, pyDate.Date(datetime=(d1 + (d2 - d1)/2)))
+                            except pyStationInfo.pyStationInfoException:
+                                ds1, de1 = stninfo.datetime2stninfodate(erecord['DateStart'], erecord['DateEnd'])
+                                ds2, de2 = stninfo.datetime2stninfodate(srecord['DateStart'], srecord['DateEnd'])
+                                station_list_gaps += [[count, [ds1, de1], [ds2, de2]]]
+
             # there should not be RINEX data outside the station info window
             rs = cnn.query('SELECT min("ObservationSTime") as first_obs, max("ObservationSTime") as last_obs FROM rinex_proc WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\'' % (NetworkCode, StationCode))
 
@@ -350,12 +378,20 @@ def StnInfoCheck(cnn, stnlist):
                     sys.stdout.write('There is one or more RINEX observation file(s) outside the last Session End -> RINEX: %s STNINFO: %s\n' % (d1.yyyyddd(), d2.yyyyddd()))
                     first_obs = True
 
+            if len(station_list_gaps) > 0:
+                for gap in station_list_gaps:
+                    sys.stdout.write('There is a gap with %s RINEX files between '
+                                     'the following station information records:\n%s -> %s\n%s -> %s\n' % (gap[0],
+                                                                                                          gap[1][0],
+                                                                                                          gap[1][1],
+                                                                                                          gap[2][0],
+                                                                                                          gap[2][1]))
             if len(list_problems) > 0:
                 list_problems = [record[0] + ' -> ' + record[1] + ' conflicts ' + record[2] + ' -> ' + record[3] for record in list_problems]
                 list_problems = '\n   '.join(list_problems)
                 sys.stdout.write('There are conflicting recods in the station information table for %s.%s.\n   %s\n' % (NetworkCode, StationCode, list_problems))
 
-            if len(empty_edata) > 1 or len(list_problems) > 0 or first_obs:
+            if len(empty_edata) > 1 or len(list_problems) > 0 or first_obs or len(station_list_gaps) > 0:
                 # only print a partial of the station info:
                 stninfo_lines = stninfo.return_stninfo().split('\n')
                 stninfo_lines = [' ' + NetworkCode.upper() + '.' + line[1:110] + ' [...] ' + line[160:] for line in stninfo_lines]
@@ -562,6 +598,21 @@ def RenameStation(cnn, NetworkCode, StationCode, DestNetworkCode, DestStationCod
         cnn.rollback_transac()
         raise
 
+def ExcludeSolutions(cnn, stnlist, start_date, end_date):
+    for stn in stnlist:
+        NetworkCode = stn['NetworkCode']
+        StationCode = stn['StationCode']
+
+        rs = cnn.query(
+            'SELECT * FROM ppp_soln WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' '
+            'AND "Year" || \' \' || "DOY" BETWEEN \'%s\' AND \'%s\'' %
+            (NetworkCode, StationCode, start_date.yyyyddd(), end_date.yyyyddd()))
+
+        ppp = rs.dictresult()
+        tqdm.write(' >> Inserting solutions in excluded table for station %s.%s' % (NetworkCode, StationCode))
+        for soln in tqdm(ppp):
+            cnn.insert('ppp_soln_excl', NetworkCode=NetworkCode, StationCode=StationCode, Year=soln['Year'], DOY=soln['DOY'])
+
 
 def main():
 
@@ -583,6 +634,7 @@ def main():
                                                          "It also changes the rinex filenames in the archive to match those of the new destiny station. "
                                                          "Only a single station can be given as the origin and destiny. "
                                                          "Limit the date range using the -d option.")
+    parser.add_argument('-es','--exclude_solutions', metavar=('{start_date}', '{end_date}'), nargs=2, help='Exclude PPP solutions (by adding them to the excluded table) between {start_date} and {end_date}')
     parser.add_argument('-np', '--noparallel', action='store_true', help="Execute command without parallelization.")
 
     args = parser.parse_args()
@@ -614,13 +666,10 @@ def main():
     # date filter
 
     dates = [pyDate.Date(year=1980, doy=1), pyDate.Date(year=2100, doy=1)]
-
-    if args.date_filter:
-        for i, arg in enumerate(args.date_filter):
-            try:
-                dates[i] = process_date(arg)
-            except Exception as e:
-                parser.error('Error while reading the date start/end parameters: ' + str(e) + '\n' + traceback.format_exc())
+    try:
+        dates = process_date(args.date_filter)
+    except ValueError as e:
+        parser.error(str(e))
 
     #####################################
 
@@ -647,6 +696,16 @@ def main():
 
     if args.spatial_coherence is not None:
         CheckSpatialCoherence(cnn, stnlist, dates[0], dates[1])
+
+    #####################################
+
+    if args.exclude_solutions is not None:
+        try:
+            dates = process_date(args.exclude_solutions)
+        except ValueError as e:
+            parser.error(str(e))
+
+        ExcludeSolutions(cnn, stnlist, dates[0], dates[1])
 
     #####################################
 

@@ -98,10 +98,10 @@ def test_node():
     list_of_prgs = ['crz2rnx', 'crx2rnx', 'rnx2crx', 'rnx2crz', 'RinSum', 'teqc', 'svdiff', 'svpos', 'tform', 'sh_rx2apr', 'doy', 'RinEdit']
 
     for prg in list_of_prgs:
-        run = pyRunWithRetry.command('which ' + prg)
-        run.run()
-        if run.stdout == '':
-            return ' -- %s: Could not find path to %s' % (platform.node(), prg)
+        with pyRunWithRetry.command('which ' + prg) as run:
+            run.run()
+            if run.stdout == '':
+                return ' -- %s: Could not find path to %s' % (platform.node(), prg)
 
     # check grdtab and ppp from the config file
     if not os.path.isfile(Config.options['grdtab']):

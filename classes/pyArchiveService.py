@@ -98,12 +98,13 @@ def error_handle(cnn, event, crinex, folder, filename, no_db_log=False):
 
     message = event['Description']
 
+    mfile = filename
     try:
-        Utils.move(crinex, os.path.join(folder, filename))
+        mfile = os.path.basename(Utils.move(crinex, os.path.join(folder, filename)))
     except OSError as e:
         message = 'could not move file into this folder!' + str(e) + '\n. Original error: ' + event['Description']
 
-    error_file = filename.replace('d.Z','.log')
+    error_file = mfile.replace('d.Z','.log')
     write_error(folder, error_file, message)
 
     if not no_db_log:
@@ -234,21 +235,26 @@ def process_crinex_file(crinex, filename, data_rejected, data_retry):
         stninfo.ReceiverSerial = rinexinfo.recNo
 
         # inflate the chi**2 limit to make sure it will pass (even if we get a crappy coordinate)
-        rinexinfo.auto_coord(brdc, chi_limit=20)
+        try:
+            rinexinfo.auto_coord(brdc, chi_limit=1000)
 
-        # normalize header to add the APR coordinate
-        rinexinfo.normalize_header(stninfo)
+            # normalize header to add the APR coordinate
+            rinexinfo.normalize_header(stninfo)
+        except pyRinex.pyRinexExceptionNoAutoCoord:
+            # could not determine an autonomous coordinate, try PPP anyways. 50% chance it will work
+            pass
 
-        ppp = pyPPP.RunPPP(rinexinfo, '', Config.options, Config.sp3types, Config.sp3altrn, rinexinfo.antOffset, False, False) # type: pyPPP.RunPPP
+        ppp = pyPPP.RunPPP(rinexinfo, '', Config.options, Config.sp3types, Config.sp3altrn, rinexinfo.antOffset, strict=False,apply_met=False, clock_interpolation=True) # type: pyPPP.RunPPP
 
         try:
             ppp.exec_ppp()
 
         except pyPPP.pyRunPPPException as ePPP:
 
-            # run again without inflating chi**2 (for better quality of answer)
+            # inflate the chi**2 limit to make sure it will pass (even if we get a crappy coordinate)
+            # if coordinate is TOO bad it will get kicked off by the unreasonable geodetic height
             try:
-                auto_coords_xyz, auto_coords_lla = rinexinfo.auto_coord(brdc)
+                auto_coords_xyz, auto_coords_lla = rinexinfo.auto_coord(brdc, chi_limit=1000)
 
             except pyRinex.pyRinexExceptionNoAutoCoord as e:
                 # catch pyRinexExceptionNoAutoCoord and convert it into a pyRunPPPException
@@ -613,6 +619,7 @@ def main():
     # bind to the repository directory
     parser = argparse.ArgumentParser(description='Archive operations Main Program')
 
+    parser.add_argument('-purge', '--purge_locks', action='store_true', help="Delete any network starting with '?' from the stations table and purge the contents of the locks table, deleting the associated files from data_in.")
     parser.add_argument('-np', '--noparallel', action='store_true', help="Execute command without parallelization.")
 
     args = parser.parse_args()
@@ -648,17 +655,43 @@ def main():
     if not os.path.isdir(data_reject):
         os.makedirs(data_reject)
 
+
+    # delete any locks with a NetworkCode != '?%'
+    cnn.query('delete from locks where "NetworkCode" not like \'?%\'')
+    # get the locks to avoid reprocessing files that had no metadata in the database
+    locks = cnn.query('SELECT * FROM locks')
+    locks = locks.dictresult()
+
+    if args.purge_locks:
+        # first, delete all associated files
+        for lock in tqdm(locks, ncols=160, unit='crz', desc='%-30s' % ' >> Purging locks'):
+            try:
+                os.remove(lock['filename'])
+            except Exception:
+                sys.exc_clear()
+        # purge the contents of stations. This will automatically purge the locks table
+        cnn.query('delete from stations where "NetworkCode" like \'?%\'')
+        # purge the networks
+        cnn.query('delete from networks where "NetworkCode" like \'?%\'')
+        # purge the locks already taken care of (just in case)
+        cnn.query('delete from locks where "NetworkCode" not like \'?%\'')
+        # get the locks to avoid reprocessing files that had no metadata in the database
+        locks = cnn.query('SELECT * FROM locks')
+        locks = locks.dictresult()
+
+
+
     # look for data in the data_in_retry and move it to data_in
 
     archive = pyArchiveStruct.RinexStruct(cnn)
 
-    pbar = tqdm(desc=' >> Scanning data_in_retry    ', ncols=160, unit='CRZ')
+    pbar = tqdm(desc='%-30s' % ' >> Scanning data_in_retry', ncols=160, unit='crz')
 
     rfiles, paths, _ = archive.scan_archive_struct(data_in_retry, pbar)
 
     pbar.close()
 
-    pbar = tqdm(desc=' -- Moving files to data_in   ', total=len(rfiles), ncols=160, unit='CRZ')
+    pbar = tqdm(desc='%-30s' % ' -- Moving files to data_in', total=len(rfiles), ncols=160, unit='crz')
 
     for rfile, path in zip(rfiles, paths):
 
@@ -678,30 +711,22 @@ def main():
             sys.exc_clear()
 
     pbar.close()
-    tqdm.write(' -- Cleaning data_in_retry.')
+    tqdm.write(' -- Cleaning data_in_retry')
     remove_empty_folders(data_in_retry)
 
     # take a break to allow the FS to finish the task
     time.sleep(5)
 
-    # delete any locks with a NetworkCode != '?%'
-    cnn.query('delete from locks where "NetworkCode" not like \'?%\'')
-    # get the locks to avoid reprocessing files that had no metadata in the database
-    locks = cnn.query('SELECT * FROM locks')
-    locks = locks.dictresult()
-
     files_path = []
     files_list = []
 
-
-
-    pbar = tqdm(desc=' >> Repository recursive walk ', ncols=160, unit='CRZ')
+    pbar = tqdm(desc='%-30s' % ' >> Repository crinez scan', ncols=160)
 
     rpaths, _, files = archive.scan_archive_struct(data_in, pbar)
 
     pbar.close()
 
-    pbar = tqdm(desc=' -- Checking the locks table  ', total=len(files), ncols=160, unit='CRZ')
+    pbar = tqdm(desc='%-30s' % ' -- Checking the locks table', total=len(files), ncols=160, unit='crz')
 
     for file, path in zip(files, rpaths):
         pbar.set_postfix(CRINEX=file)
@@ -713,9 +738,9 @@ def main():
     pbar.close()
 
     tqdm.write(" -- Found %i files in the lock list..." % (len(locks)))
-    tqdm.write(" -- Found %i files to process..." % (len(files_list)))
+    tqdm.write(" -- Found %i files (matching format [stnm][doy][s].[yy]d.Z) to process..." % (len(files_list)))
 
-    pbar = tqdm(desc=' >> Processing repository     ', total=len(files_path), ncols=160, unit='CRZ')
+    pbar = tqdm(desc='%-30s' % ' >> Processing repository', total=len(files_path), ncols=160, unit='crz')
 
     # dependency functions
     depfuncs = (check_rinex_timespan_int, write_error, error_handle, insert_data, verify_rinex_multiday)

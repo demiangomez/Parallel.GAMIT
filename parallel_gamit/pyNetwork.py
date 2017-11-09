@@ -16,6 +16,9 @@ import sys
 import os
 import glob
 import re
+from scipy.spatial import ConvexHull
+from Utils import process_stnlist
+from Utils import print_columns
 
 NET_LIMIT    = 40
 MIN_CORE_NET = 10
@@ -31,71 +34,36 @@ class NetClass():
     def __init__(self, cnn, name, stations, year, doys, core=None):
         # the purpose of core is to avoid adding a station to a subnet that is already in the core
 
-        try:
-            self.Name = name.lower()
-            self.Stations = []
-            self.StrStns  = []
+        self.Name = name.lower()
+        self.Stations = []
+        self.StationList = []
 
-            # use the connection to the db to get the stations
-            for stn in tqdm(sorted(stations.lower().split(',')), ncols=80):
-                Stn = stn.strip()
-                # find the station
+        # use the connection to the db to get the stations
+        for Stn in tqdm(sorted(stations), ncols=80):
 
-                if '.' in Stn:
-                    # NetworkCode specified, no ambiguities
-                    NetworkCode = Stn.split('.')[0]
-                    StationCode = Stn.split('.')[1]
+            NetworkCode = Stn['NetworkCode']
+            StationCode = Stn['StationCode']
 
-                    rs = cnn.query('SELECT * FROM rinex WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "NetworkCode" not like \'?%%\'' % (NetworkCode, StationCode))
+            rs = cnn.query('SELECT * FROM rinex WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "ObservationYear" = %i AND "ObservationDOY" IN (%s)'
+                           % (NetworkCode, StationCode, year, ','.join([str(doy) for doy in doys])))
 
-                    if rs.ntuples() == 1:
-                        found = True
-                    else:
-                        tqdm.write(' -- %s -> %s: not found' % (self.Name, Stn))
-                        found = False
-                else:
-                    rs = cnn.query('SELECT * FROM stations WHERE "StationCode" = \'%s\' AND "NetworkCode" not like \'?%%\'' % (Stn))
+            if rs.ntuples() > 0:
+                if core:
+                    # if a core lists is present, and the station is in it, do not add it
+                    if Stn in core:
+                        continue
 
-                    if rs.ntuples() == 1:
-                        stntbl = rs.dictresult()[0]
+                tqdm.write(' -- %s -> %s.%s: adding...' % (self.Name, NetworkCode, StationCode))
+                try:
+                    self.Stations.append(Station(cnn, NetworkCode, StationCode))
+                    self.StationList.append({'NetworkCode': NetworkCode, 'StationCode': StationCode})
 
-                        NetworkCode = stntbl['NetworkCode']
-                        StationCode = stntbl['StationCode']
+                except pyPPPETMException:
+                    tqdm.write(' -- %s -> %s.%s: station exists, but there are no PPP solutions' % (self.Name, NetworkCode, StationCode))
+            else:
+                tqdm.write(' -- %s -> %s.%s: no data for requested time window' % (self.Name, NetworkCode, StationCode))
 
-                        found = True
-                    elif rs.ntuples() == 0:
-                        tqdm.write(' -- %s -> ___.%s: not found' % (self.Name, Stn))
-                        found = False
-                    else:
-                        raise NetworkException('Station %s had no assined network, but more than one station with that name was found in the database. Disambiguate using net.stnm format.'
-                                               % (Stn))
-
-                if found:
-                    rs = cnn.query('SELECT * FROM rinex WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "ObservationYear" = %i AND "ObservationDOY" IN (%s)'
-                                   % (NetworkCode, StationCode, year, ','.join([str(doy) for doy in doys])))
-
-                    if rs.ntuples() > 0:
-                        if core:
-                            # if a core lists is present, and the station is in it, do not add it
-                            if '%s.%s' % (NetworkCode, StationCode) in core:
-                                continue
-
-                        tqdm.write(' -- %s -> %s.%s: adding...' % (self.Name, NetworkCode, StationCode))
-                        try:
-                            self.Stations.append(Station(cnn, NetworkCode, StationCode))
-                            # make also a list of string values
-                            self.StrStns.append('%s.%s' % (NetworkCode, StationCode))
-                        except pyPPPETMException:
-                            tqdm.write(' -- %s -> %s.%s: station exists, but no PPP solutions for requested time window' % (self.Name, NetworkCode, StationCode))
-                    else:
-                        tqdm.write(' -- %s -> %s.%s: no data for requested time window' % (self.Name, NetworkCode,StationCode))
-
-                sys.stdout.flush()
-
-        except (KeyboardInterrupt, SystemExit):
-            raise
-        except:
-            raise
+            sys.stdout.flush()
 
         return
 
@@ -104,28 +72,74 @@ class Network():
 
     def __init__(self, cnn, NetworkConfig, year, doys):
 
-        try:
-            self.Name = NetworkConfig['network_id'].lower()
+        self.Name = NetworkConfig['network_id'].lower()
 
-            self.Core = NetClass(cnn, self.Name, NetworkConfig['stn_core'], year, doys)
+        stn_list = NetworkConfig['stn_list'].split(',')
 
-            self.Secondary = NetClass(cnn, self.Name + '.Secondary', NetworkConfig['stn_list'], year, doys, self.Core.StrStns)
+        # translate the station list to a dictionary with the actual Net.Stnm codes
+        stations = process_stnlist(cnn, stn_list)
+        # determine the core network by getting a convex hull and centroid
+        core_network = self.DetermineCoreNetwork(cnn, stations, year, doys)
 
-            # create a StationAlias if needed, if not, just assign StationCode
-            self.AllStations = []
-            for Station in self.Core.Stations + self.Secondary.Stations:
-                self.CheckStationCodes(Station)
-                if [Station.NetworkCode, Station.StationCode] not in [[stn['NetworkCode'], stn['StationCode']] for stn in self.AllStations]:
-                    self.AllStations.append({'NetworkCode': Station.NetworkCode, 'StationCode': Station.StationCode, 'StationAlias': Station.StationAlias})
+        self.Core = NetClass(cnn, self.Name, core_network, year, doys)
 
-            self.total_stations = len(self.Core.Stations) + len(self.Secondary.Stations)
+        self.Secondary = NetClass(cnn, self.Name + '.Secondary', stations, year, doys, self.Core.StationList)
 
-            sys.stdout.write('\n >> Total number of stations: %i (including core)\n\n' % (self.total_stations))
+        # create a StationAlias if needed, if not, just assign StationCode
+        self.AllStations = []
+        for Station in self.Core.Stations + self.Secondary.Stations:
+            self.CheckStationCodes(Station)
+            if [Station.NetworkCode, Station.StationCode] not in [[stn['NetworkCode'], stn['StationCode']] for stn in self.AllStations]:
+                self.AllStations.append({'NetworkCode': Station.NetworkCode, 'StationCode': Station.StationCode, 'StationAlias': Station.StationAlias})
 
-        except:
-            raise
+        self.total_stations = len(self.Core.Stations) + len(self.Secondary.Stations)
+
+        sys.stdout.write('\n >> Total number of stations: %i (including core)\n\n' % (self.total_stations))
 
         return
+
+    def DetermineCoreNetwork(self, cnn, StationList, year, doys):
+        # use ConvexHull to determine which stations should be part of the core network
+        tqdm.write(' >> Analyzing the station list of project %s to determine the core network...' % self.Name)
+
+        # build a list of coordinates to make a convex hull
+        # only include stations with observations for that year and DOYs
+        rs = cnn.query('SELECT DISTINCT lat, lon, s."NetworkCode", s."StationCode", r."NetworkCode" AS nn, r."StationCode" AS ss '
+                       'FROM stations as s LEFT JOIN rinex as r ON '
+                       's."NetworkCode" = r."NetworkCode" AND '
+                       's."StationCode" = r."StationCode" AND '
+                       'r."ObservationYear" = %i AND '
+                       'r."ObservationDOY" IN (%s) '
+                       'WHERE r."NetworkCode" is NOT NULL AND '
+                       's."NetworkCode" || \'.\' || s."StationCode" IN (\'%s\')' %
+                            (year,
+                                ','.join([str(doy) for doy in doys]),
+                                '\',\''.join([stn['NetworkCode'] + '.' + stn['StationCode'] for stn in StationList])))
+
+        StnCoords = rs.dictresult()
+
+        points = np.array([[float(stn['lat']), float(stn['lon'])] for stn in StnCoords])
+        StnNames = [[stn['NetworkCode'], stn['StationCode']] for stn in StnCoords]
+
+        # create a convex hull
+        hull = ConvexHull(points)
+
+        # build a list of the stations in the convex hull
+        core_network = [{'NetworkCode': StnNames[vertex][0], 'StationCode': StnNames[vertex][1]} for vertex in hull.vertices]
+
+        # also add the centroid of the figure
+        mean_ll = np.mean(points, axis=0)
+
+        # find the closest stations to the centroid
+        centroid = np.argmin(np.sum(np.abs(points-mean_ll),axis=1))
+        core_network += [{'NetworkCode': StnNames[centroid][0], 'StationCode': StnNames[centroid][1]}]
+
+        tqdm.write(' -- Done analyzing network. List of core stations follows: ')
+
+        print_columns([item['NetworkCode'] + '.' + item['StationCode'] for item in core_network])
+
+        return core_network
+
 
     def CreateGamitSessions(self, cnn, date, GamitConfig):
         """

@@ -29,28 +29,25 @@ class GetEOP(pyProducts.OrbitalProduct):
             self.eop_filename = sp3type + date.wwww() + '7.erp'
 
             try:
-                try:
-                    pyProducts.OrbitalProduct.__init__(self, sp3archive, date, self.eop_filename, copyto)
-                    self.eop_path = self.file_path
+                pyProducts.OrbitalProduct.__init__(self, sp3archive, date, self.eop_filename, copyto)
+                self.eop_path = self.file_path
 
-                except pyProducts.pyProductsExceptionUnreasonableDate:
-                    raise
+            except pyProducts.pyProductsExceptionUnreasonableDate:
+                raise
 
-                except pyProducts.pyProductsException:
-                    # rapid orbits do not have 7.erp, try wwwwd.erp
+            # rapid EOP files do not work in NRCAN PPP
+            #except pyProducts.pyProductsException:
+            #    # rapid orbits do not have 7.erp, try wwwwd.erp
 
-                    self.eop_filename = sp3type + date.wwwwd() + '.erp'
+            #    self.eop_filename = sp3type + date.wwwwd() + '.erp'
 
-                    pyProducts.OrbitalProduct.__init__(self, sp3archive, date, self.eop_filename, copyto)
-                    self.eop_path = self.file_path
+            #    pyProducts.OrbitalProduct.__init__(self, sp3archive, date, self.eop_filename, copyto)
+            #    self.eop_path = self.file_path
 
-                break
+            #break
             except pyProducts.pyProductsException:
                 # if the file was not found, go to next
                 pass
-            except:
-                # some other error, raise to parent
-                raise
 
         # if we get here and self.sp3_path is still none, then no type of sp3 file was found
         if self.eop_path is None:

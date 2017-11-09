@@ -80,7 +80,6 @@ class RinexStruct():
             self.cnn.begin_transac()
 
             try:
-                # insert the record in the db
                 self.cnn.insert('rinex', record)
 
                 if rinexobj is not None:
@@ -100,12 +99,12 @@ class RinexStruct():
                     if archived_rinex != rinexobj.rinex:
                         # update the table with the filename (always force with step)
                         self.cnn.query('UPDATE rinex SET "Filename" = \'%s\' '
-                                       'WHERE "NetworkCode" = \'%s\ '
+                                       'WHERE "NetworkCode" = \'%s\' '
                                        'AND "StationCode" = \'%s\' '
                                        'AND "ObservationYear" = %i '
                                        'AND "ObservationDOY" = %i '
                                        'AND "Interval" = %i '
-                                       'AND "Completion = %.3f'
+                                       'AND "Completion" = %.3f '
                                        'AND "Filename" = \'%s\'' %
                                        (archived_rinex,
                                         record['NetworkCode'],
@@ -130,14 +129,14 @@ class RinexStruct():
 
                 self.cnn.insert_event(event)
 
-            except Exception as e:
+            except Exception:
                 self.cnn.rollback_transac()
 
                 if rinexobj and copy_succeeded:
                     # transaction rolled back due to error. If file made into the archive, delete it.
                     os.remove(archived_crinex)
 
-                raise e
+                raise
 
             self.cnn.commit_transac()
 
@@ -293,6 +292,10 @@ class RinexStruct():
         fls = []
         for path, _, files in scandir.walk(rootdir):
             for file in files:
+                if progress_bar is not None:
+                    progress_bar.set_postfix(crinex=os.path.join(path,file).rsplit(rootdir+'/')[1])
+                    progress_bar.update()
+
                 # DDG issue #15: match the name of the file to a valid rinex filename
                 if self.parse_crinex_filename(file):
                     # only add valid rinex compressed files
@@ -300,9 +303,6 @@ class RinexStruct():
                     rnx.append(os.path.join(path,file).rsplit(rootdir+'/')[1])
                     path2rnx.append(os.path.join(path,file))
 
-                    if progress_bar is not None:
-                        progress_bar.set_postfix(CRINEX=rnx[-1])
-                        progress_bar.update()
                 else:
                     if file.endswith('DS_Store') or file[0:2] == '._':
                         # delete the stupid mac files
