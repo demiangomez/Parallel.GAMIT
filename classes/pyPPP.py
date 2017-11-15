@@ -7,7 +7,11 @@ Python wrapper for PPP. It runs the NRCAN PPP and loads the information from the
 database connection, except for PPPSpatialCheck
 
 """
-
+from shutil import copyfile
+from shutil import rmtree
+from Utils import lg2ct
+from Utils import ecef2lla
+from math import isnan
 import pyRinex
 import pyRunWithRetry
 import pySp3
@@ -15,14 +19,9 @@ import pyEOP
 import pyClk
 import os
 import uuid
-from shutil import copyfile
-from shutil import rmtree
-import numpy as np
-from Utils import lg2ct
+import numpy
 import pyEvents
 import re
-from math import isnan
-from Utils import ecef2lla
 
 
 def find_between(s, first, last):
@@ -544,7 +543,7 @@ class RunPPP(PPPSpatialCheck):
 
         # not implemented in PPP: apply NE offset if is NOT zero
         if self.rinex.antOffsetN != 0.0 or self.rinex.antOffsetE != 0.0:
-            dx, dy, dz = lg2ct(np.array(self.rinex.antOffsetN), np.array(self.rinex.antOffsetE), np.array([0]), self.lat, self.lon)
+            dx, dy, dz = lg2ct(numpy.array(self.rinex.antOffsetN), numpy.array(self.rinex.antOffsetE), numpy.array([0]), self.lat, self.lon)
             # reduce coordinates
             self.x -= dx[0]
             self.y -= dy[0]
@@ -566,7 +565,7 @@ class RunPPP(PPPSpatialCheck):
                         # error detected, try again!
                         continue
 
-                    msg = 'PPP ended abnormally for ' + self.rinex.rinex_path + ':\n' + err
+                    msg = 'PPP ended abnormally for ' + self.rinex.rinex_path + ':\n' + err + '\n' + out
                     if raise_error:
                         raise pyRunPPPException(msg)
                     else:

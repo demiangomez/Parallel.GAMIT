@@ -74,6 +74,8 @@ import pyOTL
 import pyStationInfo
 import sys
 import pySp3
+import pyBrdc
+import pyClk
 import pyPPP
 from tqdm import tqdm
 import argparse
@@ -315,27 +317,45 @@ def obtain_otl(NetworkCode, StationCode):
             # obtain the path to the crinex
             file = pyArchive.build_rinex_path(NetworkCode, StationCode, dbRinex['ObservationYear'],
                                               dbRinex['ObservationDOY'])
-            # read the crinex
-            try:
-                with pyRinex.ReadRinex(dbRinex['NetworkCode'], dbRinex['StationCode'],
-                                          os.path.join(Config.archive_path, file)) as Rinex:
 
-                    # run ppp without otl and met and in non-strict mode
-                    ppp = pyPPP.RunPPP(Rinex, '', Config.options, Config.sp3types, Config.sp3altrn, Rinex.antOffset, strict=False, apply_met=False, clock_interpolation=True)
+            with pyRinex.ReadRinex(dbRinex['NetworkCode'], dbRinex['StationCode'],
+                                      os.path.join(Config.archive_path, file)) as Rinex:
 
-                    ppp.exec_ppp()
+                # read the crinex
+                try:
+                        # run ppp without otl and met and in non-strict mode
+                        ppp = pyPPP.RunPPP(Rinex, '', Config.options, Config.sp3types, Config.sp3altrn, Rinex.antOffset, strict=False, apply_met=False, clock_interpolation=True)
 
-                    x.append(ppp.x)
-                    y.append(ppp.y)
-                    z.append(ppp.z)
-                    errors = errors + 'PPP -> ' + NetworkCode + '.' + StationCode + ': ' + str(ppp.x) + ' ' + str(ppp.y) + ' ' + str(ppp.z) + '\n'
+                        ppp.exec_ppp()
 
-            except (IOError, pyRinex.pyRinexException, pyRinex.pyRinexExceptionBadFile, pySp3.pySp3Exception, pyPPP.pyRunPPPException) as e:
-                # problem loading this file, try another one
-                errors = errors + str(e) + '\n'
-                continue
-            except Exception:
-                return traceback.format_exc() + ' processing: ' + NetworkCode + ' ' + StationCode + ' using node ' + platform.node()
+                        x.append(ppp.x)
+                        y.append(ppp.y)
+                        z.append(ppp.z)
+                        errors = errors + 'PPP -> ' + NetworkCode + '.' + StationCode + ': ' + str(ppp.x) + ' ' + str(ppp.y) + ' ' + str(ppp.z) + '\n'
+
+                except (pySp3.pySp3Exception, pyClk.pyClkException, pyPPP.pyRunPPPException):
+
+                    # try autonomous solution
+                    try:
+                        brdc = pyBrdc.GetBrdcOrbits(Config.brdc_path, Rinex.date, Rinex.rootdir)
+
+                        Rinex.auto_coord(brdc, chi_limit=1000)
+
+                        x.append(Rinex.x)
+                        y.append(Rinex.y)
+                        z.append(Rinex.z)
+
+                    except Exception as e:
+                        errors = errors + str(e) + '\n'
+                        continue
+
+                except (IOError, pyRinex.pyRinexException, pyRinex.pyRinexExceptionBadFile) as e:
+                    # problem loading this file, try another one
+                    errors = errors + str(e) + '\n'
+                    continue
+
+                except Exception:
+                    return traceback.format_exc() + ' processing: ' + NetworkCode + ' ' + StationCode + ' using node ' + platform.node()
 
         # average the x y z values
         if len(x) > 0:
@@ -701,7 +721,8 @@ def process_otl(cnn, JobServer, run_parallel, archive_path, brdc_path, sp3types,
     callback = []
 
     depfuncs = (ecef2lla,)
-    modules = ('dbConnection', 'pyRinex', 'pyArchiveStruct', 'pyOTL', 'pyPPP', 'numpy', 'platform', 'pySp3', 'traceback', 'pyOptions')
+    modules = ('dbConnection', 'pyRinex', 'pyArchiveStruct', 'pyOTL', 'pyPPP', 'numpy', 'platform', 'pySp3',
+               'traceback', 'pyOptions', 'pyBrdc', 'pyClk')
 
     for record in records:
         NetworkCode = record['NetworkCode']

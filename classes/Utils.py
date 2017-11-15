@@ -1,7 +1,6 @@
 
-import os, re, subprocess, sys, pyDate, filecmp, argparse
+import os, re, subprocess, sys, pyDate, filecmp, argparse, numpy
 from datetime import datetime
-import numpy as np
 
 class UtilsException(Exception):
     def __init__(self, value):
@@ -183,26 +182,26 @@ def move(src, dst):
 def ct2lg(dX, dY, dZ, lat, lon):
 
     n = dX.size
-    R = np.zeros((3, 3, n))
+    R = numpy.zeros((3, 3, n))
 
-    R[0, 0, :] = -np.multiply(np.sin(np.deg2rad(lat)), np.cos(np.deg2rad(lon)))
-    R[0, 1, :] = -np.multiply(np.sin(np.deg2rad(lat)), np.sin(np.deg2rad(lon)))
-    R[0, 2, :] = np.cos(np.deg2rad(lat))
-    R[1, 0, :] = -np.sin(np.deg2rad(lon))
-    R[1, 1, :] = np.cos(np.deg2rad(lon))
-    R[1, 2, :] = np.zeros((1, n))
-    R[2, 0, :] = np.multiply(np.cos(np.deg2rad(lat)), np.cos(np.deg2rad(lon)))
-    R[2, 1, :] = np.multiply(np.cos(np.deg2rad(lat)), np.sin(np.deg2rad(lon)))
-    R[2, 2, :] = np.sin(np.deg2rad(lat))
+    R[0, 0, :] = -numpy.multiply(numpy.sin(numpy.deg2rad(lat)), numpy.cos(numpy.deg2rad(lon)))
+    R[0, 1, :] = -numpy.multiply(numpy.sin(numpy.deg2rad(lat)), numpy.sin(numpy.deg2rad(lon)))
+    R[0, 2, :] = numpy.cos(numpy.deg2rad(lat))
+    R[1, 0, :] = -numpy.sin(numpy.deg2rad(lon))
+    R[1, 1, :] = numpy.cos(numpy.deg2rad(lon))
+    R[1, 2, :] = numpy.zeros((1, n))
+    R[2, 0, :] = numpy.multiply(numpy.cos(numpy.deg2rad(lat)), numpy.cos(numpy.deg2rad(lon)))
+    R[2, 1, :] = numpy.multiply(numpy.cos(numpy.deg2rad(lat)), numpy.sin(numpy.deg2rad(lon)))
+    R[2, 2, :] = numpy.sin(numpy.deg2rad(lat))
 
-    dxdydz = np.column_stack((np.column_stack((dX, dY)), dZ))
+    dxdydz = numpy.column_stack((numpy.column_stack((dX, dY)), dZ))
 
-    RR = np.reshape(R[0, :, :], (3, n))
-    dx = np.sum(np.multiply(RR, dxdydz.transpose()), axis=0)
-    RR = np.reshape(R[1, :, :], (3, n))
-    dy = np.sum(np.multiply(RR, dxdydz.transpose()), axis=0)
-    RR = np.reshape(R[2, :, :], (3, n))
-    dz = np.sum(np.multiply(RR, dxdydz.transpose()), axis=0)
+    RR = numpy.reshape(R[0, :, :], (3, n))
+    dx = numpy.sum(numpy.multiply(RR, dxdydz.transpose()), axis=0)
+    RR = numpy.reshape(R[1, :, :], (3, n))
+    dy = numpy.sum(numpy.multiply(RR, dxdydz.transpose()), axis=0)
+    RR = numpy.reshape(R[2, :, :], (3, n))
+    dz = numpy.sum(numpy.multiply(RR, dxdydz.transpose()), axis=0)
 
     return dx, dy, dz
 
@@ -210,28 +209,29 @@ def ct2lg(dX, dY, dZ, lat, lon):
 def lg2ct(dN, dE, dU, lat, lon):
 
     n = dN.size
-    R = np.zeros((3, 3, n))
+    R = numpy.zeros((3, 3, n))
 
-    R[0, 0, :] = -np.multiply(np.sin(np.deg2rad(lat)), np.cos(np.deg2rad(lon)))
-    R[1, 0, :] = -np.multiply(np.sin(np.deg2rad(lat)), np.sin(np.deg2rad(lon)))
-    R[2, 0, :] = np.cos(np.deg2rad(lat))
-    R[0, 1, :] = -np.sin(np.deg2rad(lon))
-    R[1, 1, :] = np.cos(np.deg2rad(lon))
-    R[2, 1, :] = np.zeros((1, n))
-    R[0, 2, :] = np.multiply(np.cos(np.deg2rad(lat)), np.cos(np.deg2rad(lon)))
-    R[1, 2, :] = np.multiply(np.cos(np.deg2rad(lat)), np.sin(np.deg2rad(lon)))
-    R[2, 2, :] = np.sin(np.deg2rad(lat))
+    R[0, 0, :] = -numpy.multiply(numpy.sin(numpy.deg2rad(lat)), numpy.cos(numpy.deg2rad(lon)))
+    R[1, 0, :] = -numpy.multiply(numpy.sin(numpy.deg2rad(lat)), numpy.sin(numpy.deg2rad(lon)))
+    R[2, 0, :] = numpy.cos(numpy.deg2rad(lat))
+    R[0, 1, :] = -numpy.sin(numpy.deg2rad(lon))
+    R[1, 1, :] = numpy.cos(numpy.deg2rad(lon))
+    R[2, 1, :] = numpy.zeros((1, n))
+    R[0, 2, :] = numpy.multiply(numpy.cos(numpy.deg2rad(lat)), numpy.cos(numpy.deg2rad(lon)))
+    R[1, 2, :] = numpy.multiply(numpy.cos(numpy.deg2rad(lat)), numpy.sin(numpy.deg2rad(lon)))
+    R[2, 2, :] = numpy.sin(numpy.deg2rad(lat))
 
-    dxdydz = np.column_stack((np.column_stack((dN, dE)), dU))
+    dxdydz = numpy.column_stack((numpy.column_stack((dN, dE)), dU))
 
-    RR = np.reshape(R[0, :, :], (3, n))
-    dx = np.sum(np.multiply(RR, dxdydz.transpose()), axis=0)
-    RR = np.reshape(R[1, :, :], (3, n))
-    dy = np.sum(np.multiply(RR, dxdydz.transpose()), axis=0)
-    RR = np.reshape(R[2, :, :], (3, n))
-    dz = np.sum(np.multiply(RR, dxdydz.transpose()), axis=0)
+    RR = numpy.reshape(R[0, :, :], (3, n))
+    dx = numpy.sum(numpy.multiply(RR, dxdydz.transpose()), axis=0)
+    RR = numpy.reshape(R[1, :, :], (3, n))
+    dy = numpy.sum(numpy.multiply(RR, dxdydz.transpose()), axis=0)
+    RR = numpy.reshape(R[2, :, :], (3, n))
+    dz = numpy.sum(numpy.multiply(RR, dxdydz.transpose()), axis=0)
 
     return dx, dy, dz
+
 
 def ecef2lla(ecefArr):
     # convert ECEF coordinates to LLA
@@ -245,26 +245,26 @@ def ecef2lla(ecefArr):
     a = 6378137
     e = 8.1819190842622e-2
 
-    asq = np.power(a, 2)
-    esq = np.power(e, 2)
+    asq = numpy.power(a, 2)
+    esq = numpy.power(e, 2)
 
-    b = np.sqrt(asq * (1 - esq))
-    bsq = np.power(b, 2)
+    b = numpy.sqrt(asq * (1 - esq))
+    bsq = numpy.power(b, 2)
 
-    ep = np.sqrt((asq - bsq) / bsq)
-    p = np.sqrt(np.power(x, 2) + np.power(y, 2))
-    th = np.arctan2(a * z, b * p)
+    ep = numpy.sqrt((asq - bsq) / bsq)
+    p = numpy.sqrt(numpy.power(x, 2) + numpy.power(y, 2))
+    th = numpy.arctan2(a * z, b * p)
 
-    lon = np.arctan2(y, x)
-    lat = np.arctan2((z + np.power(ep, 2) * b * np.power(np.sin(th), 3)),
-                     (p - esq * a * np.power(np.cos(th), 3)))
-    N = a / (np.sqrt(1 - esq * np.power(np.sin(lat), 2)))
-    alt = p / np.cos(lat) - N
+    lon = numpy.arctan2(y, x)
+    lat = numpy.arctan2((z + numpy.power(ep, 2) * b * numpy.power(numpy.sin(th), 3)),
+                     (p - esq * a * numpy.power(numpy.cos(th), 3)))
+    N = a / (numpy.sqrt(1 - esq * numpy.power(numpy.sin(lat), 2)))
+    alt = p / numpy.cos(lat) - N
 
-    lon = lon * 180 / np.pi
-    lat = lat * 180 / np.pi
+    lon = lon * 180 / numpy.pi
+    lat = lat * 180 / numpy.pi
 
-    return np.array([lat]), np.array([lon]), np.array([alt])
+    return numpy.array([lat]), numpy.array([lon]), numpy.array([alt])
 
 
 def process_date(arg):

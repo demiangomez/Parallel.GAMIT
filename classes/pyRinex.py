@@ -160,6 +160,8 @@ class RinexRecord():
         self.StationCode = StationCode
         self.NetworkCode = NetworkCode
 
+        self.header = None
+        self.data = None
         self.firstObs = None
         self.datetime_firstObs = None
         self.datetime_lastObs = None
@@ -348,24 +350,14 @@ class ReadRinex(RinexRecord):
 
         return data
 
-    def write_rinex(self, header, new_header):
+    def write_rinex(self, new_header):
 
-        if new_header != header:
-            try:
-                with open(self.rinex_path, 'r') as fileio:
-                    rinex = fileio.readlines()
-            except Exception:
-                raise
+        if new_header != self.header:
 
-            if not any("END OF HEADER" in s for s in rinex):
-                raise pyRinexExceptionBadFile('Invalid header: could not find END OF HEADER tag.')
+            self.header = new_header
 
-            # find the end of header
-            index = [i for i, item in enumerate(rinex) if 'END OF HEADER' in item][0]
-            # delete header
-            del rinex[0:index+1]
             # add new header
-            rinex = new_header + rinex
+            rinex = new_header + self.data
 
             try:
                 f = open(self.rinex_path, 'w')
@@ -373,6 +365,23 @@ class ReadRinex(RinexRecord):
                 f.close()
             except Exception:
                 raise
+
+    def read_data(self):
+        try:
+            with open(self.rinex_path, 'r') as fileio:
+                rinex = fileio.readlines()
+        except Exception:
+            raise
+
+        if not any("END OF HEADER" in s for s in rinex):
+            raise pyRinexExceptionBadFile('Invalid header: could not find END OF HEADER tag.')
+
+        # find the end of header
+        index = [i for i, item in enumerate(rinex) if 'END OF HEADER' in item][0]
+        # delete header
+        del rinex[0:index + 1]
+
+        self.data = rinex
 
     def replace_record(self, header, record, new_values):
 
@@ -411,14 +420,31 @@ class ReadRinex(RinexRecord):
 
         return new_header
 
+    def __purge_comments(self, header):
+
+        new_header = []
+
+        for line in header:
+            if not line.strip().endswith('COMMENT'):
+                new_header += [line]
+
+        self.log_event('Purged all COMMENTs from RINEX header.')
+
+        return new_header
+
+    def purge_comments(self):
+
+        new_header = self.__purge_comments(self.header)
+
+        self.write_rinex(new_header)
+
     def check_interval(self):
 
         interval_record = {'INTERVAL': {'format_tuple': ('%10.3f',), 'found': False, 'default': (30,)}}
 
-        header = self.get_header()
         new_header = []
 
-        for line in header:
+        for line in self.header:
 
             if line.strip().endswith('INTERVAL'):
                 # get the first occurrence only!
@@ -449,18 +475,18 @@ class ReadRinex(RinexRecord):
 
         new_header += [''.ljust(60, ' ') + 'END OF HEADER\n']
 
-        self.write_rinex(header, new_header)
+        self.write_rinex(new_header)
 
         return
 
     def check_header(self):
 
-        header = self.get_header()
+        self.header = self.get_header()
         new_header = []
 
         self.system = ''
 
-        for line in header:
+        for line in self.header:
 
             if any(line.strip().endswith(key) for key in self.required_records.keys()):
                 # get the first occurrence only!
@@ -479,11 +505,12 @@ class ReadRinex(RinexRecord):
                     self.rinex_version = float(fields[0])
 
                     # now that we know the version, we can get the first obs
+                    self.read_data()
                     first_obs = self.get_firstobs()
 
                     if first_obs is None:
                         raise pyRinexExceptionBadFile(
-                            'Could not find a first observation in RINEX file. Truncated file? Header follows:\n' + ''.join(header))
+                            'Could not find a first observation in RINEX file. Truncated file? Header follows:\n' + ''.join(self.header))
 
                     if not self.system in (' ', 'G', 'R', 'S', 'E', 'M'):
                         # assume GPS
@@ -551,7 +578,7 @@ class ReadRinex(RinexRecord):
 
         new_header += [''.ljust(60,' ') + 'END OF HEADER\n']
 
-        self.write_rinex(header, new_header)
+        self.write_rinex(new_header)
 
     def IdentifyFile(self, input_file):
 
@@ -940,40 +967,32 @@ class ReadRinex(RinexRecord):
         parse = fs.unpack_from
 
         date = None
-        with open(self.rinex_path,'r') as fileio:
 
-            found = False
-            for line in fileio:
-                if 'END OF HEADER' in line:
-                    found = True
+        skip = 0
+        for line in self.data:
+            if skip == 0:
+                fields = list(parse(line))
+
+                if int(fields[12]) <= 1: # OK FLAG
+                    # read first observation
+                    year = int(fields[1])
+                    month = int(fields[3])
+                    day = int(fields[5])
+                    hour = int(fields[7])
+                    minute = int(fields[9])
+                    second = float(fields[10])
+
+                    try:
+                        date = pyDate.Date(year=year, month=month, day=day, hour=hour, minute=minute, second=second)
+                    except pyDate.pyDateException as e:
+                        raise pyRinexExceptionBadFile(str(e))
+
                     break
-
-            if found:
-                skip = 0
-                for line in fileio:
-                    if skip == 0:
-                        fields = list(parse(line))
-
-                        if int(fields[12]) <= 1: # OK FLAG
-                            # read first observation
-                            year = int(fields[1])
-                            month = int(fields[3])
-                            day = int(fields[5])
-                            hour = int(fields[7])
-                            minute = int(fields[9])
-                            second = float(fields[10])
-
-                            try:
-                                date = pyDate.Date(year=year, month=month, day=day, hour=hour, minute=minute, second=second)
-                            except pyDate.pyDateException as e:
-                                raise pyRinexExceptionBadFile(str(e))
-
-                            break
-                        elif int(fields[12]) > 1:
-                            # event, skip lines indicated in next field
-                            skip = int(fields[13])
-                    else:
-                        skip -= 1
+                elif int(fields[12]) > 1:
+                    # event, skip lines indicated in next field
+                    skip = int(fields[13])
+            else:
+                skip -= 1
 
         return date
 
@@ -983,11 +1002,11 @@ class ReadRinex(RinexRecord):
         # retry reading. Every now and then there is a problem during file read.
         for i in range(2):
             try:
-                with open(self.rinex_path,'r') as fileio:
+                with open(self.rinex_path, 'r') as fileio:
 
                     for line in fileio:
                         header.append(line)
-                        if 'END OF HEADER' in line:
+                        if line.strip().endswith('END OF HEADER'):
                             break
                     break
             except IOError:
@@ -1167,8 +1186,7 @@ class ReadRinex(RinexRecord):
         fieldnames = ['AntennaHeight', 'AntennaNorth', 'AntennaEast', 'ReceiverCode', 'ReceiverVers', 'ReceiverSerial', 'AntennaCode', 'RadomeCode', 'AntennaSerial']
         rinex_field = ['AntennaOffset', None, None, 'ReceiverType', 'ReceiverFw', 'ReceiverSerial', 'AntennaType', 'AntennaDome', 'AntennaSerial']
 
-        header = self.get_header()
-        new_header = header
+        new_header = self.header
 
         # set values
         for i, field in enumerate(fieldnames):
@@ -1222,13 +1240,13 @@ class ReadRinex(RinexRecord):
             new_header = self.replace_record(new_header, 'ANTENNA: DELTA H/E/N', (NewValues['AntennaHeight'], NewValues['AntennaEast'], NewValues['AntennaNorth']))
 
             if NewValues['AntennaHeight'] != self.antOffset:
-                new_header = self.insert_comment(new_header, 'PREV DELTA H: %.3f' % self.antOffset)
+                new_header = self.insert_comment(new_header, 'PREV DELTA H: %.4f' % self.antOffset)
                 self.antOffset = float(NewValues['AntennaHeight'])
             if NewValues['AntennaNorth'] != self.antOffsetN:
-                new_header = self.insert_comment(new_header, 'PREV DELTA N: %.3f' % self.antOffsetN)
+                new_header = self.insert_comment(new_header, 'PREV DELTA N: %.4f' % self.antOffsetN)
                 self.antOffsetN = float(NewValues['AntennaNorth'])
             if NewValues['AntennaEast'] != self.antOffsetE:
-                new_header = self.insert_comment(new_header, 'PREV DELTA E: %.3f' % self.antOffsetE)
+                new_header = self.insert_comment(new_header, 'PREV DELTA E: %.4f' % self.antOffsetE)
                 self.antOffsetE = float(NewValues['AntennaEast'])
 
         # always replace the APPROX POSITION XYZ
@@ -1240,16 +1258,16 @@ class ReadRinex(RinexRecord):
             self.auto_coord(brdc)
 
         elif x is not None:
-            self.x = x
-            self.y = y
-            self.z = z
+            self.x = float(x)
+            self.y = float(y)
+            self.z = float(z)
 
         new_header = self.replace_record(new_header, 'APPROX POSITION XYZ', (self.x, self.y, self.z))
 
         new_header = self.insert_comment(new_header, 'APPROX POSITION SET TO AUTONOMOUS SOLUTION')
         new_header = self.insert_comment(new_header, 'HEADER NORMALIZED BY pyRinex ON ' + datetime.datetime.now().strftime('%Y/%m/%d %H:%M'))
 
-        self.write_rinex(header, new_header)
+        self.write_rinex(new_header)
 
         return
 

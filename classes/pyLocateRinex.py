@@ -82,6 +82,7 @@ def execute_ppp(rinexinfo, args, stnm, options, sp3types, sp3altrn, brdc_path):
 
     try:
         # inflate the chi**2 limit
+        rinexinfo.purge_comments()
         rinexinfo.auto_coord(brdc=brdc, chi_limit=1000)
         rinexinfo.normalize_header(stninfo)  # empty dict: only applies the coordinate change
     except pyRinex.pyRinexException as e:
@@ -94,9 +95,16 @@ def execute_ppp(rinexinfo, args, stnm, options, sp3types, sp3altrn, brdc_path):
 
     try:
         if args.ocean_loading or args.insert_sql:
-            otl = pyOTL.OceanLoading(stnm, options['grdtab'], options['otlgrid'], rinexinfo.x, rinexinfo.y, rinexinfo.z)
+            # get a first ppp coordinate
+            ppp = pyPPP.RunPPP(rinexinfo, '', options, sp3types, sp3altrn, 0, strict=False, apply_met=False, kinematic=False, clock_interpolation=True)
+
+            ppp.exec_ppp()
+
+            # use it to get the OTL (when the auto_coord is very bad, PPP doesn't like the resulting OTL).
+            otl = pyOTL.OceanLoading(stnm, options['grdtab'], options['otlgrid'], ppp.x, ppp.y, ppp.z)
             otl_coeff = otl.calculate_otl_coeff()
 
+            # run again, with OTL
             ppp = pyPPP.RunPPP(rinexinfo, otl_coeff, options, sp3types, sp3altrn, 0, strict=False, apply_met=False, kinematic=False, clock_interpolation=True)
         else:
             ppp = pyPPP.RunPPP(rinexinfo, '', options, sp3types, sp3altrn, 0, strict=False, apply_met=False, kinematic=False, clock_interpolation=True)
