@@ -190,44 +190,44 @@ def try_insert(NetworkCode, StationCode, year, doy, rinex):
 
         if rs.ntuples() == 0:
             # no record found, possible new rinex file for this day
-            rinexinfo = pyRinex.ReadRinex(NetworkCode, StationCode, rinex)
+            with pyRinex.ReadRinex(NetworkCode, StationCode, rinex) as rinexinfo:
 
-            date = pyDate.Date(year=year, doy=doy)
+                date = pyDate.Date(year=year, doy=doy)
 
-            # verify that the rinex is from this date and that is not a multiday file
-            if verify_rinex_date_multiday(cnn, date, rinexinfo, Config):
-                try:
-                    # create the insert statement
-                    cnn.insert('rinex', rinexinfo.record)
+                # verify that the rinex is from this date and that is not a multiday file
+                if verify_rinex_date_multiday(cnn, date, rinexinfo, Config):
+                    try:
+                        # create the insert statement
+                        cnn.insert('rinex', rinexinfo.record)
 
-                    event = pyEvents.Event(
-                        Description='Archived crinex file %s added to the database.' % (rinex),
-                        EventType='info',
-                        StationCode=StationCode,
-                        NetworkCode=NetworkCode,
-                        Year=date.year,
-                        DOY=date.doy)
-                    cnn.insert_event(event)
+                        event = pyEvents.Event(
+                            Description='Archived crinex file %s added to the database.' % (rinex),
+                            EventType='info',
+                            StationCode=StationCode,
+                            NetworkCode=NetworkCode,
+                            Year=date.year,
+                            DOY=date.doy)
+                        cnn.insert_event(event)
 
-                except dbConnection.dbErrInsert:
-                    # insert duplicate values: a rinex file with different name but same interval and completion %
-                    # discard file
-                    cnn.begin_transac()
+                    except dbConnection.dbErrInsert:
+                        # insert duplicate values: a rinex file with different name but same interval and completion %
+                        # discard file
+                        cnn.begin_transac()
 
-                    event = pyEvents.Event(
-                        Description='Crinex file %s was removed from the archive (and not added to db) because '
-                                    'it matched the interval and completion of an already existing file.' % (rinex),
-                        EventType='info',
-                        StationCode=StationCode,
-                        NetworkCode=NetworkCode,
-                        Year=date.year,
-                        DOY=date.doy)
+                        event = pyEvents.Event(
+                            Description='Crinex file %s was removed from the archive (and not added to db) because '
+                                        'it matched the interval and completion of an already existing file.' % (rinex),
+                            EventType='info',
+                            StationCode=StationCode,
+                            NetworkCode=NetworkCode,
+                            Year=date.year,
+                            DOY=date.doy)
 
-                    cnn.insert_event(event)
+                        cnn.insert_event(event)
 
-                    rinexinfo.move_origin_file(os.path.join(Config.repository_data_reject, 'duplicate_insert/%i/%03i' % (year, doy)))
+                        rinexinfo.move_origin_file(os.path.join(Config.repository_data_reject, 'duplicate_insert/%i/%03i' % (year, doy)))
 
-                    cnn.commit_transac()
+                        cnn.commit_transac()
 
     except (pyRinex.pyRinexExceptionBadFile, pyRinex.pyRinexExceptionSingleEpoch) as e:
 
@@ -317,18 +317,18 @@ def obtain_otl(NetworkCode, StationCode):
                                               dbRinex['ObservationDOY'])
             # read the crinex
             try:
-                Rinex = pyRinex.ReadRinex(dbRinex['NetworkCode'], dbRinex['StationCode'],
-                                          os.path.join(Config.archive_path, file))
+                with pyRinex.ReadRinex(dbRinex['NetworkCode'], dbRinex['StationCode'],
+                                          os.path.join(Config.archive_path, file)) as Rinex:
 
-                # run ppp without otl and met and in non-strict mode
-                ppp = pyPPP.RunPPP(Rinex, '', Config.options, Config.sp3types, Config.sp3altrn, Rinex.antOffset, strict=False, apply_met=False, clock_interpolation=True)
+                    # run ppp without otl and met and in non-strict mode
+                    ppp = pyPPP.RunPPP(Rinex, '', Config.options, Config.sp3types, Config.sp3altrn, Rinex.antOffset, strict=False, apply_met=False, clock_interpolation=True)
 
-                ppp.exec_ppp()
+                    ppp.exec_ppp()
 
-                x.append(ppp.x)
-                y.append(ppp.y)
-                z.append(ppp.z)
-                errors = errors + 'PPP -> ' + NetworkCode + '.' + StationCode + ': ' + str(ppp.x) + ' ' + str(ppp.y) + ' ' + str(ppp.z) + '\n'
+                    x.append(ppp.x)
+                    y.append(ppp.y)
+                    z.append(ppp.z)
+                    errors = errors + 'PPP -> ' + NetworkCode + '.' + StationCode + ': ' + str(ppp.x) + ' ' + str(ppp.y) + ' ' + str(ppp.z) + '\n'
 
             except (IOError, pyRinex.pyRinexException, pyRinex.pyRinexExceptionBadFile, pySp3.pySp3Exception, pyPPP.pyRunPPPException) as e:
                 # problem loading this file, try another one
@@ -485,68 +485,68 @@ def execute_ppp(record, rinex_path):
             stn = rs_stn.dictresult()
 
             # RINEX FILE TO BE PROCESSED
-            Rinex = pyRinex.ReadRinex(NetworkCode, StationCode, rinex_path)
+            with pyRinex.ReadRinex(NetworkCode, StationCode, rinex_path) as Rinex:
 
-            if not verify_rinex_date_multiday(cnn, Rinex.date, Rinex, Config):
-                # the file is a multiday file. These files are not supposed to be in the archive, but, due to a bug in
-                # ScanArchive (now fixed - 2017-10-26) some multiday files are still in the rinex table
-                # the file is moved out of the archive (into the retry folder and the rinex record is deleted
-                event = pyEvents.Event(EventType='warn',
-                                       Description='RINEX record in database belonged to a multiday file. '
-                                                   'The record has been removed from the database. '
-                                                   'See previous associated event.',
-                                       StationCode=StationCode,
-                                       NetworkCode=NetworkCode,
-                                       Year=int(Rinex.date.year),
-                                       DOY=int(Rinex.date.doy))
-                cnn.insert_event(event)
-
-                cnn.begin_transac()
-                cnn.query(
-                    'DELETE FROM gamit_soln WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "Year" = %i AND "DOY" = %i'
-                    % (record['NetworkCode'], record['StationCode'], record['ObservationYear'], record['ObservationDOY']))
-                cnn.query(
-                    'DELETE FROM ppp_soln WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "Year" = %i AND "DOY" = %i'
-                    % (record['NetworkCode'], record['StationCode'], record['ObservationYear'], record['ObservationDOY']))
-                cnn.query(
-                    'DELETE FROM rinex WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "ObservationYear" = %i AND "ObservationDOY" = %i AND "Filename" = \'%s\''
-                    % (record['NetworkCode'], record['StationCode'], record['ObservationYear'], record['ObservationDOY'], record['Filename']))
-                cnn.commit_transac()
-
-                return
-
-            stninfo = pyStationInfo.StationInfo(cnn, NetworkCode, StationCode, Rinex.date)
-
-            Rinex.normalize_header(StationInfo=stninfo, x=stn[0]['auto_x'], y=stn[0]['auto_y'], z=stn[0]['auto_z'])
-
-            ppp = pyPPP.RunPPP(Rinex, stn[0]['Harpos_coeff_otl'], Config.options, Config.sp3types, Config.sp3altrn, stninfo.AntennaHeight, hash=stninfo.hash)
-            ppp.exec_ppp()
-
-            # verify that the solution is from the station it claims to be
-            Result, match, closest_stn = ppp.verify_spatial_coherence(cnn, StationCode)
-
-            if Result:
-                if match['NetworkCode'] == NetworkCode and match['StationCode'] == StationCode:
-                    # the match agrees with the station-day that we THINK we are processing
-                    # this check should not be necessary if the rinex went through Archive Service, since we
-                    # already match rinex vs station
-                    # but it's still here to prevent that a rinex imported by pyScanArchive (which assumes the rinex
-                    # files belong to the network/station of the folder) doesn't get into the PPP table if it's not
-                    # of the station it claims to be.
-
-                    # insert record in DB
-                    cnn.insert('ppp_soln', ppp.record)
-                    # DDG: Eric's request to generate a date of PPP solution
-                    event = pyEvents.Event(Description='A new PPP solution was created for frame IGb08',
-                                           NetworkCode=NetworkCode,
+                if not verify_rinex_date_multiday(cnn, Rinex.date, Rinex, Config):
+                    # the file is a multiday file. These files are not supposed to be in the archive, but, due to a bug in
+                    # ScanArchive (now fixed - 2017-10-26) some multiday files are still in the rinex table
+                    # the file is moved out of the archive (into the retry folder and the rinex record is deleted
+                    event = pyEvents.Event(EventType='warn',
+                                           Description='RINEX record in database belonged to a multiday file. '
+                                                       'The record has been removed from the database. '
+                                                       'See previous associated event.',
                                            StationCode=StationCode,
-                                           Year=int(year),
-                                           DOY=int(doy))
+                                           NetworkCode=NetworkCode,
+                                           Year=int(Rinex.date.year),
+                                           DOY=int(Rinex.date.doy))
                     cnn.insert_event(event)
-                else:
-                    remove_from_archive(cnn, record, Rinex, Config)
-            else:
-                remove_from_archive(cnn, record, Rinex, Config)
+
+                    cnn.begin_transac()
+                    cnn.query(
+                        'DELETE FROM gamit_soln WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "Year" = %i AND "DOY" = %i'
+                        % (record['NetworkCode'], record['StationCode'], record['ObservationYear'], record['ObservationDOY']))
+                    cnn.query(
+                        'DELETE FROM ppp_soln WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "Year" = %i AND "DOY" = %i'
+                        % (record['NetworkCode'], record['StationCode'], record['ObservationYear'], record['ObservationDOY']))
+                    cnn.query(
+                        'DELETE FROM rinex WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "ObservationYear" = %i AND "ObservationDOY" = %i AND "Filename" = \'%s\''
+                        % (record['NetworkCode'], record['StationCode'], record['ObservationYear'], record['ObservationDOY'], record['Filename']))
+                    cnn.commit_transac()
+
+                    return
+
+                stninfo = pyStationInfo.StationInfo(cnn, NetworkCode, StationCode, Rinex.date)
+
+                Rinex.normalize_header(stninfo, x=stn[0]['auto_x'], y=stn[0]['auto_y'], z=stn[0]['auto_z'])
+
+                with pyPPP.RunPPP(Rinex, stn[0]['Harpos_coeff_otl'], Config.options, Config.sp3types, Config.sp3altrn, stninfo.AntennaHeight, hash=stninfo.hash) as ppp:
+                    ppp.exec_ppp()
+
+                    # verify that the solution is from the station it claims to be
+                    Result, match, closest_stn = ppp.verify_spatial_coherence(cnn, StationCode)
+
+                    if Result:
+                        if match['NetworkCode'] == NetworkCode and match['StationCode'] == StationCode:
+                            # the match agrees with the station-day that we THINK we are processing
+                            # this check should not be necessary if the rinex went through Archive Service, since we
+                            # already match rinex vs station
+                            # but it's still here to prevent that a rinex imported by pyScanArchive (which assumes the rinex
+                            # files belong to the network/station of the folder) doesn't get into the PPP table if it's not
+                            # of the station it claims to be.
+
+                            # insert record in DB
+                            cnn.insert('ppp_soln', ppp.record)
+                            # DDG: Eric's request to generate a date of PPP solution
+                            event = pyEvents.Event(Description='A new PPP solution was created for frame IGb08',
+                                                   NetworkCode=NetworkCode,
+                                                   StationCode=StationCode,
+                                                   Year=int(year),
+                                                   DOY=int(doy))
+                            cnn.insert_event(event)
+                        else:
+                            remove_from_archive(cnn, record, Rinex, Config)
+                    else:
+                        remove_from_archive(cnn, record, Rinex, Config)
 
     except (pyRinex.pyRinexException, pyRinex.pyRinexExceptionBadFile, pyRinex.pyRinexExceptionSingleEpoch) as e:
 
@@ -844,15 +844,10 @@ def hash_check(cnn, master_list, sdate, edate, rehash=False):
 
     master_list = [item['NetworkCode'] + '.' + item['StationCode'] for item in master_list]
 
-    ppp_soln = cnn.query('SELECT ppp_soln.* FROM ppp_soln '
-                         'LEFT JOIN rinex_proc as rinex ON '
-                         'ppp_soln."NetworkCode" = rinex."NetworkCode" AND '
-                         'ppp_soln."StationCode" = rinex."StationCode" AND '
-                         'ppp_soln."Year" = rinex."ObservationYear" AND '
-                         'ppp_soln."DOY" = rinex."ObservationDOY" '
-                         'WHERE ppp_soln."NetworkCode" || \'.\' || ppp_soln."StationCode" IN (\'' + '\',\''.join(master_list) + '\') '
-                         'AND rinex."ObservationSTime" BETWEEN \'' + sdate.yyyymmdd() + '\' AND \'' + (edate+1).yyyymmdd() + '\' '
-                         'ORDER BY "ObservationSTime", ppp_soln."NetworkCode", ppp_soln."StationCode"')
+    ppp_soln = cnn.query('SELECT * FROM ppp_soln '
+                         'WHERE "NetworkCode" || \'.\' || "StationCode" IN (\'' + '\',\''.join(master_list) + '\') '
+                         'AND "Year" || \' \' || to_char("DOY", \'fm000\') BETWEEN \'' + sdate.yyyyddd() + '\' AND \'' + (edate+1).yyyyddd() + '\' '
+                         'ORDER BY "Year", "DOY", "NetworkCode", "StationCode"')
 
     tbl = ppp_soln.dictresult()
 

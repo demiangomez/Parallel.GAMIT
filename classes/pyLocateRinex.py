@@ -56,36 +56,34 @@ def main():
     for rinex in rinex:
         # read the station name from the file
         stnm = rinex.split('/')[-1][0:4]
-        rinexinfo = pyRinex.ReadRinex('???', stnm, rinex)  # type: pyRinex.ReadRinex
 
-        if rinexinfo.multiday:
-            print 'Provided RINEX file is a multiday file!'
-            # rinex file is a multiday file, output all the solutions
-            for rnx in rinexinfo.multiday_rnx_list:
-                execute_ppp(rnx, args, stnm, options, sp3types, sp3altrn, brdc_path)
-        else:
-            execute_ppp(rinexinfo, args, stnm, options, sp3types, sp3altrn, brdc_path)
+        try:
+            with pyRinex.ReadRinex('???', stnm, rinex) as rinexinfo: # type: pyRinex.ReadRinex
+                if rinexinfo.multiday:
+                    print 'Provided RINEX file is a multiday file!'
+                    # rinex file is a multiday file, output all the solutions
+                    for rnx in rinexinfo.multiday_rnx_list:
+                        execute_ppp(rnx, args, stnm, options, sp3types, sp3altrn, brdc_path)
+                else:
+                    execute_ppp(rinexinfo, args, stnm, options, sp3types, sp3altrn, brdc_path)
+
+        except pyRinex.pyRinexException as e:
+            print str(e)
+            continue
 
 
 def execute_ppp(rinexinfo, args, stnm, options, sp3types, sp3altrn, brdc_path):
 
     # put the correct APR coordinates in the header.
-    stninfo = pyStationInfo.StationInfo(None, allow_empty=True)
-    stninfo.AntennaCode = rinexinfo.antType
-    stninfo.ReceiverCode = rinexinfo.recType
-    stninfo.AntennaEast = 0
-    stninfo.AntennaNorth = 0
-    stninfo.AntennaHeight = rinexinfo.antOffset
-    stninfo.RadomeCode = rinexinfo.antDome
-    stninfo.AntennaSerial = rinexinfo.antNo
-    stninfo.ReceiverSerial = rinexinfo.recNo
+    # stninfo = pyStationInfo.StationInfo(None, allow_empty=True)
+    stninfo = dict()
 
     brdc = pyBrdc.GetBrdcOrbits(brdc_path, rinexinfo.date, rinexinfo.rootdir)
 
     try:
         # inflate the chi**2 limit
         rinexinfo.auto_coord(brdc=brdc, chi_limit=1000)
-        rinexinfo.normalize_header(stninfo)
+        rinexinfo.normalize_header(stninfo)  # empty dict: only applies the coordinate change
     except pyRinex.pyRinexException as e:
         print str(e)
 
@@ -94,15 +92,15 @@ def execute_ppp(rinexinfo, args, stnm, options, sp3types, sp3altrn, brdc_path):
         print 'RINEX created in current directory.'
         return
 
-    if args.ocean_loading or args.insert_sql:
-        otl = pyOTL.OceanLoading(stnm, options['grdtab'], options['otlgrid'], rinexinfo.x, rinexinfo.y, rinexinfo.z)
-        otl_coeff = otl.calculate_otl_coeff()
-
-        ppp = pyPPP.RunPPP(rinexinfo, otl_coeff, options, sp3types, sp3altrn, 0, strict=False, apply_met=False, kinematic=False, clock_interpolation=True)
-    else:
-        ppp = pyPPP.RunPPP(rinexinfo, '', options, sp3types, sp3altrn, 0, strict=False, apply_met=False, kinematic=False, clock_interpolation=True)
-
     try:
+        if args.ocean_loading or args.insert_sql:
+            otl = pyOTL.OceanLoading(stnm, options['grdtab'], options['otlgrid'], rinexinfo.x, rinexinfo.y, rinexinfo.z)
+            otl_coeff = otl.calculate_otl_coeff()
+
+            ppp = pyPPP.RunPPP(rinexinfo, otl_coeff, options, sp3types, sp3altrn, 0, strict=False, apply_met=False, kinematic=False, clock_interpolation=True)
+        else:
+            ppp = pyPPP.RunPPP(rinexinfo, '', options, sp3types, sp3altrn, 0, strict=False, apply_met=False, kinematic=False, clock_interpolation=True)
+
         ppp.exec_ppp()
 
         if not args.insert_sql:
@@ -113,6 +111,9 @@ def execute_ppp(rinexinfo, args, stnm, options, sp3types, sp3altrn, brdc_path):
 
     except pyPPP.pyRunPPPException as e:
         print 'Exception in PPP: ' + str(e)
+
+    except pyRinex.pyRinexException as e:
+        print 'Exception in pyRinex: ' + str(e)
 
 
 if __name__ == '__main__':

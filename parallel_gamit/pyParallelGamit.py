@@ -20,6 +20,7 @@ import dbConnection
 import time
 from math import sqrt
 from shutil import rmtree
+from math import ceil
 
 def signal_handler(signal, frame):
     print '\nProcess interruptued by user\n'
@@ -60,8 +61,69 @@ def parseIntSet(nputstr=""):
         sys.exit(2)
     return selection
 
-
 def print_summary(Project, all_missing_data):
+    # output a summary of each network
+    print('')
+    print(' >> Summary of stations in this project')
+    print(' -- Core network stations (%i):' % (len(Project.Core.StationList)))
+    Utils.print_columns([item['NetworkCode'] + '.' + item['StationCode'] for item in Project.Core.StationList])
+
+    print('')
+    print(' -- Secondary stations (%i):' % (len(Project.Secondary.StationList)))
+    Utils.print_columns([item['NetworkCode'] + '.' + item['StationCode'] for item in Project.Secondary.StationList])
+
+    # output a summary of the missing days per station:
+    print('')
+    sys.stdout.write(' >> Summary of data per station (' + unichr(0x258C) + ' = 1 DOY)\n')
+
+    if len(Project.doys)/2. > 120:
+        cut_len = int(ceil(len(Project.doys)/4.))
+    else:
+        cut_len = len(Project.doys)
+
+    for Stn in Project.AllStations:
+        missing_dates = [missing_data['date'].doy for missing_data in all_missing_data if missing_data['StationCode'] == Stn['StationCode'] and missing_data['NetworkCode'] == Stn['NetworkCode']]
+
+        sys.stdout.write('\n -- %s.%s:\n    %03i>' % (Stn['NetworkCode'], Stn['StationCode'], Project.doys[0]))
+
+        for i, doy in enumerate(zip(Project.doys[0:-1:2], Project.doys[1::2])):
+            if doy[0] not in missing_dates and doy[1] not in missing_dates:
+                sys.stdout.write(unichr(0x2588))
+
+            elif doy[0] not in missing_dates and doy[1] in missing_dates:
+                sys.stdout.write(unichr(0x258C))
+
+            elif doy[0] in missing_dates and doy[1] not in missing_dates:
+                sys.stdout.write(unichr(0x2590))
+
+            elif doy[0] in missing_dates and doy[1] in missing_dates:
+                sys.stdout.write(' ')
+
+            if i+1 == cut_len:
+                sys.stdout.write('<%03i\n' % doy[0])
+                sys.stdout.write('    %03i>' % (doy[0]+1))
+
+        if len(Project.doys) % 2 != 0:
+            # last one missing
+            if Project.doys[-1] not in missing_dates:
+                sys.stdout.write(unichr(0x258C))
+            elif Project.doys[-1] in missing_dates:
+                sys.stdout.write(' ')
+
+            if cut_len < len(Project.doys):
+                sys.stdout.write('< %03i\n' % (Project.doys[-1]))
+            else:
+                sys.stdout.write('<%03i\n' % (Project.doys[-1]))
+        else:
+            sys.stdout.write('<%03i\n' % (Project.doys[-1]))
+
+        sys.stdout.flush()
+
+    print ''
+
+    return
+
+def print_summary2(Project, all_missing_data):
     # output a summary of each network
     print('')
     print(' >> Summary of stations in this project')

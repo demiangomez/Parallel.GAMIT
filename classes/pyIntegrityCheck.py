@@ -100,6 +100,8 @@ from Utils import ecef2lla
 import pyJobServer
 import platform
 import pyEvents
+from math import ceil
+
 
 class stninfo_rinex():
 
@@ -111,6 +113,7 @@ class stninfo_rinex():
         self.error = result[0]
         self.diff = result[1]
         self.pbar.update(1)
+
 
 def compare_stninfo_rinex(NetworkCode, StationCode, STime, ETime, rinex_serial):
 
@@ -459,6 +462,31 @@ def CheckSpatialCoherence(cnn, stnlist, start_date, end_date):
         else:
             tqdm.write('\nNo PPP solutions found for %s.%s...' % (NetworkCode, StationCode), sys.stderr)
 
+def GetGaps(cnn, NetworkCode, StationCode, start_date, end_date):
+
+    rs = cnn.query(
+        'SELECT * FROM rinex_proc WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "ObservationSTime" BETWEEN \'%s\' AND \'%s\' ORDER BY "ObservationSTime"' % (
+        NetworkCode, StationCode, start_date.yyyymmdd(), end_date.yyyymmdd()))
+
+    # make the start date and end date the limits of the data
+    rnxtbl = rs.dictresult()
+    gaps = []
+    possible_doys = []
+
+    if len(rnxtbl) > 0:
+        start_date = pyDate.Date(year=rnxtbl[0]['ObservationYear'], doy=rnxtbl[0]['ObservationDOY'])
+        end_date = pyDate.Date(year=rnxtbl[-1]['ObservationYear'], doy=rnxtbl[-1]['ObservationDOY'])
+
+        possible_doys = [pyDate.Date(mjd=mjd) for mjd in range(start_date.mjd, end_date.mjd+1)]
+
+        actual_doys = [pyDate.Date(year=rnx['ObservationYear'], doy=rnx['ObservationDOY']) for rnx in rnxtbl]
+        gaps = []
+        for doy in possible_doys:
+
+            if doy not in actual_doys:
+                gaps += [doy]
+
+    return gaps, possible_doys
 
 def GetStnGaps(cnn, stnlist, ignore_val, start_date, end_date):
 
@@ -598,6 +626,71 @@ def RenameStation(cnn, NetworkCode, StationCode, DestNetworkCode, DestStationCod
         cnn.rollback_transac()
         raise
 
+def VisualizeGaps(cnn, stnlist, start_date, end_date):
+
+    for Stn in stnlist:
+
+        print ' >> Calculating gaps for %s.%s' % (Stn['NetworkCode'], Stn['StationCode'])
+
+        missing_doys, possible_doys = GetGaps(cnn, Stn['NetworkCode'], Stn['StationCode'], start_date, end_date)
+
+        if len(possible_doys) == 0:
+            print ' -- %s.%s has no data' % (Stn['NetworkCode'], Stn['StationCode'])
+            continue
+
+        sys.stdout.write(' -- %s.%s: (First and last observation in timespan: %i %03i - %i %03i)\n'
+                         % (Stn['NetworkCode'], Stn['StationCode'], possible_doys[0].year, possible_doys[0].doy,
+                            possible_doys[-1].year, possible_doys[-1].doy))
+
+        # make a group per year
+        for year in sorted(set([d.year for d in possible_doys])):
+
+            missing_dates = [m.doy for m in missing_doys if m.year == year]
+            p_doys = [m.doy for m in possible_doys if m.year == year]
+
+            sys.stdout.write('\n%i:\n    %03i>' % (year, p_doys[0]))
+
+            if len(p_doys) / 2. > 120:
+                cut_len = int(ceil(len(p_doys) / 4.))
+            else:
+                cut_len = len(p_doys)
+
+            for i, doy in enumerate(zip(p_doys[0:-1:2], p_doys[1::2])):
+
+                if doy[0] not in missing_dates and doy[1] not in missing_dates:
+                    sys.stdout.write(unichr(0x2588))
+
+                elif doy[0] not in missing_dates and doy[1] in missing_dates:
+                    sys.stdout.write(unichr(0x258C))
+
+                elif doy[0] in missing_dates and doy[1] not in missing_dates:
+                    sys.stdout.write(unichr(0x2590))
+
+                elif doy[0] in missing_dates and doy[1] in missing_dates:
+                    sys.stdout.write(' ')
+
+                if i+1 == cut_len:
+                    sys.stdout.write('<%03i\n' % doy[0])
+                    sys.stdout.write('    %03i>' % (doy[0]+1))
+
+            if len(p_doys) % 2 != 0:
+                # last one missing
+                if p_doys[-1] not in missing_dates:
+                    sys.stdout.write(unichr(0x258C))
+                elif p_doys[-1] in missing_dates:
+                    sys.stdout.write(' ')
+
+                if cut_len < len(p_doys):
+                    sys.stdout.write('< %03i\n' % (p_doys[-1]))
+                else:
+                    sys.stdout.write('<%03i\n' % (p_doys[-1]))
+            else:
+                sys.stdout.write('<%03i\n' % (p_doys[-1]))
+
+        print ''
+        sys.stdout.flush()
+
+
 def ExcludeSolutions(cnn, stnlist, start_date, end_date):
     for stn in stnlist:
         NetworkCode = stn['NetworkCode']
@@ -605,14 +698,39 @@ def ExcludeSolutions(cnn, stnlist, start_date, end_date):
 
         rs = cnn.query(
             'SELECT * FROM ppp_soln WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' '
-            'AND "Year" || \' \' || "DOY" BETWEEN \'%s\' AND \'%s\'' %
+            'AND "Year" || \' \' || to_char("DOY", \'fm000\') BETWEEN \'%s\' AND \'%s\'' %
             (NetworkCode, StationCode, start_date.yyyyddd(), end_date.yyyyddd()))
 
         ppp = rs.dictresult()
         tqdm.write(' >> Inserting solutions in excluded table for station %s.%s' % (NetworkCode, StationCode))
         for soln in tqdm(ppp):
-            cnn.insert('ppp_soln_excl', NetworkCode=NetworkCode, StationCode=StationCode, Year=soln['Year'], DOY=soln['DOY'])
+            try:
+                cnn.insert('ppp_soln_excl', NetworkCode=NetworkCode, StationCode=StationCode, Year=soln['Year'], DOY=soln['DOY'])
+            except dbConnection.dbErrInsert:
+                tqdm.write('PPP solution for %i %i is already in the excluded solutions table\n' % (soln['Year'], soln['DOY']))
 
+
+def DeleteRinex(cnn, stnlist, start_date, end_date):
+
+    Archive = pyArchiveStruct.RinexStruct(cnn)
+
+    for stn in stnlist:
+        NetworkCode = stn['NetworkCode']
+        StationCode = stn['StationCode']
+
+        rs = cnn.query(
+            'SELECT * FROM rinex WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' '
+            'AND "ObservationFYear" BETWEEN %f AND %f' %
+            (NetworkCode, StationCode, start_date.fyear, end_date.fyear))
+
+        rinex = rs.dictresult()
+        tqdm.write(' >> Deleting %i RINEX files and solutions for %s.%s between %s - %s' % (len(rinex), NetworkCode, StationCode, start_date.yyyyddd(), end_date.yyyyddd()))
+        for rnx in tqdm(rinex):
+            try:
+                # delete rinex file
+                Archive.remove_rinex(rnx)
+            except dbConnection.dbErrDelete as e:
+                tqdm.write('Failed to delete solutions and/or RINEX files for %i %i. Reason: %s\n' % (rnx['Year'], rnx['DOY'], str(e)))
 
 def main():
 
@@ -628,6 +746,7 @@ def main():
     parser.add_argument('-stnp', '--station_info_proposed', metavar='ignore_days', const=0, type=int, nargs='?', help='Output a proposed station.info using the RINEX metadata. Optional, specify [ignore_days] to ignore station.info records <= days.')
     parser.add_argument('-stnc', '--station_info_check', action='store_true', help='Check the consistency of the station information records in the database. Date range does not apply. Also, check that the RINEX files fall within a valid station information record.')
     parser.add_argument('-g', '--data_gaps', metavar='ignore_days', const=0, type=int, nargs='?', help='Check the RINEX files in the database and look for gaps (missing days). Optional, [ignore_days] with the smallest gap to display.')
+    parser.add_argument('-gg', '--graphical_gaps', action='store_true', help='Visually output RINEX gaps for stations.')
     parser.add_argument('-sc', '--spatial_coherence', choices=['exclude', 'delete', 'noop'], type=str, nargs=1, help='Check that the RINEX files correspond to the stations they are linked to using their PPP coordinate. If keyword [exclude] or [delete], add the PPP solution to the excluded table or delete the PPP solution. If [noop], then only report but do not exlude or delete.')
     parser.add_argument('-print', '--print_stninfo', choices=['long', 'short'], type=str, nargs=1, help='Output the station info to stdout. [long] outputs the full line of the station info. [short] outputs a short version (better for screen visualization).')
     parser.add_argument('-r', '--rename', metavar='net.stnm', nargs=1, help="Takes the data from the station list and renames (merges) it to net.stnm."
@@ -635,6 +754,7 @@ def main():
                                                          "Only a single station can be given as the origin and destiny. "
                                                          "Limit the date range using the -d option.")
     parser.add_argument('-es','--exclude_solutions', metavar=('{start_date}', '{end_date}'), nargs=2, help='Exclude PPP solutions (by adding them to the excluded table) between {start_date} and {end_date}')
+    parser.add_argument('-del', '--delete_rinex', metavar=('{start_date}', '{end_date}'), nargs=2, help='Delete RINEX files (and associated solutions, PPP and GAMIT) from archive between {start_date} and {end_date}. Operation cannot be undone!')
     parser.add_argument('-np', '--noparallel', action='store_true', help="Execute command without parallelization.")
 
     args = parser.parse_args()
@@ -679,7 +799,6 @@ def main():
     #####################################
 
     if args.station_info_rinex:
-
         StnInfoRinexIntegrity(cnn, stnlist, dates[0], dates[1], Config, JobServer)
 
     #####################################
@@ -691,6 +810,9 @@ def main():
 
     if args.data_gaps is not None:
         GetStnGaps(cnn, stnlist, args.data_gaps, dates[0], dates[1])
+
+    if args.graphical_gaps:
+        VisualizeGaps(cnn, stnlist, dates[0], dates[1])
 
     #####################################
 
@@ -723,6 +845,16 @@ def main():
         for stn in stnlist:
             stninfo = pyStationInfo.StationInfo(cnn, stn['NetworkCode'], stn['StationCode'])
             sys.stdout.write(stninfo.rinex_based_stninfo(args.station_info_proposed))
+
+    #####################################
+
+    if args.delete_rinex is not None:
+        try:
+            dates = process_date(args.delete_rinex)
+        except ValueError as e:
+            parser.error(str(e))
+
+        DeleteRinex(cnn, stnlist, dates[0], dates[1])
 
     #####################################
 

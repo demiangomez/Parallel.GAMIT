@@ -14,6 +14,13 @@ from scipy.stats import chi2
 import matplotlib.pyplot as plt
 import pyEvents
 from zlib import crc32
+from Utils import ct2lg
+from Utils import ecef2lla
+
+NO_EFFECT = None
+CO_SEISMIC_DECAY = 0
+ANTENNA_CHANGE = 1
+CO_SEISMIC_JUMP_DECAY = 2
 
 class pyPPPETMException(Exception):
     def __init__(self, value):
@@ -22,65 +29,6 @@ class pyPPPETMException(Exception):
     def __str__(self):
         return str(self.value)
 
-def ecef2lla(ecefArr):
-    # convert ECEF coordinates to LLA
-    # test data : test_coord = [2297292.91, 1016894.94, -5843939.62]
-    # expected result : -66.8765400174 23.876539914 999.998386689
-
-    x = ecefArr[0]
-    y = ecefArr[1]
-    z = ecefArr[2]
-
-    a = 6378137
-    e = 8.1819190842622e-2
-
-    asq = np.power(a, 2)
-    esq = np.power(e, 2)
-
-    b = np.sqrt(asq * (1 - esq))
-    bsq = np.power(b, 2)
-
-    ep = np.sqrt((asq - bsq) / bsq)
-    p = np.sqrt(np.power(x, 2) + np.power(y, 2))
-    th = np.arctan2(a * z, b * p)
-
-    lon = np.arctan2(y, x)
-    lat = np.arctan2((z + np.power(ep, 2) * b * np.power(np.sin(th), 3)),
-                        (p - esq * a * np.power(np.cos(th), 3)))
-    N = a / (np.sqrt(1 - esq * np.power(np.sin(lat), 2)))
-    alt = p / np.cos(lat) - N
-
-    lon = lon * 180 / np.pi
-    lat = lat * 180 / np.pi
-
-    return np.array([lat]), np.array([lon]), np.array([alt])
-
-
-def ct2lg(dX, dY, dZ, lat, lon):
-
-    n = dX.size
-    R = np.zeros((3, 3, n))
-
-    R[0, 0, :] = -np.multiply(np.sin(np.deg2rad(lat)), np.cos(np.deg2rad(lon)))
-    R[0, 1, :] = -np.multiply(np.sin(np.deg2rad(lat)), np.sin(np.deg2rad(lon)))
-    R[0, 2, :] = np.cos(np.deg2rad(lat))
-    R[1, 0, :] = -np.sin(np.deg2rad(lon))
-    R[1, 1, :] = np.cos(np.deg2rad(lon))
-    R[1, 2, :] = np.zeros((1, n))
-    R[2, 0, :] = np.multiply(np.cos(np.deg2rad(lat)), np.cos(np.deg2rad(lon)))
-    R[2, 1, :] = np.multiply(np.cos(np.deg2rad(lat)), np.sin(np.deg2rad(lon)))
-    R[2, 2, :] = np.sin(np.deg2rad(lat))
-
-    dxdydz = np.column_stack((np.column_stack((dX, dY)), dZ))
-
-    RR = np.reshape(R[0, :, :], (3, n))
-    dx = np.sum(np.multiply(RR, dxdydz.transpose()), axis=0)
-    RR = np.reshape(R[1, :, :], (3, n))
-    dy = np.sum(np.multiply(RR, dxdydz.transpose()), axis=0)
-    RR = np.reshape(R[2, :, :], (3, n))
-    dz = np.sum(np.multiply(RR, dxdydz.transpose()), axis=0)
-
-    return dx, dy, dz
 
 def distance(lon1, lat1, lon2, lat2):
     """
@@ -100,6 +48,7 @@ def distance(lon1, lat1, lon2, lat2):
     c = 2 * np.arcsin(np.sqrt(a))
     km = 6371 * c
     return km
+
 
 class PPP_soln():
     """"class to extract the PPP solutions from the database"""
@@ -196,45 +145,45 @@ class Jump():
 
         if self.year <= t.min() and decay == 0:
             # antenna change or some other jump BEFORE the start of the data
-            self.type = None
+            self.type = NO_EFFECT
             self.params = 0
 
         elif self.year >= t.max():
             # antenna change or some other jump AFTER the end of the data
-            self.type   = None
+            self.type   = NO_EFFECT
             self.params = 0
 
         elif self.year <= t.min() and decay != 0:
             # earthquake before the start of the data, leave the decay but not the jump
-            self.type   = 0
+            self.type   = CO_SEISMIC_DECAY
             self.params = 1
 
         elif self.year > t.min() and self.year < t.max() and decay == 0:
-            self.type   = 1
+            self.type   = ANTENNA_CHANGE
             self.params = 1
 
         elif self.year > t.min() and self.year < t.max() and decay != 0:
-            self.type   = 2
+            self.type   = CO_SEISMIC_JUMP_DECAY
             self.params = 2
 
     def remove(self):
         # this method will make this jump type = 0 and adjust its params
-        self.type = None
+        self.type = NO_EFFECT
         self.params = 0
 
     def eval(self, t):
         # given a time vector t, return the design matrix column vector(s)
 
-        if self.type is None:
+        if self.type is NO_EFFECT:
             return np.array([])
 
         hl = np.zeros((t.shape[0],))
         ht = np.zeros((t.shape[0],))
 
-        if self.type in (0,2):
+        if self.type in (CO_SEISMIC_DECAY, CO_SEISMIC_JUMP_DECAY):
             hl[t > self.year] = np.log10(1 + (t[t > self.year] - self.year) / self.T)
 
-        if self.type in (1,2):
+        if self.type in (ANTENNA_CHANGE, CO_SEISMIC_JUMP_DECAY):
             ht[t > self.year] = 1
 
         if np.any(hl) and np.any(ht):
@@ -253,7 +202,7 @@ class Jump():
         return str(self.year)+', '+str(self.type)+', '+str(self.T)
 
     def __repr__(self):
-        return 'pyDate.Date('+str(self.year)+', '+str(self.type)+', '+str(self.T)+')'
+        return 'pyPPPETM.Jump('+str(self.year)+', '+str(self.type)+', '+str(self.T)+')'
 
 
 class JumpsTable():
@@ -408,7 +357,7 @@ class JumpsTable():
 
         # get the design matrix for the jump table
         for jump in self.table:
-            if not jump.type is None:
+            if not jump.type is NO_EFFECT:
                 a = jump.eval(t)
 
                 if a.size:
@@ -435,7 +384,7 @@ class JumpsTable():
 
         s = 0
         for jump in self.table:
-            if not jump.type is None:
+            if not jump.type is NO_EFFECT:
                 if jump.params == 1 and jump.T != 0:
                     jump.a = np.append(jump.a, C[s:s + 1])
 
@@ -459,7 +408,7 @@ class JumpsTable():
             a = [None, None, None]
             b = [None, None, None]
 
-            if not jump.type is None:
+            if not jump.type is NO_EFFECT:
 
                 if (jump.params == 1 and jump.T != 0) or jump.params == 2 :
                     a[0], a[1], a[2] = ct2lg(jump.a[0], jump.a[1], jump.a[2], lat, lon)
@@ -805,7 +754,7 @@ class ETM():
             f, axis = plt.subplots(nrows=3, ncols=2, sharex=True, figsize=(15,10)) # type: plt.subplots
             f.suptitle('Station: %s.%s (PPP Completion: %.2f%%)\n%s\n%s' %
                        (self.NetworkCode, self.StationCode,
-                        100. - float(len(self.ppp_soln.ts_ns))/float(len(self.ppp_soln.t))*100.,
+                        100. - float(len(self.ppp_soln.ts_ns))/float(len(self.ppp_soln.ts_ns)+len(self.ppp_soln.t))*100.,
                         self.Linear.PrintParams(self.ppp_soln.lat, self.ppp_soln.lon),
                         self.Periodic.PrintParams(self.ppp_soln.lat, self.ppp_soln.lon)), fontsize=9, family='monospace')
 
@@ -850,7 +799,7 @@ class ETM():
 
                 ax.grid(True)
                 for jump in self.Jumps.table:
-                    if jump.year >= self.ppp_soln.t.min() and not jump.type is None:
+                    if jump.year >= self.ppp_soln.t.min() and not jump.type is NO_EFFECT:
                         # the post-seismic jumps that happened before t.min() should not be plotted
                         if jump.T == 0:
                             ax.plot((jump.year, jump.year), ax.get_ylim(), 'b:')
@@ -874,7 +823,7 @@ class ETM():
 
                 ax.grid(True)
                 #for jump in self.Jumps.table:
-                #    if jump.year >= self.ppp_soln.t.min() and not jump.type is None:
+                #    if jump.year >= self.ppp_soln.t.min() and not jump.type is NO_EFFECT:
                 #        # the post-seismic jumps that happened before t.min() should not be plotted
                 #        if jump.T == 0:
                 #            ax.plot((jump.year, jump.year), ax.get_ylim(), 'b:')
@@ -923,7 +872,7 @@ class ETM():
 
                 ax.grid(True)
                 for jump in self.Jumps.table:
-                    if jump.year >= self.ppp_soln.t.min() and not jump.type is None:
+                    if jump.year >= self.ppp_soln.t.min() and not jump.type is NO_EFFECT:
                         # the post-seismic jumps that happened before t.min() should not be plotted
                         if jump.T == 0:
                             ax.plot((jump.year, jump.year), ax.get_ylim(), 'b:')
@@ -976,7 +925,7 @@ class ETM():
         s = 0
         value = []
         for jump in self.Jumps.table:
-            if not jump.type is None:
+            if not jump.type is NO_EFFECT:
                 if jump.params == 1 and jump.T != 0:
                     value = [jump.a[0]]
 
@@ -1036,7 +985,7 @@ class ETM():
         window = None
 
         for jump in self.Jumps.table:
-            if jump.date == date and jump.type in (1,2):
+            if jump.date == date and jump.type in (ANTENNA_CHANGE, CO_SEISMIC_JUMP_DECAY):
                 if np.sqrt(np.sum(np.square(jump.b))) > 0.02:
                     window = jump.date
                     # if no pre or post specified, then determine using the time of the jump

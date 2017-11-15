@@ -25,6 +25,7 @@ def main():
     parser.add_argument('-np', '--noparallel', action='store_true', help="Execute command without parallelization")
     parser.add_argument('-dir', '--directory', type=str, help="Directory to save the resulting PNG files. If not specified, assumed to be the production directory")
     parser.add_argument('-json', '--json', type=int, help="Export ETM adjustment to JSON. Append '1' to export time series or append '0' to just output the ETM parameters.")
+    parser.add_argument('-gui', '--interactive', action='store_true', help="Interactive mode: allows to zoom and view the plot interactively")
 
     args = parser.parse_args()
 
@@ -50,7 +51,10 @@ def main():
         for stn in stnlist:
             try:
                 etm = pyPPPETM.ETM(cnn, stn['NetworkCode'], stn['StationCode'], False)
-                etm.plot(os.path.join(args.directory, etm.NetworkCode + '.' + etm.StationCode + '.png'))
+                if args.interactive:
+                    etm.plot()
+                else:
+                    etm.plot(os.path.join(args.directory, etm.NetworkCode + '.' + etm.StationCode + '.png'))
 
                 if not args.json is None:
                     with open(os.path.join(args.directory, etm.NetworkCode + '.' + etm.StationCode + '.json'), 'w') as f:

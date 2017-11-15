@@ -1,5 +1,5 @@
 """
-Project:
+Project: Parallel.PPP
 Date: 2/21/17 3:34 PM
 Author: Demian D. Gomez
 
@@ -17,12 +17,13 @@ import os
 import uuid
 from shutil import copyfile
 from shutil import rmtree
-import numpy
-from math import isnan
+import numpy as np
+from Utils import lg2ct
 import pyEvents
 import re
 from math import isnan
 from Utils import ecef2lla
+
 
 def find_between(s, first, last):
     try:
@@ -57,8 +58,10 @@ class pyRunPPPExceptionNaN(pyRunPPPException):
 class pyRunPPPExceptionZeroProcEpochs(pyRunPPPException):
     pass
 
+
 class pyRunPPPExceptionEOPError(pyRunPPPException):
     pass
+
 
 class PPPSpatialCheck():
 
@@ -216,7 +219,7 @@ class RunPPP(PPPSpatialCheck):
                 if not os.path.exists(self.rootdir):
                     os.makedirs(self.rootdir)
                     os.makedirs(os.path.join(self.rootdir,'orbits'))
-            except Exception as excep:
+            except Exception:
                 # could not create production dir! FATAL
                 raise
 
@@ -430,7 +433,7 @@ class RunPPP(PPPSpatialCheck):
             sz           = re.findall('Z\(m\)\s+(-?\d+\.\d+|[nN]a[nN]|\*+)', section)[0]
 
             if '*' in sx or '*' in sy or '*' in sz or '*' in sxy or '*' in sxz or '*' in syz:
-                raise pyRunPPPExceptionNaN('One or more sigma is NaN')
+                raise pyRunPPPExceptionNaN('Sigmas are NaN')
             else:
                 sx = float(sx)
                 sy = float(sy)
@@ -440,7 +443,7 @@ class RunPPP(PPPSpatialCheck):
                 syz = float(syz)
 
         if isnan(sx) or isnan(sy) or isnan(sz) or isnan(sxy) or isnan(sxz) or isnan(syz):
-            raise pyRunPPPExceptionNaN('One or more sigma is NaN')
+            raise pyRunPPPExceptionNaN('Sigmas are NaN')
 
         return sx, sy, sz, sxy, sxz, syz
 
@@ -488,7 +491,7 @@ class RunPPP(PPPSpatialCheck):
     def check_eop(section):
         pole = re.findall('Pole X\s+.\s+(-?\d+\.\d+|nan)\s+(-?\d+\.\d+|nan)', section)
         if len(pole) > 0:
-            if 'nan' not in pole[0]:
+            if 'nan' not in pole[0].lower():
                 return True
             else:
                 return False
@@ -534,10 +537,19 @@ class RunPPP(PPPSpatialCheck):
         self.frame = self.get_frame(self.coordinate_estimate)
 
         self.x, self.y, self.z = self.get_xyz(self.coordinate_estimate)
+        self.lat, self.lon, self.h = ecef2lla([self.x, self.y, self.z])
 
         self.sigmax, self.sigmay, self.sigmaz, \
         self.sigmaxy, self.sigmaxz, self.sigmayz = self.get_sigmas(self.coordinate_estimate, self.kinematic)
 
+        # not implemented in PPP: apply NE offset if is NOT zero
+        if self.rinex.antOffsetN != 0.0 or self.rinex.antOffsetE != 0.0:
+            dx, dy, dz = lg2ct(np.array(self.rinex.antOffsetN), np.array(self.rinex.antOffsetE), np.array([0]), self.lat, self.lon)
+            # reduce coordinates
+            self.x -= dx[0]
+            self.y -= dy[0]
+            self.z -= dz[0]
+            self.lat, self.lon, self.h = ecef2lla([self.x, self.y, self.z])
 
     def __exec_ppp__(self, raise_error=True):
 
@@ -605,6 +617,10 @@ class RunPPP(PPPSpatialCheck):
                         # first retry, turn to kinematic mode
                         self.kinematic = True
                         self.config_session()
+                    elif self.kinematic and self.rinex.date.fyear >= 2001.33287 and not self.clock_interpolation:
+                        # date has to be > 2001 May 1 (SA deactivation date)
+                        self.clock_interpolation = True
+                        self.config_session()
                     elif self.kinematic and self.sp3altrn and self.orbit_type not in self.sp3altrn:
                         # second retry, kinematic and alternative orbits (if exist)
                         self.get_orbits(self.sp3altrn)
@@ -621,7 +637,6 @@ class RunPPP(PPPSpatialCheck):
                     raise pyRunPPPException(message)
 
         self.load_record()
-        self.lat, self.lon, self.h = ecef2lla([self.x, self.y, self.z])
 
         return
 

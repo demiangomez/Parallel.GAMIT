@@ -73,6 +73,8 @@ class Network():
     def __init__(self, cnn, NetworkConfig, year, doys):
 
         self.Name = NetworkConfig['network_id'].lower()
+        # save the passed doys
+        self.doys = doys
 
         stn_list = NetworkConfig['stn_list'].split(',')
 
@@ -178,8 +180,9 @@ class Network():
         for stn in self.Secondary.Stations:
             # check that this station exists and that we have data for the day
             rs = cnn.query(
-                'SELECT * FROM rinex WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "ObservationYear" = %s AND "ObservationDOY" = %i' % (
-                    stn.NetworkCode, stn.StationCode, date.yyyy(), int(date.doy)))
+                'SELECT * FROM rinex_proc WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND '
+                '"ObservationYear" = %s AND "ObservationDOY" = %i AND "Completion" >= 0.5'
+                % (stn.NetworkCode, stn.StationCode, date.yyyy(), int(date.doy)))
 
             if rs.ntuples() > 0:
                 # do not create instance if we don't have a rinex

@@ -18,7 +18,7 @@ class pyStationInfoException(Exception):
     def __str__(self):
         return str(self.value)
 
-class StationInfoRecord():
+class StationInfoRecord(object):
     def __init__(self, NetworkCode=None,StationCode=None):
 
         self.NetworkCode = NetworkCode

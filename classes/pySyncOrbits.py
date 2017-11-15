@@ -60,6 +60,9 @@ def main():
 
             sp3_archive = get_archive_path(Config.sp3_path, date)
 
+            if not os.path.exists(sp3_archive):
+                os.makedirs(sp3_archive)
+
             for repro in ['', '/repro2']:
                 # try both in the repro and / folders
                 folder = "/pub/gps/products/" + date.wwww() + repro

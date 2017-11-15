@@ -1,5 +1,7 @@
 
-import os, re, subprocess, sys, pyDate, numpy, filecmp, argparse
+import os, re, subprocess, sys, pyDate, filecmp, argparse
+from datetime import datetime
+import numpy as np
 
 class UtilsException(Exception):
     def __init__(self, value):
@@ -178,6 +180,59 @@ def move(src, dst):
     return dst
 
 
+def ct2lg(dX, dY, dZ, lat, lon):
+
+    n = dX.size
+    R = np.zeros((3, 3, n))
+
+    R[0, 0, :] = -np.multiply(np.sin(np.deg2rad(lat)), np.cos(np.deg2rad(lon)))
+    R[0, 1, :] = -np.multiply(np.sin(np.deg2rad(lat)), np.sin(np.deg2rad(lon)))
+    R[0, 2, :] = np.cos(np.deg2rad(lat))
+    R[1, 0, :] = -np.sin(np.deg2rad(lon))
+    R[1, 1, :] = np.cos(np.deg2rad(lon))
+    R[1, 2, :] = np.zeros((1, n))
+    R[2, 0, :] = np.multiply(np.cos(np.deg2rad(lat)), np.cos(np.deg2rad(lon)))
+    R[2, 1, :] = np.multiply(np.cos(np.deg2rad(lat)), np.sin(np.deg2rad(lon)))
+    R[2, 2, :] = np.sin(np.deg2rad(lat))
+
+    dxdydz = np.column_stack((np.column_stack((dX, dY)), dZ))
+
+    RR = np.reshape(R[0, :, :], (3, n))
+    dx = np.sum(np.multiply(RR, dxdydz.transpose()), axis=0)
+    RR = np.reshape(R[1, :, :], (3, n))
+    dy = np.sum(np.multiply(RR, dxdydz.transpose()), axis=0)
+    RR = np.reshape(R[2, :, :], (3, n))
+    dz = np.sum(np.multiply(RR, dxdydz.transpose()), axis=0)
+
+    return dx, dy, dz
+
+
+def lg2ct(dN, dE, dU, lat, lon):
+
+    n = dN.size
+    R = np.zeros((3, 3, n))
+
+    R[0, 0, :] = -np.multiply(np.sin(np.deg2rad(lat)), np.cos(np.deg2rad(lon)))
+    R[1, 0, :] = -np.multiply(np.sin(np.deg2rad(lat)), np.sin(np.deg2rad(lon)))
+    R[2, 0, :] = np.cos(np.deg2rad(lat))
+    R[0, 1, :] = -np.sin(np.deg2rad(lon))
+    R[1, 1, :] = np.cos(np.deg2rad(lon))
+    R[2, 1, :] = np.zeros((1, n))
+    R[0, 2, :] = np.multiply(np.cos(np.deg2rad(lat)), np.cos(np.deg2rad(lon)))
+    R[1, 2, :] = np.multiply(np.cos(np.deg2rad(lat)), np.sin(np.deg2rad(lon)))
+    R[2, 2, :] = np.sin(np.deg2rad(lat))
+
+    dxdydz = np.column_stack((np.column_stack((dN, dE)), dU))
+
+    RR = np.reshape(R[0, :, :], (3, n))
+    dx = np.sum(np.multiply(RR, dxdydz.transpose()), axis=0)
+    RR = np.reshape(R[1, :, :], (3, n))
+    dy = np.sum(np.multiply(RR, dxdydz.transpose()), axis=0)
+    RR = np.reshape(R[2, :, :], (3, n))
+    dz = np.sum(np.multiply(RR, dxdydz.transpose()), axis=0)
+
+    return dx, dy, dz
+
 def ecef2lla(ecefArr):
     # convert ECEF coordinates to LLA
     # test data : test_coord = [2297292.91, 1016894.94, -5843939.62]
@@ -190,31 +245,31 @@ def ecef2lla(ecefArr):
     a = 6378137
     e = 8.1819190842622e-2
 
-    asq = numpy.power(a, 2)
-    esq = numpy.power(e, 2)
+    asq = np.power(a, 2)
+    esq = np.power(e, 2)
 
-    b = numpy.sqrt(asq * (1 - esq))
-    bsq = numpy.power(b, 2)
+    b = np.sqrt(asq * (1 - esq))
+    bsq = np.power(b, 2)
 
-    ep = numpy.sqrt((asq - bsq) / bsq)
-    p = numpy.sqrt(numpy.power(x, 2) + numpy.power(y, 2))
-    th = numpy.arctan2(a * z, b * p)
+    ep = np.sqrt((asq - bsq) / bsq)
+    p = np.sqrt(np.power(x, 2) + np.power(y, 2))
+    th = np.arctan2(a * z, b * p)
 
-    lon = numpy.arctan2(y, x)
-    lat = numpy.arctan2((z + numpy.power(ep, 2) * b * numpy.power(numpy.sin(th), 3)),
-                     (p - esq * a * numpy.power(numpy.cos(th), 3)))
-    N = a / (numpy.sqrt(1 - esq * numpy.power(numpy.sin(lat), 2)))
-    alt = p / numpy.cos(lat) - N
+    lon = np.arctan2(y, x)
+    lat = np.arctan2((z + np.power(ep, 2) * b * np.power(np.sin(th), 3)),
+                     (p - esq * a * np.power(np.cos(th), 3)))
+    N = a / (np.sqrt(1 - esq * np.power(np.sin(lat), 2)))
+    alt = p / np.cos(lat) - N
 
-    lon = lon * 180 / numpy.pi
-    lat = lat * 180 / numpy.pi
+    lon = lon * 180 / np.pi
+    lat = lat * 180 / np.pi
 
-    return numpy.array([lat]), numpy.array([lon]), numpy.array([alt])
+    return np.array([lat]), np.array([lon]), np.array([alt])
 
 
 def process_date(arg):
 
-    dates = [pyDate.Date(year=1980, doy=1), pyDate.Date(year=2100, doy=1)]
+    dates = [pyDate.Date(year=1980, doy=1), pyDate.Date(year=datetime.now().year, month=datetime.now().month, day=datetime.now().day)]
 
     if arg:
         for i, arg in enumerate(arg):
