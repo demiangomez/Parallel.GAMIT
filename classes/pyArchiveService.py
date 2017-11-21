@@ -101,7 +101,7 @@ def error_handle(cnn, event, crinez, folder, filename, no_db_log=False):
     mfile = filename
     try:
         mfile = os.path.basename(Utils.move(crinez, os.path.join(folder, filename)))
-    except OSError as e:
+    except (OSError, ValueError) as e:
         message = 'could not move file into this folder!' + str(e) + '\n. Original error: ' + event['Description']
 
     error_file = mfile.replace('d.Z','.log')
@@ -420,7 +420,7 @@ def process_crinex_file(crinez, filename, data_rejected, data_retry):
         # a bad RINEX file requested an orbit for a date < 0 or > now()
         reject_folder = reject_folder.replace('%reason%', 'bad_rinex')
 
-        e.event['Description'] = e.event['Description'] + ' during ' + crinez.replace(Config.repository_data_in,'') + '. The file has been moved to the rejected folder. Most likely bad RINEX header/data. RINEX header follows:\n%s' % (''.join(rinexinfo.get_header()))
+        e.event['Description'] = e.event['Description'] + ' during ' + crinez.replace(Config.repository_data_in,'') + '. The file has been moved to the rejected folder. Most likely bad RINEX header/data.'
         e.event['StationCode'] = StationCode
         e.event['NetworkCode'] = '???'
         e.event['Year'] = year
@@ -435,7 +435,7 @@ def process_crinex_file(crinez, filename, data_rejected, data_retry):
         # if PPP fails and ArchiveService tries to run sh_rnx2apr and it doesn't find the orbits, send to retry
         retry_folder = retry_folder.replace('%reason%', 'sp3_exception')
 
-        e.event['Description'] = e.event['Description'] + ': ' + crinez.replace(Config.repository_data_in,'') + '. Check the brdc/sp3/clk files and also check that the RINEX data is not corrupt. RINEX header follows:\n%s' % (''.join(rinexinfo.get_header()))
+        e.event['Description'] = e.event['Description'] + ': ' + crinez.replace(Config.repository_data_in,'') + '. Check the brdc/sp3/clk files and also check that the RINEX data is not corrupt.'
         e.event['StationCode'] = StationCode
         e.event['NetworkCode'] = '???'
         e.event['Year'] = year
@@ -615,15 +615,16 @@ def main():
 
     Config = pyOptions.ReadOptions('gnss_data.cfg')
 
-    if args.noparallel:
-        Config.run_parallel = False
-
     if not os.path.isdir(Config.repository):
         print "the provided repository path in gnss_data.cfg is not a folder"
         exit()
 
     # initialize the PP job server
-    JobServer = pyJobServer.JobServer(Config)
+    if not args.noparallel:
+        JobServer = pyJobServer.JobServer(Config)  # type: pyJobServer.JobServer
+    else:
+        JobServer = None
+        Config.run_parallel = False
 
     cnn = dbConnection.Cnn('gnss_data.cfg')
     # create the execution log

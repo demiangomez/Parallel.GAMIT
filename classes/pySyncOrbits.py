@@ -17,6 +17,7 @@ import numpy as np
 from tqdm import tqdm
 import ftplib
 import zlib
+import pyRunWithRetry
 
 def get_archive_path(archive, date):
 
@@ -98,12 +99,18 @@ def main():
             ftp_list = ftp.nlst()
 
             brdc_archive = get_archive_path(Config.brdc_path, date)
+
+            if not os.path.exists(brdc_archive):
+                os.makedirs(brdc_archive)
+
             filename = 'brdc' + str(date.doy).zfill(3) + '0.' + str(date.year)[2:4] + 'n'
 
             if not os.path.isfile(os.path.join(brdc_archive, filename)) and filename + '.Z' in ftp_list:
                 tqdm.write('%-31s: %s' % (' -- trying to download BRDC', filename))
-                #ftp.retrbinary("RETR " + filename + '.Z', open(os.path.join(sp3_archive, filename), 'wb').write)
+                ftp.retrbinary("RETR " + filename + '.Z', open(os.path.join(brdc_archive, filename + '.Z'), 'wb').write)
                 # decompress file
+                cmd = pyRunWithRetry.RunCommand('gunzip -f ' + os.path.join(brdc_archive, filename + '.Z'), 15)
+                cmd.run_shell()
 
             pbar.set_postfix(gpsWeek='%i %i' % (date.gpsWeek, date.gpsWeekDay))
             pbar.update()

@@ -129,12 +129,17 @@ class Network():
         # build a list of the stations in the convex hull
         core_network = [{'NetworkCode': StnNames[vertex][0], 'StationCode': StnNames[vertex][1]} for vertex in hull.vertices]
 
-        # also add the centroid of the figure
-        mean_ll = np.mean(points, axis=0)
+        # create a mask so that the centroid is not a point in the hull
+        mask = np.ones(points.shape[0], dtype=bool)
+        mask[hull.vertices] = False
 
-        # find the closest stations to the centroid
-        centroid = np.argmin(np.sum(np.abs(points-mean_ll),axis=1))
-        core_network += [{'NetworkCode': StnNames[centroid][0], 'StationCode': StnNames[centroid][1]}]
+        if np.any(mask):
+            # also add the centroid of the figure
+            mean_ll = np.mean(points, axis=0)
+
+            # find the closest stations to the centroid
+            centroid = np.argmin(np.sum(np.abs(points[mask]-mean_ll),axis=1))
+            core_network += [{'NetworkCode': StnNames[centroid][0], 'StationCode': StnNames[centroid][1]}]
 
         tqdm.write(' -- Done analyzing network. List of core stations follows: ')
 
@@ -181,7 +186,7 @@ class Network():
             # check that this station exists and that we have data for the day
             rs = cnn.query(
                 'SELECT * FROM rinex_proc WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND '
-                '"ObservationYear" = %s AND "ObservationDOY" = %i AND "Completion" >= 0.5'
+                '"ObservationYear" = %s AND "ObservationDOY" = %i AND "Completion" >= 0.5 AND "Interval" <= 120'
                 % (stn.NetworkCode, stn.StationCode, date.yyyy(), int(date.doy)))
 
             if rs.ntuples() > 0:

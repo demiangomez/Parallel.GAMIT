@@ -21,6 +21,8 @@ import time
 from math import sqrt
 from shutil import rmtree
 from math import ceil
+import argparse
+import glob
 
 def signal_handler(signal, frame):
     print '\nProcess interruptued by user\n'
@@ -172,58 +174,62 @@ def print_summary2(Project, all_missing_data):
     return
 
 
-def print_help():
+def purge_solutions(cnn, args, year, doys, GamitConfig):
 
-    print ' Parallel.GAMIT input arguments'
-    print ' --session_cfg [file] : file with the configuration for the session'
-    print ' --year [yyyy]        : year to process'
-    print ' --doy  [ddd-ddd,ddd] : day of year in interval format (ddd-ddd) and/or comma separated values'
+    if args.purge:
+        print(' >> Purging selected year-doys before run:')
+        for doy in tqdm(doys, ncols=80):
+            date = pyDate.Date(year=year, doy=doy)  # type: pyDate.Date
 
+            # base dir for the GAMIT session directories
+            pwd = GamitConfig.gamitopt['working_dir'].rstrip('/') + '/' + date.yyyy() + '/' + date.ddd()
 
-def parse_arguments(argv):
+            # delete the main solution dir (may be entire GAMIT run or combination directory)
+            rmtree(os.path.join(pwd, GamitConfig.gamitopt['network_id'].lower()))
 
-    if not argv:
-        print "Parallel.GAMIT allows the execution of multiple instances of GAMIT in parallel"
-        print_help()
-        exit()
+            # possible subnetworks
+            for sub in glob.glob(os.path.join(pwd, GamitConfig.gamitopt['network_id'].lower() + '.*')):
+                rmtree(sub)
 
-    year          = None
-    session_cfg   = None
-    doys          = None
-
-    try:
-        aoptions, arguments = getopt.getopt(argv,'',['session_cfg=', 'year=','doys='])
-    except getopt.GetoptError:
-        print "invalid argument/s"
-        print_help()
-        sys.exit(2)
-
-    try:
-        for opt, args in aoptions:
-            if opt == '--session_cfg':
-                session_cfg = args
-            if opt == '--year':
-                year = int(args)
-            if opt == '--doys':
-                doys = parseIntSet(args)
-    except:
-        print "invalid argument/s"
-        print_help()
-        sys.exit(2)
-
-    return session_cfg, year, doys
+            # now remove the database entries
+            cnn.query('DELETE FROM gamit_soln WHERE "Year" = %i AND "DOY" = %i' % (year, doy))
 
 
-def main(argv):
+def main():
+    parser = argparse.ArgumentParser(description='Parallel.GAMIT main execution program')
 
-    session_cfg, year, doys = parse_arguments(argv)
+    parser.add_argument('session_cfg', type=str, nargs=1, metavar='session.cfg', help="Filename with the session configuration to run Parallel.GAMIT")
+    parser.add_argument('-y', '--year', type=int, nargs=1, metavar='{year}', help="Year to execute Parallel.GAMIT using provided cfg file.")
+    parser.add_argument('-d', '--doys', type=str, nargs=1, metavar='{doys}', help="DOYs interval given in a comma separated list or intervals (e.g. 1-57,59-365)")
+    parser.add_argument('-e', '--exclude', type=str, nargs='?', metavar='station', help="List of stations to exclude from this processing (e.g. -e igm1 lpgs vbca)")
+    parser.add_argument('-p', '--purge', action='store_true', help="Purge year doys from the database and directory structure and re-run the solution.")
+
+    args = parser.parse_args()
+
+    year = args.year
+    doys = parseIntSet(args.doys)
+
+    # check if doys are correct
+    if any([doy for doy in doys if doy < 1]):
+        parser.error('DOYs cannot start with zero. Please selected a DOY range between 1-365/366')
 
     print(' >> Reading configuration files and creating project network, please wait...')
-    GamitConfig = pyGamitConfig.GamitConfiguration(session_cfg) # type: pyGamitConfig.GamitConfiguration
+    GamitConfig = pyGamitConfig.GamitConfiguration(args.session_cfg) # type: pyGamitConfig.GamitConfiguration
 
     cnn = dbConnection.Cnn(GamitConfig.gamitopt['gnss_data']) # type: dbConnection.Cnn
 
-    Project = Network(cnn, GamitConfig.NetworkConfig, year, doys) # type: Network
+    # to exclude stations, append them to GamitConfig.NetworkConfig with a - in front
+    exclude = args.exclude
+    if exclude is not None:
+        print(' >> User selected list of stations to exclude:')
+        Utils.print_columns(exclude)
+        GamitConfig.NetworkConfig['stn_list'] += ',-' + ',-'.join(exclude)
+
+    # purge solutions if requested
+    purge_solutions(cnn, args, year, doys, GamitConfig)
+
+    # initialize project
+    Project = Network(cnn, GamitConfig.NetworkConfig, year, doys)  # type: Network
 
     # done with Gamit config and network
     # generate the GamitSession instances
@@ -408,5 +414,5 @@ def ExecuteGamit(Config, Sessions):
 
 if __name__ == '__main__':
     signal.signal(signal.SIGINT, signal_handler)
-    main(sys.argv[1:])
+    main()
 

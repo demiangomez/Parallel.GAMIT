@@ -68,7 +68,7 @@ class GamitConfiguration(ReadOptions):
             raise
 
 
-    def __check_config(self,config,sess_config_file):
+    def __check_config(self, config, sess_config_file):
         try:
             item = config.get('gamit','process_defaults')
             if not os.path.isfile(item):

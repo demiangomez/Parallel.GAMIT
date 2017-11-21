@@ -311,7 +311,8 @@ def process_stnlist(cnn, stnlist_in):
 
     else:
         for stn in stnlist_in:
-            if '.' in stn:
+            rs = None
+            if '.' in stn and '-' not in stn:
                 # a net.stnm given
                 if 'all' in stn.split('.')[1]:
                     # all stations from a network
@@ -321,13 +322,18 @@ def process_stnlist(cnn, stnlist_in):
                     rs = cnn.query(
                         'SELECT * FROM stations WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' ORDER BY "NetworkCode", "StationCode"' % (stn.split('.')[0], stn.split('.')[1]))
 
-            else:
+            elif '.' not in stn and '-' not in stn:
                 # just a station name
                 rs = cnn.query(
                     'SELECT * FROM stations WHERE "StationCode" = \'%s\' ORDER BY "NetworkCode", "StationCode"' % (stn))
 
-            for rstn in rs.dictresult():
-                stnlist += [{'NetworkCode': rstn['NetworkCode'], 'StationCode': rstn['StationCode']}]
+            if rs is not None:
+                for rstn in rs.dictresult():
+                    stnlist += [{'NetworkCode': rstn['NetworkCode'], 'StationCode': rstn['StationCode']}]
+
+    # deal with station removals (-)
+    for stn in [stn.replace('-', '') for stn in stnlist_in if '-' in stn]:
+        stnlist = [stnl for stnl in stnlist if stnl['NetworkCode'] + '.' + stnl['StationCode'] != stn.lower()]
 
     return stnlist
 

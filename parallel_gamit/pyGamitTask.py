@@ -85,19 +85,21 @@ class GamitTask:
                             # find the rinex that corresponds to the session being processed
                             for Rnx in Rinex.multiday_rnx_list:
                                 if Rnx.date == self.date:
-                                    Rnx.rename_crinex_rinex(rinex['destiny'])
+                                    Rnx.rename(rinex['destiny'])
 
                                     if rinex['jump'] is not None:
                                         self.window_rinex(Rnx, rinex['jump'])
-
+                                    # before creating local copy, decimate file
+                                    Rnx.decimate(30)
                                     Rnx.compress_local_copyto(self.pwd_rinex)
                                     break
                         else:
-                            Rinex.rename_crinex_rinex(rinex['destiny'])
+                            Rinex.rename(rinex['destiny'])
 
                             if rinex['jump'] is not None:
                                 self.window_rinex(Rinex, rinex['jump'])
-
+                            # before creating local copy, decimate file
+                            Rinex.decimate(30)
                             Rinex.compress_local_copyto(self.pwd_rinex)
 
                 except (OSError, IOError):
@@ -274,6 +276,10 @@ class GamitTask:
 
         # set exe to 0 so that we exit exe loop if no problems found
         EXE=0;
+
+        # save a copy of the lfile. before running sh_gamit
+        iter_ext=`printf "l%%02d_i%%02d" $level $COUNTER`
+        cp ./tables/lfile. ./tables/lfile.${iter_ext}
 
         # do the damn thing
         if [ "$NOFTP" = "no" ]; then
@@ -454,12 +460,25 @@ class GamitTask:
         fi
 
         if [ $EXE -eq 1 ]; then
-            # if it will retry, save the previous output using extension .i00, .i01, ... etc
-            it=`printf "%02d" $COUNTER`
-            mv $OUT_FILE $OUT_FILE.i${it}
+            # if it will retry, save the previous output using extension .l00_i00, .l00_i01, ... etc
+            # where lxx is the level of iteration and iyy is the interation in this level
+            mv $OUT_FILE $OUT_FILE.${iter_ext}
+            COUNTER=$((COUNTER+1));
         fi
 
-        COUNTER=$((COUNTER+1));
+        # grep over constrained sites
+        grep -q "over constrained" ./$DOY/sh_gamit_${DOY}.summary;
+        if [ $? -eq 0 ]; then
+            lines=`cat ./$DOY/sh_gamit_${DOY}.summary | sed -n 's/WARNING: \([0-9]*\) SITES.*$/\\1/p'`
+            grep -A $lines "over constrained" ./$DOY/sh_gamit_${DOY}.summary >> monitor.log
+        fi
+
+        # grep updated coordinates
+        grep Updated ./tables/lfile.;
+        if [ $? -eq 0 ]; then
+            grep Updated ./tables/lfile. >> monitor.log
+        fi
+
         done
 
         # clean up
@@ -474,9 +493,8 @@ class GamitTask:
 
         contents = \
         """
-        aprfile=${EXPT}.apr
 
-        # remove extrainious solution files
+        # remove extraneous solution files
         rm ./$DOY/l*[ab].*;
 
         # make sure to rename the gfilea to the correct gfile[0-9].doy
@@ -491,12 +509,20 @@ class GamitTask:
             exit
         fi
 
+        # iteration detected!
+        echo "run.sh (`date +"%Y-%m-%d %T"`): Updated coordinate detected in lfile. Iterating..." >> monitor.log
+
+        # save this level's out file for debugging
+        mv $OUT_FILE $OUT_FILE.${iter_ext}
+
+        # apr file for updated coordinates
+        aprfile=${EXPT}.apr
+
         # recreate the apr file with updated coordinates minus the comments
         sed -e 's/Updated from l.....\.[0-9][0-9][0-9]//g' ./tables/lfile. > ./tables/$aprfile;
-        rm ./tables/lfile.
-        cd tables
-        ln -s $aprfile lfile.
-        cd ..
+
+        # the copy of the lfile was saved BEFORE running GAMIT. Replace with the updated version
+        cp ./tables/$aprfile ./tables/lfile.
 
         # copy over an updated gfile if it exists
         # cp ./*/gfile* ./tables/
@@ -506,8 +532,6 @@ class GamitTask:
 
         # remove the 'old' solution
         [ $level -le $MAX_LEVEL ] && rm -rf ./$DOY;
-
-        echo "run.sh (`date +"%Y-%m-%d %T"`): Updated coordinate detected in lfile. Iterating..." >> monitor.log
 
         # decompress the remaining solution files
         gunzip ./*/*;

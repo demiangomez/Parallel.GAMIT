@@ -71,7 +71,7 @@ class StationInstance():
         self.Archive_path = Archive_path
 
         # get the APR and sigmas for this date (let get_xyz_s determine which side of the jump returns, if any)
-        self.Apr, self.Sigmas, self.Window = self.Station.etm.get_xyz_s(self.date.year, self.date.doy)
+        self.Apr, self.Sigmas, self.Window, self.source = self.Station.etm.get_xyz_s(self.date.year, self.date.doy)
 
         return
 
@@ -97,11 +97,11 @@ class StationInstance():
         x = self.Apr
 
         return ' ' + self.Station.StationAlias.upper() + '_GPS ' + '{:12.3f}'.format(x[0, 0]) + ' ' + '{:12.3f}'.format(
-            x[1, 0]) + ' ' + '{:12.3f}'.format(x[2, 0]) + ' 0.000 0.000 0.000 ' + '{:8.3f}'.format(
+            x[1, 0]) + ' ' + '{:12.3f}'.format(x[2, 0]) + ' 0.000 0.000 0.000 ' + '{:8.4f}'.format(
             self.date.fyear)
 
     def GetSittbl(self):
-        s = self.Sigmas*2.5
+        s = self.Sigmas
 
         return self.Station.StationAlias.upper() + ' ' + self.Station.StationAlias.upper() + '_GPS' + 'NNN'.rjust(8) + '    {:.5}'.format(
             '%5.3f' % (s[0, 0])) + ' ' + '{:.5}'.format('%5.3f' % (s[1, 0])) + ' ' + '{:.5}'.format(
@@ -109,18 +109,26 @@ class StationInstance():
 
     def DebugCoord(self):
         x = self.Apr
+        s = self.Sigmas
 
         rs = self.cnn.query('SELECT * FROM ppp_soln WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "Year" = %s AND "DOY" = %s' % (self.Station.NetworkCode,self.Station.StationCode, self.date.yyyy(), self.date.ddd()))
 
         if rs.ntuples() > 0:
             ppp = rs.dictresult()
-            return self.Station.StationAlias.upper() + ' ' + self.Station.StationAlias.upper() + '_GPS' + 'NNN'.rjust(8) \
-               + '    {:.8}'.format('%8.3f' % (float(ppp[0]['X']) - self.Station.X)) \
-               + ' ' + '{:.8}'.format('%8.3f' % (float(ppp[0]['Y']) - self.Station.Y)) \
-               + ' ' + '{:.8}'.format('%8.3f' % (float(ppp[0]['Z']) - self.Station.Z)) \
-               + '{:12.3f}'.format(x[0, 0]) + ' ' + '{:12.3f}'.format(x[1, 0]) + ' ' + '{:12.3f}'.format(x[2, 0]) + ' 0.000 0.000 0.000 ' + '{:8.3f}'.format(self.date.fyear)
+            return '%s %s_GPS %8.3f %8.3f %8.3f %14.3f %14.3f %14.3f %8.3f %8.3f %8.3f %8.4f %s' % \
+                   (self.Station.StationAlias.upper(), self.Station.StationAlias.upper(),
+                    float(ppp[0]['X']) - self.Station.X,
+                    float(ppp[0]['Y']) - self.Station.Y,
+                    float(ppp[0]['Z']) - self.Station.Z,
+                    x[0, 0], x[1, 0], x[2, 0],
+                    s[0, 0], s[1, 0], s[2, 0],
+                    self.date.fyear, self.source)
         else:
-            return self.Station.StationAlias.upper() + ' ' + self.Station.StationAlias.upper() + '_GPS' + 'NNN'.rjust(8) + ' NO PPP COORDINATE! ' + '{:12.3f}'.format(x[0, 0]) + ' ' + '{:12.3f}'.format(x[1, 0]) + ' ' + '{:12.3f}'.format(x[2, 0]) + ' 0.000 0.000 0.000 ' + '{:8.3f}'.format(self.date.fyear)
+            return '%s %s_GPS %-26s %14.3f %14.3f %14.3f %8.3f %8.3f %8.3f %8.4f %s' % \
+                   (self.Station.StationAlias.upper(), self.Station.StationAlias.upper(), 'NO PPP COORDINATE',
+                    x[0, 0], x[1, 0], x[2, 0],
+                    s[0, 0], s[1, 0], s[2, 0],
+                    self.date.fyear, self.source)
 
     def GetStationInformation(self):
 

@@ -13,6 +13,7 @@ import curses
 from curses import panel
 import curses.ascii
 from curses.textpad import Textbox, rectangle
+from collections import OrderedDict
 
 cnn = dbConnection.Cnn('gnss_data.cfg')
 Config = pyOptions.ReadOptions("gnss_data.cfg")  # type: pyOptions.ReadOptions
@@ -341,29 +342,36 @@ def selection_main_menu(menu):
         edit_record(menu.position)
 
     elif menu.position == StnInfo.record_count:
+
+        if len(StnInfo.records) > 0:
+            stninfo = StnInfo.records[-1]
+        else:
+            stninfo = None
+
         # insert new record
-        record = dict()
-        record['ReceiverCode'] = ''
-        record['ReceiverSerial'] = ''
-        record['ReceiverFirmware'] = ''
-        record['AntennaCode'] = ''
-        record['AntennaSerial'] = ''
-        record['AntennaHeight'] = '0.000'
-        record['AntennaNorth'] = '0.000'
-        record['AntennaEast'] = '0.000'
-        record['HeightCode'] = 'DHARP'
-        record['RadomeCode'] = ''
-        record['Comments'] = ''
-        record['ReceiverVers'] = ''
+        record = OrderedDict()
+
         record['DateStart'] = ''
         record['DateEnd'] = ''
+        record['AntennaHeight'] = '0.000' if stninfo is None else stninfo['AntennaHeight']
+        record['HeightCode'] = 'DHARP' if stninfo is None else stninfo['HeightCode']
+        record['AntennaNorth'] = '0.000' if stninfo is None else stninfo['AntennaNorth']
+        record['AntennaEast'] = '0.000' if stninfo is None else stninfo['AntennaEast']
+        record['ReceiverCode'] = '' if stninfo is None else stninfo['ReceiverCode']
+        record['ReceiverVers'] = '' if stninfo is None else stninfo['ReceiverVers']
+        record['ReceiverFirmware'] = '' if stninfo is None else stninfo['ReceiverFirmware']
+        record['ReceiverSerial'] = '' if stninfo is None else stninfo['ReceiverSerial']
+        record['AntennaCode'] = '' if stninfo is None else stninfo['AntennaCode']
+        record['RadomeCode'] = '' if stninfo is None else stninfo['RadomeCode']
+        record['AntennaSerial'] = '' if stninfo is None else stninfo['AntennaSerial']
+        record['Comments'] = ''
 
         new_record = []
 
         for field, value in record.iteritems():
             new_record.append({'field': field, 'value': str(value)})
 
-        new_record = sorted(new_record, key=lambda k: k['field'])
+        # new_record = sorted(new_record, key=lambda k: k['field'])
 
         edit_menu = Menu(cnn, new_record, screen, 'New station information record (ESC to cancel)', 'edit')
 
@@ -396,6 +404,29 @@ def get_fields(position):
 
     record = StnInfo.records[position]
 
+    # specific order as requested Eric
+    record2 = OrderedDict()
+
+    record2['DateStart'] = ''
+    record2['DateEnd'] = ''
+    record2['AntennaHeight'] = '0.000'
+    record2['HeightCode'] = 'DHARP'
+    record2['AntennaNorth'] = '0.000'
+    record2['AntennaEast'] = '0.000'
+    record2['ReceiverCode'] = ''
+    record2['ReceiverVers'] = ''
+    record2['ReceiverFirmware'] = ''
+    record2['ReceiverSerial'] = ''
+    record2['AntennaCode'] = ''
+    record2['RadomeCode'] = ''
+    record2['AntennaSerial'] = ''
+    record2['Comments'] = ''
+
+    for key in record2.keys():
+        record2[key] = record[key]
+
+    record = record2
+
     for field, value in record.iteritems():
         if field not in ['NetworkCode', 'StationCode']:
             if type(value) is str:
@@ -412,7 +443,7 @@ def get_fields(position):
             else:
                 out.append({'field': field, 'value': str(value)})
 
-    return sorted(out, key=lambda k: k['field'])
+    return out #sorted(out, key=lambda k: k['field'])
 
 class MyApp(object):
 
