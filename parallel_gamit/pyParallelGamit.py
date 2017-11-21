@@ -185,10 +185,10 @@ def purge_solutions(cnn, args, year, doys, GamitConfig):
             pwd = GamitConfig.gamitopt['working_dir'].rstrip('/') + '/' + date.yyyy() + '/' + date.ddd()
 
             # delete the main solution dir (may be entire GAMIT run or combination directory)
-            rmtree(os.path.join(pwd, GamitConfig.gamitopt['network_id'].lower()))
+            rmtree(os.path.join(pwd, GamitConfig.NetworkConfig['network_id'].lower()))
 
             # possible subnetworks
-            for sub in glob.glob(os.path.join(pwd, GamitConfig.gamitopt['network_id'].lower() + '.*')):
+            for sub in glob.glob(os.path.join(pwd, GamitConfig.NetworkConfig['network_id'].lower() + '.*')):
                 rmtree(sub)
 
             # now remove the database entries
@@ -201,20 +201,24 @@ def main():
     parser.add_argument('session_cfg', type=str, nargs=1, metavar='session.cfg', help="Filename with the session configuration to run Parallel.GAMIT")
     parser.add_argument('-y', '--year', type=int, nargs=1, metavar='{year}', help="Year to execute Parallel.GAMIT using provided cfg file.")
     parser.add_argument('-d', '--doys', type=str, nargs=1, metavar='{doys}', help="DOYs interval given in a comma separated list or intervals (e.g. 1-57,59-365)")
-    parser.add_argument('-e', '--exclude', type=str, nargs='?', metavar='station', help="List of stations to exclude from this processing (e.g. -e igm1 lpgs vbca)")
+    parser.add_argument('-e', '--exclude', type=str, nargs='+', metavar='station', help="List of stations to exclude from this processing (e.g. -e igm1 lpgs vbca)")
     parser.add_argument('-p', '--purge', action='store_true', help="Purge year doys from the database and directory structure and re-run the solution.")
 
     args = parser.parse_args()
 
-    year = args.year
-    doys = parseIntSet(args.doys)
+    year = args.year[0]
+    doys = parseIntSet(args.doys[0])
 
     # check if doys are correct
     if any([doy for doy in doys if doy < 1]):
         parser.error('DOYs cannot start with zero. Please selected a DOY range between 1-365/366')
 
+    if any([doy for doy in doys if doy == 366]):
+        if year % 4 != 0:
+            parser.error('Year ' + str(year) + ' is not a leap year: DOY 366 does not exist.')
+
     print(' >> Reading configuration files and creating project network, please wait...')
-    GamitConfig = pyGamitConfig.GamitConfiguration(args.session_cfg) # type: pyGamitConfig.GamitConfiguration
+    GamitConfig = pyGamitConfig.GamitConfiguration(args.session_cfg[0]) # type: pyGamitConfig.GamitConfiguration
 
     cnn = dbConnection.Cnn(GamitConfig.gamitopt['gnss_data']) # type: dbConnection.Cnn
 

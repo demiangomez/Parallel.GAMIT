@@ -915,7 +915,7 @@ class ETM():
             if param['Name'].startswith('lin_' + comp):
                 v += [float(param['Value'])]
 
-            if param['Name'].startswith('sig_lin_' + comp ):
+            if param['Name'].startswith('sig_lin_' + comp):
                 sv += [float(param['Value'])]
 
             if param['Name'].startswith('sincos_' + comp):
@@ -1204,7 +1204,8 @@ class ETM():
 
         # some statistics
         SS = np.linalg.inv(np.dot(np.dot(A.transpose(), P), A))
-        sigma = Ai.RemoveConstrains(So*np.sqrt(np.diag(SS)))
+
+        sigma = So*np.sqrt(np.diag(SS))
 
         # mark observations with sigma <= limit
         index = Ai.RemoveConstrains(s <= limit)
