@@ -87,8 +87,8 @@
       <file leaf-file-name="pyStationInfo.py" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/pyStationInfo.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="75">
-              <caret line="220" column="34" lean-forward="false" selection-start-line="220" selection-start-column="34" selection-end-line="220" selection-end-column="34" />
+            <state relative-caret-position="255">
+              <caret line="232" column="42" lean-forward="false" selection-start-line="232" selection-start-column="42" selection-end-line="232" selection-end-column="42" />
               <folding />
             </state>
           </provider>
@@ -98,7 +98,7 @@
         <entry file="file://$PROJECT_DIR$/aws-sync.py">
           <provider selected="true" editor-type-id="text-editor">
             <state relative-caret-position="15">
-              <caret line="65" column="56" lean-forward="true" selection-start-line="65" selection-start-column="56" selection-end-line="65" selection-end-column="56" />
+              <caret line="65" column="56" lean-forward="false" selection-start-line="65" selection-start-column="56" selection-end-line="65" selection-end-column="56" />
               <folding>
                 <element signature="e#163#182#0" expanded="true" />
               </folding>
@@ -110,7 +110,7 @@
         <entry file="file://$PROJECT_DIR$/pyPlotETM.py">
           <provider selected="true" editor-type-id="text-editor">
             <state relative-caret-position="330">
-              <caret line="30" column="0" lean-forward="true" selection-start-line="30" selection-start-column="0" selection-end-line="30" selection-end-column="0" />
+              <caret line="30" column="0" lean-forward="false" selection-start-line="30" selection-start-column="0" selection-end-line="30" selection-end-column="0" />
               <folding />
             </state>
           </provider>
@@ -189,7 +189,6 @@
         <option value="$PROJECT_DIR$/pyPPP_new.py" />
         <option value="$PROJECT_DIR$/pyDate.py" />
         <option value="$PROJECT_DIR$/pyRinex_new.py" />
-        <option value="$PROJECT_DIR$/pyStationInfo.py" />
         <option value="$PROJECT_DIR$/pyRinex_old.py" />
         <option value="$PROJECT_DIR$/pyPlotETM.py" />
         <option value="$PROJECT_DIR$/pyIntegrityCheck.py" />
@@ -204,6 +203,7 @@
         <option value="$PROJECT_DIR$/pyStationInfoEdit.py" />
         <option value="$PROJECT_DIR$/pyPPPETM.py" />
         <option value="$PROJECT_DIR$/aws-sync.py" />
+        <option value="$PROJECT_DIR$/pyStationInfo.py" />
       </list>
     </option>
   </component>
@@ -897,7 +897,7 @@
     <entry file="file://$PROJECT_DIR$/pyPlotETM.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="330">
-          <caret line="30" column="0" lean-forward="true" selection-start-line="30" selection-start-column="0" selection-end-line="30" selection-end-column="0" />
+          <caret line="30" column="0" lean-forward="false" selection-start-line="30" selection-start-column="0" selection-end-line="30" selection-end-column="0" />
           <folding />
         </state>
       </provider>
@@ -917,7 +917,7 @@
         <state relative-caret-position="345">
           <caret line="1127" column="31" lean-forward="true" selection-start-line="1127" selection-start-column="31" selection-end-line="1127" selection-end-column="31" />
           <folding>
-            <element signature="e#81#99#0" expanded="true" />
+            <element signature="e#81#99#0" expanded="false" />
           </folding>
         </state>
       </provider>
@@ -925,7 +925,7 @@
     <entry file="file://$PROJECT_DIR$/aws-sync.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="15">
-          <caret line="65" column="56" lean-forward="true" selection-start-line="65" selection-start-column="56" selection-end-line="65" selection-end-column="56" />
+          <caret line="65" column="56" lean-forward="false" selection-start-line="65" selection-start-column="56" selection-end-line="65" selection-end-column="56" />
           <folding>
             <element signature="e#163#182#0" expanded="true" />
           </folding>
@@ -934,8 +934,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/pyStationInfo.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="75">
-          <caret line="220" column="34" lean-forward="false" selection-start-line="220" selection-start-column="34" selection-end-line="220" selection-end-column="34" />
+        <state relative-caret-position="255">
+          <caret line="232" column="42" lean-forward="false" selection-start-line="232" selection-start-column="42" selection-end-line="232" selection-end-column="42" />
           <folding />
         </state>
       </provider>
