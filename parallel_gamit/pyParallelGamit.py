@@ -5,7 +5,7 @@ Author: Demian D. Gomez
 """
 
 import pyGamitConfig
-import getopt
+import re
 import sys
 import pyDate
 import signal
@@ -16,6 +16,7 @@ import pp
 import pyGamitTask
 import pyGlobkTask
 from pyNetwork import Network
+from datetime import datetime
 import dbConnection
 import time
 from math import sqrt
@@ -185,7 +186,8 @@ def purge_solutions(cnn, args, year, doys, GamitConfig):
             pwd = GamitConfig.gamitopt['working_dir'].rstrip('/') + '/' + date.yyyy() + '/' + date.ddd()
 
             # delete the main solution dir (may be entire GAMIT run or combination directory)
-            rmtree(os.path.join(pwd, GamitConfig.NetworkConfig['network_id'].lower()))
+            if os.path.isdir(os.path.join(pwd, GamitConfig.NetworkConfig['network_id'].lower())):
+                rmtree(os.path.join(pwd, GamitConfig.NetworkConfig['network_id'].lower()))
 
             # possible subnetworks
             for sub in glob.glob(os.path.join(pwd, GamitConfig.NetworkConfig['network_id'].lower() + '.*')):
@@ -267,8 +269,39 @@ def main():
     # execute globk on doys that had to be divided into subnets
     ExecuteGlobk(cnn, GamitConfig, Project, year, doys, Sessions)
 
+    # parse the zenith delay outputs
+    ParseZTD(cnn, Sessions, GamitConfig)
+
     return
 
+def ParseZTD(cnn, Sessions, GamitConfig):
+
+    tqdm.write(' >> Parsing the zenith tropospheric delays...')
+
+    for GamitSession in tqdm(Sessions, ncols=80):
+
+        znd = os.path.join(GamitSession.pwd, 'glbf/' + GamitConfig.gamitopt['org'] + GamitSession.date.wwwwd() + '.znd')
+
+        if os.path.isfile(znd):
+            # read the content of the file
+            f = open(znd, 'r')
+            output = f.readlines()
+            f.close()
+
+            atmzen = re.findall('ATM_ZEN X (\w+) .. (\d+)\s*(\d*)\s*(\d*)\s*(\d*)\s*(\d*)\s*\d*\s*[- ]?\d*.\d+\s*[+-]*\s*\d*.\d*\s*(\d*.\d*)', ''.join(output), re.MULTILINE)
+
+            for zd in atmzen:
+
+                date = datetime(int(zd[1]), int(zd[2]), int(zd[3]), int(zd[4]), int(zd[5]))
+
+                # translate alias to network.station
+                stn = [{'NetworkCode': StnIns.Station.NetworkCode, 'StationCode': StnIns.Station.StationCode} for StnIns in GamitSession.StationInstances if StnIns.Station.StationAlias.upper() == zd[0]][0]
+
+                # see if ZND exists
+                rs = cnn.query('SELECT * FROM gamit_ztd WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "Date" = \'%s\'' % (stn['NetworkCode'], stn['StationCode'], date.strftime('%Y/%m/%d %H:%M:%S')))
+
+                if rs.ntuples() == 0:
+                    cnn.query('INSERT INTO gamit_ztd ("NetworkCode", "StationCode", "Date", "ZTD") VALUES (\'%s\', \'%s\', \'%s\', %f)' % (stn['NetworkCode'], stn['StationCode'], date.strftime('%Y/%m/%d %H:%M:%S'), float(zd[6])))
 
 def ExecuteGlobk(cnn, GamitConfig, Project, year, doys, Sessions):
 
@@ -339,7 +372,7 @@ def ExecuteGlobk(cnn, GamitConfig, Project, year, doys, Sessions):
                     except dbConnection.dbErrInsert as e:
                         tqdm.write('    --> Error inserting ' + key + ' -> ' + str(e))
                 else:
-                    tqdm.write(' >> Invalid key found in session %s -> %s' % (date.yyyyddd(),key))
+                    tqdm.write(' >> Invalid key found in session %s -> %s' % (date.yyyyddd(), key))
     return
 
 def ExecuteGamit(Config, Sessions):
@@ -360,11 +393,11 @@ def ExecuteGamit(Config, Sessions):
         else:
             msg_wl = ''
 
+        # DDG: only show sessions with problems to facilitate debugging.
         if result['Success']:
-            if not msg_nrms + msg_wl:
-                gamit_pbar.write(' -- Done processing: ' + result['Session'])
-            else:
+            if msg_nrms + msg_wl:
                 gamit_pbar.write(' -- Done processing: ' + result['Session'] + ' -> ' + msg_nrms + msg_wl)
+                #gamit_pbar.write(' -- Done processing: ' + result['Session'])
         else:
             gamit_pbar.write(' -- Done processing: ' + result['Session'] + ' -> Failed to complete. Check monitor.log')
 

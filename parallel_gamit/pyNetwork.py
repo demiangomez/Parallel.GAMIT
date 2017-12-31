@@ -330,7 +330,7 @@ class Network():
                 while not unique:
                     Station.GenerateStationAlias()
                     # compare again to make sure this name is unique
-                    unique = self.CompareAliases(Station, [NetStnAl['StationAlias'] for NetStnAl in self.AllStations])
+                    unique = self.CompareAliases(Station, self.AllStations)
 
         return
 

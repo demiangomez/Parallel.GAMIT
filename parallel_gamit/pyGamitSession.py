@@ -135,7 +135,8 @@ class GamitSession():
             stninfo_file.write('*SITE  Station Name      Session Start      Session Stop       Ant Ht   HtCod  Ant N    Ant E    Receiver Type         Vers                  SwVer  Receiver SN           Antenna Type     Dome   Antenna SN          \n')
 
             for stn in self.StationInstances:
-                stninfo_file.write(stn.StationInfo.return_stninfo() + '\n')
+                # stninfo_file.write(stn.StationInfo.return_stninfo() + '\n')
+                stninfo_file.write(stn.GetStationInformation() + '\n')
 
     def create_apr_sittbl_file(self):
 

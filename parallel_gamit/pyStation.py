@@ -132,5 +132,5 @@ class StationInstance():
 
     def GetStationInformation(self):
 
-        self.StationInfo.return_stninfo().replace(self.Station.StationCode.upper(), self.Station.StationAlias.upper())
+        return self.StationInfo.return_stninfo().replace(self.Station.StationCode.upper(), self.Station.StationAlias.upper())
 
