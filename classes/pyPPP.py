@@ -488,12 +488,9 @@ class RunPPP(PPPSpatialCheck):
 
     @staticmethod
     def check_eop(section):
-        pole = re.findall('Pole X\s+.\s+(-?\d+\.\d+|nan)\s+(-?\d+\.\d+|nan)', section)
+        pole = re.findall('Pole X\s+.\s+(-?\d+\.\d+|[nN]a[nN])\s+(-?\d+\.\d+|[nN]a[nN])', section)
         if len(pole) > 0:
-            print section
-            print "regex search follows:"
-            print pole
-            if 'nan' not in pole[0].lower():
+            if type(pole[0]) is tuple and 'nan' not in pole[0][0].lower():
                 return True
             else:
                 return False
