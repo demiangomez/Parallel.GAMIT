@@ -23,6 +23,7 @@ def main():
 
     parser.add_argument('stnlist', type=str, nargs='+', help="List of networks/stations to plot given in [net].[stnm] format or just [stnm] (separated by spaces; if [stnm] is not unique in the database, all stations with that name will be plotted). Use keyword 'all' to plot all stations in all networks. If [net].all is given, all stations from network [net] will be plotted")
     parser.add_argument('-np', '--noparallel', action='store_true', help="Execute command without parallelization")
+    parser.add_argument('-nm', '--no_model', action='store_true', help="Plot time series without fitting a model")
     parser.add_argument('-dir', '--directory', type=str, help="Directory to save the resulting PNG files. If not specified, assumed to be the production directory")
     parser.add_argument('-json', '--json', type=int, help="Export ETM adjustment to JSON. Append '1' to export time series or append '0' to just output the ETM parameters.")
     parser.add_argument('-gui', '--interactive', action='store_true', help="Interactive mode: allows to zoom and view the plot interactively")
@@ -50,7 +51,10 @@ def main():
 
         for stn in stnlist:
             try:
-                etm = pyPPPETM.ETM(cnn, stn['NetworkCode'], stn['StationCode'], False)
+                if args.no_model:
+                    etm = pyPPPETM.ETM(cnn, stn['NetworkCode'], stn['StationCode'], False, True)
+                else:
+                    etm = pyPPPETM.ETM(cnn, stn['NetworkCode'], stn['StationCode'], False)
                 if args.interactive:
                     etm.plot()
                 else:

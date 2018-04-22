@@ -30,6 +30,7 @@ class Station():
         self.X            = None
         self.Y            = None
         self.Z            = None
+        self.otl_H        = None
 
         try:
             rs = cnn.query('SELECT * FROM stations WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\''
@@ -44,11 +45,12 @@ class Station():
                 self.X      = float(self.record[0]['auto_x'])
                 self.Y      = float(self.record[0]['auto_y'])
                 self.Z      = float(self.record[0]['auto_z'])
+                self.otl_H  = self.record[0]['Harpos_coeff_otl']
 
                 self.etm = pyPPPETM.ETM(cnn,NetworkCode,StationCode)  # type: pyPPPETM.ETM
                 self.StationInfo = pyStationInfo.StationInfo(cnn, NetworkCode, StationCode)  # type: pyStationInfo.StationInfo
 
-        except:
+        except Exception:
             raise
 
         return

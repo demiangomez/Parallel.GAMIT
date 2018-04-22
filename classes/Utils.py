@@ -182,17 +182,8 @@ def move(src, dst):
 def ct2lg(dX, dY, dZ, lat, lon):
 
     n = dX.size
-    R = numpy.zeros((3, 3, n))
 
-    R[0, 0, :] = -numpy.multiply(numpy.sin(numpy.deg2rad(lat)), numpy.cos(numpy.deg2rad(lon)))
-    R[0, 1, :] = -numpy.multiply(numpy.sin(numpy.deg2rad(lat)), numpy.sin(numpy.deg2rad(lon)))
-    R[0, 2, :] = numpy.cos(numpy.deg2rad(lat))
-    R[1, 0, :] = -numpy.sin(numpy.deg2rad(lon))
-    R[1, 1, :] = numpy.cos(numpy.deg2rad(lon))
-    R[1, 2, :] = numpy.zeros((1, n))
-    R[2, 0, :] = numpy.multiply(numpy.cos(numpy.deg2rad(lat)), numpy.cos(numpy.deg2rad(lon)))
-    R[2, 1, :] = numpy.multiply(numpy.cos(numpy.deg2rad(lat)), numpy.sin(numpy.deg2rad(lon)))
-    R[2, 2, :] = numpy.sin(numpy.deg2rad(lat))
+    R = rotct2lg(lat, lon, n)
 
     dxdydz = numpy.column_stack((numpy.column_stack((dX, dY)), dZ))
 
@@ -206,20 +197,28 @@ def ct2lg(dX, dY, dZ, lat, lon):
     return dx, dy, dz
 
 
-def lg2ct(dN, dE, dU, lat, lon):
+def rotct2lg(lat, lon, n=1):
 
-    n = dN.size
     R = numpy.zeros((3, 3, n))
 
     R[0, 0, :] = -numpy.multiply(numpy.sin(numpy.deg2rad(lat)), numpy.cos(numpy.deg2rad(lon)))
-    R[1, 0, :] = -numpy.multiply(numpy.sin(numpy.deg2rad(lat)), numpy.sin(numpy.deg2rad(lon)))
-    R[2, 0, :] = numpy.cos(numpy.deg2rad(lat))
-    R[0, 1, :] = -numpy.sin(numpy.deg2rad(lon))
+    R[0, 1, :] = -numpy.multiply(numpy.sin(numpy.deg2rad(lat)), numpy.sin(numpy.deg2rad(lon)))
+    R[0, 2, :] = numpy.cos(numpy.deg2rad(lat))
+    R[1, 0, :] = -numpy.sin(numpy.deg2rad(lon))
     R[1, 1, :] = numpy.cos(numpy.deg2rad(lon))
-    R[2, 1, :] = numpy.zeros((1, n))
-    R[0, 2, :] = numpy.multiply(numpy.cos(numpy.deg2rad(lat)), numpy.cos(numpy.deg2rad(lon)))
-    R[1, 2, :] = numpy.multiply(numpy.cos(numpy.deg2rad(lat)), numpy.sin(numpy.deg2rad(lon)))
+    R[1, 2, :] = numpy.zeros((1, n))
+    R[2, 0, :] = numpy.multiply(numpy.cos(numpy.deg2rad(lat)), numpy.cos(numpy.deg2rad(lon)))
+    R[2, 1, :] = numpy.multiply(numpy.cos(numpy.deg2rad(lat)), numpy.sin(numpy.deg2rad(lon)))
     R[2, 2, :] = numpy.sin(numpy.deg2rad(lat))
+
+    return R
+
+
+def lg2ct(dN, dE, dU, lat, lon):
+
+    n = dN.size
+
+    R = rotlg2ct(lat, lon, n)
 
     dxdydz = numpy.column_stack((numpy.column_stack((dN, dE)), dU))
 
@@ -232,6 +231,22 @@ def lg2ct(dN, dE, dU, lat, lon):
 
     return dx, dy, dz
 
+
+def rotlg2ct(lat, lon, n=1):
+
+    R = numpy.zeros((3, 3, n))
+
+    R[0, 0, :] = -numpy.multiply(numpy.sin(numpy.deg2rad(lat)), numpy.cos(numpy.deg2rad(lon)))
+    R[1, 0, :] = -numpy.multiply(numpy.sin(numpy.deg2rad(lat)), numpy.sin(numpy.deg2rad(lon)))
+    R[2, 0, :] = numpy.cos(numpy.deg2rad(lat))
+    R[0, 1, :] = -numpy.sin(numpy.deg2rad(lon))
+    R[1, 1, :] = numpy.cos(numpy.deg2rad(lon))
+    R[2, 1, :] = numpy.zeros((1, n))
+    R[0, 2, :] = numpy.multiply(numpy.cos(numpy.deg2rad(lat)), numpy.cos(numpy.deg2rad(lon)))
+    R[1, 2, :] = numpy.multiply(numpy.cos(numpy.deg2rad(lat)), numpy.sin(numpy.deg2rad(lon)))
+    R[2, 2, :] = numpy.sin(numpy.deg2rad(lat))
+
+    return R
 
 def ecef2lla(ecefArr):
     # convert ECEF coordinates to LLA
@@ -302,8 +317,8 @@ def process_stnlist(cnn, stnlist_in):
 
     stnlist = []
 
-    if 'all' in stnlist_in:
-        # plot all stations
+    if len(stnlist_in) == 1 and stnlist_in[0] == 'all':
+       # plot all stations
         rs = cnn.query('SELECT * FROM stations WHERE "NetworkCode" NOT LIKE \'?%%\' ORDER BY "NetworkCode", "StationCode"')
 
         for rstn in rs.dictresult():
@@ -314,7 +329,7 @@ def process_stnlist(cnn, stnlist_in):
             rs = None
             if '.' in stn and '-' not in stn:
                 # a net.stnm given
-                if 'all' in stn.split('.')[1]:
+                if stn.split('.')[1] == 'all':
                     # all stations from a network
                     rs = cnn.query('SELECT * FROM stations WHERE "NetworkCode" = \'%s\' ORDER BY "NetworkCode", "StationCode"' % (stn.split('.')[0]))
 

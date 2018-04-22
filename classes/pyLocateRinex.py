@@ -8,6 +8,8 @@ import pyBrdc
 import glob
 import os
 import pyStationInfo
+import dbConnection
+from pyPPP import PPPSpatialCheck
 
 def main():
 
@@ -16,6 +18,7 @@ def main():
     parser.add_argument('-otl', '--ocean_loading', action='store_true', help="Apply ocean loading coefficients (obtained from grdtab).")
     parser.add_argument('-rnx', '--load_rinex', action='store_true', help="Fix RINEX using pyRinex, create a local copy (with session number+1) and exit. Do not run PPP.")
     parser.add_argument('-ins', '--insert_sql', action='store_true', help="Produce a SQL INSERT statement for this station including OTL and coordinates.")
+    parser.add_argument('-find', '--find', action='store_true', help="Find the matching station in the db using the spatial location algorithm.")
     parser.add_argument('-nocfg', '--no_config_file', type=str, nargs=3, metavar=('sp3_directory','sp3_types', 'brdc_directory'),
                         help='Do not attempt to open gnss_data.cfg. Append [sp3_directory], [sp3_types] and [brdc_directory] '
                             'to access the precise and broadcast orbit files. Use the keywords $year, $doy, $month, $day, $gpsweek, $gpswkday '
@@ -116,6 +119,24 @@ def execute_ppp(rinexinfo, args, stnm, options, sp3types, sp3altrn, brdc_path):
             stnm, rinexinfo.date.fyear, ppp.x, ppp.y, ppp.z, ppp.lat[0], ppp.lon[0], ppp.h[0])
         else:
             print 'INSERT INTO stations ("NetworkCode", "StationCode", "auto_x", "auto_y", "auto_z", "Harpos_coeff_otl", lat, lon, height) VALUES (\'???\', \'%s\', %.4f, %.4f, %.4f, \'%s\', %.8f, %.8f, %.3f)' % (stnm, ppp.x, ppp.y, ppp.z, otl_coeff, ppp.lat[0], ppp.lon[0], ppp.h[0])
+
+        if args.find:
+            cnn = dbConnection.Cnn('gnss_data.cfg')
+
+            Result, match, closest_stn = ppp.verify_spatial_coherence(cnn, stnm)
+
+            if Result:
+                print 'Found matching station: %s.%s' %(match[0]['NetworkCode'], match[0]['StationCode'])
+
+            elif not Result and len(match) == 1:
+                print '%s matches the coordinate of %s.%s (distance = %8.3f m) but the filename indicates it is %s' % (rinexinfo.rinex, match[0]['NetworkCode'], match[0]['StationCode'], float(match[0]['distance']), stnm)
+
+            elif not Result and len(match) > 0:
+                print 'Solution for RINEX (%s %s) did not match a unique station location (and station code) within 10 km. Possible cantidate(s): %s' % (rinexinfo.rinex, rinexinfo.date.yyyyddd(),', '.join(['%s.%s: %.3f m' % (m['NetworkCode'], m['StationCode'], m['distance']) for m in match]))
+
+            elif not Result and len(match) == 0 and len(closest_stn) > 0:
+
+                print 'No matches found. Closest station: %s.%s. (distance = %8.3f m)' % (closest_stn[0]['NetworkCode'], closest_stn[0]['StationCode'], closest_stn[0]['distance'])
 
     except pyPPP.pyRunPPPException as e:
         print 'Exception in PPP: ' + str(e)

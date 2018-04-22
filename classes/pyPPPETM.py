@@ -11,16 +11,18 @@ from numpy import sin
 from numpy import cos
 from numpy import pi
 from scipy.stats import chi2
-import matplotlib.pyplot as plt
 import pyEvents
 from zlib import crc32
 from Utils import ct2lg
+from Utils import rotct2lg
+from Utils import rotlg2ct
 from Utils import ecef2lla
 
 NO_EFFECT = None
 CO_SEISMIC_DECAY = 0
 ANTENNA_CHANGE = 1
 CO_SEISMIC_JUMP_DECAY = 2
+
 
 class pyPPPETMException(Exception):
     def __init__(self, value):
@@ -50,6 +52,26 @@ def distance(lon1, lat1, lon2, lat2):
     return km
 
 
+def not_equal(t, jump1, jump2):
+
+    if jump1.type == CO_SEISMIC_DECAY or jump2.type == CO_SEISMIC_DECAY:
+        return True
+
+    if jump1.type == CO_SEISMIC_JUMP_DECAY:
+        # depending on the type of decay
+        vect1 = jump1.eval(t)[:, 0]
+    else:
+        vect1 = jump1.eval(t)
+
+    if jump2.type == CO_SEISMIC_JUMP_DECAY:
+        # depending on the type of decay
+        vect2 = jump2.eval(t)[:, 0]
+    else:
+        vect2 = jump2.eval(t)
+
+    return any(np.logical_xor(vect1, vect2))
+
+
 class PPP_soln():
     """"class to extract the PPP solutions from the database"""
 
@@ -58,73 +80,118 @@ class PPP_soln():
         self.NetworkCode = NetworkCode
         self.StationCode = StationCode
 
-        # load all the PPP coordinates available for this station
-        # exclude ppp solutions in the exclude table and any solution that is more than 100 meters from the auto coord
-        ppp = cnn.query(
-            'SELECT PPP.* FROM (SELECT p1.*, sqrt((p1."X" - st.auto_x)^2 + (p1."Y" - st.auto_y)^2 + (p1."Z" - st.auto_z)^2) as dist FROM ppp_soln p1 '
-            'LEFT JOIN stations st ON p1."NetworkCode" = st."NetworkCode" AND p1."StationCode" = st."StationCode" '
+        # DDG: modified to get a linear trend in X Y Z using all the available solutions
+        tppp = cnn.query('SELECT PPP.* FROM (SELECT p1.* FROM ppp_soln p1 '
             'WHERE p1."NetworkCode" = \'%s\' AND p1."StationCode" = \'%s\' AND '
             'NOT EXISTS (SELECT * FROM ppp_soln_excl p2'
             '  WHERE p2."NetworkCode" = p1."NetworkCode" AND'
             '        p2."StationCode" = p1."StationCode" AND'
             '        p2."Year"        = p1."Year"        AND'
-            '        p2."DOY"         = p1."DOY") ORDER BY "Year", "DOY") as PPP WHERE PPP.dist <= 20 ORDER BY PPP."Year", PPP."DOY"' % (
-            NetworkCode, StationCode))
+            '        p2."DOY"         = p1."DOY") ORDER BY "Year", "DOY") as PPP' % (NetworkCode, StationCode))
 
-        ppp_blu = cnn.query(
-            'SELECT PPP.* FROM (SELECT p1.*, sqrt((p1."X" - st.auto_x)^2 + (p1."Y" - st.auto_y)^2 + (p1."Z" - st.auto_z)^2) as dist FROM ppp_soln p1 '
-            'LEFT JOIN stations st ON p1."NetworkCode" = st."NetworkCode" AND p1."StationCode" = st."StationCode" '
-            'WHERE p1."NetworkCode" = \'%s\' AND p1."StationCode" = \'%s\' AND '
-            'NOT EXISTS (SELECT * FROM ppp_soln_excl p2'
-            '  WHERE p2."NetworkCode" = p1."NetworkCode" AND'
-            '        p2."StationCode" = p1."StationCode" AND'
-            '        p2."Year"        = p1."Year"        AND'
-            '        p2."DOY"         = p1."DOY") ORDER BY "Year", "DOY") as PPP WHERE PPP.dist > 20 ORDER BY PPP."Year", PPP."DOY"' % (
+        table = tppp.dictresult()
+
+        if len(table) >= 2:
+
+            T = (pyDate.Date(year=item.get('Year'), doy=item.get('DOY')).fyear for item in table)
+            X = [float(item['X']) for item in table]
+            Y = [float(item['Y']) for item in table]
+            Z = [float(item['Z']) for item in table]
+            x = np.array(X)
+            y = np.array(Y)
+            z = np.array(Z)
+            t = np.array(list(T))
+
+            # solve a simple LSQ linear problem
+            # offset
+            c = np.ones((t.size, 1))
+
+            # velocity
+            v = (t - t.min())
+
+            A = np.column_stack((c, v))
+
+            cx = np.linalg.lstsq(A, x)[0]
+            cy = np.linalg.lstsq(A, y)[0]
+            cz = np.linalg.lstsq(A, z)[0]
+
+            # load all the PPP coordinates available for this station
+            # exclude ppp solutions in the exclude table and any solution that is more than 20 meters from the simple
+            # linear trend calculated above
+
+            ppp = cnn.query(
+                'SELECT PPP.* FROM (SELECT p1.*, sqrt((p1."X" - (' + str(cx[0]) + ' + ' + str(cx[1]) + '*(fyear(p1."Year", p1."DOY") - ' + str(t.min()) + ')))^2 + '
+                                                     '(p1."Y" - (' + str(cy[0]) + ' + ' + str(cy[1]) + '*(fyear(p1."Year", p1."DOY") - ' + str(t.min()) + ')))^2 + '
+                                                     '(p1."Z" - (' + str(cz[0]) + ' + ' + str(cz[1]) + '*(fyear(p1."Year", p1."DOY") - ' + str(t.min()) + ')))^2) as dist FROM ppp_soln p1 '
+                'WHERE p1."NetworkCode" = \'%s\' AND p1."StationCode" = \'%s\' AND '
+                'NOT EXISTS (SELECT * FROM ppp_soln_excl p2'
+                '  WHERE p2."NetworkCode" = p1."NetworkCode" AND'
+                '        p2."StationCode" = p1."StationCode" AND'
+                '        p2."Year"        = p1."Year"        AND'
+                '        p2."DOY"         = p1."DOY") ORDER BY "Year", "DOY") as PPP WHERE PPP.dist <= 30 ORDER BY PPP."Year", PPP."DOY"' % (
                 NetworkCode, StationCode))
 
-        self.table     = ppp.dictresult()
-        self.solutions = len(self.table)
-        # blunders
-        self.blunders = ppp_blu.dictresult()
-        self.ts_blu = np.array([pyDate.Date(year=item['Year'], doy=item['DOY']).fyear for item in self.blunders])
+            ppp_blu = cnn.query(
+                'SELECT PPP.* FROM (SELECT p1.*, sqrt((p1."X" - (' + str(cx[0]) + ' + ' + str(cx[1]) + '*(fyear(p1."Year", p1."DOY") - ' + str(t.min()) + ')))^2 + '
+                                                     '(p1."Y" - (' + str(cy[0]) + ' + ' + str(cy[1]) + '*(fyear(p1."Year", p1."DOY") - ' + str(t.min()) + ')))^2 + '
+                                                     '(p1."Z" - (' + str(cz[0]) + ' + ' + str(cz[1]) + '*(fyear(p1."Year", p1."DOY") - ' + str(t.min()) + ')))^2) as dist FROM ppp_soln p1 '
+                'WHERE p1."NetworkCode" = \'%s\' AND p1."StationCode" = \'%s\' AND '
+                'NOT EXISTS (SELECT * FROM ppp_soln_excl p2'
+                '  WHERE p2."NetworkCode" = p1."NetworkCode" AND'
+                '        p2."StationCode" = p1."StationCode" AND'
+                '        p2."Year"        = p1."Year"        AND'
+                '        p2."DOY"         = p1."DOY") ORDER BY "Year", "DOY") as PPP WHERE PPP.dist > 30 ORDER BY PPP."Year", PPP."DOY"' % (
+                    NetworkCode, StationCode))
 
-        if self.solutions >= 1:
-            X = [float(item['X']) for item in self.table]
-            Y = [float(item['Y']) for item in self.table]
-            Z = [float(item['Z']) for item in self.table]
+            self.table     = ppp.dictresult()
+            self.solutions = len(self.table)
+            # blunders
+            self.blunders = ppp_blu.dictresult()
+            self.ts_blu = np.array([pyDate.Date(year=item['Year'], doy=item['DOY']).fyear for item in self.blunders])
 
-            T = (pyDate.Date(year=item.get('Year'),doy=item.get('DOY')).fyear for item in self.table)
-            MJD = (pyDate.Date(year=item.get('Year'),doy=item.get('DOY')).mjd for item in self.table)
+            if self.solutions >= 1:
+                X = [float(item['X']) for item in self.table]
+                Y = [float(item['Y']) for item in self.table]
+                Z = [float(item['Z']) for item in self.table]
 
-            self.x = np.array(X)
-            self.y = np.array(Y)
-            self.z = np.array(Z)
-            self.t = np.array(list(T))
-            self.mjd = np.array(list(MJD))
+                T = (pyDate.Date(year=item.get('Year'),doy=item.get('DOY')).fyear for item in self.table)
+                MJD = (pyDate.Date(year=item.get('Year'),doy=item.get('DOY')).mjd for item in self.table)
 
-            # continuous time vector for plots
-            ts = np.arange(np.min(self.mjd), np.max(self.mjd) + 1, 1)
-            ts = np.array([pyDate.Date(mjd=tts).fyear for tts in ts])
+                self.x = np.array(X)
+                self.y = np.array(Y)
+                self.z = np.array(Z)
+                self.t = np.array(list(T))
+                self.mjd = np.array(list(MJD))
 
-            self.ts = ts
+                # continuous time vector for plots
+                ts = np.arange(np.min(self.mjd), np.max(self.mjd) + 1, 1)
+                ts = np.array([pyDate.Date(mjd=tts).fyear for tts in ts])
 
-            self.lat, self.lon, self.height = ecef2lla([np.mean(self.x).tolist(),np.mean(self.y).tolist(),np.mean(self.z).tolist()])
+                self.ts = ts
+
+                self.lat, self.lon, self.height = ecef2lla([np.mean(self.x).tolist(),np.mean(self.y).tolist(),np.mean(self.z).tolist()])
+            else:
+                if len(self.blunders) >= 1:
+                    raise pyPPPETMException('No viable PPP solutions available for %s.%s (all blunders!)' % (NetworkCode, StationCode))
+                else:
+                    raise pyPPPETMException('No PPP solutions available for %s.%s' % (NetworkCode, StationCode))
+
+            # get a list of the epochs with files but no solutions. This will be shown in the outliers plot as a special marker
+            rnx = cnn.query(
+                'SELECT r.* FROM rinex_proc as r '
+                'LEFT JOIN ppp_soln as p ON '
+                'r."NetworkCode" = p."NetworkCode" AND '
+                'r."StationCode" = p."StationCode" AND '
+                'r."ObservationYear" = p."Year"    AND '
+                'r."ObservationDOY"  = p."DOY"'
+                'WHERE r."NetworkCode" = \'%s\' AND r."StationCode" = \'%s\' AND '
+                'p."NetworkCode" IS NULL' % (NetworkCode, StationCode))
+
+            self.rnx_no_ppp = rnx.dictresult()
+            self.ts_ns = np.array([float(item['ObservationFYear']) for item in self.rnx_no_ppp])
+
         else:
-            raise pyPPPETMException('No PPP solutions available for %s.%s' % (NetworkCode, StationCode))
-
-        # get a list of the epochs with files but no solutions. This will be shown in the outliers plot as a special marker
-        rnx = cnn.query(
-            'SELECT r.* FROM rinex_proc as r '
-            'LEFT JOIN ppp_soln as p ON '
-            'r."NetworkCode" = p."NetworkCode" AND '
-            'r."StationCode" = p."StationCode" AND '
-            'r."ObservationYear" = p."Year"    AND '
-            'r."ObservationDOY"  = p."DOY"'
-            'WHERE r."NetworkCode" = \'%s\' AND r."StationCode" = \'%s\' AND '
-            'p."NetworkCode" IS NULL' % (NetworkCode, StationCode))
-
-        self.rnx_no_ppp = rnx.dictresult()
-        self.ts_ns = np.array([float(item['ObservationFYear']) for item in self.rnx_no_ppp])
+            raise pyPPPETMException('Less than 3 PPP solutions available for %s.%s' % (NetworkCode, StationCode))
 
 class Jump():
     """
@@ -282,20 +349,22 @@ class JumpsTable():
                         # a jump outside the time window, go to next
                         break
             else:
-                self.table.append(Jump(jump, 0.5, t))
+                if t.min() < jump.fyear < t.max():
+                    self.table.append(Jump(jump, 0.5, t))
 
         # antenna and receiver changes
         if add_antenna_jumps != 0:
             for i, jump in enumerate(StnInfo.records):
                 if i > 0:
                     date = pyDate.Date(year=jump.get('DateStart').year, month=jump.get('DateStart').month, day=jump.get('DateStart').day, hour=jump.get('DateStart').hour, minute=jump.get('DateStart').minute, second=jump.get('DateStart').second)
-                    if i > 1:
+                    if i > 1 and len(self.table) > 0:
                         # check if this jump should be added (maybe no data to constrain the last one!)
                         if self.table[-1].eval(t).size and Jump(date, 0, t).eval(t).size:
-                            if any(np.logical_xor(self.table[-1].eval(t), Jump(date, 0, t).eval(t))):
+                            if not_equal(t, self.table[-1], Jump(date, 0, t)):
                                 self.table.append(Jump(date, 0, t))
                     else:
-                        self.table.append(Jump(date, 0, t))
+                        if Jump(date, 0, t).eval(t).size:
+                            self.table.append(Jump(date, 0, t))
 
         # sort jump table (using the key year)
         self.table.sort(key=lambda jump: jump.year)
@@ -562,10 +631,11 @@ class Linear():
 
         return np.column_stack((np.ones((ts.size, 1)), (ts - self.tref)))
 
-    def LoadParameters(self, C, S):
+    def LoadParameters(self, C, S, tref):
 
         self.values = np.append(self.values, np.array([C[0], C[1]]))
         self.sigmas = np.append(self.sigmas, np.array([S[0], S[1]]))
+        self.tref = tref
 
     def PrintParams(self, lat, lon):
 
@@ -649,9 +719,9 @@ class Design(np.ndarray):
         # return a weight matrix full of ones with or without the extra elements for the constrains
         return np.diag(np.ones((self.shape[0]))) if not constrains else np.diag(np.ones((self.shape[0] + self.J.constrains.shape[0])))
 
-    def SaveParameters(self, NetworkCode, StationCode, x, sigma, factor, cnn, comp, hash, save_to_db=False):
+    def SaveParameters(self, NetworkCode, StationCode, x, sigma, tref, factor, cnn, comp, hash, save_to_db=False):
 
-        self.L.LoadParameters(x[0:self.L.params], sigma[0:self.L.params])
+        self.L.LoadParameters(x[0:self.L.params], sigma[0:self.L.params], tref)
         self.J.LoadParameters(x[self.L.params:self.L.params + self.J.params], sigma[self.L.params:self.L.params + self.J.params])
         self.P.LoadParameters(x[self.L.params + self.J.params:self.L.params + self.J.params + self.P.params], sigma[self.L.params + self.J.params:self.L.params + self.J.params + self.P.params])
 
@@ -670,6 +740,9 @@ class Design(np.ndarray):
 
             cnn.query('INSERT INTO etms ("NetworkCode", "StationCode", "Name", "Value", hash) VALUES (\'%s\', \'%s\', \'factor_%s\', %f, %i)' % (NetworkCode, StationCode, comp, factor, hash))
 
+            # save the reference fyear
+            cnn.query('INSERT INTO etms ("NetworkCode", "StationCode", "Name", "Value", hash) VALUES (\'%s\', \'%s\', \'tref_%s\', %f, %i)' % (NetworkCode, StationCode, comp, tref, hash))
+
     def RemoveConstrains(self, V):
         # remove the constrains to whatever vector is passed
         if self.J.constrains.size:
@@ -680,7 +753,7 @@ class Design(np.ndarray):
 
 class ETM():
 
-    def __init__(self, cnn, NetworkCode, StationCode, plotit=False):
+    def __init__(self, cnn, NetworkCode, StationCode, plotit=False, no_model=False):
 
         self.C = []
         self.S = []
@@ -708,13 +781,13 @@ class ETM():
         self.hash = crc32(str(ppp.solutions) + ' ' + str(ppp.mjd[0]) + ' ' + str(ppp.mjd[-1]) + ' ' + str(self.Periodic.params) + ' ' + str(self.Jumps.params) + ' ' + '.'.join([str(j.type) for j in self.Jumps.table]))
 
         # anything less than four is not worth it
-        if ppp.solutions > 4:
+        if ppp.solutions > 4 and not no_model:
 
             # to obtain the parameters
             self.A = Design(self.Linear, self.Jumps, self.Periodic)
 
             # check if problem can be solved!
-            if self.A.shape[1] > ppp.solutions:
+            if self.A.shape[1] >= ppp.solutions:
                 self.A = None
                 return
 
@@ -731,7 +804,7 @@ class ETM():
             else:
                 load_from_db = False
                 # purge table
-                cnn.query('DELETE FROM etms WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\''  % (NetworkCode, StationCode))
+                cnn.query('DELETE FROM etms WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\'' % (NetworkCode, StationCode))
 
             for i in range(3):
 
@@ -744,12 +817,13 @@ class ETM():
 
                 if load_from_db:
                     # solution valid, load parameters instead of calculating them
-                    x, sigma, index, residuals, factor, P = self.load_params(params, comp[i], self.A, L)
+                    x, sigma, index, residuals, factor, P, tref = self.load_params(params, comp[i], self.A, L)
                 else:
                     x, sigma, index, residuals, factor, P = self.adjust_lsq(self.A, L)
+                    tref = self.Linear.tref
 
                 # save the parameters in each object
-                self.A.SaveParameters(NetworkCode, StationCode, x, sigma, factor, cnn, comp[i], self.hash, not load_from_db)
+                self.A.SaveParameters(NetworkCode, StationCode, x, sigma, tref, factor, cnn, comp[i], self.hash, not load_from_db)
 
                 self.C.append(x)
                 self.S.append(sigma)
@@ -763,6 +837,9 @@ class ETM():
             self.plot()
 
     def plot(self, file=None):
+
+        import matplotlib.pyplot as plt
+
         # new behaviour: plots the time series even if there is no ETM fit
 
         if self.A is not None:
@@ -910,6 +987,7 @@ class ETM():
         sv = []
         factor = 1
         limit = 2.5
+        tref = 0
 
         for param in params:
             if param['Name'].startswith('lin_' + comp):
@@ -933,6 +1011,10 @@ class ETM():
             if param['Name'].startswith('factor_' + comp):
                 factor = [float(param['Value'])]
 
+            if param['Name'].startswith('tref_' + comp):
+                # tref are all the same (for all components)
+                tref = [float(param['Value'])]
+
         x = np.array(v + j + s)
         sigma = np.array(sv + sj + ss)
 
@@ -942,7 +1024,7 @@ class ETM():
         s[s > 40] = 40  # 40 times sigma in 10^(2.5-40) yields 3x10^-38! small enough. Limit s to avoid an overflow
         index = s <= limit
 
-        return x, sigma, index, residuals, factor, 0
+        return x, sigma, index, residuals, factor, 0, tref
 
     def save_params(self, cnn, factor, comp):
 
@@ -1068,7 +1150,7 @@ class ETM():
                     if self.F[i][index]:
                         # the coordinate is good
                         if np.abs(self.R[i][index]) >= 0.005:
-                            # do not allow uncertainties lower than 5 mm (it's simply unrealistic)
+                            # do not allow uncertainties lower than 5 mm (it's just unrealistic)
                             s[i,0] = self.R[i][index]
                         else:
                             s[i,0] = 0.005
@@ -1088,20 +1170,22 @@ class ETM():
                 else:
                     # no ETM (too few points), but we have a solution for the requested day
                     x[i, 0] = L[index]
-                    dneu[i] = 9
+                    dneu[i] = 9.99
                     source = 'PPP no ETM solution'
 
         else:
             if self.A is not None:
                 # the coordinate doesn't exist, get it from the ETM
                 idt = np.argmin(np.abs(self.ppp_soln.ts - date.fyear))
+                As = self.As[idt, :]
                 source = 'No PPP solution: ETM'
+
                 for i in range(3):
-                    x[i, 0] = np.dot(self.As[idt, :], self.C[i])
+                    x[i, 0] = np.dot(As, self.C[i])
                     # since there is no way to estimate the error,
                     # use the nominal sigma (which will be multiplied by 2.5 later)
                     s[i, 0] = np.std(self.R[i][self.F[i]])
-                    dneu[i] = 9
+                    dneu[i] = 9.99
             else:
                 # no ETM (too few points), get average
                 source = 'No PPP solution, no ETM: mean coordinate'
@@ -1113,32 +1197,46 @@ class ETM():
                     else:
                         x[i, 0] = np.mean(self.ppp_soln.z)
                     # set the uncertainties in NEU by hand
-                    dneu[i] = 9
+                    dneu[i] = 9.99
 
         # crude transformation from XYZ to NEU
         if dneu[0] is None:
-            dneu[0], dneu[1], dneu[2] = ct2lg(s[0],s[1],s[2], self.ppp_soln.lat, self.ppp_soln.lon)
+            R = rotct2lg(self.ppp_soln.lat, self.ppp_soln.lon)
+            sd = np.diagflat(s)
+            sneu = np.dot(np.dot(R[:,:,0],sd),R[:,:,0].transpose())
+            dneu = np.diag(sneu)
+            # dneu[0], dneu[1], dneu[2] = ct2lg(s[0],s[1],s[2], self.ppp_soln.lat, self.ppp_soln.lon)
 
             # careful with zeros in the sittbl. file
-            if np.abs(dneu[0]) < 0.015:
-                dneu[0] = 0.015
-            if np.abs(dneu[1]) < 0.015:
-                dneu[1] = 0.015
-            if np.abs(dneu[2]) < 0.030:
-                dneu[2] = 0.030
 
-        # if self.StationCode == 'igm0':
-        #     dneu[0] = 0.025
-        #     dneu[1] = 0.025
-        #     dneu[2] = 0.050
-        # else:
-        #     dneu[0] = 100
-        #     dneu[1] = 100
-        #     dneu[2] = 100
+        if np.sqrt(np.square(self.Linear.values[1]) + np.square(self.Linear.values[self.Linear.params + 1]) + np.square(self.Linear.values[2*self.Linear.params + 1])) > 0.2:
+            sigma_h = 99.9
+            sigma_v = 99.9
+        else:
+            sigma_h = 0.1
+            sigma_v = 0.15
 
-        s = np.row_stack((np.abs(dneu[0]),np.abs(dneu[1]),np.abs(dneu[2])))
+        oneu = np.zeros(3)
+        # apply floor sigmas
+        #if np.abs(dneu[0]) < 0.015:
+        oneu[0] = np.sqrt(np.square(dneu[0]) + np.square(sigma_h))
+        #if np.abs(dneu[1]) < 0.015:
+        oneu[1] = np.sqrt(np.square(dneu[1]) + np.square(sigma_h))
+        #if np.abs(dneu[2]) < 0.030:
+        oneu[2] = np.sqrt(np.square(dneu[2]) + np.square(sigma_v))
+
+        s = np.row_stack((oneu[0], oneu[1], oneu[2]))
 
         return x, s, window, source
+
+    def sigmas_neu2xyz(self, sigmas):
+        # function to convert a given sigma from NEU to XYZ
+        # convert sigmas to XYZ
+        R = rotlg2ct(self.ppp_soln.lat, self.ppp_soln.lon)
+        sd = np.diagflat(sigmas)
+        sxyz = np.dot(np.dot(R[:, :, 0], sd), R[:, :, 0].transpose())
+
+        return np.diag(sxyz)
 
     def adjust_lsq(self, Ai, Li):
 

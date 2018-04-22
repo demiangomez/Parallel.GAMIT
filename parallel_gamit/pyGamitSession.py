@@ -105,6 +105,8 @@ class GamitSession():
 
                 self.create_sitedef()
 
+                self.create_otl_list()
+
             # ready to copy the RINEX files
             rinex_list = self.get_rinex_filenames()
 
@@ -124,6 +126,49 @@ class GamitSession():
             raise
 
         return
+
+    def create_otl_list(self):
+
+        if os.path.isfile(os.path.join(self.pwd_tables, 'otl.list')):
+            os.remove(os.path.join(self.pwd_tables, 'otl.list'))
+
+        with open(os.path.join(self.pwd_tables, 'otl.list'), 'w') as otl_list:
+            otl_list.write('FES2004M   8-character GAMIT ID read by grdtab (M -> CM)\n')
+            otl_list.write("""$$ Ocean loading displacement
+$$
+$$ Calculated on holt using olfg/olmpp of H.-G. Scherneck
+$$
+$$ COLUMN ORDER:  M2  S2  N2  K2  K1  O1  P1  Q1  MF  MM SSA
+$$
+$$ ROW ORDER:
+$$ AMPLITUDES (m)
+$$   RADIAL
+$$   TANGENTL    EW
+$$   TANGENTL    NS
+$$ PHASES (degrees)
+$$   RADIAL
+$$   TANGENTL    EW
+$$   TANGENTL    NS
+$$
+$$ Displacement is defined positive in upwards, South and West direction.
+$$ The phase lag is relative to Greenwich and lags positive. The
+$$ Gutenberg-Bullen Greens function is used. In the ocean tide model the
+$$ deficit of tidal water mass has been corrected by subtracting a uniform
+$$ layer of water with a certain phase lag globally.
+$$
+$$ Complete <model name> : No interpolation of ocean model was necessary
+$$ <model name>_PP       : Ocean model has been interpolated near the station
+$$                         (PP = Post-Processing)
+$$
+$$ CMC:  YES  (corr.tide centre of mass)
+$$
+$$ Ocean tide model: FES2004
+$$
+$$ END HEADER
+$$""")
+
+            for stn in self.StationInstances:
+                otl_list.write(stn.Station.otl_H.replace(' ' + stn.Station.StationCode + ' ', ' ' + stn.Station.StationAlias + ' ') + '\n')
 
     def create_station_info(self):
 
