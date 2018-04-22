@@ -46,6 +46,7 @@ def test_node():
         import pyPPPETM
         import pyRunWithRetry
         import pyDate
+        import pg
 
     except Exception:
         return ' -- %s: Problem found while importing modules:\n%s' % (platform.node(), traceback.format_exc())
@@ -56,6 +57,9 @@ def test_node():
         cnn = dbConnection.Cnn('gnss_data.cfg')
 
         q = cnn.query('SELECT count(*) FROM networks')
+
+        if int(pg.version[0]) < 5:
+            return ' -- %s: Incorrect PyGreSQL version!: %s' % (platform.node(), pg.version)
 
     except Exception:
         return ' -- %s: Problem found while connecting to postgres:\n%s ' % (platform.node(), traceback.format_exc())
@@ -135,7 +139,7 @@ def test_node():
 
 
 class JobServer:
-    def __init__(self, Config):
+    def __init__(self, Config, max_jobs=300):
 
         self.__sfuncHM = {}
         self.__sourcesHM = {}
@@ -143,6 +147,7 @@ class JobServer:
 
         self.process_callback = False
         self.jobs = 0
+        self.MAX_JOBS = max_jobs
 
         # test the local node
         print " ==== Starting JobServer(pp) ===="
@@ -222,7 +227,7 @@ class JobServer:
 
         self.job_server.submit(funcs,args,depfuncs,modules,getattr(callback_list[-1], callback_func_name))
 
-        if self.jobs >= 300:
+        if self.jobs >= self.MAX_JOBS:
             self.jobs = 0
             self.job_server.wait()
             self.process_callback = True

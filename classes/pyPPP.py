@@ -64,11 +64,12 @@ class pyRunPPPExceptionEOPError(pyRunPPPException):
 
 class PPPSpatialCheck():
 
-    def __init__(self, lat=None, lon=None, h=None):
+    def __init__(self, lat=None, lon=None, h=None, epoch=None):
 
         self.lat   = lat
         self.lon   = lon
         self.h     = h
+        self.epoch = epoch
 
         return
 
@@ -76,83 +77,63 @@ class PPPSpatialCheck():
         # checks the spatial coherence of the resulting coordinate
         # will not make any decisions, just output the candidates
         # if ambiguities are found, the rinex StationCode is used to solve them
-        # third argument is used to return a list with the closest station/s if no match is found
+        # third output arg is used to return a list with the closest station/s if no match is found
         # or if we had to disambiguate using station name
+        # DDG Mar 21 2018: Added the velocity of the station to account for fast moving stations (on ice)
+        # the logic is as follows:
+        # 1) if etm data is available, then use it to bring the coordinate to self.epoch
+        # 2) if no etm parameters are available, default to the coordinate reported in the stations table
 
         if not search_in_new:
             where_clause = 'WHERE "NetworkCode" not like \'?%%\''
         else:
             where_clause = ''
 
-        for dist in [100, 500, 1000, 2000, 5000]:
+        # start by reducing the number of stations filtering everything beyond 100 km from the point of interest
+        rs = cnn.query("""
+            SELECT * FROM
+            (SELECT *, 2*asin(sqrt(sin((radians(%.8f)-radians(lat))/2)^2 + cos(radians(lat)) * cos(radians(%.8f)) * sin((radians(%.8f)-radians(lon))/2)^2))*6371000 AS distance
+            FROM stations %s) as DD
+            WHERE distance <= %f
+            """ % (self.lat[0], self.lat[0], self.lon[0], where_clause, 1e3))  # DO NOT RETURN RESULTS WITH NetworkCode = '?%'
+
+        stn_match = rs.dictresult()
+
+        # using the list of coordinates, check if StationCode exists in the list
+        if len(stn_match) == 0:
+            # no match, find closest station
+            # get the closest station and distance in km to help the caller function
             rs = cnn.query("""
-                            SELECT * FROM
-                                (SELECT *, 2*asin(sqrt(sin((radians(%.8f)-radians(lat))/2)^2 + cos(radians(lat)) * cos(radians(%.8f)) * sin((radians(%.8f)-radians(lon))/2)^2))*6371000 AS distance
-                                    FROM stations %s) as DD
-                                WHERE distance <= %f
-                            """ % (
-            self.lat[0], self.lat[0], self.lon[0], where_clause, dist))  # DO NOT RETURN RESULTS OF A STATION WITH NetworkCode = '?%'
+                SELECT * FROM
+                    (SELECT *, 2*asin(sqrt(sin((radians(%.8f)-radians(lat))/2)^2 + cos(radians(lat)) * cos(radians(%.8f)) * sin((radians(%.8f)-radians(lon))/2)^2))*6371000 AS distance
+                        FROM stations %s) as DD ORDER BY distance
+                """ % (self.lat[0], self.lat[0], self.lon[0], where_clause))
 
             stn = rs.dictresult()
 
-            if rs.ntuples() == 1:
-                # found a match
-                return True, stn[0], []
+            return False, [], stn
 
-            elif rs.ntuples() > 1:
-                # this is most likely a station that got moved a few meters and renamed
-                # or a station that just got renamed.
-                # disambiguation might be possible using the name of the station
-                min_stn = [stni for stni in stn if stni['distance'] == min([x['distance'] for x in stn])][0]
+        if len(stn_match) == 1 and stn_match[0]['StationCode'] == StationCode:
+            # one match, same name (return a dictionary)
+            return True, stn_match, []
 
-                if min_stn['StationCode'] == StationCode:
-                    # the minimum distance if to a station with same name, we are good:
-                    # does the name match the closest station to this solution? yes
-                    return True, min_stn, []
-                else:
-                    stn_match = [stni for stni in stn if stni['StationCode'] == StationCode]
+        if len(stn_match) == 1 and stn_match[0]['StationCode'] != StationCode:
+            # one match, not the same name (return a list, not a dictionary)
+            return False, stn_match, []
 
-                    if len(stn_match) > 0:
-                        # The stationcode is not the closest one (maybe screwy PPP solution?),
-                        # but its in the list and return the closest one in the third arg
-                        if len(stn_match) == 1 and abs(stn_match[0]['distance'] - min_stn['distance']) < 1:
-                            # two stations, A and B, rinex belongs by station code to A but distance says it's from
-                            # B and distance difference is < 1 m.
-                            # This is a station rename. The solution is closer to B, but just because of noise
-                            # When the difference between distances (rinex - A) - (rinex - B) is < 1 m,
-                            # we can safely assume that the station was renamed.
-                            # So we stick to the name the rinex came in with
-                            return True, stn_match[0], []
+        if len(stn_match) > 1:
+            # more than one match, same name
+            # this is most likely a station that got moved a few meters and renamed
+            # or a station that just got renamed.
+            # disambiguation might be possible using the name of the station
+            min_stn = [stni for stni in stn_match if stni['StationCode'] == StationCode]
 
-                        elif len(stn_match) == 1 and abs(stn_match[0]['distance'] - min_stn['distance']) >= 1:
-                            # two stations, A and B, rinex belongs by station code to A but distance says it's from
-                            # B and distance difference is >= 1 m.
-                            # We can still assume that the solution is from A, but return min_stn for the user to decide
-                            return True, stn_match[0], min_stn
-
-                        elif len(stn_match) > 1:
-                            # more than one station with this station code (very rare)
-                            # but... gaucho precavido vale por dos
-                            # return all rows of stn_match
-                            return False, stn_match, []
-
-                    else:
-                        # could not find a unique stni['StationCode'] = argin stationcode within X m
-                        # return false and the possible candidates
-                        return False, stn, []
-
-
-        # the for loop ended. No match at all found
-        # get the closest station and distance in km to help the caller function
-        rs = cnn.query("""
-                    SELECT * FROM
-                        (SELECT *, 2*asin(sqrt(sin((radians(%.8f)-radians(lat))/2)^2 + cos(radians(lat)) * cos(radians(%.8f)) * sin((radians(%.8f)-radians(lon))/2)^2))*6371000 AS distance
-                            FROM stations %s) as DD ORDER BY distance
-                    """ % (self.lat[0], self.lat[0], self.lon[0], where_clause))
-
-        stn = rs.dictresult()
-
-        return False, [], stn[0]
+            if len(min_stn) > 0:
+                # the minimum distance if to a station with same name, we are good:
+                # does the name match the closest station to this solution? yes
+                return True, min_stn, []
+            else:
+                return False, stn_match, []
 
 
 class RunPPP(PPPSpatialCheck):
@@ -161,12 +142,14 @@ class RunPPP(PPPSpatialCheck):
 
         PPPSpatialCheck.__init__(self)
 
-        self.rinex = rinexobj
-        self.antH = antenna_height
-        self.ppp_path = options['ppp_path']
-        self.ppp = options['ppp_exe']
-        self.options = options
+        self.rinex     = rinexobj
+        self.epoch     = rinexobj.date
+        self.antH      = antenna_height
+        self.ppp_path  = options['ppp_path']
+        self.ppp       = options['ppp_exe']
+        self.options   = options
         self.kinematic = kinematic
+
         self.clock_interpolation = clock_interpolation
 
         self.frame     = None

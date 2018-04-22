@@ -407,7 +407,7 @@ def ExecuteGamit(Config, Sessions):
     if Config.run_parallel:
         ppservers = ('*',)
 
-        cpus = Utils.get_processor_count()
+        cpus = Config.options['cpus']
         if cpus:
             if cpus >= Config.gamitopt['max_cores']:
                 job_server = pp.Server(ncpus=int(Config.gamitopt['max_cores']), ppservers=ppservers)

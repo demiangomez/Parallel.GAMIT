@@ -485,10 +485,10 @@ if __name__ == '__main__':
             'SELECT * FROM stations WHERE "StationCode" = \'%s\' ORDER BY "NetworkCode", "StationCode"' % (stn))
 
     if rs.ntuples() == 0:
-        print tc.render('${RED}ERROR: Station code not found!${NORMAL}')
+        print 'ERROR: Station code not found!'
         exit()
     elif rs.ntuples() > 1:
-        print tc.render('${RED}ERROR: More than one station found! Use net.stnm instead of stnm${NORMAL}')
+        print 'ERROR: More than one station found! Use net.stnm instead of stnm'
         exit()
     else:
         stn = rs.dictresult()[0]

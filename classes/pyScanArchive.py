@@ -543,10 +543,10 @@ def execute_ppp(record, rinex_path):
                     ppp.exec_ppp()
 
                     # verify that the solution is from the station it claims to be
-                    Result, match, closest_stn = ppp.verify_spatial_coherence(cnn, StationCode)
+                    Result, match, _ = ppp.verify_spatial_coherence(cnn, StationCode)
 
                     if Result:
-                        if match['NetworkCode'] == NetworkCode and match['StationCode'] == StationCode:
+                        if match[0]['NetworkCode'] == NetworkCode and match[0]['StationCode'] == StationCode:
                             # the match agrees with the station-day that we THINK we are processing
                             # this check should not be necessary if the rinex went through Archive Service, since we
                             # already match rinex vs station

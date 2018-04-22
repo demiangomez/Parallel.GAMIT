@@ -437,28 +437,33 @@ def CheckSpatialCoherence(cnn, stnlist, start_date, end_date):
                 Result, match, closest_stn = SpatialCheck.verify_spatial_coherence(cnn, StationCode)
 
                 if Result:
-
                     if len(closest_stn) == 0:
-                        if match['NetworkCode'] != NetworkCode and match['StationCode'] != StationCode:
+                        if match[0]['NetworkCode'] != NetworkCode and match[0]['StationCode'] != StationCode:
                             # problem! we found a station but does not agree with the declared solution name
-                            tqdm.write('Warning! Solution for %s.%s %s is a match for %s.%s (only this candidate was found).\n' % (NetworkCode,StationCode,date.yyyyddd(),match['NetworkCode'],match['StationCode']))
+                            tqdm.write('Warning! Solution for %s.%s %s is a match for %s.%s (only this candidate was found).\n' % (NetworkCode,StationCode,date.yyyyddd(),match[0]['NetworkCode'],match[0]['StationCode']))
                     else:
+                        closest_stn = closest_stn[0]
                         tqdm.write(
                             'Wanrning! Solution for %s.%s %s was found to be closer to %s.%s. Distance to %s.%s: %.3f m. Distance to %s.%s: %.3f m' % (
                             NetworkCode, StationCode, date.yyyyddd(), closest_stn['NetworkCode'], closest_stn['StationCode'],
                             closest_stn['NetworkCode'], closest_stn['StationCode'], closest_stn['distance'],
-                            match['NetworkCode'], match['StationCode'], match['distance']))
+                            match[0]['NetworkCode'], match[0]['StationCode'], match[0]['distance']))
 
                 else:
-                    if len(match) > 0:
+                    if len(match) == 1:
+                        tqdm.write(
+                            'Wanrning! Solution for %s.%s %s does not match its station code. Best match: %s.%s' % (
+                            NetworkCode, StationCode, date.yyyyddd(), match[0]['NetworkCode'], match[0]['StationCode']))
+
+                    elif len(match) > 1:
                         # No name match but there are candidates for the station
                         matches = ', '.join(['%s.%s: %.3f m' % (m['NetworkCode'], m['StationCode'], m['distance']) for m in match])
                         tqdm.write('Wanrning! Solution for %s.%s %s does not match its station code. Cantidates and distances found: %s' % (NetworkCode, StationCode, date.yyyyddd(),matches))
                     else:
                         tqdm.write(
                             'Wanrning! PPP for %s.%s %s had no match within 100 m. Closest station is %s.%s (%3.f km, %s.%s %s PPP solution is: %.8f %.8f)' % (
-                            NetworkCode, StationCode, date.yyyyddd(), closest_stn['NetworkCode'], closest_stn['StationCode'],
-                            numpy.divide(float(closest_stn['distance']), 1000), NetworkCode, StationCode, date.yyyyddd(),lat[0], lon[0]))
+                            NetworkCode, StationCode, date.yyyyddd(), closest_stn[0]['NetworkCode'], closest_stn[0]['StationCode'],
+                            numpy.divide(float(closest_stn[0]['distance']), 1000), NetworkCode, StationCode, date.yyyyddd(),lat[0], lon[0]))
         else:
             tqdm.write('\nNo PPP solutions found for %s.%s...' % (NetworkCode, StationCode), sys.stderr)
 

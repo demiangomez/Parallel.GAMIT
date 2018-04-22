@@ -810,7 +810,7 @@ class ReadRinex(RinexRecord):
     def split_file(self):
 
         # run in the local folder to get the files inside rootdir
-        cmd = pyRunWithRetry.RunCommand('teqc -n_GLONASS 30 -tbin 1d rnx ' + self.rinex, 45, self.rootdir)
+        cmd = pyRunWithRetry.RunCommand('teqc -n_GLONASS 64 -n_GPS 64 -n_Galileo 64 -n_SBAS 64 -tbin 1d rnx ' + self.rinex, 45, self.rootdir)
         try:
             _, err = cmd.run_shell()
         except pyRunWithRetry.RunCommandWithRetryExeception as e:
@@ -1039,7 +1039,7 @@ class ReadRinex(RinexRecord):
             copyfile(brdc.brdc_path, os.path.join(rnx.rootdir, brdc.brdc_filename))
 
         except pyRinexException as e:
-            print str(e)
+            # print str(e)
             # ooops, something went wrong, try with local file (without removing systems or decimating)
             rnx = self
             # raise pyRinexExceptionBadFile('During decimation or remove_systems (to run auto_coord), teqc returned: %s' + str(e))
@@ -1090,7 +1090,7 @@ class ReadRinex(RinexRecord):
             end = self.datetime_lastObs
             self.log_event('Setting end = last obs in window_data')
 
-        cmd = pyRunWithRetry.RunCommand('teqc -n_GLONASS 30 -igs -st %i%02i%02i%02i%02i%02i -e %i%02i%02i%02i%02i%02i +obs %s.t %s' % (
+        cmd = pyRunWithRetry.RunCommand('teqc -n_GLONASS 64 -n_GPS 64 -n_SBAS 64 -n_Galileo 64 -igs -st %i%02i%02i%02i%02i%02i -e %i%02i%02i%02i%02i%02i +obs %s.t %s' % (
                 start.year, start.month, start.day, start.hour, start.minute, start.second,
                 end.year, end.month, end.day, end.hour, end.minute, end.second, self.rinex_path, self.rinex_path), 5)
 
@@ -1122,7 +1122,7 @@ class ReadRinex(RinexRecord):
             self.interval = decimate_rate
 
         if self.rinex_version < 3:
-            cmd = pyRunWithRetry.RunCommand('teqc -n_GLONASS 30 -igs -O.dec %i +obs %s.t %s' % (decimate_rate, copyto, copyto), 5)
+            cmd = pyRunWithRetry.RunCommand('teqc -n_GLONASS 64 -n_GPS 64 -n_SBAS 64 -n_Galileo 64 -igs -O.dec %i +obs %s.t %s' % (decimate_rate, copyto, copyto), 5)
             # leave errors un-trapped on purpose (will raise an error to the parent)
         else:
             cmd = pyRunWithRetry.RunCommand('RinEdit --IF %s --OF %s.t --TN %i --TB %i,%i,%i,%i,%i,%i' % (os.path.basename(copyto), os.path.basename(copyto), decimate_rate, self.date.year, self.date.month, self.date.day, 0, 0, 0), 15, self.rootdir)
@@ -1149,7 +1149,7 @@ class ReadRinex(RinexRecord):
 
         if self.rinex_version < 3:
             rsys = '-' + ' -'.join(systems)
-            cmd = pyRunWithRetry.RunCommand('teqc -n_GLONASS 30 -igs %s +obs %s.t %s' % (rsys, copyto, copyto), 5)
+            cmd = pyRunWithRetry.RunCommand('teqc -n_GLONASS 64 -n_GPS 64 -n_SBAS 64 -n_Galileo 64 -igs %s +obs %s.t %s' % (rsys, copyto, copyto), 5)
         else:
             rsys = ' --DS '.join(systems)
             cmd = pyRunWithRetry.RunCommand('RinEdit --IF %s --OF %s.t --DS %s' % (os.path.basename(copyto), os.path.basename(copyto), rsys), 15, self.rootdir)
@@ -1179,7 +1179,7 @@ class ReadRinex(RinexRecord):
 
         if type(NewValues) is pyStationInfo.StationInfo:
             if NewValues.date is not None and NewValues.date != self.date:
-                raise pyRinexException('The StationInfo object was initialized for a different date than that of the RINEX file')
+                raise pyRinexException('The StationInfo object was initialized for a different date than that of the RINEX file. Date on RINEX: ' + self.date.yyyyddd() + '; Station Info: ' + NewValues.date.yyyyddd())
             else:
                 NewValues = NewValues.currentrecord
 
@@ -1521,7 +1521,7 @@ class ReadRinex(RinexRecord):
             f2 = self
 
         # now splice files
-        cmd = pyRunWithRetry.RunCommand('teqc -n_GLONASS 30 -igs +obs %s.t %s %s' % (f1.rinex_path, f1.rinex_path, f2.rinex_path), 5)
+        cmd = pyRunWithRetry.RunCommand('teqc -n_GLONASS 64 -n_GPS 64 -n_SBAS 64 -n_Galileo 64 -igs +obs %s.t %s %s' % (f1.rinex_path, f1.rinex_path, f2.rinex_path), 5)
 
         # leave errors un-trapped on purpose (will raise an error to the parent)
         out, err = cmd.run_shell()

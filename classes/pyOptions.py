@@ -32,7 +32,11 @@ class ReadOptions():
                        'info': None,
                        'sp3': None,
                        'atx': None,
-                       'ppp_exe': None}
+                       'ppp_exe': None,
+                       'sigma_floor_h_c': 0.10,
+                       'sigma_floor_v_c': 0.15,
+                       'sigma_floor_h_s': 0.10,
+                       'sigma_floor_v_s': 1.50,}
 
         config = ConfigParser.ConfigParser()
         config.readfp(open(configfile))
@@ -48,6 +52,10 @@ class ReadOptions():
         # get the ppp config
         for iconfig, val in dict(config.items('ppp')).iteritems():
             self.options[iconfig] = val
+
+        # get the sigma floor config
+        #for iconfig, val in dict(config.items('sigmas')).iteritems():
+        #    self.options[iconfig] = val
 
         self.archive_path = self.options['path']
         self.sp3_path     = self.options['sp3']
