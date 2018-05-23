@@ -133,7 +133,7 @@ class GamitSession():
             os.remove(os.path.join(self.pwd_tables, 'otl.list'))
 
         with open(os.path.join(self.pwd_tables, 'otl.list'), 'w') as otl_list:
-            otl_list.write('FES2004M   8-character GAMIT ID read by grdtab (M -> CM)\n')
+            otl_list.write('%s   8-character GAMIT ID read by grdtab (M -> CM)\n' % (self.Config.options['otlmodel']))
             otl_list.write("""$$ Ocean loading displacement
 $$
 $$ Calculated on holt using olfg/olmpp of H.-G. Scherneck
@@ -162,10 +162,10 @@ $$                         (PP = Post-Processing)
 $$
 $$ CMC:  YES  (corr.tide centre of mass)
 $$
-$$ Ocean tide model: FES2004
+$$ Ocean tide model: %s
 $$
 $$ END HEADER
-$$""")
+$$""" % (self.Config.options['otlmodel']))
 
             for stn in self.StationInstances:
                 otl_list.write(stn.Station.otl_H.replace(' ' + stn.Station.StationCode + ' ', ' ' + stn.Station.StationAlias + ' ') + '\n')

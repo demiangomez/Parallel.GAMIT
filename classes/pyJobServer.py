@@ -13,12 +13,27 @@ import cPickle as pickle
 import inspect
 import types
 
-def test_node():
+def test_node(check_gamit_tables=None):
     # test node: function that makes sure that all required packages and tools are present in the nodes
     import traceback
     import platform
     import os
     import sys
+
+    def check_tab_file(tabfile, date):
+
+        if os.path.isfile(tabfile):
+            # file exists, check contents
+            with open(tabfile, 'r') as luntab:
+                lines = luntab.readlines()
+                tabdate = pyDate.Date(mjd=lines[-1].split()[0])
+                if tabdate < date:
+                    return ' -- %s: Last entry in %s is %s but processing %s' % (platform.node(), tabfile, tabdate.yyyyddd(), date.yyyyddd())
+
+        else:
+            return ' -- %s: Could not find file %s' % (platform.node(), tabfile)
+
+        return []
 
     # BEFORE ANYTHING! check the python version
     version = sys.version_info
@@ -135,11 +150,64 @@ def test_node():
     if not os.path.isfile(Config.options['atx']):
         return ' -- %s: Could not find atx in %s' % (platform.node(), Config.options['atx'])
 
+    if check_gamit_tables is not None:
+        # check the gamit tables if not none
+
+        date = check_gamit_tables[0]
+        eop  = check_gamit_tables[1]
+
+        gg = os.path.expanduser('~/gg')
+        tables = os.path.expanduser('~/gg/tables')
+
+        if not os.path.isdir(gg):
+            return ' -- %s: Could not GAMIT installation dir (gg)' % (platform.node())
+
+        if not os.path.isdir(tables):
+            return ' -- %s: Could not GAMIT tables dir (gg)' % (platform.node())
+
+        #luntab
+        luntab = os.path.join(tables, 'luntab.' + date.yyyy() + '.J2000')
+
+        result = check_tab_file(luntab, date)
+
+        if result:
+            return result
+
+        #soltab
+        soltab = os.path.join(tables, 'soltab.' + date.yyyy() + '.J2000')
+
+        result = check_tab_file(soltab, date)
+
+        if result:
+            return result
+
+        #ut
+        ut = os.path.join(tables, 'ut1.' + eop)
+
+        result = check_tab_file(ut, date)
+
+        if result:
+            return result
+
+        #leapseconds
+
+        #vmf1
+
+        #pole
+        pole = os.path.join(tables, 'pole.' + eop)
+
+        result = check_tab_file(pole, date)
+
+        if result:
+            return result
+
+        #fes_cmc consistency
+
     return ' -- %s: Test passed!' % (platform.node())
 
 
 class JobServer:
-    def __init__(self, Config, max_jobs=300):
+    def __init__(self, Config, max_jobs=300, check_gamit_tables=None):
 
         self.__sfuncHM = {}
         self.__sourcesHM = {}
@@ -152,7 +220,7 @@ class JobServer:
         # test the local node
         print " ==== Starting JobServer(pp) ===="
         print " >> Checking requirements at the local node..."
-        result = test_node()
+        result = test_node(check_gamit_tables)
         print result
 
         if not 'Test passed!' in result:
@@ -181,7 +249,7 @@ class JobServer:
 
             # pickle the test_node function and (empty) arguments
             f = self.__dumpsfunc((test_node,), tuple())
-            sargs = pickle.dumps(tuple(), self.__pickle_proto)
+            sargs = pickle.dumps((check_gamit_tables,), self.__pickle_proto)
 
             stop = False
             for node in self.job_server.autopp_list.keys():

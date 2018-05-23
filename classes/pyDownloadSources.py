@@ -16,13 +16,15 @@ from datetime import datetime
 import numpy as np
 from tqdm import tqdm
 import ftplib
-import zlib
-import pyRunWithRetry
 import dbConnection
 import Utils
 from Utils import print_columns
 import pyArchiveStruct
 import pysftp
+from shutil import rmtree
+import pyRinex
+import glob
+import urllib
 
 def replace_vars(filename, date):
 
@@ -33,6 +35,7 @@ def replace_vars(filename, date):
     filename = filename.replace('${gpsweek}', str(date.gpsWeek).zfill(4))
     filename = filename.replace('${gpswkday}', str(date.gpsWeekDay))
     filename = filename.replace('${year2d}', str(date.year)[2:])
+    filename = filename.replace('${month2d}', str(date.month).zfill(2))
 
     return filename
 
@@ -44,6 +47,8 @@ def main():
                         help="List of networks/stations to process given in [net].[stnm] format or just [stnm] (separated by spaces; if [stnm] is not unique in the database, all stations with that name will be processed). Use keyword 'all' to process all stations in the database. If [net].all is given, all stations from network [net] will be processed. Alternatevily, a file with the station list can be provided.")
 
     parser.add_argument('-date', '--date_range', nargs='+', action=required_length(1,2), metavar='date_start|date_end', help="Date range to check given as [date_start] or [date_start] and [date_end]. Allowed formats are yyyy.doy or yyyy/mm/dd..")
+    parser.add_argument('-win', '--window', nargs=1, metavar='days', type=int,
+                        help="Download data from a given time window determined by today - {days}.")
 
     try:
         args = parser.parse_args()
@@ -64,7 +69,13 @@ def main():
         dates = []
 
         try:
-            dates = process_date(args.date_range)
+            if args.window:
+                # today - ndays
+                d = pyDate.Date(year=datetime.now().year, month=datetime.now().month, day=datetime.now().day)
+                dates = [d-int(args.window[0]), d]
+            else:
+                dates = process_date(args.date_range)
+
         except ValueError as e:
             parser.error(str(e))
 
@@ -113,32 +124,79 @@ def download_data(cnn, Config, stnlist, drange):
 
                 for source in sources:
 
+                    tqdm.write(' >> Need to download %s.%s %s' % (NetworkCode, StationCode, date.yyyyddd()))
+
                     result = False
 
+                    folder = os.path.dirname(replace_vars(source['path'], date))
+                    destiny = os.path.join(Config.repository_data_in, source['fqdn'].replace(':', '_'))
+                    filename = os.path.basename(replace_vars(source['path'], date))
+
                     if source['protocol'].lower() == 'ftp':
-                        result = download_ftp(source['fqdn'], source['username'], source['password'], source['path'], Config.repository_data_in, date)
+                        result = download_ftp(source['fqdn'], source['username'], source['password'], folder, destiny, filename)
 
                     elif source['protocol'].lower() == 'sftp':
-                        result = download_sftp(source['fqdn'], source['username'], source['password'], source['path'], Config.repository_data_in, date)
+                        result = download_sftp(source['fqdn'], source['username'], source['password'], folder, destiny, filename)
 
                     elif source['protocol'].lower() == 'http':
-                        result = download_http(source['fqdn'], source['username'], source['password'], source['path'], Config.repository_data_in, date)
+                        result = download_http(source['fqdn'], folder, destiny, filename)
 
                     else:
-                        tqdm.write(' -- Unknown protocol %s for %s.%s' % (source['protocol'].lower(), NetworkCode, StationCode))
+                        tqdm.write('   -- Unknown protocol %s for %s.%s' % (source['protocol'].lower(), NetworkCode, StationCode))
 
                     if result:
-                        tqdm.write(' -- Successful download of %s.%s %s' % (NetworkCode, StationCode, date.yyyyddd()))
+                        tqdm.write('   -- Successful download of %s.%s %s' % (NetworkCode, StationCode, date.yyyyddd()))
+
+                        # success downloading file
+                        if source['format']:
+                            tqdm.write('   -- File requires postprocess using scheme %s' % (source['format']))
+                            process_file(os.path.join(destiny, filename), filename, destiny, source['format'], StationCode, date)
+
                         break
                     else:
-                        tqdm.write(' -- Could not download %s.%s %s -> trying next source' % (NetworkCode, StationCode, date.yyyyddd()))
+                        tqdm.write('   -- Could not download %s.%s %s -> trying next source' % (NetworkCode, StationCode, date.yyyyddd()))
             else:
-                tqdm.write(' -- File for %s.%s %s already in db' % (NetworkCode, StationCode, date.yyyyddd()))
+                tqdm.write(' >> File for %s.%s %s already in db' % (NetworkCode, StationCode, date.yyyyddd()))
 
     pbar.close()
 
 
-def download_ftp(fqdn, username, password, path, destiny, date):
+def process_file(filepath, filename, destiny, source, StationCode, date):
+    # post-process of data
+
+    try:
+        temp_dir = os.path.join(destiny, 'temp')
+
+        if os.path.isfile(filepath):
+            if not os.path.isdir(temp_dir):
+                os.makedirs(temp_dir)
+
+        if source.lower() == 'ibge' or source.lower() == 'uruguay':
+            os.system('unzip -o "%s" -d "%s" > /dev/null' % (filepath, temp_dir))
+
+        elif source.lower() == 'chile':
+            os.system('gzip -f -d -c "%s" > %s' % (filepath, os.path.join(temp_dir, filename.replace('.gz', ''))))
+        else:
+            tqdm.write('   -- Unknown process scheme: %s' % (source.lower()))
+
+        # open rinex file
+        ofile = glob.glob(temp_dir + '/*.??[oOdD]')
+
+        if ofile:
+            rinex = pyRinex.ReadRinex('???', StationCode, ofile[0])
+            # compress rinex to data_in
+            rinex.compress_local_copyto(destiny)
+            # remove downloaded zip
+            os.remove(filepath)
+
+        # remove temp folder
+        rmtree(temp_dir)
+
+    except Exception as e:
+        tqdm.write('   -- ERROR in process_file: %s' % (str(e)))
+
+
+def download_ftp(fqdn, username, password, folder, destiny, filename):
 
     try:
         # connect to ftp
@@ -146,14 +204,9 @@ def download_ftp(fqdn, username, password, path, destiny, date):
 
         tqdm.write('   -- Connecting to ' + fqdn)
 
-        destiny = os.path.join(destiny, fqdn)
-
         if not os.path.exists(destiny):
             os.makedirs(destiny)
             tqdm.write('   -- Creating dir ' + destiny)
-
-        folder = os.path.dirname(replace_vars(path, date))
-        filename = os.path.basename(replace_vars(path, date))
 
         tqdm.write('   -- Changing folder to ' + folder)
 
@@ -177,7 +230,7 @@ def download_ftp(fqdn, username, password, path, destiny, date):
         return False
 
 
-def download_sftp(fqdn, username, password, path, destiny, date):
+def download_sftp(fqdn, username, password, folder, destiny, filename):
     try:
         cnopts = pysftp.CnOpts()
         cnopts.hostkeys = None
@@ -194,14 +247,9 @@ def download_sftp(fqdn, username, password, path, destiny, date):
 
         tqdm.write('   -- Connecting to ' + fqdn)
 
-        destiny = os.path.join(destiny, fqdn)
-
         if not os.path.exists(destiny):
             os.makedirs(destiny)
             tqdm.write('   -- Creating dir ' + destiny)
-
-        folder = os.path.dirname(replace_vars(path, date))
-        filename = os.path.basename(replace_vars(path, date))
 
         tqdm.write('   -- Changing folder to ' + folder)
 
@@ -225,8 +273,24 @@ def download_sftp(fqdn, username, password, path, destiny, date):
         return False
 
 
-def download_http(fqdn, username, password, folder, destiny, date):
-    pass
+def download_http(fqdn, folder, destiny, filename):
+
+    try:
+
+        if not os.path.exists(destiny):
+            os.makedirs(destiny)
+            tqdm.write('   -- Creating dir ' + destiny)
+
+        rinex = urllib.URLopener()
+        tqdm.write('   -- %s%s ' % (fqdn, os.path.join(folder, filename)))
+        rinex.retrieve("http://%s%s" % (fqdn, os.path.join(folder, filename)), os.path.join(destiny, filename))
+
+    except Exception as e:
+        # folder not present, skip
+        tqdm.write('   -- http error: ' + str(e))
+        return False
+
+    return True
 
 
 if __name__ == '__main__':

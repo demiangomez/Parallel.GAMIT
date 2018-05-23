@@ -63,6 +63,8 @@ class GamitConfiguration(ReadOptions):
             self.gamitopt['max_cores'] = int(self.gamitopt['max_cores'])
 
             # TO-DO: check that all the required parameters are present
+            if len(self.gamitopt['expt']) != 4:
+                raise ValueError('The experiment name parameter must be 4 characters long.')
 
         except ConfigParser.NoOptionError:
             raise

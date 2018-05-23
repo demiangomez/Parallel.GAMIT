@@ -24,6 +24,7 @@ from shutil import rmtree
 from math import ceil
 import argparse
 import glob
+import pyJobServer
 
 def signal_handler(signal, frame):
     print '\nProcess interruptued by user\n'
@@ -221,6 +222,11 @@ def main():
 
     print(' >> Reading configuration files and creating project network, please wait...')
     GamitConfig = pyGamitConfig.GamitConfiguration(args.session_cfg[0]) # type: pyGamitConfig.GamitConfiguration
+
+    print(' >> Checing GAMIT tables for requested config and year, please wait...')
+    JobServer = pyJobServer.JobServer(GamitConfig, check_gamit_tables=(pyDate.Date(year=year,doy=max(doys)), GamitConfig.gamitopt['eop_type']))
+    # leave to none until fully implemented
+    JobServer = None
 
     cnn = dbConnection.Cnn(GamitConfig.gamitopt['gnss_data']) # type: dbConnection.Cnn
 
@@ -420,9 +426,9 @@ def ExecuteGamit(Config, Sessions):
     else:
         job_server = None
 
-    gamit_pbar = tqdm(total=len([GamitSession for GamitSession in Sessions if not GamitSession.ready]), desc='GAMIT processes completion progress', ncols=100, position=2) # type: tqdm
+    gamit_pbar = tqdm(total=len([GamitSession for GamitSession in Sessions if not GamitSession.ready]), desc='GAMIT processes completion progress', ncols=100, position=1) # type: tqdm
 
-    for GamitSession in tqdm(Sessions,total=len(Sessions), desc='GAMIT tasks initialization progress', ncols=100, position=1):
+    for GamitSession in tqdm(Sessions,total=len(Sessions), desc='GAMIT tasks initialization progress', ncols=100, position=0):
 
         if Config.run_parallel:
             if not GamitSession.ready:

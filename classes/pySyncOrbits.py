@@ -32,7 +32,8 @@ def main():
     parser = argparse.ArgumentParser(description='Archive operations Main Program')
 
     parser.add_argument('-date', '--date_range', nargs='+', action=required_length(1,2), metavar='date_start|date_end', help="Date range to check given as [date_start] or [date_start] and [date_end]. Allowed formats are yyyy.doy or yyyy/mm/dd..")
-
+    parser.add_argument('-win', '--window', nargs=1, metavar='days', type=int,
+                        help="Download data from a given time window determined by today - {days}.")
     try:
         args = parser.parse_args()
 
@@ -41,7 +42,12 @@ def main():
         dates = []
 
         try:
-            dates = process_date(args.date_range)
+            if args.window:
+                # today - ndays
+                d = pyDate.Date(year=datetime.now().year, month=datetime.now().month, day=datetime.now().day)
+                dates = [d-int(args.window[0]), d]
+            else:
+                dates = process_date(args.date_range)
         except ValueError as e:
             parser.error(str(e))
 

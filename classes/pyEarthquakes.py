@@ -86,3 +86,15 @@ class AddEarthquakes():
                        mag=event.get('mag')[0])
             except Exception as e:
                 continue
+
+
+def main():
+    import dbConnection
+    cnn = dbConnection.Cnn('gnss_data.cfg')
+    AddEarthquakes(cnn)
+    return
+
+
+if __name__ == '__main__':
+
+    main()

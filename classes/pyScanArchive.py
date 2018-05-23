@@ -89,6 +89,20 @@ from Utils import process_date
 from Utils import ecef2lla
 import pyEvents
 import scandir
+import json
+import shutil
+import glob
+from decimal import Decimal
+
+
+class Encoder(json.JSONEncoder):
+    def default(self, o):
+        if isinstance(o, Decimal):
+            return float(o)
+        if isinstance(o, datetime.datetime):
+            return datetime.datetime.strftime(o, '%Y-%m-%d %H:%M:%S')
+        return super(Encoder, self).default(o)
+
 
 class callback_scan_class():
     def __init__(self, pbar):
@@ -98,6 +112,7 @@ class callback_scan_class():
     def callbackfunc(self, args):
         msg = args
         self.errors = msg
+
 
 class callback_class():
     def __init__(self, pbar):
@@ -968,6 +983,94 @@ def process_ppp(cnn, pyArchive, archive_path, JobServer, run_parallel, master_li
         JobServer.job_server.print_stats()
 
 
+def export_station(cnn, stnlist, pyArchive, archive_path):
+
+    # loop collecting the necessary information
+    print " >> Collecting the information for each station in the list..."
+
+    pbar1 = tqdm(total=len(stnlist), ncols=160, position=0)
+
+    for stn in tqdm(stnlist, ncols=80):
+
+        NetworkCode = stn['NetworkCode']
+        StationCode = stn['StationCode']
+
+        rs_stn = cnn.query('SELECT * FROM stations WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\'' % (NetworkCode, StationCode))
+        stn = rs_stn.dictresult()[0]
+
+        pbar1.set_postfix(Station='%s.%s' % (NetworkCode, StationCode))
+        pbar1.update()
+
+        export_dic = dict()
+
+        # list of rinex files
+        rinex_lst = cnn.query('SELECT * FROM rinex WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' ORDER BY "ObservationYear", "ObservationDOY"' % (NetworkCode, StationCode))
+        rinex_lst = rinex_lst.dictresult()
+        # rinex_lst = pyArchive.get_rinex_record(NetworkCode=NetworkCode, StationCode=StationCode)
+        # list of metadata
+        stninfo = pyStationInfo.StationInfo(cnn, NetworkCode, StationCode, allow_empty=True)
+
+        export_dic['NetworkCode'] = NetworkCode
+        export_dic['StationCode'] = StationCode
+        export_dic['StationInfo'] = stninfo.records
+
+        if stn['lat'] and stn['auto_x'] and stn['Harpos_coeff_otl']:
+            export_dic['lat'] = stn['lat']
+            export_dic['lon'] = stn['lon']
+            export_dic['height'] = stn['height']
+            export_dic['x'] = stn['auto_x']
+            export_dic['y'] = stn['auto_y']
+            export_dic['z'] = stn['auto_z']
+            export_dic['otl'] = stn['Harpos_coeff_otl']
+        else:
+            tqdm.write(' -- Warning! %s.%s has incomplete station data' % (NetworkCode, StationCode))
+
+        # create dir for the rinex files
+        dest = 'production/export/%s.%s' % (NetworkCode, StationCode)
+        if not os.path.isdir(dest):
+            os.makedirs(dest)
+
+        rinex_dict = []
+        pbar2 = tqdm(total=len(rinex_lst), ncols=160, position=1)
+        for rnx in rinex_lst:
+
+            # make a copy of each file
+            rnx_path = pyArchive.build_rinex_path(NetworkCode=NetworkCode, StationCode=StationCode, ObservationYear=rnx['ObservationYear'], ObservationDOY=rnx['ObservationDOY'], filename=rnx['Filename'])
+            try:
+                shutil.copy(os.path.join(archive_path, rnx_path), os.path.join(dest, os.path.basename(rnx_path)))
+
+                rinex_dict = rinex_dict + [rnx]
+            except IOError:
+                tqdm.write(' -- Warning! File not found in archive: %s' % (os.path.join(archive_path, rnx_path)))
+
+            pbar2.set_postfix(Date='%s %03s' % (rnx['ObservationYear'], rnx['ObservationDOY']))
+            pbar2.update()
+
+        pbar2.close()
+
+        export_dic['files'] = len(rinex_dict)
+        export_dic['rinex'] = rinex_dict
+
+        with open(os.path.join(dest, '%s.%s.json') % (NetworkCode, StationCode), 'w') as file:
+            json.dump(export_dic, file, indent=4, sort_keys=True, cls=Encoder)
+
+        shutil.make_archive('%s.%s' % (NetworkCode, StationCode), 'zip', root_dir=dest)
+        shutil.rmtree(dest)
+
+    pbar1.close()
+    print ""
+
+def import_station(files):
+
+    files = glob.glob(files)
+
+    print " >> Processing input files..."
+
+    for file in files:
+        # process each station file
+        stn = json.load(file)
+
+
 def main():
 
     parser = argparse.ArgumentParser(description='Archive operations Main Program')
@@ -982,6 +1085,10 @@ def main():
         "In cases where multiple networks are being processed, the network argument will be used to desambiguate station code conflicts. "
         "Eg: pyScanArchive all -stninfo ~/station.info arg -> if a station named igm1 exists in networks 'igs' and 'arg', only 'arg.igm1' will get the station information insert. "
         "Use keyword 'stdin' to read the station information data from the pipeline.")
+    parser.add_argument('-export', '--export_station', action='store_true', help="Export a station from the local database that can be imported into another Parallel.GAMIT system using the -import option."
+                        "One file is created per station in the current directory")
+    parser.add_argument('-import', '--import_station', nargs='+', metavar='{import json}',
+                        help="Import a station from a file produced by another Parallel.GAMIT system. Wildcards are accepted to import multiple stations. Station list is ignored.")
     parser.add_argument('-ppp', '--ppp', nargs='*', metavar='argument', help="Run ppp on the rinex files in the database. Append [date_start] and (optionally) [date_end] to limit the range of the processing. Allowed formats are yyyy.doy or yyyy/mm/dd. Append keyword 'hash' to the end to check the PPP hash values against the station information records. If hash doesn't match, recalculate the PPP solutions.")
     parser.add_argument('-rehash', '--rehash', nargs='*', metavar='argument', help="Check PPP hash against station information hash. Rehash PPP solutions to match the station information hash without recalculating the PPP solution. Optionally append [date_start] and (optionally) [date_end] to limit the rehashing time window. Allowed formats are yyyy.doy or yyyy/mm/dd.")
     parser.add_argument('-np', '--noparallel', action='store_true', help="Execute command without parallelization.")
@@ -1053,7 +1160,7 @@ def main():
 
     #########################################
 
-    if not args.ppp is None:
+    if args.ppp is not None:
         # check other possible arguments
         dates = []
         do_hash = True if 'hash' in args.ppp else False
@@ -1068,6 +1175,18 @@ def main():
             hash_check(cnn, stnlist, dates[0], dates[1], rehash=False)
 
         process_ppp(cnn, pyArchive, Config.archive_path, JobServer, Config.run_parallel, stnlist, dates[0], dates[1])
+
+    #########################################
+
+    if args.export_station:
+
+        export_station(cnn, stnlist, pyArchive, Config.archive_path)
+
+    #########################################
+
+    if args.import_station:
+
+        import_station(cnn, args.import_station)
 
     #########################################
 

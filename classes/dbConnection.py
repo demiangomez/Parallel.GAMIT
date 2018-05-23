@@ -28,7 +28,10 @@ class dbErrDelete(Exception):
 
 class Cnn(pg.DB):
 
-    def __init__(self,configfile):
+    def __init__(self, configfile):
+
+        # set casting of numeric to floats
+        pg.set_typecast('numeric', float)
 
         options = {'hostname': 'localhost',
            'username': 'postgres' ,
@@ -49,7 +52,9 @@ class Cnn(pg.DB):
         tries = 0
         while True:
             try:
-                pg.DB.__init__(self,host=options['hostname'], user=options['username'], passwd=options['password'], dbname=options['database'])
+                pg.DB.__init__(self, host=options['hostname'], user=options['username'], passwd=options['password'], dbname=options['database'])
+                # set casting of numeric to floats
+                self.dbtypes.set_typecast('numeric', float)
                 break
             except pg.InternalError as e:
                 if 'Operation timed out' in str(e) or 'Connection refused' in str(e):

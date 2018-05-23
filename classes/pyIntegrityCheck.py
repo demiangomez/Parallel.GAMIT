@@ -467,6 +467,7 @@ def CheckSpatialCoherence(cnn, stnlist, start_date, end_date):
         else:
             tqdm.write('\nNo PPP solutions found for %s.%s...' % (NetworkCode, StationCode), sys.stderr)
 
+
 def GetGaps(cnn, NetworkCode, StationCode, start_date, end_date):
 
     rs = cnn.query(
@@ -492,6 +493,22 @@ def GetGaps(cnn, NetworkCode, StationCode, start_date, end_date):
                 gaps += [doy]
 
     return gaps, possible_doys
+
+
+def RinexCount(cnn, stnlist, start_date, end_date):
+
+    master_list = [item['NetworkCode'] + '.' + item['StationCode'] for item in stnlist]
+
+    sys.stderr.write('Querying the database for the number of RINEX files...')
+
+    rs = cnn.query(
+        'SELECT "ObservationYear" as year, "ObservationDOY" as doy, count(*) as suma FROM rinex_proc WHERE "NetworkCode" || \'.\' || "StationCode" IN (\'' + '\',\''.join(master_list) + '\') AND "ObservationSTime" BETWEEN \'%s\' AND \'%s\' ORDER BY "ObservationSTime"' % (start_date.yyyymmdd(), end_date.yyyymmdd()))
+
+    rnxtbl = rs.dictresult()
+
+    for doy in rnxtbl:
+        sys.stdout.write(' %4i %3i %4i' % (doy['year'], doy['doy'], doy['suma']))
+
 
 def GetStnGaps(cnn, stnlist, ignore_val, start_date, end_date):
 
@@ -746,6 +763,8 @@ def main():
 
     parser.add_argument('-d', '--date_filter', nargs='+', metavar='date', help='Date range filter for all operations. Can be specified in yyyy/mm/dd or yyyy.doy format')
     parser.add_argument('-rinex', '--check_rinex', action='store_true', help='Check the RINEX integrity of the archive-database by verifying that the RINEX files reported in the rinex table exist in the archive. If a RINEX file does not exist, remove the record. PPP records or gamit_soln are deleted.')
+    parser.add_argument('-rnx_count', '--rinex_count', action='store_true',
+                        help='Count the total number of RINEX files (unique station-days) per day for a given time interval.')
     parser.add_argument('-stnr', '--station_info_rinex', action='store_true', help='Check that the receiver serial number in the rinex headers agrees with the station info receiver serial number.')
     parser.add_argument('-stns', '--station_info_solutions', action='store_true', help='Check that the PPP hash values match the station info hash.')
     parser.add_argument('-stnp', '--station_info_proposed', metavar='ignore_days', const=0, type=int, nargs='?', help='Output a proposed station.info using the RINEX metadata. Optional, specify [ignore_days] to ignore station.info records <= days.')
@@ -803,6 +822,11 @@ def main():
 
     #####################################
 
+    if args.rinex_count:
+        RinexCount(cnn, stnlist, dates[0], dates[1])
+
+    #####################################
+
     if args.station_info_rinex:
         StnInfoRinexIntegrity(cnn, stnlist, dates[0], dates[1], Config, JobServer)
 
@@ -848,7 +872,7 @@ def main():
 
     if args.station_info_proposed is not None:
         for stn in stnlist:
-            stninfo = pyStationInfo.StationInfo(cnn, stn['NetworkCode'], stn['StationCode'])
+            stninfo = pyStationInfo.StationInfo(cnn, stn['NetworkCode'], stn['StationCode'], allow_empty=True)
             sys.stdout.write(stninfo.rinex_based_stninfo(args.station_info_proposed))
 
     #####################################
