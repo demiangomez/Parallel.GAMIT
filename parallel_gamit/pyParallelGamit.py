@@ -435,17 +435,16 @@ def ExecuteGamit(Config, Sessions):
 
                 GamitSession.initialize()
 
-                Task = pyGamitTask.GamitTask(GamitSession.pwd, GamitSession.params)
+                Task = pyGamitTask.GamitTask(GamitSession.pwd, GamitSession.params, GamitSession.final_pwd)
 
                 GamitSession.GamitTask = Task
 
                 # do not submit the task if the session is ready!
                 job_server.submit(Task.start, args=(),
-                              modules=('pyRinex', 'datetime', 'os', 'shutil', 'pyBrdc', 'pySp3', 'subprocess', 're', 'pyPPPETM'),
+                              modules=('pyRinex', 'datetime', 'os', 'shutil', 'pyBrdc', 'pySp3', 'subprocess', 're', 'pyPPPETM', 'glob'),
                               callback=(update_gamit_progress_bar))
             else:
                 gamit_pbar.write(' -- Session already processed: ' + GamitSession.NetName + ' ' + GamitSession.date.yyyyddd())
-
 
     # once we finnish walking the dir, wait and, handle the output messages
     if Config.run_parallel:
@@ -454,6 +453,7 @@ def ExecuteGamit(Config, Sessions):
     gamit_pbar.close()
 
     return
+
 
 if __name__ == '__main__':
     signal.signal(signal.SIGINT, signal_handler)

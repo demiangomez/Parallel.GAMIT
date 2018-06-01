@@ -17,7 +17,7 @@
       <file leaf-file-name="pyStation.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/pyStation.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="930">
+            <state relative-caret-position="572">
               <caret line="69" column="17" selection-start-line="69" selection-start-column="17" selection-end-line="69" selection-end-column="17" />
             </state>
           </provider>
@@ -26,8 +26,8 @@
       <file leaf-file-name="pyGamitSession.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/pyGamitSession.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="1965">
-              <caret line="135" column="88" selection-start-line="135" selection-start-column="88" selection-end-line="135" selection-end-column="88" />
+            <state relative-caret-position="3140">
+              <caret line="223" column="62" lean-forward="true" selection-start-line="223" selection-start-column="62" selection-end-line="223" selection-end-column="62" />
             </state>
           </provider>
         </entry>
@@ -35,17 +35,20 @@
       <file leaf-file-name="pyGlobkTask.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/pyGlobkTask.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="2730">
+            <state relative-caret-position="572">
               <caret line="186" column="12" selection-start-line="186" selection-start-column="12" selection-end-line="186" selection-end-column="12" />
             </state>
           </provider>
         </entry>
       </file>
-      <file leaf-file-name="pyGamitTask.py" pinned="false" current-in-tab="false">
+      <file leaf-file-name="pyGamitTask.py" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/pyGamitTask.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="7200">
-              <caret line="487" column="41" selection-start-line="487" selection-start-column="41" selection-end-line="487" selection-end-column="41" />
+            <state relative-caret-position="945">
+              <caret line="165" lean-forward="true" selection-start-line="165" selection-end-line="165" />
+              <folding>
+                <element signature="e#77#86#0" expanded="true" />
+              </folding>
             </state>
           </provider>
         </entry>
@@ -53,8 +56,8 @@
       <file leaf-file-name="pyNetwork.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/pyNetwork.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="4860">
-              <caret line="338" column="41" selection-start-line="338" selection-start-column="41" selection-end-line="338" selection-end-column="41" />
+            <state relative-caret-position="407">
+              <caret line="253" column="26" selection-start-line="253" selection-start-column="26" selection-end-line="253" selection-end-column="26" />
               <folding>
                 <element signature="e#75#104#0" expanded="true" />
               </folding>
@@ -62,14 +65,11 @@
           </provider>
         </entry>
       </file>
-      <file leaf-file-name="pyParallelGamit.py" pinned="false" current-in-tab="true">
+      <file leaf-file-name="pyParallelGamit.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/pyParallelGamit.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="-5">
-              <caret line="301" lean-forward="true" selection-start-line="301" selection-end-line="301" />
-              <folding>
-                <element signature="e#79#99#0" expanded="true" />
-              </folding>
+            <state relative-caret-position="325">
+              <caret line="437" column="42" selection-start-line="437" selection-start-column="42" selection-end-line="437" selection-end-column="42" />
             </state>
           </provider>
         </entry>
@@ -112,19 +112,19 @@
     <option name="CHANGED_PATHS">
       <list>
         <option value="$PROJECT_DIR$/../classes/Utils.py" />
-        <option value="$PROJECT_DIR$/pyGamitTask.py" />
         <option value="$PROJECT_DIR$/pyGamitConfig.py" />
         <option value="$PROJECT_DIR$/pyNetwork.py" />
-        <option value="$PROJECT_DIR$/pyParallelGamit.py" />
         <option value="$PROJECT_DIR$/pyStation.py" />
+        <option value="$PROJECT_DIR$/pyParallelGamit.py" />
         <option value="$PROJECT_DIR$/pyGamitSession.py" />
+        <option value="$PROJECT_DIR$/pyGamitTask.py" />
       </list>
     </option>
   </component>
-  <component name="ProjectFrameBounds">
-    <option name="y" value="23" />
-    <option name="width" value="1680" />
-    <option name="height" value="976" />
+  <component name="ProjectFrameBounds" extendedState="6">
+    <option name="y" value="27" />
+    <option name="width" value="1717" />
+    <option name="height" value="1004" />
   </component>
   <component name="ProjectView">
     <navigator proportions="" version="1">
@@ -148,12 +148,11 @@
         </subPane>
       </pane>
       <pane id="Scope" />
-      <pane id="Scratches" />
     </panes>
   </component>
   <component name="PropertiesComponent">
     <property name="last_opened_file_path" value="$PROJECT_DIR$" />
-    <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PythonContentEntriesConfigurable" />
+    <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable" />
   </component>
   <component name="RunDashboard">
     <option name="ruleStates">
@@ -203,34 +202,25 @@
   </component>
   <component name="ToolWindowManager">
     <frame x="0" y="25" width="1920" height="1006" extended-state="6" />
+    <editor active="true" />
     <layout>
-      <window_info content_ui="combo" id="Project" order="0" visible="true" weight="0.09014233" />
+      <window_info content_ui="combo" id="Project" order="0" visible="true" weight="0.09225092" />
       <window_info anchor="bottom" id="TODO" order="6" />
       <window_info anchor="bottom" id="Event Log" order="7" side_tool="true" />
-      <window_info anchor="bottom" id="Run" order="2" />
       <window_info anchor="bottom" id="Version Control" order="10" show_stripe_button="false" />
-      <window_info active="true" anchor="bottom" id="Python Console" order="8" visible="true" weight="0.24342857" />
+      <window_info active="true" anchor="bottom" id="Python Console" order="8" visible="true" weight="0.25257143" />
+      <window_info anchor="bottom" id="Run" order="2" />
       <window_info id="Structure" order="1" side_tool="true" weight="0.25" />
       <window_info anchor="bottom" id="Terminal" order="9" />
-      <window_info anchor="bottom" id="Debug" order="3" weight="0.4" />
       <window_info id="Favorites" order="2" side_tool="true" />
+      <window_info anchor="bottom" id="Debug" order="3" weight="0.4" />
       <window_info anchor="right" content_ui="combo" id="Hierarchy" order="2" weight="0.25" />
-      <window_info anchor="bottom" id="Version Control" order="10" show_stripe_button="false" />
-      <window_info content_ui="combo" id="Project" order="0" visible="true" weight="0.103676915" />
-      <window_info id="Structure" order="1" weight="0.25" />
       <window_info anchor="right" id="Commander" order="0" weight="0.4" />
       <window_info anchor="right" id="Ant Build" order="1" weight="0.25" />
-      <window_info anchor="bottom" id="TODO" order="6" />
-      <window_info anchor="bottom" id="Run" order="2" />
-      <window_info anchor="bottom" id="Debug" order="3" weight="0.4" />
       <window_info anchor="bottom" id="Message" order="0" />
-      <window_info anchor="bottom" id="Event Log" order="7" side_tool="true" />
       <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
       <window_info anchor="bottom" id="Cvs" order="4" weight="0.25" />
-      <window_info id="Favorites" order="2" side_tool="true" />
       <window_info anchor="bottom" id="Find" order="1" />
-      <window_info anchor="bottom" id="Terminal" order="9" />
-      <window_info anchor="bottom" id="Python Console" order="8" visible="true" weight="0.25407925" />
     </layout>
   </component>
   <component name="VcsContentAnnotationSettings">
@@ -266,9 +256,6 @@
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="3120">
           <caret line="227" column="6" selection-start-line="227" selection-start-column="6" selection-end-line="227" selection-end-column="6" />
-          <folding>
-            <element signature="e#79#99#0" expanded="true" />
-          </folding>
         </state>
       </provider>
     </entry>
@@ -318,13 +305,7 @@
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/pyParallelGamit.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state>
-          <folding>
-            <element signature="e#79#99#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
+      <provider selected="true" editor-type-id="text-editor" />
     </entry>
     <entry file="file://$PROJECT_DIR$/pyGamitConfig.py">
       <provider selected="true" editor-type-id="text-editor">
@@ -381,9 +362,6 @@
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="1335">
           <caret line="105" column="38" selection-start-line="105" selection-start-column="38" selection-end-line="105" selection-end-column="38" />
-          <folding>
-            <element signature="e#79#99#0" expanded="true" />
-          </folding>
         </state>
       </provider>
     </entry>
@@ -432,9 +410,6 @@
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="1335">
           <caret line="105" column="38" selection-start-line="105" selection-start-column="38" selection-end-line="105" selection-end-column="38" />
-          <folding>
-            <element signature="e#79#99#0" expanded="true" />
-          </folding>
         </state>
       </provider>
     </entry>
@@ -483,9 +458,6 @@
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="1335">
           <caret line="105" column="38" selection-start-line="105" selection-start-column="38" selection-end-line="105" selection-end-column="38" />
-          <folding>
-            <element signature="e#79#99#0" expanded="true" />
-          </folding>
         </state>
       </provider>
     </entry>
@@ -545,16 +517,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/pyNetwork.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="4860">
-          <caret line="338" column="41" selection-start-line="338" selection-start-column="41" selection-end-line="338" selection-end-column="41" />
-          <folding>
-            <element signature="e#75#104#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/../classes/Utils.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="6330">
@@ -569,40 +531,50 @@
         </state>
       </provider>
     </entry>
+    <entry file="file://$PROJECT_DIR$/pyNetwork.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="407">
+          <caret line="253" column="26" selection-start-line="253" selection-start-column="26" selection-end-line="253" selection-end-column="26" />
+          <folding>
+            <element signature="e#75#104#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
     <entry file="file://$PROJECT_DIR$/pyStation.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="930">
+        <state relative-caret-position="572">
           <caret line="69" column="17" selection-start-line="69" selection-start-column="17" selection-end-line="69" selection-end-column="17" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/pyGamitSession.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1965">
-          <caret line="135" column="88" selection-start-line="135" selection-start-column="88" selection-end-line="135" selection-end-column="88" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/pyGlobkTask.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="2730">
-          <caret line="186" column="12" selection-start-line="186" selection-start-column="12" selection-end-line="186" selection-end-column="12" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/pyGamitTask.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="7200">
-          <caret line="487" column="41" selection-start-line="487" selection-start-column="41" selection-end-line="487" selection-end-column="41" />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/pyParallelGamit.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-5">
-          <caret line="301" lean-forward="true" selection-start-line="301" selection-end-line="301" />
+        <state relative-caret-position="325">
+          <caret line="437" column="42" selection-start-line="437" selection-start-column="42" selection-end-line="437" selection-end-column="42" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pyGlobkTask.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="572">
+          <caret line="186" column="12" selection-start-line="186" selection-start-column="12" selection-end-line="186" selection-end-column="12" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pyGamitSession.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="3140">
+          <caret line="223" column="62" lean-forward="true" selection-start-line="223" selection-start-column="62" selection-end-line="223" selection-end-column="62" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pyGamitTask.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="945">
+          <caret line="165" lean-forward="true" selection-start-line="165" selection-end-line="165" />
           <folding>
-            <element signature="e#79#99#0" expanded="true" />
+            <element signature="e#77#86#0" expanded="true" />
           </folding>
         </state>
       </provider>

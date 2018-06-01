@@ -43,7 +43,9 @@ class GamitSession():
         self.missing_data = []
 
         # create working dirs for this session
-        self.pwd = self.GamitOpts['working_dir'].rstrip('/') + '/' + date.yyyy() + '/' + date.ddd() + '/' + self.NetName
+        self.pwd = 'production/gamit/' + date.yyyy() + '/' + date.ddd() + '/' + self.NetName
+
+        self.final_pwd = self.GamitOpts['working_dir'].rstrip('/')
 
         if not os.path.exists(self.pwd):
             os.makedirs(self.pwd)

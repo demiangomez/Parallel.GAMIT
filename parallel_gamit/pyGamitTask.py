@@ -11,12 +11,14 @@ import pyBrdc
 import shutil
 import subprocess
 import re
+import glob
 
 class GamitTask:
 
-    def __init__(self, pwd, params):
+    def __init__(self, pwd, params, final_pwd):
 
         self.pwd        = pwd
+        self.final_pwd  = final_pwd
         self.pwd_igs    = os.path.join(pwd, 'igs')
         self.pwd_brdc   = os.path.join(pwd, 'brdc')
         self.pwd_rinex  = os.path.join(pwd, 'rinex')
@@ -29,7 +31,7 @@ class GamitTask:
         self.date      = params['date']
         self.success   = False
 
-        with open(os.path.join(pwd,'monitor.log'), 'a') as monitor:
+        with open(os.path.join(pwd, 'monitor.log'), 'a') as monitor:
             monitor.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' -> starting GAMIT job for %s: %s\n' % (self.params['NetName'], self.date.yyyyddd()))
 
     def start(self):
@@ -48,8 +50,6 @@ class GamitTask:
                     Sp3 = pySp3.GetSp3Orbits(self.orbits['sp3_path'], self.date, self.orbits['sp3altrn'], self.pwd_igs, True)  # type: pySp3.GetSp3Orbits
                 else:
                     raise
-            except:
-                raise
 
             if Sp3.type != 'igs':
                 # rename file
@@ -161,6 +161,9 @@ class GamitTask:
                 else:
                     nrms = 100
 
+        # no matter the result of the processing, move folder to final destination
+        self.finish()
+
         return {'Session': '%s %s' % (self.params['NetName'], self.date.yyyyddd()), 'Success': self.success, 'NRMS': nrms, 'WL': wl, 'NL': nl}
 
     def window_rinex(self, Rinex, window):
@@ -172,8 +175,26 @@ class GamitTask:
         else:
             Rinex.window_data(end=window.datetime())
 
-    def finish(self, args):
-        return None
+    def finish(self):
+
+        # delete everything inside the processing dir
+        shutil.rmtree(self.pwd_brdc)
+        shutil.rmtree(self.pwd_igs)
+
+        # remove files in tables
+        for ftype in ['*.grid', '*.dat', '*.apr']:
+            for ff in glob.glob(os.path.join(self.pwd_tables, ftype)):
+                os.remove(ff)
+
+        # remove processing files
+        for ftype in ['b*', 'cfmrg*', 'DPH.*', 'eq_rename.*', 'g*', 'k*', 'p*', 'rcvant.*', 'y*']:
+            for ff in glob.glob(os.path.join(os.path.join(self.pwd, self.date.ddd()), ftype)):
+                os.remove(ff)
+
+        # execute final step: copy to self.final_pwd
+        shutil.move(self.pwd, self.final_pwd)
+
+        return
 
     def create_replace_links(self):
         replace_ln_file_path = os.path.join(self.pwd, 'replace_links.sh')
@@ -560,7 +581,6 @@ class GamitTask:
         # extract the gps week and day of week
         gps_week = self.date.gpsWeek
         gps_week_day = self.date.gpsWeekDay
-
 
         finish_file_path = os.path.join(self.pwd, 'finish.sh')
 
