@@ -147,7 +147,6 @@ class Network():
 
         return core_network
 
-
     def CreateGamitSessions(self, cnn, date, GamitConfig):
         """
         analyzes the core NetClass and secondary NetClass for the processing day and makes sure that:

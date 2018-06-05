@@ -192,7 +192,8 @@ class GamitTask:
                 os.remove(ff)
 
         # execute final step: copy to self.final_pwd
-        shutil.move(self.pwd, self.final_pwd)
+        shutil.copytree(self.pwd, os.path.dirname(self.final_pwd), symlinks=True)
+        shutil.rmtree(self.pwd)
 
         return
 

@@ -32,14 +32,11 @@ class Globk():
         # see if there is any FATAL in the sessions to be combined
         for GamitSession in Sessions:
 
-            for file in glob.glob(os.path.join(GamitSession.pwd, 'glbf/h*.glx')):
+            for file in glob.glob(os.path.join(GamitSession.pwd_glbf, 'h*.glx')):
                 copyfile(file, os.path.join(pwd_comb, 'h' + GamitSession.NetName + date.yyyy() + date.ddd() + '_' + GamitSession.GamitOpts['expt'] + '.glx'))
-
 
         self.linktables(date.yyyy(), Sessions[0].GamitOpts['eop_type'])
         self.create_combination_script(date, Sessions[0].GamitOpts['org'])
-
-
 
     def linktables(self,year,eop_type):
 

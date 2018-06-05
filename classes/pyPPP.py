@@ -137,7 +137,7 @@ class PPPSpatialCheck():
 
 
 class RunPPP(PPPSpatialCheck):
-    def __init__(self,rinexobj,otl_coeff,options,sp3types,sp3altrn,antenna_height,strict=True,apply_met=True,kinematic=False, clock_interpolation=False, hash=0):
+    def __init__(self,rinexobj,otl_coeff,options,sp3types,sp3altrn,antenna_height,strict=True,apply_met=True,kinematic=False, clock_interpolation=False, hash=0, erase=True):
         assert isinstance(rinexobj,pyRinex.ReadRinex)
 
         PPPSpatialCheck.__init__(self)
@@ -181,6 +181,7 @@ class RunPPP(PPPSpatialCheck):
         self.otl_coeff  = otl_coeff
         self.strict     = strict
         self.apply_met  = apply_met
+        self.erase      = erase
         self.out        = ''
         self.summary    = ''
         self.pos        = ''
@@ -643,7 +644,7 @@ class RunPPP(PPPSpatialCheck):
         return
 
     def cleanup(self):
-        if os.path.isdir(self.rootdir):
+        if os.path.isdir(self.rootdir) and self.erase:
             # remove all the directory contents
             rmtree(self.rootdir)
 

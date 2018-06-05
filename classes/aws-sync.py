@@ -161,7 +161,7 @@ def rinex_task(NetworkCode, StationCode, date, ObservationFYear):
              Apr[0,0], Apr[1,0], Apr[2,0], sigmas_xyz[0,0], sigmas_xyz[1,0], sigmas_xyz[2,0],
              sigmas[1,0], sigmas[0,0], sigmas[2,0], source.replace(' ', '_'))
 
-    return (APR, stninfo.return_stninfo(stninfo.currentrecord).replace(StationCode.upper(), StationAlias.upper()), '%s.%s %s source of APR: %s' % (NetworkCode, StationCode, StationAlias, source))
+    return (APR, stninfo.return_stninfo(stninfo.records).replace(StationCode.upper(), StationAlias.upper()), '%s.%s %s source of APR: %s' % (NetworkCode, StationCode, StationAlias, source))
 
 
 def sigmas_neu2xyz(lat, lon, sigmas):

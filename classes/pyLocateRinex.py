@@ -19,6 +19,7 @@ def main():
     parser.add_argument('-rnx', '--load_rinex', action='store_true', help="Fix RINEX using pyRinex, create a local copy (with session number+1) and exit. Do not run PPP.")
     parser.add_argument('-ins', '--insert_sql', action='store_true', help="Produce a SQL INSERT statement for this station including OTL and coordinates.")
     parser.add_argument('-find', '--find', action='store_true', help="Find the matching station in the db using the spatial location algorithm.")
+    parser.add_argument('-ne', '--no_erase', action='store_true', help="Do not erase PPP folder structure after completion.")
     parser.add_argument('-nocfg', '--no_config_file', type=str, nargs=3, metavar=('sp3_directory','sp3_types', 'brdc_directory'),
                         help='Do not attempt to open gnss_data.cfg. Append [sp3_directory], [sp3_types] and [brdc_directory] '
                             'to access the precise and broadcast orbit files. Use the keywords $year, $doy, $month, $day, $gpsweek, $gpswkday '
@@ -44,6 +45,12 @@ def main():
         sp3altrn = Config.sp3altrn
         brdc_path = Config.brdc_path
 
+    # flog to determine if should erase or not folder
+    if args.no_erase:
+        erase = False
+    else:
+        erase = True
+
     rinex = []
     for xfile in args.files:
         if os.path.isdir(xfile):
@@ -66,16 +73,16 @@ def main():
                     print 'Provided RINEX file is a multiday file!'
                     # rinex file is a multiday file, output all the solutions
                     for rnx in rinexinfo.multiday_rnx_list:
-                        execute_ppp(rnx, args, stnm, options, sp3types, sp3altrn, brdc_path)
+                        execute_ppp(rnx, args, stnm, options, sp3types, sp3altrn, brdc_path, erase)
                 else:
-                    execute_ppp(rinexinfo, args, stnm, options, sp3types, sp3altrn, brdc_path)
+                    execute_ppp(rinexinfo, args, stnm, options, sp3types, sp3altrn, brdc_path, erase)
 
         except pyRinex.pyRinexException as e:
             print str(e)
             continue
 
 
-def execute_ppp(rinexinfo, args, stnm, options, sp3types, sp3altrn, brdc_path):
+def execute_ppp(rinexinfo, args, stnm, options, sp3types, sp3altrn, brdc_path, erase):
 
     # put the correct APR coordinates in the header.
     # stninfo = pyStationInfo.StationInfo(None, allow_empty=True)
@@ -108,9 +115,9 @@ def execute_ppp(rinexinfo, args, stnm, options, sp3types, sp3altrn, brdc_path):
             otl_coeff = otl.calculate_otl_coeff()
 
             # run again, with OTL
-            ppp = pyPPP.RunPPP(rinexinfo, otl_coeff, options, sp3types, sp3altrn, 0, strict=False, apply_met=False, kinematic=False, clock_interpolation=True)
+            ppp = pyPPP.RunPPP(rinexinfo, otl_coeff, options, sp3types, sp3altrn, 0, strict=False, apply_met=False, kinematic=False, clock_interpolation=True, erase=erase)
         else:
-            ppp = pyPPP.RunPPP(rinexinfo, '', options, sp3types, sp3altrn, 0, strict=False, apply_met=False, kinematic=False, clock_interpolation=True)
+            ppp = pyPPP.RunPPP(rinexinfo, '', options, sp3types, sp3altrn, 0, strict=False, apply_met=False, kinematic=False, clock_interpolation=True, erase=erase)
 
         ppp.exec_ppp()
 

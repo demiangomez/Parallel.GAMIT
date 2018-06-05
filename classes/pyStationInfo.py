@@ -251,12 +251,12 @@ class StationInfo(StationInfoRecord):
     def return_stninfo(self, record=None):
         stninfo = []
         # from the records struct, return a station info file
-        if not record is None:
+        if record is not None:
             records = [record]
         else:
             records = self.records
 
-        if not records is None:
+        if records is not None:
             for record in records:
 
                 strDateStart,strDateEnd = self.datetime2stninfodate(record['DateStart'],record['DateEnd'])

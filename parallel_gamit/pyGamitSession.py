@@ -45,7 +45,7 @@ class GamitSession():
         # create working dirs for this session
         self.pwd = 'production/gamit/' + date.yyyy() + '/' + date.ddd() + '/' + self.NetName
 
-        self.final_pwd = self.GamitOpts['working_dir'].rstrip('/')
+        self.final_pwd = self.GamitOpts['working_dir'].rstrip('/') + '/' + date.yyyy() + '/' + date.ddd() + '/' + self.NetName
 
         if not os.path.exists(self.pwd):
             os.makedirs(self.pwd)
@@ -54,7 +54,8 @@ class GamitSession():
         self.pwd_brdc   = os.path.join(self.pwd, 'brdc')
         self.pwd_rinex  = os.path.join(self.pwd, 'rinex')
         self.pwd_tables = os.path.join(self.pwd, 'tables')
-        self.pwd_glbf   = os.path.join(self.pwd, 'glbf')
+        # GLBF is in the final directory (this will be used by GlobkTask)
+        self.pwd_glbf   = os.path.join(self.final_pwd, 'glbf')
         self.pwd_proc   = os.path.join(self.pwd, date.ddd())
         self.pwd_temp   = '/tmp/' + self.date.yyyy() + '/' + self.date.ddd() + '/' + self.NetName
 
@@ -77,14 +78,18 @@ class GamitSession():
                 os.makedirs(self.pwd_tables)
 
             # create a temporary directory based on this session's name
-            #if os.path.exists(self.pwd_temp):
+            # if os.path.exists(self.pwd_temp):
             #    rmtree(self.pwd_temp)
-            #os.makedirs(self.pwd_temp)
+            # os.makedirs(self.pwd_temp)
 
             # check that the processing directory doesn't exist.
             # if it does, remove (it has already been determined that the solution is not ready
             if os.path.exists(self.pwd_glbf):
                 rmtree(self.pwd_glbf)
+
+            # same for local version of the proc
+            if os.path.exists(os.path.join(self.pwd, 'glbf')):
+                rmtree(os.path.join(self.pwd, 'glbf'))
 
             if os.path.exists(self.pwd_proc):
                 rmtree(self.pwd_proc)
