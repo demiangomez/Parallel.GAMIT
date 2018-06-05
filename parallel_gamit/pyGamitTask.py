@@ -191,8 +191,15 @@ class GamitTask:
             for ff in glob.glob(os.path.join(os.path.join(self.pwd, self.date.ddd()), ftype)):
                 os.remove(ff)
 
+        try:
+            os.makedirs(os.path.dirname(self.final_pwd))
+        except OSError:
+            # racing condition having several processes trying to create the same folder
+            # if OSError occurs, ignore and continue
+            pass
+
         # execute final step: copy to self.final_pwd
-        shutil.copytree(self.pwd, os.path.dirname(self.final_pwd), symlinks=True)
+        shutil.copytree(self.pwd, self.final_pwd, symlinks=True)
         shutil.rmtree(self.pwd)
 
         return

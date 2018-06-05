@@ -34,7 +34,12 @@ def main():
 
     cnn = dbConnection.Cnn('gnss_data.cfg')
 
-    stnlist = Utils.process_stnlist(cnn, args.stnlist)
+    if len(args.stnlist) == 1 and os.path.isfile(args.stnlist[0]):
+        print ' >> Station list read from ' + args.stnlist[0]
+        stnlist = [line.strip() for line in open(args.stnlist[0], 'r')]
+        stnlist = [{'NetworkCode': item.split('.')[0], 'StationCode': item.split('.')[1]} for item in stnlist]
+    else:
+        stnlist = Utils.process_stnlist(cnn, args.stnlist)
 
     if not args.noparallel:
         pyJobServer.JobServer(Config)
