@@ -184,7 +184,7 @@ def purge_solutions(cnn, args, year, doys, GamitConfig):
             date = pyDate.Date(year=year, doy=doy)  # type: pyDate.Date
 
             # base dir for the GAMIT session directories
-            pwd = GamitConfig.gamitopt['working_dir'].rstrip('/') + '/' + date.yyyy() + '/' + date.ddd()
+            pwd = GamitConfig.gamitopt['solutions_dir'].rstrip('/') + '/' + date.yyyy() + '/' + date.ddd()
 
             # delete the main solution dir (may be entire GAMIT run or combination directory)
             if os.path.isdir(os.path.join(pwd, GamitConfig.NetworkConfig['network_id'].lower())):
@@ -255,7 +255,7 @@ def main():
 
         # make the dir for these sessions
         # this avoids a racing condition when starting each process
-        pwd = GamitConfig.gamitopt['working_dir'].rstrip('/') + '/' + date.yyyy() + '/' + date.ddd()
+        pwd = GamitConfig.gamitopt['solutions_dir'].rstrip('/') + '/' + date.yyyy() + '/' + date.ddd()
 
         if not os.path.exists(pwd):
             os.makedirs(pwd)
@@ -286,7 +286,7 @@ def ParseZTD(cnn, Sessions, GamitConfig):
 
     for GamitSession in tqdm(Sessions, ncols=80):
 
-        znd = os.path.join(GamitSession.pwd, 'glbf/' + GamitConfig.gamitopt['org'] + GamitSession.date.wwwwd() + '.znd')
+        znd = os.path.join(GamitSession.pwd_glbf, GamitConfig.gamitopt['org'] + GamitSession.date.wwwwd() + '.znd')
 
         if os.path.isfile(znd):
             # read the content of the file
@@ -316,7 +316,7 @@ def ExecuteGlobk(cnn, GamitConfig, Project, year, doys, Sessions):
     for doy in tqdm(doys, ncols=80):
 
         date = pyDate.Date(year=year, doy=doy)  # type: pyDate.Date
-        pwd = GamitConfig.gamitopt['working_dir'].rstrip('/') + '/' + date.yyyy() + '/' + date.ddd()
+        pwd = GamitConfig.gamitopt['solutions_dir'].rstrip('/') + '/' + date.yyyy() + '/' + date.ddd()
 
         GlobkComb = []
         Fatal = False
@@ -327,7 +327,7 @@ def ExecuteGlobk(cnn, GamitConfig, Project, year, doys, Sessions):
                 # add to combination
                 GlobkComb.append(GamitSession)
 
-                cmd = 'grep -q \'FATAL\' ' + os.path.join(GamitSession.pwd, 'monitor.log')
+                cmd = 'grep -q \'FATAL\' ' + os.path.join(GamitSession.solution_pwd, 'monitor.log')
                 fatal = os.system(cmd)
 
                 if fatal == 0:
@@ -399,11 +399,16 @@ def ExecuteGamit(Config, Sessions):
         else:
             msg_wl = ''
 
+        if result['Missing']:
+            msg_missing = '\n    Missing sites in solution: ' + ', '.join(result['Missing'])
+        else:
+            msg_missing = ''
+
         # DDG: only show sessions with problems to facilitate debugging.
         if result['Success']:
-            if msg_nrms + msg_wl:
-                gamit_pbar.write(' -- Done processing: ' + result['Session'] + ' -> ' + msg_nrms + msg_wl)
-                #gamit_pbar.write(' -- Done processing: ' + result['Session'])
+            if msg_nrms + msg_wl + msg_missing:
+                gamit_pbar.write(' -- Done processing: ' + result['Session'] + ' -> ' + msg_nrms + msg_wl + msg_missing)
+
         else:
             gamit_pbar.write(' -- Done processing: ' + result['Session'] + ' -> Failed to complete. Check monitor.log')
 
@@ -435,7 +440,7 @@ def ExecuteGamit(Config, Sessions):
 
                 GamitSession.initialize()
 
-                Task = pyGamitTask.GamitTask(GamitSession.pwd, GamitSession.params, GamitSession.final_pwd)
+                Task = pyGamitTask.GamitTask(GamitSession.remote_pwd, GamitSession.params, GamitSession.solution_pwd)
 
                 GamitSession.GamitTask = Task
 

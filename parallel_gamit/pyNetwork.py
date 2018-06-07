@@ -205,7 +205,7 @@ class Network():
         if len(SecondaryStationInstances + CoreStationInstances) <= NET_LIMIT:
 
             # before creating the session, does this session exist and has a glx in glbf already?
-            pwd = GamitConfig.gamitopt['working_dir'].rstrip('/') + '/' + date.yyyy() + '/' + date.ddd() + '/' + self.Name
+            pwd = GamitConfig.gamitopt['solutions_dir'].rstrip('/') + '/' + date.yyyy() + '/' + date.ddd() + '/' + self.Name
 
             ready, recovered_StationInstances = self.check_subnets_ready([pwd], SecondaryStationInstances + CoreStationInstances)
 
@@ -227,7 +227,7 @@ class Network():
             # if one subnet is not ready, all session will be discarded
             pwds = []
             for i in range(subnet_count):
-                pwds.append(GamitConfig.gamitopt['working_dir'].rstrip('/') + '/' + date.yyyy() + '/' + date.ddd() + '/' + self.Name + '.' + GamitConfig.gamitopt['org'] + str(i).rjust(2, '0'))
+                pwds.append(GamitConfig.gamitopt['solutions_dir'].rstrip('/') + '/' + date.yyyy() + '/' + date.ddd() + '/' + self.Name + '.' + GamitConfig.gamitopt['org'] + str(i).rjust(2, '0'))
 
             ready, recovered_StationInstances = self.check_subnets_ready(pwds, SecondaryStationInstances + CoreStationInstances)
 

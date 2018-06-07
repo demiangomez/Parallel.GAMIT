@@ -43,21 +43,19 @@ class GamitSession():
         self.missing_data = []
 
         # create working dirs for this session
-        self.pwd = 'production/gamit/' + date.yyyy() + '/' + date.ddd() + '/' + self.NetName
+        self.solution_pwd = self.GamitOpts['solutions_dir'].rstrip('/') + '/' + date.yyyy() + '/' + date.ddd() + '/' + self.NetName
 
-        self.final_pwd = self.GamitOpts['working_dir'].rstrip('/') + '/' + date.yyyy() + '/' + date.ddd() + '/' + self.NetName
+        self.remote_pwd = 'production/gamit/' + date.yyyy() + '/' + date.ddd() + '/' + self.NetName
 
-        if not os.path.exists(self.pwd):
-            os.makedirs(self.pwd)
+        if not os.path.exists(self.solution_pwd):
+            os.makedirs(self.solution_pwd)
 
-        self.pwd_igs    = os.path.join(self.pwd, 'igs')
-        self.pwd_brdc   = os.path.join(self.pwd, 'brdc')
-        self.pwd_rinex  = os.path.join(self.pwd, 'rinex')
-        self.pwd_tables = os.path.join(self.pwd, 'tables')
-        # GLBF is in the final directory (this will be used by GlobkTask)
-        self.pwd_glbf   = os.path.join(self.final_pwd, 'glbf')
-        self.pwd_proc   = os.path.join(self.pwd, date.ddd())
-        self.pwd_temp   = '/tmp/' + self.date.yyyy() + '/' + self.date.ddd() + '/' + self.NetName
+        self.pwd_igs    = os.path.join(self.solution_pwd, 'igs')
+        self.pwd_brdc   = os.path.join(self.solution_pwd, 'brdc')
+        self.pwd_rinex  = os.path.join(self.solution_pwd, 'rinex')
+        self.pwd_tables = os.path.join(self.solution_pwd, 'tables')
+        self.pwd_glbf   = os.path.join(self.solution_pwd, 'glbf')
+        self.pwd_proc   = os.path.join(self.solution_pwd, date.ddd())
 
         if not ready:
             # only create folders, etc if it was determined the solution isn't ready
@@ -77,19 +75,10 @@ class GamitSession():
             if not os.path.exists(self.pwd_tables):
                 os.makedirs(self.pwd_tables)
 
-            # create a temporary directory based on this session's name
-            # if os.path.exists(self.pwd_temp):
-            #    rmtree(self.pwd_temp)
-            # os.makedirs(self.pwd_temp)
-
             # check that the processing directory doesn't exist.
             # if it does, remove (it has already been determined that the solution is not ready
             if os.path.exists(self.pwd_glbf):
                 rmtree(self.pwd_glbf)
-
-            # same for local version of the proc
-            if os.path.exists(os.path.join(self.pwd, 'glbf')):
-                rmtree(os.path.join(self.pwd, 'glbf'))
 
             if os.path.exists(self.pwd_proc):
                 rmtree(self.pwd_proc)
@@ -122,14 +111,15 @@ class GamitSession():
                             'sp3altrn'  : self.Config.sp3altrn,
                             'brdc_path' : self.Config.brdc_path}
 
-            self.params  = {'pwd'       : self.pwd,
-                            'NetName'   : self.NetName,
-                            'rinex'     : rinex_list,
-                            'date'      : self.date,
-                            'options'   : self.Config.options,
-                            'orbits'    : orbit_params,
-                            'gamitopts' : self.GamitOpts}
-        except:
+            self.params  = {'solution_pwd': self.solution_pwd,
+                            'remote_pwd'  : self.remote_pwd,
+                            'NetName'     : self.NetName,
+                            'rinex'       : rinex_list,
+                            'date'        : self.date,
+                            'options'     : self.Config.options,
+                            'orbits'      : orbit_params,
+                            'gamitopts'   : self.GamitOpts}
+        except Exception:
             raise
 
         return

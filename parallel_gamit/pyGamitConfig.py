@@ -8,11 +8,13 @@ from pyOptions import ReadOptions
 import ConfigParser
 import os
 
+
 class pyGamitConfigException(Exception):
     def __init__(self, value):
         self.value = value
     def __str__(self):
         return str(self.value)
+
 
 class GamitConfiguration(ReadOptions):
 
@@ -29,7 +31,7 @@ class GamitConfiguration(ReadOptions):
             self.gamitopt['expt']             = 'expt'
             self.gamitopt['process_defaults'] = None
             self.gamitopt['sestbl']           = None
-            self.gamitopt['working_dir']      = None
+            self.gamitopt['solutions_dir']    = None
             self.gamitopt['atx']              = None
             self.gamitopt['max_cores']        = 1
             self.gamitopt['noftp']            = 'yes'
@@ -40,7 +42,7 @@ class GamitConfiguration(ReadOptions):
 
             ReadOptions.__init__(self, self.gamitopt['gnss_data']) # type: ReadOptions
 
-        except:
+        except Exception:
             raise
 
     def load_session_config(self,session_config_file):
@@ -68,7 +70,6 @@ class GamitConfiguration(ReadOptions):
 
         except ConfigParser.NoOptionError:
             raise
-
 
     def __check_config(self, config, sess_config_file):
         try:

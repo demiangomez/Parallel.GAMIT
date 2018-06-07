@@ -15,14 +15,14 @@ import glob
 
 class GamitTask:
 
-    def __init__(self, pwd, params, final_pwd):
+    def __init__(self, remote_pwd, params, solution_pwd):
 
-        self.pwd        = pwd
-        self.final_pwd  = final_pwd
-        self.pwd_igs    = os.path.join(pwd, 'igs')
-        self.pwd_brdc   = os.path.join(pwd, 'brdc')
-        self.pwd_rinex  = os.path.join(pwd, 'rinex')
-        self.pwd_tables = os.path.join(pwd, 'tables')
+        self.pwd          = remote_pwd
+        self.solution_pwd = solution_pwd
+        self.pwd_igs      = os.path.join(remote_pwd, 'igs')
+        self.pwd_brdc     = os.path.join(remote_pwd, 'brdc')
+        self.pwd_rinex    = os.path.join(remote_pwd, 'rinex')
+        self.pwd_tables   = os.path.join(remote_pwd, 'tables')
 
         self.params    = params
         self.options   = params['options']
@@ -31,7 +31,23 @@ class GamitTask:
         self.date      = params['date']
         self.success   = False
 
-        with open(os.path.join(pwd, 'monitor.log'), 'a') as monitor:
+        # copy the folder created by GamitSession in the solution_pwd to the remote_pwd (pwd)
+        try:
+            if not os.path.exists(os.path.dirname(self.pwd)):
+                os.makedirs(os.path.dirname(self.pwd))
+        except OSError:
+            # racing condition having several processes trying to create the same folder
+            # if OSError occurs, ignore and continue
+            pass
+
+        # if the local folder exists (due to previous incomplete processing, erase it).
+        if os.path.exists(self.pwd):
+            shutil.rmtree(self.pwd)
+
+        # ready to copy the shared solution_dir to pwd
+        shutil.copytree(self.solution_pwd, self.pwd, symlinks=True)
+
+        with open(os.path.join(self.pwd, 'monitor.log'), 'a') as monitor:
             monitor.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' -> starting GAMIT job for %s: %s\n' % (self.params['NetName'], self.date.yyyyddd()))
 
     def start(self):
@@ -140,10 +156,12 @@ class GamitTask:
         nrms = 100
         wl = 0
         nl = 0
+        missing_sites = []
         if self.success:
             vals = []
             pattern1 = re.compile('^\s\w+\s\w+:\s+\d\.\d+[Ee][+-]?\d+\s+\w+\s\w+:\s+(\d\.\d+[Ee][+-]?\d+).*$')
             pattern2 = re.compile('^\s\w+\s\w+\s\w+\s\w+\s+(\d+\.\d)\%\s\w+\s\w+\s+(\d+\.\d)\%.*')
+            pattern3 = re.compile('^\s\w+\s\w+\s\w+\s\w+\s+(\w+)')
             with open(self.pwd + '/monitor.log', 'r') as monitor:
                 for line in monitor:
                     nrms = pattern1.findall(line)
@@ -155,6 +173,12 @@ class GamitTask:
                         wl = float(wlnl[0][0])
                         nl = float(wlnl[0][1])
 
+                    missing = pattern3.findall(line)
+                    if missing:
+                        for rinex in self.params['rinex']:
+                            if rinex['StationAlias'].lower() == missing[0].lower():
+                                missing_sites.append(rinex['NetworkCode'] + '.' + rinex['StationCode'])
+
                 if vals:
                     # bias free WL ambiguities
                     nrms = vals[0]
@@ -164,7 +188,7 @@ class GamitTask:
         # no matter the result of the processing, move folder to final destination
         self.finish()
 
-        return {'Session': '%s %s' % (self.params['NetName'], self.date.yyyyddd()), 'Success': self.success, 'NRMS': nrms, 'WL': wl, 'NL': nl}
+        return {'Session': '%s %s' % (self.params['NetName'], self.date.yyyyddd()), 'Success': self.success, 'NRMS': nrms, 'WL': wl, 'NL': nl, 'Missing': missing_sites}
 
     def window_rinex(self, Rinex, window):
 
@@ -192,14 +216,21 @@ class GamitTask:
                 os.remove(ff)
 
         try:
-            os.makedirs(os.path.dirname(self.final_pwd))
+            if not os.path.exists(os.path.dirname(self.solution_pwd)):
+                os.makedirs(os.path.dirname(self.solution_pwd))
         except OSError:
             # racing condition having several processes trying to create the same folder
             # if OSError occurs, ignore and continue
             pass
 
-        # execute final step: copy to self.final_pwd
-        shutil.copytree(self.pwd, self.final_pwd, symlinks=True)
+        # the solution folder exists because it was created by GamitSession to start the processing.
+        # erase it to upload the result
+        if os.path.exists(self.solution_pwd):
+            shutil.rmtree(self.solution_pwd)
+
+        # execute final step: copy to self.solution_pwd
+        shutil.copytree(self.pwd, self.solution_pwd, symlinks=True)
+        # remove the remote pwd
         shutil.rmtree(self.pwd)
 
         return
@@ -633,6 +664,9 @@ class GamitTask:
         # create the binary h-file
         htoglb . tmp.svs ../$DOY/h*.${YEAR}${DOY}  >> ../${FILE}.out
 
+        # grep any missing stations to report them to monitor.log
+        grep 'No data for site ' ../${FILE}.out | sort | uniq >> ../monitor.log
+        
         # convert the binary h-file to sinex file
         glbtosnx . "" h*.glx ${FILE}.snx >> ../${FILE}.out
 
