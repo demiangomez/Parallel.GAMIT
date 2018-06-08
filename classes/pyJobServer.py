@@ -300,7 +300,6 @@ class JobServer:
             self.job_server.wait()
             self.process_callback = True
 
-
     def __dumpsfunc(self, funcs, modules):
         """Serializes functions and modules"""
         hashs = hash(funcs + modules)

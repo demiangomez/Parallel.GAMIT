@@ -12,6 +12,8 @@ import shutil
 import subprocess
 import re
 import glob
+import platform
+import traceback
 
 class GamitTask:
 
@@ -31,6 +33,11 @@ class GamitTask:
         self.date      = params['date']
         self.success   = False
 
+        with open(os.path.join(self.solution_pwd, 'monitor.log'), 'w') as monitor:
+            monitor.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' -> GamitTask initialized for %s: %s\n' % (self.params['NetName'], self.date.yyyyddd()))
+
+    def start(self):
+
         # copy the folder created by GamitSession in the solution_pwd to the remote_pwd (pwd)
         try:
             if not os.path.exists(os.path.dirname(self.pwd)):
@@ -48,11 +55,6 @@ class GamitTask:
         shutil.copytree(self.solution_pwd, self.pwd, symlinks=True)
 
         with open(os.path.join(self.pwd, 'monitor.log'), 'a') as monitor:
-            monitor.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' -> starting GAMIT job for %s: %s\n' % (self.params['NetName'], self.date.yyyyddd()))
-
-    def start(self):
-
-        with open(os.path.join(self.pwd,'monitor.log'), 'w') as monitor:
             monitor.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' -> fetching orbits\n')
 
             try:
@@ -201,37 +203,45 @@ class GamitTask:
 
     def finish(self):
 
-        # delete everything inside the processing dir
-        shutil.rmtree(self.pwd_brdc)
-        shutil.rmtree(self.pwd_igs)
-
-        # remove files in tables
-        for ftype in ['*.grid', '*.dat', '*.apr']:
-            for ff in glob.glob(os.path.join(self.pwd_tables, ftype)):
-                os.remove(ff)
-
-        # remove processing files
-        for ftype in ['b*', 'cfmrg*', 'DPH.*', 'eq_rename.*', 'g*', 'k*', 'p*', 'rcvant.*', 'y*']:
-            for ff in glob.glob(os.path.join(os.path.join(self.pwd, self.date.ddd()), ftype)):
-                os.remove(ff)
-
         try:
-            if not os.path.exists(os.path.dirname(self.solution_pwd)):
-                os.makedirs(os.path.dirname(self.solution_pwd))
-        except OSError:
-            # racing condition having several processes trying to create the same folder
-            # if OSError occurs, ignore and continue
-            pass
+            # delete everything inside the processing dir
+            shutil.rmtree(self.pwd_brdc)
+            shutil.rmtree(self.pwd_igs)
 
-        # the solution folder exists because it was created by GamitSession to start the processing.
-        # erase it to upload the result
-        if os.path.exists(self.solution_pwd):
-            shutil.rmtree(self.solution_pwd)
+            # remove files in tables
+            for ftype in ['*.grid', '*.dat', '*.apr']:
+                for ff in glob.glob(os.path.join(self.pwd_tables, ftype)):
+                    os.remove(ff)
 
-        # execute final step: copy to self.solution_pwd
-        shutil.copytree(self.pwd, self.solution_pwd, symlinks=True)
-        # remove the remote pwd
-        shutil.rmtree(self.pwd)
+            # remove processing files
+            for ftype in ['b*', 'cfmrg*', 'DPH.*', 'eq_rename.*', 'g*', 'k*', 'p*', 'rcvant.*', 'y*']:
+                for ff in glob.glob(os.path.join(os.path.join(self.pwd, self.date.ddd()), ftype)):
+                    os.remove(ff)
+
+            try:
+                if not os.path.exists(os.path.dirname(self.solution_pwd)):
+                    os.makedirs(os.path.dirname(self.solution_pwd))
+            except OSError:
+                # racing condition having several processes trying to create the same folder
+                # if OSError occurs, ignore and continue
+                pass
+
+            # the solution folder exists because it was created by GamitSession to start the processing.
+            # erase it to upload the result
+            if os.path.exists(self.solution_pwd):
+                shutil.rmtree(self.solution_pwd)
+
+            # execute final step: copy to self.solution_pwd
+            shutil.copytree(self.pwd, self.solution_pwd, symlinks=True)
+            # remove the remote pwd
+            shutil.rmtree(self.pwd)
+
+        except Exception:
+
+            msg = traceback.format_exc() + '\nNode ' + platform.node()
+
+            with open(os.path.join(self.pwd, 'monitor.log'), 'a') as monitor:
+                monitor.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' -> ERROR in pyGamitTask.finish()\n%s' % (msg))
 
         return
 

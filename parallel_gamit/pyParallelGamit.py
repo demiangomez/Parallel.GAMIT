@@ -26,6 +26,7 @@ import argparse
 import glob
 import pyJobServer
 
+
 def signal_handler(signal, frame):
     print '\nProcess interruptued by user\n'
     raise KeyboardInterrupt
@@ -44,7 +45,7 @@ def parseIntSet(nputstr=""):
         try:
             # typically tokens are plain old integers
             selection.append(int(i))
-        except:
+        except Exception:
             # if not, then it might be a range
             try:
                 token = [int(k.strip()) for k in i.split('-')]
@@ -64,6 +65,7 @@ def parseIntSet(nputstr=""):
         print "Invalid set: " + str(invalid)
         sys.exit(2)
     return selection
+
 
 def print_summary(Project, all_missing_data):
     # output a summary of each network
@@ -126,6 +128,7 @@ def print_summary(Project, all_missing_data):
     print ''
 
     return
+
 
 def print_summary2(Project, all_missing_data):
     # output a summary of each network
@@ -225,8 +228,6 @@ def main():
 
     print(' >> Checing GAMIT tables for requested config and year, please wait...')
     JobServer = pyJobServer.JobServer(GamitConfig, check_gamit_tables=(pyDate.Date(year=year,doy=max(doys)), GamitConfig.gamitopt['eop_type']))
-    # leave to none until fully implemented
-    JobServer = None
 
     cnn = dbConnection.Cnn(GamitConfig.gamitopt['gnss_data']) # type: dbConnection.Cnn
 
@@ -270,7 +271,7 @@ def main():
     print_summary(Project, AllMissingData)
 
     # run the job server
-    ExecuteGamit(GamitConfig, Sessions)
+    ExecuteGamit(GamitConfig, Sessions, JobServer)
 
     # execute globk on doys that had to be divided into subnets
     ExecuteGlobk(cnn, GamitConfig, Project, year, doys, Sessions)
@@ -308,6 +309,7 @@ def ParseZTD(cnn, Sessions, GamitConfig):
 
                 if rs.ntuples() == 0:
                     cnn.query('INSERT INTO gamit_ztd ("NetworkCode", "StationCode", "Date", "ZTD") VALUES (\'%s\', \'%s\', \'%s\', %f)' % (stn['NetworkCode'], stn['StationCode'], date.strftime('%Y/%m/%d %H:%M:%S'), float(zd[6])))
+
 
 def ExecuteGlobk(cnn, GamitConfig, Project, year, doys, Sessions):
 
@@ -381,7 +383,8 @@ def ExecuteGlobk(cnn, GamitConfig, Project, year, doys, Sessions):
                     tqdm.write(' >> Invalid key found in session %s -> %s' % (date.yyyyddd(), key))
     return
 
-def ExecuteGamit(Config, Sessions):
+
+def ExecuteGamit(Config, Sessions, JobServer):
 
     def update_gamit_progress_bar(result):
         gamit_pbar.update(1)
@@ -391,7 +394,7 @@ def ExecuteGamit(Config, Sessions):
         else:
             msg_nrms = ''
 
-        if result['WL'] < 70 :
+        if result['WL'] < 70:
             if msg_nrms:
                 msg_wl = ' AND WL fixed < 70%% (%.1f)' % (result['WL'])
             else:
@@ -407,33 +410,17 @@ def ExecuteGamit(Config, Sessions):
         # DDG: only show sessions with problems to facilitate debugging.
         if result['Success']:
             if msg_nrms + msg_wl + msg_missing:
-                gamit_pbar.write(' -- Done processing: ' + result['Session'] + ' -> ' + msg_nrms + msg_wl + msg_missing)
+                tqdm.write(' -- Done processing: ' + result['Session'] + ' -> ' + msg_nrms + msg_wl + msg_missing)
 
         else:
-            gamit_pbar.write(' -- Done processing: ' + result['Session'] + ' -> Failed to complete. Check monitor.log')
+            tqdm.write(' -- Done processing: ' + result['Session'] + ' -> Failed to complete. Check monitor.log')
 
-        sys.stdout.flush()
-        sys.stderr.flush()
+    gamit_pbar = tqdm(total=len([GamitSession for GamitSession in Sessions if not GamitSession.ready]),
+                      desc='GAMIT sessions completion', ncols=100)  # type: tqdm
 
-    if Config.run_parallel:
-        ppservers = ('*',)
+    tqdm.write(' >> Initializing %i GAMIT sessions' % (len(Sessions)))
 
-        cpus = Config.options['cpus']
-        if cpus:
-            if cpus >= Config.gamitopt['max_cores']:
-                job_server = pp.Server(ncpus=int(Config.gamitopt['max_cores']), ppservers=ppservers)
-            else:
-                job_server = pp.Server(ncpus=cpus, ppservers=ppservers)
-        else:
-            raise Exception('Could not determine the number of CPUs for this OS.')
-        time.sleep(3)
-        print "\n >> Starting pp with", job_server.get_active_nodes(), "workers\n"
-    else:
-        job_server = None
-
-    gamit_pbar = tqdm(total=len([GamitSession for GamitSession in Sessions if not GamitSession.ready]), desc='GAMIT processes completion progress', ncols=100, position=1) # type: tqdm
-
-    for GamitSession in tqdm(Sessions,total=len(Sessions), desc='GAMIT tasks initialization progress', ncols=100, position=0):
+    for GamitSession in Sessions:
 
         if Config.run_parallel:
             if not GamitSession.ready:
@@ -445,17 +432,27 @@ def ExecuteGamit(Config, Sessions):
                 GamitSession.GamitTask = Task
 
                 # do not submit the task if the session is ready!
-                job_server.submit(Task.start, args=(),
-                              modules=('pyRinex', 'datetime', 'os', 'shutil', 'pyBrdc', 'pySp3', 'subprocess', 're', 'pyPPPETM', 'glob'),
-                              callback=(update_gamit_progress_bar))
+                JobServer.job_server.submit(Task.start, args=(),
+                                    modules=('pyRinex', 'datetime', 'os', 'shutil', 'pyBrdc', 'pySp3', 'subprocess',
+                                             're', 'pyPPPETM', 'glob', 'platform', 'traceback'),
+                                    callback=update_gamit_progress_bar)
             else:
-                gamit_pbar.write(' -- Session already processed: ' + GamitSession.NetName + ' ' + GamitSession.date.yyyyddd())
+                tqdm.write(' -- Session already processed: ' + GamitSession.NetName + ' ' + GamitSession.date.yyyyddd())
+
+    tqdm.write(' -- Done initializing GAMIT sessions')
 
     # once we finnish walking the dir, wait and, handle the output messages
     if Config.run_parallel:
-        job_server.wait()
+        tqdm.write(' -- Waiting for GAMIT sessions to finish...')
+        JobServer.job_server.wait()
+        tqdm.write(' -- Done.')
 
+    # handle any output messages during this batch
     gamit_pbar.close()
+
+    if Config.run_parallel:
+        print "\n"
+        JobServer.job_server.print_stats()
 
     return
 
