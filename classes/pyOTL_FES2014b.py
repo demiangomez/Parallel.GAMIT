@@ -16,15 +16,15 @@ import re
 from email.mime.text import MIMEText
 
 def main():
-    parser = argparse.ArgumentParser(description='Archive operations Main Program')
+    parser = argparse.ArgumentParser(description='Ocean tide loading program')
 
-    parser.add_argument('-import', '--import_HARPOS', nargs=1,
-                        help="File containing the HARPOS parameters returned by the Chalmers website service.")
+    parser.add_argument('-import', '--import_otl', nargs=1,
+                        help="File containing the BLQ parameters returned by the Chalmers website service.")
 
     args = parser.parse_args()
 
-    if args.import_HARPOS:
-        import_harpos(args.import_HARPOS[0])
+    if args.import_otl:
+        import_blq(args.import_otl[0])
     else:
         create_files()
 
@@ -33,7 +33,7 @@ def create_files():
 
     cnn = dbConnection.Cnn("gnss_data.cfg")
 
-    rs = cnn.query('SELECT * FROM stations WHERE "NetworkCode" NOT LIKE \'?%%\' AND "Harpos_coeff_otl" NOT LIKE \'%%FES2014b%%\' ORDER BY "NetworkCode", "StationCode"')
+    rs = cnn.query('SELECT * FROM stations WHERE "NetworkCode" NOT LIKE \'?%%\' AND "Harpos_coeff_otl" LIKE \'%%HARPOS%%\' ORDER BY "NetworkCode", "StationCode"')
 
     stations = rs.dictresult()
     print ' >> Cantidad de estaciones a procesar en Chalmers: ' + str(len(stations))
@@ -51,7 +51,7 @@ LoadingType = displacement
 GreensF = mc00egbc
 CMC = 1
 Plot = 0
-OutputFormat = HARPOS
+OutputFormat = BLQ
 Stations = %s
 MyEmail = demiang@gmail.com\n
 """ % ('\n'.join(stnlist))
@@ -81,7 +81,7 @@ LoadingType = displacement
 GreensF = mc00egbc
 CMC = 1
 Plot = 0
-OutputFormat = HARPOS
+OutputFormat = BLQ
 Stations = %s
 MyEmail = demiang@gmail.com\n
 """ % ('\n'.join(stnlist))
@@ -113,13 +113,51 @@ def import_harpos(filename):
 
                 for line in otl:
                     if pattern.match(line):
-                        load_otl(header, otl[otl.index(line) - 2:otl.index(line)+13])
+                        load_harpos(header, otl[otl.index(line) - 2:otl.index(line)+13])
 
             else:
                 print ' >> Could not find a valid header'
 
+def import_blq(filename):
 
-def load_otl(header, otl):
+    # parse the file to see if it is HARPOS
+    with open(filename, 'r') as fileio:
+        otl = fileio.readlines()
+
+        if otl[0][0:2] != '$$':
+            print ' >> Input files does not appear to be in BLQ format!'
+            return
+        else:
+            # it's BLQ alright
+            # find the linenumber of the phase and frequency components
+            header = otl[0:29]
+            pattern = re.compile('\s{2}\w{3}\.\w{4}')
+
+            for line in otl[29:]:
+                if pattern.match(line):
+                    load_blq(header, otl[otl.index(line):otl.index(line) + 11])
+
+
+def load_blq(header, otl):
+
+    cnn = dbConnection.Cnn("gnss_data.cfg")
+
+    # begin removing the network code from the OTL
+    NetStn = re.findall('\s{2}(\w{3}\.\w{4})', ''.join(otl))
+
+    NetworkCode, StationCode = NetStn[0].split('.')
+
+    OTL = (''.join(header) + ''.join(otl)).replace('  ' + NetStn[0], '  ' + StationCode)
+    OTL = OTL.replace('$$ ' + NetStn[0], '$$ %-8s' % StationCode)
+    OTL = OTL.replace('$$ END TABLE', '$$')
+    OTL = OTL.replace("'", "")
+
+    print ' >> updating %s.%s' % (NetworkCode, StationCode)
+
+    cnn.query('UPDATE stations SET "Harpos_coeff_otl" = \'%s\' WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\'' % (OTL, NetworkCode, StationCode))
+
+
+def load_harpos(header, otl):
 
     cnn = dbConnection.Cnn("gnss_data.cfg")
 

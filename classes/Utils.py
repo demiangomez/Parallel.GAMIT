@@ -282,21 +282,46 @@ def ecef2lla(ecefArr):
     return numpy.array([lat]), numpy.array([lon]), numpy.array([alt])
 
 
-def process_date(arg):
+def process_date(arg, missing_input='fill', allow_days=True):
+    # function to handle date input from PG.
+    # Input: arg = arguments from command line
+    #        missing_input = a string specifying if vector should be filled when something is missing
+    #        allow_day = allow a single argument which represents an integer N expressed in days, to compute now()-N
 
-    dates = [pyDate.Date(year=1980, doy=1), pyDate.Date(year=datetime.now().year, month=datetime.now().month, day=datetime.now().day)]
+    if missing_input == 'fill':
+        dates = [pyDate.Date(year=1980, doy=1), pyDate.Date(datetime=datetime.now())]
+    else:
+        dates = [None, None]
 
     if arg:
         for i, arg in enumerate(arg):
             try:
                 if '.' in arg:
-                    dates[i] = pyDate.Date(year=arg.split('.')[0], doy=arg.split('.')[1])
-                else:
+                    dates[i] = pyDate.Date(fyear=arg)
+                elif '_' in arg:
+                    dates[i] = pyDate.Date(year=arg.split('_')[0], doy=arg.split('_')[1])
+                elif '/' in arg:
                     dates[i] = pyDate.Date(year=arg.split('/')[0], month=arg.split('/')[1], day=arg.split('/')[2])
+                elif '-' in arg:
+                    dates[i] = pyDate.Date(gpsWeek=arg.split('-')[0], gpsWeekDay=arg.split('-')[1])
+                elif len(arg) > 0:
+                    if allow_days and i == 0:
+                        dates[i] = pyDate.Date(datetime=datetime.now()) - int(arg)
+                    else:
+                        raise ValueError('Invalid input date: allow_days was set to False.')
             except Exception as e:
-                raise ValueError('Error while reading the date start/end parameters: ' + str(e))
+                raise ValueError('Could not decode input date (valid entries: fyear, yyyy_ddd, yyyy/mm/dd, gpswk-wkday). Error while reading the date start/end parameters: ' + str(e))
 
-    return dates
+    return tuple(dates)
+
+
+def determine_frame(frames, date):
+
+    for frame in frames:
+        if frame['dates'][0] <= date <= frame['dates'][1]:
+            return frame['name'], frame['atx']
+
+    raise Exception('No valid frame was found for the specified date.')
 
 
 def print_columns(l):
@@ -310,15 +335,21 @@ def print_columns(l):
             sys.stdout.write('{:<10}'.format(l[i]))
         sys.stdout.write('\n')
 
+
 def get_resource_delimiter():
     return '.'
 
-def process_stnlist(cnn, stnlist_in):
+
+def process_stnlist(cnn, stnlist_in, print_summary=True):
+
+    if len(stnlist_in) == 1 and os.path.isfile(stnlist_in[0]):
+        print ' >> Station list read from file: ' + stnlist_in[0]
+        stnlist_in = [line.strip() for line in open(stnlist_in[0], 'r')]
 
     stnlist = []
 
     if len(stnlist_in) == 1 and stnlist_in[0] == 'all':
-       # plot all stations
+       # all stations
         rs = cnn.query('SELECT * FROM stations WHERE "NetworkCode" NOT LIKE \'?%%\' ORDER BY "NetworkCode", "StationCode"')
 
         for rstn in rs.dictresult():
@@ -350,7 +381,12 @@ def process_stnlist(cnn, stnlist_in):
     for stn in [stn.replace('-', '') for stn in stnlist_in if '-' in stn]:
         stnlist = [stnl for stnl in stnlist if stnl['NetworkCode'] + '.' + stnl['StationCode'] != stn.lower()]
 
+    if print_summary:
+        print ' >> Selected station list:'
+        print_columns([item['NetworkCode'] + '.' + item['StationCode'] for item in stnlist])
+
     return stnlist
+
 
 def get_norm_year_str(year):
     

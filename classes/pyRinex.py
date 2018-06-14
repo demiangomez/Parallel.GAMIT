@@ -1217,10 +1217,15 @@ class ReadRinex(RinexRecord):
                 new_header = self.insert_comment(new_header, 'PREV REC VERS: ' + self.recVers)
                 self.recVers = NewValues['ReceiverVers']
 
-        if (NewValues['AntennaCode'] != self.antType or
-            NewValues['AntennaSerial'] != self.antNo or
-            NewValues['RadomeCode'] != self.antDome):
+        # if (NewValues['AntennaCode'] != self.antType or
+        #    NewValues['AntennaSerial'] != self.antNo or
+        #    NewValues['RadomeCode'] != self.antDome):
+        if True:
 
+            # DDG: New behaviour, ALWAYS replace the antenna and DOME field due to problems with formats for some
+            # stations. Eg:
+            # 13072               ASH700936D_M    NONE                    ANT # / TYPE
+            # 13072               ASH700936D_M SNOW                       ANT # / TYPE
             new_header = self.replace_record(new_header, 'ANT # / TYPE', (NewValues['AntennaSerial'], '%-15s' % NewValues['AntennaCode'] + ' ' + NewValues['RadomeCode']))
 
             if NewValues['AntennaCode'] != self.antType:

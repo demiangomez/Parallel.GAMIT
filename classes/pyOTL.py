@@ -79,7 +79,7 @@ class OceanLoading():
                         raise pyOTLException('grdtab returned an error:\n' +  fileio.read())
             else:
                 # open otl file
-                with open(os.path.join(self.rootdir,'harpos.' + self.StationCode), 'r') as fileio:
+                with open(os.path.join(self.rootdir, 'harpos.' + self.StationCode), 'r') as fileio:
                     return fileio.read()
 
     def __del__(self):

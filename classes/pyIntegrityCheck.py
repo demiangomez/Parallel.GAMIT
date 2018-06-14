@@ -643,10 +643,10 @@ def RenameStation(cnn, NetworkCode, StationCode, DestNetworkCode, DestStationCod
                         # if there is no station info for this station either, warn the user!
                         tqdm.write(' -- Error while updating Station Information! %s' % (str(e)))
 
-
     except Exception:
         cnn.rollback_transac()
         raise
+
 
 def VisualizeGaps(cnn, stnlist, start_date, end_date):
 
@@ -790,15 +790,7 @@ def main():
 
     Config = pyOptions.ReadOptions("gnss_data.cfg") # type: pyOptions.ReadOptions
 
-    if len(args.stnlist) == 1 and os.path.isfile(args.stnlist[0]):
-        print ' >> Station list read from ' + args.stnlist[0]
-        stnlist = [line.strip() for line in open(args.stnlist[0], 'r')]
-        stnlist = [{'NetworkCode': item.split('.')[0], 'StationCode': item.split('.')[1]} for item in stnlist]
-    else:
-        stnlist = Utils.process_stnlist(cnn, args.stnlist)
-
-    print ' >> Selected station list:'
-    print_columns([item['NetworkCode'] + '.' + item['StationCode'] for item in stnlist])
+    stnlist = Utils.process_stnlist(cnn, args.stnlist)
 
     if not args.noparallel:
         JobServer = pyJobServer.JobServer(Config) # type: pyJobServer.JobServer

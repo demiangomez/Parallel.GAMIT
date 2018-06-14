@@ -162,10 +162,25 @@ $$
 $$ Ocean tide model: %s
 $$
 $$ END HEADER
-$$""" % (self.Config.options['otlmodel']))
+$$\n""" % (self.Config.options['otlmodel']))
 
             for stn in self.StationInstances:
-                otl_list.write(stn.Station.otl_H.replace(' ' + stn.Station.StationCode + ' ', ' ' + stn.Station.StationAlias + ' ') + '\n')
+                otl = stn.Station.otl_H.split('\n')
+                # remove BLQ header
+                otl = otl[29:]
+                # need to change the station record for GAMIT to take it
+                otl[0] = '  %s' % stn.Station.StationAlias.upper()
+                if stn.Station.lon < 0:
+                    lon = 360+stn.Station.lon
+                else:
+                    lon = stn.Station.lon
+                otl[3] = '$$ %s                                 RADI TANG lon/lat:%10.4f%10.4f' % (stn.Station.StationAlias.upper(), lon, stn.Station.lat)
+                otl = '\n'.join(otl)
+
+                otl_list.write(otl)
+
+            # write BLQ format termination
+            otl_list.write("$$ END TABLE\n")
 
     def create_station_info(self):
 

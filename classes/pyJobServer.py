@@ -147,8 +147,9 @@ def test_node(check_gamit_tables=None):
     if not os.path.isfile(os.path.join(Config.options['ppp_path'],'gpsppp.met')):
         return ' -- %s: Could not find gpsppp.met in %s' % (platform.node(), Config.options['ppp_path'])
 
-    if not os.path.isfile(Config.options['atx']):
-        return ' -- %s: Could not find atx in %s' % (platform.node(), Config.options['atx'])
+    for frame in Config.options['frames']:
+        if not os.path.isfile(frame['atx']):
+            return ' -- %s: Could not find atx in %s' % (platform.node(), frame['atx'])
 
     if check_gamit_tables is not None:
         # check the gamit tables if not none
@@ -207,7 +208,7 @@ def test_node(check_gamit_tables=None):
 
 
 class JobServer:
-    def __init__(self, Config, max_jobs=300, check_gamit_tables=None):
+    def __init__(self, Config, max_jobs=300, check_gamit_tables=None, run_node_test=True):
 
         self.__sfuncHM = {}
         self.__sourcesHM = {}
@@ -220,7 +221,12 @@ class JobServer:
         # test the local node
         print " ==== Starting JobServer(pp) ===="
         print " >> Checking requirements at the local node..."
-        result = test_node(check_gamit_tables)
+
+        if run_node_test:
+            result = test_node(check_gamit_tables)
+        else:
+            result = ' -- local: Test passed!'
+
         print result
 
         if not 'Test passed!' in result:

@@ -11,6 +11,7 @@ from shutil import copyfile
 from shutil import rmtree
 from Utils import lg2ct
 from Utils import ecef2lla
+from Utils import determine_frame
 from math import isnan
 import pyRinex
 import pyRunWithRetry
@@ -62,7 +63,7 @@ class pyRunPPPExceptionEOPError(pyRunPPPException):
     pass
 
 
-class PPPSpatialCheck():
+class PPPSpatialCheck:
 
     def __init__(self, lat=None, lon=None, h=None, epoch=None):
 
@@ -153,6 +154,7 @@ class RunPPP(PPPSpatialCheck):
         self.clock_interpolation = clock_interpolation
 
         self.frame     = None
+        self.atx       = None
         self.x         = None
         self.y         = None
         self.z         = None
@@ -186,14 +188,18 @@ class RunPPP(PPPSpatialCheck):
         self.summary    = ''
         self.pos        = ''
 
+        self.rootdir = os.path.join('production', 'ppp')
+
         fieldnames = ['NetworkCode', 'StationCode', 'X', 'Y', 'Z', 'Year', 'DOY', 'ReferenceFrame', 'sigmax', 'sigmay',
                       'sigmaz', 'sigmaxy', 'sigmaxz', 'sigmayz', 'hash']
 
         self.record = dict.fromkeys(fieldnames)
 
+        # determine the atx to use
+        self.frame, self.atx = determine_frame(self.options['frames'], self.epoch)
+
         if os.path.isfile(self.rinex.rinex_path):
 
-            self.rootdir = os.path.join('production', 'ppp')
             # generate a unique id for this instance
             self.rootdir = os.path.join(self.rootdir, str(uuid.uuid4()))
 
@@ -201,7 +207,7 @@ class RunPPP(PPPSpatialCheck):
                 # create a production folder to analyze the rinex file
                 if not os.path.exists(self.rootdir):
                     os.makedirs(self.rootdir)
-                    os.makedirs(os.path.join(self.rootdir,'orbits'))
+                    os.makedirs(os.path.join(self.rootdir, 'orbits'))
             except Exception:
                 # could not create production dir! FATAL
                 raise
@@ -241,7 +247,7 @@ class RunPPP(PPPSpatialCheck):
         copyfile(os.path.join(self.ppp_path, 'gpsppp.svb_gps_yrly'), os.path.join(self.rootdir, 'gpsppp.svb_gps_yrly'))
         copyfile(os.path.join(self.ppp_path, 'gpsppp.flt'), os.path.join(self.rootdir, 'gpsppp.flt'))
         copyfile(os.path.join(self.ppp_path, 'gpsppp.stc'), os.path.join(self.rootdir, 'gpsppp.stc'))
-        copyfile(os.path.join(self.options['atx']), os.path.join(self.rootdir, self.options['atx'].split('/')[-1]))
+        copyfile(os.path.join(self.atx), os.path.join(self.rootdir, os.path.basename(self.atx)))
 
         return
 
@@ -270,7 +276,7 @@ class RunPPP(PPPSpatialCheck):
                          "'ERP' '%s'\n"
                          "'GSD' '%s'\n"
                          "'GSD' '%s'\n"
-                         % (options['atx'].split('/')[-1],
+                         % (os.path.basename(self.atx),
                             self.rinex.StationCode,
                             self.eop_file,
                             options['institution'],
@@ -517,7 +523,8 @@ class RunPPP(PPPSpatialCheck):
         #                                             ') is zero or more than 95% of the observations were rejected (' +
         #                                             str(self.rejected_obs) + ')')
 
-        self.frame = self.get_frame(self.coordinate_estimate)
+        # FRAME now comes from the startup process, where the function Utils.determine_frame is called
+        # self.frame = self.get_frame(self.coordinate_estimate)
 
         self.x, self.y, self.z = self.get_xyz(self.coordinate_estimate)
         self.lat, self.lon, self.h = ecef2lla([self.x, self.y, self.z])

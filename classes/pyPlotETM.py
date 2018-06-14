@@ -9,13 +9,13 @@ Type python pyPlotETM.py -h for usage help
 
 import pyPPPETM
 import pyOptions
-import pyJobServer
 import argparse
 import dbConnection
 import os
 import traceback
 import json
 import Utils
+from Utils import process_date
 
 def main():
 
@@ -27,6 +27,7 @@ def main():
     parser.add_argument('-dir', '--directory', type=str, help="Directory to save the resulting PNG files. If not specified, assumed to be the production directory")
     parser.add_argument('-json', '--json', type=int, help="Export ETM adjustment to JSON. Append '1' to export time series or append '0' to just output the ETM parameters.")
     parser.add_argument('-gui', '--interactive', action='store_true', help="Interactive mode: allows to zoom and view the plot interactively")
+    parser.add_argument('-win', '--time_window', nargs='+', metavar='interval', help='Date range to window data. Can be specified in yyyy/mm/dd, yyyy.doy or as a single integer value (N) which shall be interpreted as last epoch-N')
 
     args = parser.parse_args()
 
@@ -41,8 +42,21 @@ def main():
     else:
         stnlist = Utils.process_stnlist(cnn, args.stnlist)
 
-    if not args.noparallel:
-        pyJobServer.JobServer(Config)
+    #####################################
+    # date filter
+
+    dates = None
+    if args.time_window is not None:
+        if len(args.time_window) == 1:
+            try:
+                dates = process_date(args.time_window, missing_input=None, allow_days=False)
+                dates = (dates[0].fyear, )
+            except ValueError:
+                # an integer value
+                dates = float(args.time_window[0])
+        else:
+            dates = process_date(args.time_window)
+            dates = (dates[0].fyear, dates[1].fyear)
 
     if stnlist:
         # do the thing
@@ -57,15 +71,16 @@ def main():
         for stn in stnlist:
             try:
                 if args.no_model:
-                    etm = pyPPPETM.ETM(cnn, stn['NetworkCode'], stn['StationCode'], False, True)
+                    etm = pyPPPETM.PPPETM(cnn, stn['NetworkCode'], stn['StationCode'], False, True)
                 else:
-                    etm = pyPPPETM.ETM(cnn, stn['NetworkCode'], stn['StationCode'], False)
-                if args.interactive:
-                    etm.plot()
-                else:
-                    etm.plot(os.path.join(args.directory, etm.NetworkCode + '.' + etm.StationCode + '.png'))
+                    etm = pyPPPETM.PPPETM(cnn, stn['NetworkCode'], stn['StationCode'], False)
 
-                if not args.json is None:
+                if args.interactive:
+                    etm.plot(t_win=dates)
+                else:
+                    etm.plot(os.path.join(args.directory, etm.NetworkCode + '.' + etm.StationCode + '.png'), t_win=dates)
+
+                if args.json is not None:
                     with open(os.path.join(args.directory, etm.NetworkCode + '.' + etm.StationCode + '.json'), 'w') as f:
                         if args.json != 0:
                             json.dump(etm.todictionary(True), f, indent=4, sort_keys=False)
@@ -76,7 +91,7 @@ def main():
 
             except pyPPPETM.pyPPPETMException as e:
                 print str(e)
-                
+
             except Exception:
                 print 'Error during processing of ' + stn['NetworkCode'] + '.' + stn['StationCode']
                 print traceback.format_exc()

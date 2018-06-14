@@ -47,7 +47,7 @@ class Station():
                 self.Z      = float(self.record[0]['auto_z'])
                 self.otl_H  = self.record[0]['Harpos_coeff_otl']
 
-                self.etm = pyPPPETM.ETM(cnn,NetworkCode,StationCode)  # type: pyPPPETM.ETM
+                self.etm = pyPPPETM.PPPETM(cnn,NetworkCode,StationCode)  # type: pyPPPETM.PPPETM
                 self.StationInfo = pyStationInfo.StationInfo(cnn, NetworkCode, StationCode)  # type: pyStationInfo.StationInfo
 
         except Exception:

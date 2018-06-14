@@ -506,11 +506,12 @@ def execute_ppp(record, rinex_path):
     try:
 
         # check to see if record exists for this file in ppp_soln
-        # DDG: fixed frame to avoid problems with bad frame in the IGS sp3 files. Need to find a good way to determine
-        # the frame of the orbits (probably in the config file)
+        # DDG: now read the frame from the config file
+        frame, _ = Utils.determine_frame(Config.options['frames'], pyDate.Date(year=year, doy=doy))
+
         ppp_soln = cnn.query('SELECT * FROM ppp_soln WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND '
                              '"Year" = %s AND "DOY" = %s AND "ReferenceFrame" = \'%s\''
-                             % (NetworkCode, StationCode, year, doy, 'IGb08'))
+                             % (NetworkCode, StationCode, year, doy, frame))
 
         if ppp_soln.ntuples() == 0:
 
@@ -572,7 +573,7 @@ def execute_ppp(record, rinex_path):
                             # insert record in DB
                             cnn.insert('ppp_soln', ppp.record)
                             # DDG: Eric's request to generate a date of PPP solution
-                            event = pyEvents.Event(Description='A new PPP solution was created for frame IGb08',
+                            event = pyEvents.Event(Description='A new PPP solution was created for frame ' + ppp.frame,
                                                    NetworkCode=NetworkCode,
                                                    StationCode=StationCode,
                                                    Year=int(year),
@@ -938,7 +939,7 @@ def process_ppp(cnn, pyArchive, archive_path, JobServer, run_parallel, master_li
 
     pbar = tqdm(total=len(tblrinex), ncols=80)
 
-    modules = ('dbConnection', 'pyRinex', 'pyPPP', 'pyStationInfo', 'pyDate', 'pySp3', 'os', 'platform', 'pyArchiveStruct', 'traceback', 'pyOptions', 'pyEvents')
+    modules = ('dbConnection', 'pyRinex', 'pyPPP', 'pyStationInfo', 'pyDate', 'pySp3', 'os', 'platform', 'pyArchiveStruct', 'traceback', 'pyOptions', 'pyEvents', 'Utils')
     depfuncs = (remove_from_archive, verify_rinex_date_multiday)
 
     callback = []
@@ -1106,15 +1107,7 @@ def main():
     cnn.insert('executions', script='pyScanArchive.py')
 
     # get the station list
-    if len(args.stnlist) == 1 and os.path.isfile(args.stnlist[0]):
-        print ' >> Station list read from ' + args.stnlist[0]
-        stnlist = [line.strip() for line in open(args.stnlist[0], 'r')]
-        stnlist = [{'NetworkCode': item.split('.')[0], 'StationCode': item.split('.')[1]} for item in stnlist]
-    else:
-        stnlist = Utils.process_stnlist(cnn, args.stnlist)
-
-    print ' >> Selected station list:'
-    print_columns([item['NetworkCode'] + '.' + item['StationCode'] for item in stnlist])
+    stnlist = Utils.process_stnlist(cnn, args.stnlist)
 
     pyArchive = pyArchiveStruct.RinexStruct(cnn)
 

@@ -8,8 +8,10 @@ Class with all the configuration information necessary to run many of the script
 
 import ConfigParser
 import os
+from Utils import process_date
+from pyDate import Date
 
-class ReadOptions():
+class ReadOptions:
 
     def __init__(self, configfile):
 
@@ -32,6 +34,7 @@ class ReadOptions():
                        'institution': None,
                        'info': None,
                        'sp3': None,
+                       'frames': None,
                        'atx': None,
                        'ppp_exe': None,
                        'sigma_floor_h_c': 0.10,
@@ -57,6 +60,20 @@ class ReadOptions():
         # get the sigma floor config
         #for iconfig, val in dict(config.items('sigmas')).iteritems():
         #    self.options[iconfig] = val
+
+        # frames and dates
+        frames = [item.strip() for item in self.options['frames'].split(',')]
+        atx = [item.strip() for item in self.options['atx'].split(',')]
+
+        self.Frames = []
+
+        for frame, atx in zip(frames, atx):
+            date = process_date(self.options[frame.lower()].split(','))
+            self.Frames += [{'name': frame, 'atx': atx, 'dates':
+                                    (Date(year=date[0].year, doy=date[0].doy, hour=0, minute=0, second=0),
+                                    Date(year=date[1].year, doy=date[1].doy, hour=23, minute=59, second=59))}]
+
+        self.options['frames'] = self.Frames
 
         self.archive_path = self.options['path']
         self.sp3_path     = self.options['sp3']

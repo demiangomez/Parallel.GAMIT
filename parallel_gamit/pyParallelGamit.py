@@ -416,7 +416,7 @@ def ExecuteGamit(Config, Sessions, JobServer):
             tqdm.write(' -- Done processing: ' + result['Session'] + ' -> Failed to complete. Check monitor.log')
 
     gamit_pbar = tqdm(total=len([GamitSession for GamitSession in Sessions if not GamitSession.ready]),
-                      desc='GAMIT sessions completion', ncols=100)  # type: tqdm
+                      desc=' >> GAMIT sessions completion', ncols=100)  # type: tqdm
 
     tqdm.write(' >> Initializing %i GAMIT sessions' % (len(Sessions)))
 
