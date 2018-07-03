@@ -1048,8 +1048,8 @@ class ReadRinex(RinexRecord):
         # leave errors un-trapped on purpose (will raise an error to the parent)
         out, err = cmd.run_shell()
 
-        if err != '':
-            raise pyRinexExceptionNoAutoCoord(err + '\n' + out)
+        if err != '' and err is not None:
+            raise pyRinexExceptionNoAutoCoord(str(err) + '\n' + out)
         else:
             # check that the Final chi**2 is < 3
             for line in out.split('\n'):
@@ -1057,7 +1057,7 @@ class ReadRinex(RinexRecord):
                     chi = line.split()[-1]
 
                     if chi == 'NaN':
-                        raise pyRinexExceptionNoAutoCoord('chi2 = NaN! ' + err + '\n' + out)
+                        raise pyRinexExceptionNoAutoCoord('chi2 = NaN! ' + str(err) + '\n' + out)
 
                     elif float(chi) < chi_limit:
                         # open the APR file and read the coordinates
@@ -1073,7 +1073,7 @@ class ReadRinex(RinexRecord):
 
                             return (float(line[1]), float(line[2]), float(line[3])), (self.lat, self.lon, self.h)
 
-            raise pyRinexExceptionNoAutoCoord(out + '\nLIMIT FOR CHI**2 was %i' % chi_limit)
+            raise pyRinexExceptionNoAutoCoord(str(out) + '\nLIMIT FOR CHI**2 was %i' % chi_limit)
 
     def window_data(self, start=None, end=None, copyto=None):
         """

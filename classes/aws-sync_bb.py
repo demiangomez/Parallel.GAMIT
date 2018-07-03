@@ -12,7 +12,7 @@ import pyDate
 import argparse
 import pyOptions
 import pyArchiveStruct
-import pyPPPETM
+import pyETM
 import pyRinex
 import pyStationInfo
 import os
@@ -169,12 +169,12 @@ def get_metadata(cnn, NetworkCode, StationCode, date, ObservationFYear):
 
     try:
         # create the ETM object
-        etm = pyPPPETM.PPPETM(cnn, NetworkCode, StationCode)
+        etm = pyETM.PPPETM(cnn, NetworkCode, StationCode)
 
         # get APRs and sigmas (only in NEU)
         Apr, sigmas, Window, source = etm.get_xyz_s(date.year, date.doy)
 
-    except pyPPPETM.pyPPPETMException:
+    except pyETM.pyETMException:
         # no PPP solutions available! MUST have aprs in the last run, try that
         stop_no_aprs = True
         Window = None

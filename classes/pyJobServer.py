@@ -58,7 +58,7 @@ def test_node(check_gamit_tables=None):
         import pySp3
         import traceback
         import numpy
-        import pyPPPETM
+        import pyETM
         import pyRunWithRetry
         import pyDate
         import pg

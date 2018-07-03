@@ -8,30 +8,37 @@ It also handles the error, info and warning messages
 """
 
 import pg
+import pgdb
 import platform
 import ConfigParser
 import inspect
 import re
 from datetime import datetime
+from decimal import Decimal
+
 
 class dbErrInsert(Exception):
     pass
 
+
 class dbErrUpdate(Exception):
     pass
+
 
 class dbErrConnect(Exception):
     pass
 
+
 class dbErrDelete(Exception):
     pass
 
+
 class Cnn(pg.DB):
 
-    def __init__(self, configfile):
+    def __init__(self, configfile, use_float=False):
 
         # set casting of numeric to floats
-        pg.set_typecast('numeric', float)
+        pg.set_typecast('Numeric', float)
 
         options = {'hostname': 'localhost',
            'username': 'postgres' ,
@@ -39,13 +46,13 @@ class Cnn(pg.DB):
            'database': 'gnss_data'}
 
         self.active_transaction = False
-
+        self.options = options
         # parse session config file
         config = ConfigParser.ConfigParser()
         config.readfp(open(configfile))
 
         # get the database config
-        for iconfig,val in dict(config.items('postgres')).iteritems():
+        for iconfig, val in dict(config.items('postgres')).iteritems():
             options[iconfig] = val
 
         # open connection to server
@@ -54,7 +61,11 @@ class Cnn(pg.DB):
             try:
                 pg.DB.__init__(self, host=options['hostname'], user=options['username'], passwd=options['password'], dbname=options['database'])
                 # set casting of numeric to floats
-                self.dbtypes.set_typecast('numeric', float)
+                pg.set_typecast('Numeric', float)
+                if use_float:
+                    pg.set_decimal(float)
+                else:
+                    pg.set_decimal(Decimal)
                 break
             except pg.InternalError as e:
                 if 'Operation timed out' in str(e) or 'Connection refused' in str(e):
@@ -67,6 +78,23 @@ class Cnn(pg.DB):
                     raise e
             except Exception as e:
                 raise e
+
+    def query_float(self, command, as_dict=False):
+
+        pg.set_typecast('Numeric', float)
+        pg.set_decimal(float)
+
+        rs = self.query(command)
+
+        if as_dict:
+            recordset = rs.dictresult()
+        else:
+            recordset = rs.getresult()
+
+        pg.set_typecast('Numeric', Decimal)
+        pg.set_decimal(Decimal)
+
+        return recordset
 
     def get_columns(self, table):
         tblinfo = self.query('select column_name, data_type from information_schema.columns where table_name=\'%s\'' % table)
@@ -100,6 +128,17 @@ class Cnn(pg.DB):
             pg.DB.insert(self, table, row, **kw)
         except Exception as e:
             raise dbErrInsert(e)
+
+    def executemany(self, sql, parameters):
+
+        con = pgdb.connect(host=self.options['hostname'],
+                           user=self.options['username'],
+                           password=self.options['password'],
+                           database=self.options['database'])
+
+        cur = con.cursor()
+        cur.executemany(sql, parameters)
+        con.commit()
 
     def update(self, table, row=None, **kw):
 

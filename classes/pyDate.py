@@ -320,64 +320,67 @@ class Date():
     def __str__(self):
         return str(self.year)+', '+str(self.doy)
 
-    def __lt__(self,date):
+    def __lt__(self, date):
 
-        if not isinstance(date,Date):
-            raise pyDateException('type: '+type(date)+' invalid.  Can only compare pyDate.Date objects')
+        if not isinstance(date, Date):
+            raise pyDateException('type: '+str(type(date))+' invalid.  Can only compare pyDate.Date objects')
 
         return self.fyear < date.fyear
 
-    def __le__(self,date):
+    def __le__(self, date):
 
-        if not isinstance(date,Date):
-            raise pyDateException('type: '+type(date)+' invalid.  Can only compare pyDate.Date objects')
+        if not isinstance(date, Date):
+            raise pyDateException('type: '+str(type(date))+' invalid.  Can only compare pyDate.Date objects')
 
         return self.fyear <= date.fyear
 
-    def __gt__(self,date):
+    def __gt__(self, date):
 
-        if not isinstance(date,Date):
-            raise pyDateException('type: '+type(date)+' invalid.  Can only compare pyDate.Date objects')
+        if not isinstance(date, Date):
+            raise pyDateException('type: '+str(type(date))+' invalid.  Can only compare pyDate.Date objects')
 
         return self.fyear > date.fyear
 
-    def __ge__(self,date):
+    def __ge__(self, date):
 
-        if not isinstance(date,Date):
-            raise pyDateException('type: '+type(date)+' invalid.  Can only compare pyDate.Date objects')
+        if not isinstance(date, Date):
+            raise pyDateException('type: '+str(type(date))+' invalid.  Can only compare pyDate.Date objects')
 
         return self.fyear >= date.fyear
 
-    def __eq__(self,date):
+    def __eq__(self, date):
 
-        if not isinstance(date,Date):
+        if not isinstance(date, Date):
             raise pyDateException('type: '+str(type(date))+' invalid.  Can only compare pyDate.Date objects')
 
         return self.mjd == date.mjd
 
-    def __ne__(self,date):
+    def __ne__(self, date):
 
-        if not isinstance(date,Date):
-            raise pyDateException('type: '+type(date)+' invalid.  Can only compare pyDate.Date objects')
+        if not isinstance(date, Date):
+            raise pyDateException('type: '+str(type(date))+' invalid.  Can only compare pyDate.Date objects')
 
         return self.mjd != date.mjd
 
-    def __add__(self,ndays):
+    def __add__(self, ndays):
 
-        if not isinstance(ndays,int):
-            raise pyDateException('type: '+type(ndays)+' invalid.  Can only add integer number of days')
+        if not isinstance(ndays, int):
+            raise pyDateException('type: '+str(type(ndays))+' invalid.  Can only add integer number of days')
 
         return Date(mjd=self.mjd+ndays)
 
-    def __sub__(self,ndays):
+    def __sub__(self, ndays):
 
-        if not isinstance(ndays,int):
-            raise pyDateException('type: '+type(ndays)+' invalid.  Can only subtract integer number of days')
+        if not (isinstance(ndays, int) or isinstance(ndays, Date)):
+            raise pyDateException('type: ' + str(type(ndays)) + ' invalid. Can only subtract integer number of days')
 
-        return Date(mjd=self.mjd-ndays)
+        if isinstance(ndays, int):
+            return Date(mjd=self.mjd - ndays)
+        else:
+            return self.mjd - ndays.mjd
 
     def __hash__(self):
-        # to make the obsject hashable
+        # to make the object hashable
         return hash(self.fyear)
 
     def ddd(self):
@@ -408,6 +411,7 @@ class Date():
 def main(argv):
 
     date = Date(year=argv[0],doy=argv[1])
+
 
 if __name__ == '__main__':
     main()

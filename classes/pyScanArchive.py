@@ -162,7 +162,7 @@ def verify_rinex_date_multiday(cnn, date, rinexinfo, Config):
     if not date == rinexinfo.date:
         # move the file out of the archive because it's in the wrong spot (wrong folder, wrong name, etc)
         # let pyArchiveService fix the issue
-        retry_folder = os.path.join(Config.repository_data_in_retry, 'wrong_date_found/' +  date.yyyy() + '/' + date.ddd())
+        retry_folder = os.path.join(Config.repository_data_in_retry, 'wrong_date_found/' + date.yyyy() + '/' + date.ddd())
         # move the crinex out of the archive
         rinexinfo.move_origin_file(retry_folder)
 
@@ -1090,7 +1090,7 @@ def main():
                         "One file is created per station in the current directory")
     parser.add_argument('-import', '--import_station', nargs='+', metavar='{import json}',
                         help="Import a station from a file produced by another Parallel.GAMIT system. Wildcards are accepted to import multiple stations. Station list is ignored.")
-    parser.add_argument('-ppp', '--ppp', nargs='*', metavar='argument', help="Run ppp on the rinex files in the database. Append [date_start] and (optionally) [date_end] to limit the range of the processing. Allowed formats are yyyy.doy or yyyy/mm/dd. Append keyword 'hash' to the end to check the PPP hash values against the station information records. If hash doesn't match, recalculate the PPP solutions.")
+    parser.add_argument('-ppp', '--ppp', nargs='*', metavar='argument', help="Run ppp on the rinex files in the database. Append [date_start] and (optionally) [date_end] to limit the range of the processing. Allowed formats are yyyy_doy, wwww-d, fyear or yyyy/mm/dd. Append keyword 'hash' to the end to check the PPP hash values against the station information records. If hash doesn't match, recalculate the PPP solutions.")
     parser.add_argument('-rehash', '--rehash', nargs='*', metavar='argument', help="Check PPP hash against station information hash. Rehash PPP solutions to match the station information hash without recalculating the PPP solution. Optionally append [date_start] and (optionally) [date_end] to limit the rehashing time window. Allowed formats are yyyy.doy or yyyy/mm/dd.")
     parser.add_argument('-np', '--noparallel', action='store_true', help="Execute command without parallelization.")
 

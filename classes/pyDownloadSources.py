@@ -22,6 +22,7 @@ from Utils import print_columns
 import pyArchiveStruct
 import pysftp
 from shutil import rmtree
+from shutil import copy
 import pyRinex
 import glob
 import urllib
@@ -176,6 +177,10 @@ def process_file(filepath, filename, destiny, source, StationCode, date):
 
         elif source.lower() == 'chile':
             os.system('gzip -f -d -c "%s" > %s' % (filepath, os.path.join(temp_dir, filename.replace('.gz', ''))))
+
+        elif source.lower() == 'rnx2crz':
+            # scheme rnx2crz does not require any pre-process, just copy the file
+            copy(filepath, temp_dir)
         else:
             tqdm.write('   -- Unknown process scheme: %s' % (source.lower()))
 

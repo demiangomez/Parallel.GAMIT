@@ -6,7 +6,7 @@ Author: Demian D. Gomez
 Class that holds the station metadata needed to process in GAMIT
 """
 import pyStationInfo
-import pyPPPETM
+import pyETM
 import pyRinex
 import pyArchiveStruct
 import pyDate
@@ -47,7 +47,7 @@ class Station():
                 self.Z      = float(self.record[0]['auto_z'])
                 self.otl_H  = self.record[0]['Harpos_coeff_otl']
 
-                self.etm = pyPPPETM.PPPETM(cnn,NetworkCode,StationCode)  # type: pyPPPETM.PPPETM
+                self.etm = pyETM.PPPETM(cnn,NetworkCode,StationCode)  # type: pyETM.PPPETM
                 self.StationInfo = pyStationInfo.StationInfo(cnn, NetworkCode, StationCode)  # type: pyStationInfo.StationInfo
 
         except Exception:

@@ -8,7 +8,7 @@ from pyStation import Station
 from pyStation import StationInstance
 from pyGamitSession import GamitSession
 from pyStationInfo import pyStationInfoException
-from pyPPPETM import pyPPPETMException
+from pyETM import pyETMException
 from tqdm import tqdm
 import numpy as np
 import random
@@ -58,7 +58,7 @@ class NetClass():
                     self.Stations.append(Station(cnn, NetworkCode, StationCode))
                     self.StationList.append({'NetworkCode': NetworkCode, 'StationCode': StationCode})
 
-                except pyPPPETMException:
+                except pyETMException:
                     tqdm.write(' -- %s -> %s.%s: station exists, but there are no PPP solutions' % (self.Name, NetworkCode, StationCode))
             else:
                 tqdm.write(' -- %s -> %s.%s: no data for requested time window' % (self.Name, NetworkCode, StationCode))

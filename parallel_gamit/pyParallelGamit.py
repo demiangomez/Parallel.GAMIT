@@ -8,28 +8,20 @@ import pyGamitConfig
 import re
 import sys
 import pyDate
-import signal
 import Utils
 import os
 from tqdm import tqdm
-import pp
 import pyGamitTask
 import pyGlobkTask
 from pyNetwork import Network
 from datetime import datetime
 import dbConnection
-import time
 from math import sqrt
 from shutil import rmtree
 from math import ceil
 import argparse
 import glob
 import pyJobServer
-
-
-def signal_handler(signal, frame):
-    print '\nProcess interruptued by user\n'
-    raise KeyboardInterrupt
 
 
 def parseIntSet(nputstr=""):
@@ -224,12 +216,12 @@ def main():
             parser.error('Year ' + str(year) + ' is not a leap year: DOY 366 does not exist.')
 
     print(' >> Reading configuration files and creating project network, please wait...')
-    GamitConfig = pyGamitConfig.GamitConfiguration(args.session_cfg[0]) # type: pyGamitConfig.GamitConfiguration
+    GamitConfig = pyGamitConfig.GamitConfiguration(args.session_cfg[0])  # type: pyGamitConfig.GamitConfiguration
 
     print(' >> Checing GAMIT tables for requested config and year, please wait...')
     JobServer = pyJobServer.JobServer(GamitConfig, check_gamit_tables=(pyDate.Date(year=year,doy=max(doys)), GamitConfig.gamitopt['eop_type']))
 
-    cnn = dbConnection.Cnn(GamitConfig.gamitopt['gnss_data']) # type: dbConnection.Cnn
+    cnn = dbConnection.Cnn(GamitConfig.gamitopt['gnss_data'])  # type: dbConnection.Cnn
 
     # to exclude stations, append them to GamitConfig.NetworkConfig with a - in front
     exclude = args.exclude
@@ -280,6 +272,7 @@ def main():
     ParseZTD(cnn, Sessions, GamitConfig)
 
     return
+
 
 def ParseZTD(cnn, Sessions, GamitConfig):
 
@@ -434,7 +427,7 @@ def ExecuteGamit(Config, Sessions, JobServer):
                 # do not submit the task if the session is ready!
                 JobServer.job_server.submit(Task.start, args=(),
                                     modules=('pyRinex', 'datetime', 'os', 'shutil', 'pyBrdc', 'pySp3', 'subprocess',
-                                             're', 'pyPPPETM', 'glob', 'platform', 'traceback'),
+                                             're', 'pyETM', 'glob', 'platform', 'traceback'),
                                     callback=update_gamit_progress_bar)
             else:
                 tqdm.write(' -- Session already processed: ' + GamitSession.NetName + ' ' + GamitSession.date.yyyyddd())
@@ -458,6 +451,5 @@ def ExecuteGamit(Config, Sessions, JobServer):
 
 
 if __name__ == '__main__':
-    signal.signal(signal.SIGINT, signal_handler)
     main()
 

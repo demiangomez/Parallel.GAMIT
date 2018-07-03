@@ -502,12 +502,16 @@ class RunPPP(PPPSpatialCheck):
 
         if self.strict and not self.check_phase_center(self.proc_parameters):
             raise pyRunPPPException(
-                'Error while running PPP: could not find the antenna and radome in antex file. Check RINEX header for formatting issues in the ANT # / TYPE field. RINEX header follows:\n' + ''.join(
+                'Error while running PPP: could not find the antenna and radome in antex file. '
+                'Check RINEX header for formatting issues in the ANT # / TYPE field. RINEX header follows:\n' + ''.join(
                     self.rinex.get_header()))
 
         if self.strict and not self.check_otl(self.proc_parameters):
             raise pyRunPPPException(
-                'Error while running PPP: could not find the OTL coefficients. Check RINEX header for formatting issues in the APPROX ANT POSITION field')
+                'Error while running PPP: could not find the OTL coefficients. '
+                'Check RINEX header for formatting issues in the APPROX ANT POSITION field. If APR is too far from OTL '
+                'coordinates (declared in the HARPOS or BLQ format) NRCAN will reject the coefficients. '
+                'OTL coefficients record follows:\n' + self.otl_coeff)
 
         if not self.check_eop(self.file_summary):
             raise pyRunPPPExceptionEOPError('EOP returned NaN in Pole XYZ.')
@@ -550,7 +554,7 @@ class RunPPP(PPPSpatialCheck):
                 cmd = pyRunWithRetry.RunCommand(self.ppp, 45, self.rootdir, 'input.inp')
                 out, err = cmd.run_shell()
 
-                if not '*END - NORMAL COMPLETION' in out:
+                if '*END - NORMAL COMPLETION' not in out:
 
                     if 'Fortran runtime error: End of file' in err and i == 0:
                         # error detected, try again!
