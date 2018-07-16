@@ -204,10 +204,10 @@ def process_file(filepath, filename, destiny, source, StationCode, date):
 def download_ftp(fqdn, username, password, folder, destiny, filename):
 
     try:
+        tqdm.write('   -- Connecting to ' + fqdn)
+
         # connect to ftp
         ftp = ftplib.FTP(fqdn, username, password)
-
-        tqdm.write('   -- Connecting to ' + fqdn)
 
         if not os.path.exists(destiny):
             os.makedirs(destiny)

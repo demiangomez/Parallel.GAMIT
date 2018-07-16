@@ -2,11 +2,14 @@
 import os, re, subprocess, sys, pyDate, filecmp, argparse, numpy
 from datetime import datetime
 
+
 class UtilsException(Exception):
     def __init__(self, value):
         self.value = value
+        
     def __str__(self):
         return str(self.value)
+
 
 def required_length(nmin,nmax):
     class RequiredLength(argparse.Action):
@@ -17,6 +20,7 @@ def required_length(nmin,nmax):
                 raise argparse.ArgumentTypeError(msg)
             setattr(args, self.dest, values)
     return RequiredLength
+
 
 def parse_crinex_rinex_filename(filename):
     # parse a crinex filename
@@ -248,6 +252,42 @@ def rotlg2ct(lat, lon, n=1):
 
     return R
 
+
+def parseIntSet(nputstr=""):
+
+    selection = []
+    invalid = []
+    # tokens are comma seperated values
+    tokens = [x.strip() for x in nputstr.split(',')]
+    for i in tokens:
+        if len(i) > 0:
+            if i[:1] == "<":
+                i = "1-%s"%(i[1:])
+        try:
+            # typically tokens are plain old integers
+            selection.append(int(i))
+        except Exception:
+            # if not, then it might be a range
+            try:
+                token = [int(k.strip()) for k in i.split('-')]
+                if len(token) > 1:
+                    token.sort()
+                    # we have items seperated by a dash
+                    # try to build a valid range
+                    first = token[0]
+                    last = token[len(token)-1]
+                    for x in range(first, last+1):
+                        selection.append(x)
+            except:
+                # not an int and not a range...
+                invalid.append(i)
+    # Report invalid tokens before returning valid selection
+    if len(invalid) > 0:
+        print "Invalid set: " + str(invalid)
+        sys.exit(2)
+    return selection
+
+
 def ecef2lla(ecefArr):
     # convert ECEF coordinates to LLA
     # test data : test_coord = [2297292.91, 1016894.94, -5843939.62]
@@ -297,20 +337,22 @@ def process_date(arg, missing_input='fill', allow_days=True):
         for i, arg in enumerate(arg):
             try:
                 if '.' in arg:
-                    dates[i] = pyDate.Date(fyear=arg)
+                    dates[i] = pyDate.Date(fyear=float(arg))
                 elif '_' in arg:
-                    dates[i] = pyDate.Date(year=arg.split('_')[0], doy=arg.split('_')[1])
+                    dates[i] = pyDate.Date(year=int(arg.split('_')[0]), doy=int(arg.split('_')[1]))
                 elif '/' in arg:
-                    dates[i] = pyDate.Date(year=arg.split('/')[0], month=arg.split('/')[1], day=arg.split('/')[2])
+                    dates[i] = pyDate.Date(year=int(arg.split('/')[0]), month=int(arg.split('/')[1]), day=int(arg.split('/')[2]))
                 elif '-' in arg:
-                    dates[i] = pyDate.Date(gpsWeek=arg.split('-')[0], gpsWeekDay=arg.split('-')[1])
+                    dates[i] = pyDate.Date(gpsWeek=int(arg.split('-')[0]), gpsWeekDay=int(arg.split('-')[1]))
                 elif len(arg) > 0:
                     if allow_days and i == 0:
                         dates[i] = pyDate.Date(datetime=datetime.now()) - int(arg)
                     else:
                         raise ValueError('Invalid input date: allow_days was set to False.')
             except Exception as e:
-                raise ValueError('Could not decode input date (valid entries: fyear, yyyy_ddd, yyyy/mm/dd, gpswk-wkday). Error while reading the date start/end parameters: ' + str(e))
+                raise ValueError('Could not decode input date (valid entries: '
+                                 'fyear, yyyy_ddd, yyyy/mm/dd, gpswk-wkday). '
+                                 'Error while reading the date start/end parameters: ' + str(e))
 
     return tuple(dates)
 
@@ -498,6 +540,7 @@ def human_readable_time(secs):
         
     return time,unit
 
+
 def fix_gps_week(file_path):
     
     # example:  g017321.snx.gz --> g0107321.snx.gz
@@ -520,10 +563,8 @@ def fix_gps_week(file_path):
     # reconstruct file path
     return  os.path.join(path,file_name+file_ext);
     
+    
 if __name__ == '__main__':
     
     file = '/some/path/g0107321.snx.gz';
     print file, fix_gps_week(file)
-    
-    
-        

@@ -14,23 +14,14 @@
   </component>
   <component name="FileEditorManager">
     <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
-      <file leaf-file-name="pyStack.py" pinned="false" current-in-tab="false">
+      <file leaf-file-name="pyStack.py" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/pyStack.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="2850">
+            <state relative-caret-position="105">
               <caret line="202" column="51" selection-start-line="202" selection-start-column="51" selection-end-line="202" selection-end-column="51" />
               <folding>
                 <element signature="e#82#101#0" expanded="true" />
               </folding>
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file leaf-file-name="pyPlotETM.py" pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/../classes/pyPlotETM.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="1350">
-              <caret line="98" column="24" selection-start-line="98" selection-start-column="24" selection-end-line="98" selection-end-column="24" />
             </state>
           </provider>
         </entry>
@@ -43,33 +34,6 @@
               <folding>
                 <element signature="e#81#99#0" expanded="true" />
               </folding>
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file leaf-file-name="pyDRA.py" pinned="false" current-in-tab="true">
-        <entry file="file://$PROJECT_DIR$/pyDRA.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="-570">
-              <caret line="22" column="26" lean-forward="true" selection-start-line="22" selection-start-column="26" selection-end-line="22" selection-end-column="26" />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file leaf-file-name="pyIntegrityCheck.py" pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/../classes/pyIntegrityCheck.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="11505">
-              <caret line="787" column="30" selection-start-line="787" selection-start-column="30" selection-end-line="787" selection-end-column="30" />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file leaf-file-name="pyScanArchive.py" pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/../classes/pyScanArchive.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="7650">
-              <caret line="539" column="39" lean-forward="true" selection-start-line="539" selection-start-column="39" selection-end-line="539" selection-end-column="39" />
             </state>
           </provider>
         </entry>
@@ -142,7 +106,7 @@
       </list>
     </option>
   </component>
-  <component name="ProjectFrameBounds" extendedState="7">
+  <component name="ProjectFrameBounds" extendedState="6">
     <option name="y" value="25" />
     <option name="width" value="1920" />
     <option name="height" value="1006" />
@@ -152,7 +116,6 @@
       <foldersAlwaysOnTop value="true" />
     </navigator>
     <panes>
-      <pane id="Scope" />
       <pane id="ProjectPane">
         <subPane>
           <expand>
@@ -174,10 +137,11 @@
           <select />
         </subPane>
       </pane>
+      <pane id="Scope" />
     </panes>
   </component>
   <component name="PropertiesComponent">
-    <property name="last_opened_file_path" value="$PROJECT_DIR$/../classes" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$/../parallel_gamit_v2" />
     <property name="settings.editor.selected.configurable" value="preferences.fileTypes" />
   </component>
   <component name="RecentsManager">
@@ -260,19 +224,19 @@
     <servers />
   </component>
   <component name="ToolWindowManager">
-    <frame x="0" y="25" width="1920" height="1006" extended-state="7" />
+    <frame x="0" y="25" width="1920" height="1006" extended-state="6" />
     <editor active="true" />
     <layout>
-      <window_info content_ui="combo" id="Project" order="0" sideWeight="0.4948605" visible="true" weight="0.1444386" />
+      <window_info content_ui="combo" id="Project" order="0" sideWeight="0.4904552" visible="true" weight="0.1444386" />
       <window_info anchor="bottom" id="TODO" order="6" />
       <window_info anchor="bottom" id="Event Log" order="7" sideWeight="0.5002636" side_tool="true" weight="0.33485714" />
-      <window_info anchor="bottom" id="Run" order="2" />
       <window_info anchor="bottom" id="Version Control" order="8" show_stripe_button="false" />
       <window_info active="true" anchor="bottom" id="Python Console" order="9" visible="true" weight="0.22171429" />
-      <window_info id="Structure" order="1" sideWeight="0.5051395" side_tool="true" visible="true" weight="0.1444386" />
+      <window_info anchor="bottom" id="Run" order="2" />
+      <window_info id="Structure" order="1" sideWeight="0.5095448" side_tool="true" visible="true" weight="0.1444386" />
       <window_info anchor="bottom" id="Terminal" order="10" weight="0.32914287" />
-      <window_info anchor="bottom" id="Debug" order="3" sideWeight="0.49973643" weight="0.33485714" />
       <window_info anchor="bottom" id="Favorites" order="11" side_tool="true" weight="0.32914287" />
+      <window_info anchor="bottom" id="Debug" order="3" sideWeight="0.49973643" weight="0.33485714" />
       <window_info anchor="right" content_ui="combo" id="Hierarchy" order="2" weight="0.25" />
       <window_info anchor="right" id="Commander" internal_type="SLIDING" order="0" type="SLIDING" weight="0.4" />
       <window_info anchor="right" id="Ant Build" order="1" weight="0.25" />
@@ -298,6 +262,26 @@
     </breakpoint-manager>
   </component>
   <component name="editorHistoryManager">
+    <entry file="file://$PROJECT_DIR$/../classes/pyScanArchive.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="7650">
+          <caret line="539" column="39" lean-forward="true" selection-start-line="539" selection-start-column="39" selection-end-line="539" selection-end-column="39" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pyStack_wo_jobserver.py">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pyDRA.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="330">
+          <caret line="22" column="26" lean-forward="true" selection-start-line="22" selection-start-column="26" selection-end-line="22" selection-end-column="26" />
+          <folding>
+            <element signature="e#82#101#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
     <entry file="file://$PROJECT_DIR$/pyStack.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="2850">
@@ -553,13 +537,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/../classes/pyIntegrityCheck.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="11505">
-          <caret line="787" column="30" selection-start-line="787" selection-start-column="30" selection-end-line="787" selection-end-column="30" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/../classes/pyEvents.py">
       <provider selected="true" editor-type-id="text-editor" />
     </entry>
@@ -604,7 +581,7 @@
     <entry file="file://$PROJECT_DIR$/../classes/pyScanArchive.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="7650">
-          <caret line="539" column="39" lean-forward="true" selection-start-line="539" selection-start-column="39" selection-end-line="539" selection-end-column="39" />
+          <caret line="539" column="39" selection-start-line="539" selection-start-column="39" selection-end-line="539" selection-end-column="39" />
         </state>
       </provider>
     </entry>
@@ -625,20 +602,26 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/pyStack.py">
+    <entry file="file://$PROJECT_DIR$/../classes/pyIntegrityCheck.py">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pyDRA.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="2850">
-          <caret line="202" column="51" selection-start-line="202" selection-start-column="51" selection-end-line="202" selection-end-column="51" />
+        <state relative-caret-position="4440">
+          <caret line="296" column="30" selection-start-line="296" selection-start-column="30" selection-end-line="296" selection-end-column="30" />
           <folding>
             <element signature="e#82#101#0" expanded="true" />
           </folding>
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/pyDRA.py">
+    <entry file="file://$PROJECT_DIR$/pyStack.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-570">
-          <caret line="22" column="26" lean-forward="true" selection-start-line="22" selection-start-column="26" selection-end-line="22" selection-end-column="26" />
+        <state relative-caret-position="105">
+          <caret line="202" column="51" selection-start-line="202" selection-start-column="51" selection-end-line="202" selection-end-column="51" />
+          <folding>
+            <element signature="e#82#101#0" expanded="true" />
+          </folding>
         </state>
       </provider>
     </entry>

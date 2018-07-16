@@ -23,13 +23,16 @@ from Utils import print_columns
 NET_LIMIT    = 40
 MIN_CORE_NET = 10
 
+
 class NetworkException(Exception):
     def __init__(self, value):
         self.value = value
+
     def __str__(self):
         return str(self.value)
 
-class NetClass():
+
+class NetClass(object):
 
     def __init__(self, cnn, name, stations, year, doys, core=None):
         # the purpose of core is to avoid adding a station to a subnet that is already in the core
@@ -68,7 +71,7 @@ class NetClass():
         return
 
 
-class Network():
+class Network(object):
 
     def __init__(self, cnn, NetworkConfig, year, doys):
 
@@ -165,8 +168,9 @@ class Network():
         for stn in self.Core.Stations:
             # check that this station exists and that we have data for the day
             rs = cnn.query(
-                'SELECT * FROM rinex WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "ObservationYear" = %s AND "ObservationDOY" = %i' % (
-                stn.NetworkCode, stn.StationCode, date.yyyy(), int(date.doy)))
+                'SELECT * FROM rinex WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND '
+                '"ObservationYear" = %s AND "ObservationDOY" = %i'
+                % (stn.NetworkCode, stn.StationCode, date.yyyy(), int(date.doy)))
 
             if rs.ntuples() > 0:
                 # do not create instance if we don't have a rinex
@@ -176,7 +180,6 @@ class Network():
                     Core_missing_data.append({'NetworkCode': stn.NetworkCode, 'StationCode': stn.StationCode, 'date': date})
             else:
                 Core_missing_data.append({'NetworkCode': stn.NetworkCode, 'StationCode': stn.StationCode, 'date': date})
-
 
         # now instantiate the secondary stations
         SecondaryStationInstances = []
@@ -197,9 +200,7 @@ class Network():
             else:
                 Secondary_missing_data.append({'NetworkCode': stn.NetworkCode, 'StationCode': stn.StationCode, 'date': date})
 
-
         MissingData = Core_missing_data + Secondary_missing_data
-
 
         # now we can study the size of this potential session
         if len(SecondaryStationInstances + CoreStationInstances) <= NET_LIMIT:
@@ -249,9 +250,15 @@ class Network():
                 for Subnet in SubnetInstances:
                     Subnet += CoreStationInstances
 
-            # return the list of GamitSessions
-            return [GamitSession(self.Name + '.' + GamitConfig.gamitopt['org'] + str(i).rjust(2,'0'), date, GamitConfig, Subnet, ready) for i,Subnet in enumerate(SubnetInstances)], MissingData
+            # DDG: for very large projects, a lot of memory is consumed by the ETMs
+            # kill the etm objects to release some memory
+            for Subnet in SubnetInstances:
+                for station in Subnet:
+                    del station.Station.etm
 
+            # return the list of GamitSessions
+            return [GamitSession(self.Name + '.' + GamitConfig.gamitopt['org'] + str(i).rjust(2, '0'), date,
+                                 GamitConfig, Subnet, ready) for i, Subnet in enumerate(SubnetInstances)], MissingData
 
     def check_subnets_ready(self, pwds, StationInstances):
 

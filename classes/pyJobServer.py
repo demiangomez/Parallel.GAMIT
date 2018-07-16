@@ -114,7 +114,8 @@ def test_node(check_gamit_tables=None):
         return ' -- %s: Problem while testing the sp3 orbits archive (%s) access:\n%s' % (platform.node(), Config.sp3_path, traceback.format_exc())
 
     # check that all executables and GAMIT bins are in the path
-    list_of_prgs = ['crz2rnx', 'crx2rnx', 'rnx2crx', 'rnx2crz', 'RinSum', 'teqc', 'svdiff', 'svpos', 'tform', 'sh_rx2apr', 'doy', 'RinEdit']
+    list_of_prgs = ['crz2rnx', 'crx2rnx', 'rnx2crx', 'rnx2crz', 'RinSum', 'teqc', 'svdiff', 'svpos', 'tform',
+                    'sh_rx2apr', 'doy', 'RinEdit', 'sed']
 
     for prg in list_of_prgs:
         with pyRunWithRetry.command('which ' + prg) as run:
@@ -217,6 +218,7 @@ class JobServer:
         self.process_callback = False
         self.jobs = 0
         self.MAX_JOBS = max_jobs
+        self.workers = 0
 
         # test the local node
         print " ==== Starting JobServer(pp) ===="
@@ -229,7 +231,7 @@ class JobServer:
 
         print result
 
-        if not 'Test passed!' in result:
+        if 'Test passed!' not in result:
             print ' >> The local node did not pass all the required tests. Check messages.'
             exit()
 
@@ -240,13 +242,18 @@ class JobServer:
                 ppservers = ('*',)
             else:
                 # use the provided explicit list of nodes
-                ppservers = tuple(Config.options['node_list'].split(','))
+                if Config.options['node_list'].strip() == '':
+                    ppservers = tuple()
+                else:
+                    ppservers = filter(None, tuple(Config.options['node_list'].split(',')))
 
             # limit execution on the local machine to 'cpus'
             if Config.options['cpus'] is None:
-                self.job_server = pp.Server(ncpus=Utils.get_processor_count(), ppservers=ppservers) # type: pp.Server
+                self.job_server = pp.Server(ncpus=Utils.get_processor_count(), ppservers=ppservers,
+                                            socket_timeout=7200)  # type: pp.Server
             else:
-                self.job_server = pp.Server(ncpus=int(Config.options['cpus']), ppservers=ppservers) # type: pp.Server
+                self.job_server = pp.Server(ncpus=int(Config.options['cpus']), ppservers=ppservers,
+                                            socket_timeout=7200)  # type: pp.Server
 
             # sleep to allow the nodes to respond to the TCP request
             time.sleep(2)
@@ -270,7 +277,7 @@ class JobServer:
                     result = rworker.receive()
                     result, sout = pickle.loads(result)
 
-                    if not 'Test passed!' in result:
+                    if 'Test passed!' not in result:
                         stop = True
                     # print the messages
                     print result
@@ -290,7 +297,9 @@ class JobServer:
                 print " -- IP/Name               CPUs"
                 for node in nodes:
                     print "    %-21s %i" % (node, nodes[node])
+                    self.workers += nodes[node]
                 print ""
+
         else:
             self.job_server = None
 
@@ -299,7 +308,7 @@ class JobServer:
         self.jobs += 1
         callback_list.append(callback_obj)
 
-        self.job_server.submit(funcs,args,depfuncs,modules,getattr(callback_list[-1], callback_func_name))
+        self.job_server.submit(funcs, args, depfuncs, modules, getattr(callback_list[-1], callback_func_name))
 
         if self.jobs >= self.MAX_JOBS:
             self.jobs = 0

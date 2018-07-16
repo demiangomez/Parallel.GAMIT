@@ -22,7 +22,8 @@ from math import ceil
 import argparse
 import glob
 import pyJobServer
-
+from time import sleep
+from pyGamitTask import *
 
 def parseIntSet(nputstr=""):
 
@@ -379,7 +380,11 @@ def ExecuteGlobk(cnn, GamitConfig, Project, year, doys, Sessions):
 
 def ExecuteGamit(Config, Sessions, JobServer):
 
+    global submitted
+
     def update_gamit_progress_bar(result):
+        global submitted
+
         gamit_pbar.update(1)
 
         if result['NRMS'] > 0.5:
@@ -408,10 +413,15 @@ def ExecuteGamit(Config, Sessions, JobServer):
         else:
             tqdm.write(' -- Done processing: ' + result['Session'] + ' -> Failed to complete. Check monitor.log')
 
+        # subtract one from the counter
+        submitted -= 1
+
     gamit_pbar = tqdm(total=len([GamitSession for GamitSession in Sessions if not GamitSession.ready]),
                       desc=' >> GAMIT sessions completion', ncols=100)  # type: tqdm
 
     tqdm.write(' >> Initializing %i GAMIT sessions' % (len(Sessions)))
+
+    submitted = 0
 
     for GamitSession in Sessions:
 
@@ -420,15 +430,20 @@ def ExecuteGamit(Config, Sessions, JobServer):
 
                 GamitSession.initialize()
 
-                Task = pyGamitTask.GamitTask(GamitSession.remote_pwd, GamitSession.params, GamitSession.solution_pwd)
-
-                GamitSession.GamitTask = Task
+                self = initialize(GamitSession.remote_pwd, GamitSession.params, GamitSession.solution_pwd)
 
                 # do not submit the task if the session is ready!
-                JobServer.job_server.submit(Task.start, args=(),
-                                    modules=('pyRinex', 'datetime', 'os', 'shutil', 'pyBrdc', 'pySp3', 'subprocess',
-                                             're', 'pyETM', 'glob', 'platform', 'traceback'),
-                                    callback=update_gamit_progress_bar)
+                #JobServer.job_server.submit(start, args=(self,), depfuncs=(window_rinex, create_replace_links, create_run_script, create_finish_script, finish),
+                #                    modules=('pyRinex', 'datetime', 'os', 'shutil', 'pyBrdc', 'pySp3', 'subprocess',
+                #                             're', 'glob', 'platform', 'traceback', 'pyBunch'),
+                #                    callback=update_gamit_progress_bar)
+
+                submitted += 1
+                tqdm.write(' >> initialized %s' % GamitSession.NetName)
+
+                while submitted >= JobServer.workers + 3:
+                    # number of jobs active workers + 3 (to give some margin)
+                    sleep(5)
             else:
                 tqdm.write(' -- Session already processed: ' + GamitSession.NetName + ' ' + GamitSession.date.yyyyddd())
 
