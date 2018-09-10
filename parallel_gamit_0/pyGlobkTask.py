@@ -9,16 +9,13 @@ import glob
 import subprocess
 import snxParse
 
-
 class GlobkException(Exception):
     def __init__(self, value):
         self.value = value
-
     def __str__(self):
         return repr(self.value)
 
-
-class Globk(object):
+class Globk():
 
     def __init__(self, pwd_comb, date, Sessions):
 
@@ -41,11 +38,11 @@ class Globk(object):
         self.linktables(date.yyyy(), Sessions[0].GamitOpts['eop_type'])
         self.create_combination_script(date, Sessions[0].GamitOpts['org'])
 
-    def linktables(self, year, eop_type):
+    def linktables(self,year,eop_type):
 
         try:
             link_tables = open(os.path.join(self.pwd_comb, 'link_tables.sh'),'w')
-        except Exception:
+        except:
             raise GlobkException('could not open file link_tables.sh')
 
         # link the apr file as the lfile.
@@ -111,9 +108,8 @@ class Globk(object):
         echo " out_glb ../file.GLX"                                                 >> globk.cmd
         echo " in_pmu pmu.usno"                                                     >> globk.cmd
         echo " descript Daily combination of global and regional solutions"         >> globk.cmd
-        echo "# activate for global network merge"                                  >> globk.cmd
-        echo "# apr_wob    10 10  10 10 "                                           >> globk.cmd
-        echo "# apr_ut1    10 10        "                                           >> globk.cmd
+        echo " apr_wob    10 10  10 10 "                                            >> globk.cmd
+        echo " apr_ut1    10 10        "                                            >> globk.cmd
         echo " max_chii  1. 0.6"                                                    >> globk.cmd
         echo " apr_svs all 0.05 0.05 0.05 0.005 0.005 0.005 0.01 0.01 0.00 0.01 FR" >> globk.cmd
         echo " apr_neu  all       00.3   00.3   00.3   0 0 0"                       >> globk.cmd
@@ -187,7 +183,7 @@ class Globk(object):
         # all done
         run_file.close()
 
-        # add executable permissions
+        # add executable premissions
         os.system('chmod +x '+run_file_path)
 
         return
@@ -207,7 +203,7 @@ class Globk(object):
                 for StationInstance in GamitSession.StationInstances:
                     # replace the key
                     try:
-                        self.polyhedron[StationInstance.NetworkCode + '.' + StationInstance.StationCode] = self.polyhedron.pop(StationInstance.StationAlias.upper())
+                        self.polyhedron[StationInstance.Station.NetworkCode + '.' + StationInstance.Station.StationCode] = self.polyhedron.pop(StationInstance.Station.StationAlias.upper())
                     except KeyError:
                         # maybe the station didn't have a solution
                         pass

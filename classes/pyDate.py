@@ -407,13 +407,21 @@ class Date():
     def datetime(self):
         return datetime(year=self.year, month=self.month, day=self.day, hour=self.hour, minute=self.minute, second=self.second)
 
-    def first_epoch(self):
-        return datetime(year=self.year, month=self.month, day=self.day, hour=0, minute=0, second=0).strftime(
-            '%Y-%m-%d %H:%M:%S')
+    def first_epoch(self, out_format='datetime'):
+        if out_format == 'datetime':
+            return datetime(year=self.year, month=self.month, day=self.day, hour=0, minute=0, second=0).strftime(
+                '%Y-%m-%d %H:%M:%S')
+        else:
+            _, fyear = date2doy(self.year, self.month, self.day, 0, 0, 0)
+            return fyear
 
-    def last_epoch(self):
-        return datetime(year=self.year, month=self.month, day=self.day, hour=23, minute=59, second=59).strftime(
-            '%Y-%m-%d %H:%M:%S')
+    def last_epoch(self, out_format='datetime'):
+        if out_format == 'datetime':
+            return datetime(year=self.year, month=self.month, day=self.day, hour=23, minute=59, second=59).strftime(
+                '%Y-%m-%d %H:%M:%S')
+        else:
+            _, fyear = date2doy(self.year, self.month, self.day, 23, 59, 59)
+            return fyear
 
 def main(argv):
 

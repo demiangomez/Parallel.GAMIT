@@ -108,15 +108,18 @@ class mergedSinexStationData():
         else:
             print      
 
-class snxFileParser:
+
+class snxFileParser(object):
     
-    def __init__(self,snxFilePath = None):
+    def __init__(self, snxFilePath = None):
         
         self.snxFilePath = snxFilePath
         self.snxFileName = os.path.basename(snxFilePath)
         self.stationDict = dict()
         self.orgName     = None 
         self.varianceFactor = 1
+        self.observations = 0
+        self.unknowns = 0
         
         # iter protocol shit
         self.iterIndx = 0
@@ -188,7 +191,11 @@ class snxFileParser:
             #
             #
             varianceFactorPattern = re.compile('^ VARIANCE FACTOR\s+([\d+]?\.\d+)$')
-            
+
+            observationsPattern = re.compile('^ NUMBER OF OBSERVATIONS\s+(\d+)$')
+
+            unknownsPattern = re.compile('^ NUMBER OF UNKNOWNS\s+(\d+)$')
+
             # Make pattern to look for solution estimate start tag
             startSolutionEstimatePattern = re.compile('^\+SOLUTION\/ESTIMATE.*')
             
@@ -218,7 +225,11 @@ class snxFileParser:
             for line in snxFileHandle:
                 
                 varianceFactorMatch = varianceFactorPattern.findall(line)
-                
+
+                observationsMatch = observationsPattern.findall(line)
+
+                unknownsMatch = unknownsPattern.findall(line)
+
                 siteIdStartMatch = siteIdStartPattern.findall(line)
                 siteIdEndMatch   = siteIdEndPattern.findall(line)
                 
@@ -255,7 +266,13 @@ class snxFileParser:
 
                 if varianceFactorMatch:
                     self.varianceFactor = float(varianceFactorMatch[0])                    
-                
+
+                if unknownsMatch:
+                    self.unknowns = float(unknownsMatch[0])
+
+                if observationsMatch:
+                    self.observations = float(observationsMatch[0])
+
                 if inSiteIdSection:
                     
                     # parse the siteID line

@@ -15,7 +15,7 @@ import pyEvents
 from zlib import crc32
 from Utils import ct2lg
 from Utils import lg2ct
-from Utils import rotct2lg
+from Utils import rotlg2ct
 from os.path import getmtime
 from itertools import repeat
 from pyBunch import Bunch
@@ -23,7 +23,20 @@ from pprint import pprint
 import traceback
 import warnings
 import sys
-import time
+from time import time
+
+
+def tic():
+
+    global tt
+    tt = time()
+
+
+def toc(text):
+
+    global tt
+    print text + ': ' + str(time() - tt)
+
 
 LIMIT = 2.5
 
@@ -39,6 +52,11 @@ JP_MIN_DAYS = 5
 DEFAULT_RELAXATION = np.array([0.5])
 DEFAULT_POL_TERMS = 2
 DEFAULT_FREQUENCIES = np.array((1/365.25, 1/(365.25/2)))  # (1 yr, 6 months) expressed in 1/days (one year = 365.25)
+
+SIGMA_FLOOR_H = 0.10
+SIGMA_FLOOR_V = 0.15
+
+VERSION = '1.0.0'
 
 
 class pyETMException(Exception):
@@ -120,6 +138,9 @@ class PppSoln:
             self.lat = np.array([float(stn['lat'])])
             self.lon = np.array([float(stn['lon'])])
             self.height = np.array([float(stn['height'])])
+            self.auto_x = np.array([float(stn['auto_x'])])
+            self.auto_y = np.array([float(stn['auto_y'])])
+            self.auto_z = np.array([float(stn['auto_z'])])
 
             x = np.array([float(stn['auto_x'])])
             y = np.array([float(stn['auto_y'])])
@@ -220,6 +241,9 @@ class GamitSoln:
             self.lat = np.array([float(stn['lat'])])
             self.lon = np.array([float(stn['lon'])])
             self.height = np.array([stn['height']])
+            self.auto_x = np.array([float(stn['auto_x'])])
+            self.auto_y = np.array([float(stn['auto_y'])])
+            self.auto_z = np.array([float(stn['auto_z'])])
 
             if stn['max_dist'] is not None:
                 self.max_dist = stn['max_dist']
@@ -233,7 +257,7 @@ class GamitSoln:
             self.ts_blu = np.array([])
 
             if self.solutions >= 1:
-                a = np.array(polyhedrons)
+                a = np.array(polyhedrons, dtype=float)
 
                 if np.sqrt(np.square(np.sum(np.square(a[0, 0:3])))) > 6.3e3:
                     # coordinates given in XYZ
@@ -260,7 +284,7 @@ class GamitSoln:
                     dd = np.sqrt(np.square(np.sum(
                         np.square(a[:, 0:3] - np.array([stn['auto_x'], stn['auto_y'], stn['auto_z']])), axis=1)))
 
-                    raise pyETMException('No viable PPP solutions available for %s.%s (all blunders!)\n'
+                    raise pyETMException('No viable GAMIT solutions available for %s.%s (all blunders!)\n'
                                          '  -> min distance to station coordinate is %.1f meters'
                                          % (NetworkCode, StationCode, dd.min()))
             else:
@@ -345,6 +369,7 @@ class JumpTable:
                         self.table.append(jump)
 
     def get_design_ts(self, t):
+        # if function call NOT for inversion, return the columns even if the design matrix is unstable
 
         A = np.array([])
 
@@ -376,7 +401,7 @@ class JumpTable:
         for jump in self.table:
             jump.load_parameters(params=params, sigmas=sigmas)
 
-    def print_parameters(self, lat, lon):
+    def print_parameters(self):
 
         output_n = ['Year     Relx    [mm]']
         output_e = ['Year     Relx    [mm]']
@@ -392,20 +417,18 @@ class JumpTable:
                 for j, p in enumerate(np.arange(jump.param_count)):
                     psc = jump.p.params[:, p]
 
-                    jn, je, ju = ct2lg(psc[0], psc[1], psc[2], lat, lon)
-
                     if j == 0 and jump.p.jump_type in (GENERIC_JUMP, CO_SEISMIC_JUMP_DECAY):
-                        output_n.append('{}      {:>7.1f}'.format(jump.date.yyyyddd(), jn[0] * 1000.0))
-                        output_e.append('{}      {:>7.1f}'.format(jump.date.yyyyddd(), je[0] * 1000.0))
-                        output_u.append('{}      {:>7.1f}'.format(jump.date.yyyyddd(), ju[0] * 1000.0))
+                        output_n.append('{}      {:>7.1f}'.format(jump.date.yyyyddd(), psc[0] * 1000.0))
+                        output_e.append('{}      {:>7.1f}'.format(jump.date.yyyyddd(), psc[1] * 1000.0))
+                        output_u.append('{}      {:>7.1f}'.format(jump.date.yyyyddd(), psc[2] * 1000.0))
                     else:
 
                         output_n.append('{} {:4.2f} {:>7.1f}'.format(jump.date.yyyyddd(), jump.p.relaxation[rx],
-                                                                          jn[0] * 1000.0))
+                                                                     psc[0] * 1000.0))
                         output_e.append('{} {:4.2f} {:>7.1f}'.format(jump.date.yyyyddd(), jump.p.relaxation[rx],
-                                                                          je[0] * 1000.0))
+                                                                     psc[1] * 1000.0))
                         output_u.append('{} {:4.2f} {:>7.1f}'.format(jump.date.yyyyddd(), jump.p.relaxation[rx],
-                                                                          ju[0] * 1000.0))
+                                                                     psc[2] * 1000.0))
                         # relaxation counter
                         rx += 1
 
@@ -723,9 +746,9 @@ class Earthquakes:
             # build the earthquake jump table
             # remove event events that happened the same day
 
-            eq_jumps = list(set((float(eq[2]), pyDate.Date(year=int(eq[3]), month=int(eq[4]), day=int(eq[5]),
-                                                           hour=int(eq[6]), minute=int(eq[7]), second=int(eq[8])))
-                                for eq in eq[m > 0, :]))
+            eq_jumps = list(set((float(eqs[2]), pyDate.Date(year=int(eqs[3]), month=int(eqs[4]), day=int(eqs[5]),
+                                                            hour=int(eqs[6]), minute=int(eqs[7]), second=int(eqs[8])))
+                                for eqs in eq[m > 0, :]))
 
             eq_jumps.sort(key=lambda x: (x[1], x[0]))
 
@@ -980,7 +1003,7 @@ class Periodic(EtmFunction):
 
         return A
 
-    def print_parameters(self, lat, lon):
+    def print_parameters(self):
 
         n = np.array([])
         e = np.array([])
@@ -989,7 +1012,9 @@ class Periodic(EtmFunction):
         for p in np.arange(self.param_count):
             psc = self.p.params[:, p]
 
-            sn, se, su = ct2lg(psc[0], psc[1], psc[2], lat, lon)
+            sn = psc[0]
+            se = psc[1]
+            su = psc[2]
 
             n = np.append(n, sn)
             e = np.append(e, se)
@@ -1053,16 +1078,22 @@ class Polynomial(EtmFunction):
 
         self.p.t_ref = t_ref
 
-    def print_parameters(self, lat, lon):
+    def print_parameters(self, ref_xyz, lat, lon):
 
-        params = np.array([])
+        params = np.zeros((3, 1))
 
         for p in np.arange(self.terms):
             if p == 0:
-                params = self.p.params[:, 0]
+                params[0], params[1], params[2] = lg2ct(self.p.params[0, 0],
+                                                        self.p.params[1, 0],
+                                                        self.p.params[2, 0], lat, lon)
+                params += ref_xyz
 
             elif p > 0:
-                n, e, u = ct2lg(self.p.params[0, p], self.p.params[1, p], self.p.params[2, p], lat, lon)
+                n = self.p.params[0, p]
+                e = self.p.params[1, p]
+                u = self.p.params[2, p]
+
                 params = np.append(params, (n*1000, e*1000, u*1000))
 
         return self.format_str.format(*params.tolist())
@@ -1206,7 +1237,7 @@ class ETM:
                                FitEarthquakes, FitGenericJumps)
         # calculate the hash value for this station
         # now hash also includes the timestamp of the last time pyETM was modified.
-        self.hash = soln.hash + crc32(str(getmtime(__file__)))
+        self.hash = soln.hash + crc32(VERSION)
 
         # anything less than four is not worth it
         if soln.solutions > 4 and not no_model:
@@ -1229,7 +1260,6 @@ class ETM:
         r = []
         p = []
         factor = []
-        cov = np.zeros((3, 1))
 
         if self.A is not None:
             # try to load the last ETM solution from the database
@@ -1281,9 +1311,6 @@ class ETM:
                 # save the parameters in each object to the db
                 self.save_parameters(cnn)
 
-            # save the covariance between X-Y, Y-Z, X-Z to transform to NEU later
-            f = self.F[0] * self.F[1] * self.F[2]
-
             # load the covariances using the correlations
             self.process_covariance()
 
@@ -1294,7 +1321,7 @@ class ETM:
 
         cov = np.zeros((3, 1))
 
-        # save the covariance between N-E, E-U, N-U to transform to NEU later
+        # save the covariance between N-E, E-U, N-U
         f = self.F[0] * self.F[1] * self.F[2]
 
         # load the covariances using the correlations
@@ -1335,9 +1362,9 @@ class ETM:
 
         import matplotlib.pyplot as plt
 
+        L = self.l * 1000
+
         # definitions
-        L = [self.soln.x, self.soln.y, self.soln.z]
-        p = []
         m = []
         if ecef:
             labels = ('X [mm]', 'Y [mm]', 'Z [mm]')
@@ -1347,26 +1374,18 @@ class ETM:
         # get filtered observations
         if self.A is not None:
             filt = self.F[0] * self.F[1] * self.F[2]
+
+            for i in range(3):
+                m.append((np.dot(self.As, self.C[i])) * 1000)
+
         else:
-            filt = None
-
-        # find the mean of the observations
-        for i in range(3):
-            if filt is not None:
-                p.append(np.mean(L[i][filt]))
-                # calculate the modeled ts and remove mean (in mm)
-                m.append((np.dot(self.As, self.C[i]) - p[i])*1000)
-            else:
-                p.append(np.mean(L[i]))
-
-        # get geocentric difference w.r.t. the mean in mm
-        L = [(self.soln.x - p[0])*1000, (self.soln.y - p[1])*1000, (self.soln.z - p[2])*1000]
+            filt = np.ones(self.soln.x.shape[0], dtype=bool)
 
         # rotate to NEU
         if ecef:
-            lneu = L
+            lneu = self.rotate_2xyz(L)
         else:
-            lneu = self.rotate_2neu(L)
+            lneu = L
 
         # determine the window of the plot, if requested
         if t_win is not None:
@@ -1377,8 +1396,6 @@ class ETM:
             else:
                 # approximate a day in fyear
                 t_win = (self.soln.t.max() - t_win/365.25, self.soln.t.max())
-        #else:
-        #    t_win = (self.soln.t.min(), self.soln.t.max())
 
         # new behaviour: plots the time series even if there is no ETM fit
 
@@ -1388,30 +1405,29 @@ class ETM:
             f, axis = plt.subplots(nrows=3, ncols=2, sharex=True, figsize=(15, 10))  # type: plt.subplots
 
             # rotate modeled ts
-            if ecef:
+            if not ecef:
                 mneu = m
                 rneu = self.R
                 fneu = self.factor * 1000
-                stdneu = np.array((np.std(self.R[0][self.F[0]]), np.std(self.R[1][self.F[1]]),
-                                   np.std(self.R[2][self.F[2]]))) * 1000
             else:
-                mneu = self.rotate_2neu(m)
+                mneu = self.rotate_2xyz(m)
                 # rotate residuals
-                rneu = self.rotate_2neu(self.R)
+                rneu = self.rotate_2xyz(self.R)
                 fneu = np.sqrt(np.diag(self.rotate_sig_cov(covar=self.covar))) * 1000
 
             # ################# FILTERED PLOT #################
 
             f.suptitle('Station: %s.%s lat: %.5f lon: %.5f\n'
                        '%s completion: %.2f%%\n%s\n%s\n'
-                       'NEU rms [mm]: %5.2f %5.2f %5.2f' %
+                       'NEU wrms [mm]: %5.2f %5.2f %5.2f' %
                        (self.NetworkCode, self.StationCode, self.soln.lat, self.soln.lon, self.soln.type.upper(),
                         self.soln.completion,
-                        self.Linear.print_parameters(self.soln.lat, self.soln.lon),
-                        self.Periodic.print_parameters(self.soln.lat, self.soln.lon),
+                        self.Linear.print_parameters(np.array([self.soln.auto_x, self.soln.auto_y, self.soln.auto_z]),
+                                                     self.soln.lat, self.soln.lon),
+                        self.Periodic.print_parameters(),
                         fneu[0], fneu[1], fneu[2]), fontsize=9, family='monospace')
 
-            table_n, table_e, table_u = self.Jumps.print_parameters(self.soln.lat, self.soln.lon)
+            table_n, table_e, table_u = self.Jumps.print_parameters()
             tables = (table_n, table_e, table_u)
 
             for i, ax in enumerate((axis[0][0], axis[1][0], axis[2][0])):
@@ -1492,6 +1508,7 @@ class ETM:
 
         if not pngfile:
             plt.show()
+            plt.close()
         else:
             plt.savefig(pngfile)
             plt.close()
@@ -1502,7 +1519,7 @@ class ETM:
         import matplotlib.mlab as mlab
         from scipy.stats import norm
 
-        L = [self.soln.x, self.soln.y, self.soln.z]
+        L = self.l * 1000
 
         if self.A is not None:
 
@@ -1598,12 +1615,17 @@ class ETM:
         # convert the ETM adjustment into a dirtionary
         # optionally, output the whole time series as well
 
+        L = self.l
+
         # start with the parameters
         etm = dict()
         etm['Network'] = self.NetworkCode
         etm['Station'] = self.StationCode
         etm['lat'] = self.soln.lat[0]
         etm['lon'] = self.soln.lon[0]
+        etm['ref_x'] = self.soln.auto_x[0]
+        etm['ref_y'] = self.soln.auto_y[0]
+        etm['ref_z'] = self.soln.auto_z[0]
         etm['Jumps'] = [to_list(jump.p.toDict()) for jump in self.Jumps.table]
 
         if self.A is not None:
@@ -1612,11 +1634,11 @@ class ETM:
 
             etm['Periodic'] = to_list(self.Periodic.p.toDict())
 
-            etm['rms'] = {'x': self.factor[0], 'y': self.factor[1], 'z': self.factor[2]}
+            etm['wrms'] = {'n': self.factor[0], 'e': self.factor[1], 'u': self.factor[2]}
 
-            etm['xyz_covariance'] = self.covar.tolist()
+            etm['xyz_covariance'] = self.rotate_sig_cov(covar=self.covar).tolist()
 
-            etm['neu_covariance'] = self.rotate_sig_cov(covar=self.covar).tolist()
+            etm['neu_covariance'] = self.covar.tolist()
 
         if time_series:
             ts = dict()
@@ -1624,6 +1646,9 @@ class ETM:
             ts['x'] = self.soln.x.tolist()
             ts['y'] = self.soln.y.tolist()
             ts['z'] = self.soln.z.tolist()
+            ts['n'] = L[0].tolist()
+            ts['e'] = L[1].tolist()
+            ts['u'] = L[2].tolist()
 
             if self.A is not None:
                 ts['filter'] = np.logical_and(np.logical_and(self.F[0], self.F[1]), self.F[2]).tolist()
@@ -1634,7 +1659,7 @@ class ETM:
 
         return etm
 
-    def get_xyz_s(self, year, doy, jmp=None):
+    def get_xyz_s(self, year, doy, jmp=None, sigma_h=SIGMA_FLOOR_H, sigma_v=SIGMA_FLOOR_V):
         # this function find the requested epochs and returns an X Y Z and sigmas
         # jmp = 'pre' returns the coordinate immediately before a jump
         # jmp = 'post' returns the coordinate immediately after a jump
@@ -1654,7 +1679,7 @@ class ETM:
                             jmp = 'post'
                         else:
                             jmp = 'pre'
-                    # now use what it was determined
+                    # use the previous or next date to get the APR
                     if jmp == 'pre':
                         date -= 1
                     else:
@@ -1663,73 +1688,61 @@ class ETM:
         index = np.where(self.soln.mjd == date.mjd)
         index = index[0]
 
-        s = np.zeros((3, 1))
-        x = np.zeros((3, 1))
+        neu = np.zeros((3, 1))
 
-        dneu = [None, None, None]
-        source = '?'
-        if index.size:
-            l = [self.soln.x, self.soln.y, self.soln.z]
+        L = self.L
+        ref_pos = np.array([self.soln.auto_x, self.soln.auto_y, self.soln.auto_z])
 
+        if index.size and self.A is not None:
             # found a valid epoch in the t vector
             # now see if this epoch was filtered
+            if np.all(self.F[:, index]):
+                # the coordinate is good
+                xyz = L[:, index]
+                sig = self.R[:, index]
+                source = 'PPP with ETM solution: good'
+
+            else:
+                # the coordinate is marked as bad
+                # get the requested epoch from the ETM
+                idt = np.argmin(np.abs(self.soln.ts - date.fyear))
+
+                for i in range(3):
+                    neu[i] = np.dot(self.As[idt, :], self.C[i])
+
+                xyz = self.rotate_2xyz(neu) + ref_pos
+                # Use the deviation from the ETM multiplied by 2.5 to estimate the error
+                sig = 2.5 * self.R[:, index]
+                source = 'PPP with ETM solution: filtered'
+
+        elif not index.size and self.A is not None:
+
+            # the coordinate doesn't exist, get it from the ETM
+            idt = np.argmin(np.abs(self.soln.ts - date.fyear))
+            source = 'No PPP solution: ETM'
+
             for i in range(3):
-                if self.A is not None:
-                    if self.F[i][index]:
-                        # the coordinate is good
-                        if np.abs(self.R[i][index]) >= 0.005:
-                            # do not allow uncertainties lower than 5 mm (it's just unrealistic)
-                            s[i, 0] = self.R[i][index]
-                        else:
-                            s[i, 0] = 0.005
+                neu[i] = np.dot(self.As[idt, :], self.C[i])
 
-                        x[i, 0] = l[i][index]
-                        source = 'PPP with ETM solution: good'
-                    else:
-                        # the coordinate is marked as bad
-                        # get the requested epoch from the ETM
-                        idt = np.argmin(np.abs(self.soln.ts - date.fyear))
+            xyz = self.rotate_2xyz(neu) + ref_pos
+            # since there is no way to estimate the error,
+            # use the nominal sigma multiplied by 2.5
+            sig = 2.5 * self.factor[:, np.newaxis]
 
-                        Ax = np.dot(self.As[idt, :], self.C[i])
-                        x[i, 0] = Ax
-                        # Use the deviation from the ETM to estimate the error (which will be multiplied by 2.5 later)
-                        s[i, 0] = l[i][index] - Ax
-                        source = 'PPP with ETM solution: filtered'
-                else:
-                    # no ETM (too few points), but we have a solution for the requested day
-                    x[i, 0] = l[i][index]
-                    dneu[i] = 9.99
-                    source = 'PPP no ETM solution'
+        elif index.size and self.A is None:
+
+            # no ETM (too few points), but we have a solution for the requested day
+            xyz = L[:, index]
+            # set the uncertainties in NEU by hand
+            sig = np.array([[9.99], [9.99], [9.99]])
+            source = 'PPP solution, no ETM'
 
         else:
-            if self.A is not None:
-                # the coordinate doesn't exist, get it from the ETM
-                idt = np.argmin(np.abs(self.soln.ts - date.fyear))
-                As = self.As[idt, :]
-                source = 'No PPP solution: ETM'
-
-                for i in range(3):
-                    x[i, 0] = np.dot(As, self.C[i])
-                    # since there is no way to estimate the error,
-                    # use the nominal sigma (which will be multiplied by 2.5 later)
-                    s[i, 0] = np.std(self.R[i][self.F[i]])
-                    dneu[i] = 9.99
-            else:
-                # no ETM (too few points), get average
-                source = 'No PPP solution, no ETM: mean coordinate'
-                for i in range(3):
-                    if i == 0:
-                        x[i, 0] = np.mean(self.soln.x)
-                    elif i == 1:
-                        x[i, 0] = np.mean(self.soln.y)
-                    else:
-                        x[i, 0] = np.mean(self.soln.z)
-                    # set the uncertainties in NEU by hand
-                    dneu[i] = 9.99
-
-        # crude transformation from XYZ to NEU
-        if dneu[0] is None:
-            dneu = self.rotate_sig_cov(s)
+            # no ETM (too few points) and no solution for this day, get average
+            source = 'No PPP solution, no ETM: mean coordinate'
+            xyz = np.mean(L, axis=1)[:, np.newaxis]
+            # set the uncertainties in NEU by hand
+            sig = np.array([[9.99], [9.99], [9.99]])
 
         if self.A is not None:
             # get the velocity of the site
@@ -1739,38 +1752,27 @@ class ETM:
                 # fast moving station! bump up the sigma floor
                 sigma_h = 99.9
                 sigma_v = 99.9
-            else:
-                sigma_h = 0.1
-                sigma_v = 0.15
-        else:
-            # no ETM solution! bump up the sigma floor
-            sigma_h = 9.99
-            sigma_v = 9.99
+                source += '. fast moving station, bumping up sigmas'
 
-        oneu = np.zeros(3)
         # apply floor sigmas
-        oneu[0] = np.sqrt(np.square(dneu[0]) + np.square(sigma_h))
-        oneu[1] = np.sqrt(np.square(dneu[1]) + np.square(sigma_h))
-        oneu[2] = np.sqrt(np.square(dneu[2]) + np.square(sigma_v))
+        sig = np.sqrt(np.square(sig) + np.square(np.array([[sigma_h], [sigma_h], [sigma_v]])))
 
-        s = np.row_stack((oneu[0], oneu[1], oneu[2]))
-
-        return x, s, window, source
+        return xyz, sig, window, source
 
     def rotate_2neu(self, ecef):
 
-        return ct2lg(ecef[0], ecef[1], ecef[2], self.soln.lat, self.soln.lon)
+        return np.array(ct2lg(ecef[0], ecef[1], ecef[2], self.soln.lat, self.soln.lon))
 
     def rotate_2xyz(self, neu):
 
-        return lg2ct(neu[0], neu[1], neu[2], self.soln.lat, self.soln.lon)
+        return np.array(lg2ct(neu[0], neu[1], neu[2], self.soln.lat, self.soln.lon))
 
     def rotate_sig_cov(self, sigmas=None, covar=None):
 
         if sigmas is None and covar is None:
-            raise pyETMException('Error in rotate_sig_cov: must provide either simgas or covariance matrix')
+            raise pyETMException('Error in rotate_sig_cov: must provide either sigmas or covariance matrix')
 
-        R = rotct2lg(self.soln.lat, self.soln.lon)
+        R = rotlg2ct(self.soln.lat, self.soln.lon)
 
         if sigmas is not None:
             # build a covariance matrix based on sigmas
@@ -1888,7 +1890,7 @@ class ETM:
 
         for i in range(3):
 
-            residuals.append(l[i, :] - np.dot(self.A(constrains=False), x[i, :]))
+            residuals.append(l[i] - np.dot(self.A(constrains=False), x[i, :]))
 
             ss = np.abs(np.divide(residuals[i], factor[i]))
             index.append(ss <= LIMIT)
@@ -2023,13 +2025,22 @@ class PPPETM(ETM):
 
         # load all the PPP coordinates available for this station
         # exclude ppp solutions in the exclude table and any solution that is more than 100 meters from the auto coord
-        self.ppp_soln = PppSoln(cnn, NetworkCode, StationCode)
 
-        l = np.array([self.ppp_soln.x, self.ppp_soln.y, self.ppp_soln.z])
+        self.ppp_soln = PppSoln(cnn, NetworkCode, StationCode)
 
         ETM.__init__(self, cnn, self.ppp_soln, no_model)
 
-        self.run_adjustment(cnn, l, plotit)
+        # no offset applied
+        self.L = np.array([self.soln.x,
+                           self.soln.y,
+                           self.soln.z])
+
+        # reduced to x y z coordinate of the station
+        self.l = self.rotate_2neu(np.array([self.ppp_soln.x - self.ppp_soln.auto_x,
+                                            self.ppp_soln.y - self.ppp_soln.auto_y,
+                                            self.ppp_soln.z - self.ppp_soln.auto_z]))
+
+        self.run_adjustment(cnn, self.l, plotit)
 
 
 class GamitETM(ETM):
@@ -2052,39 +2063,55 @@ class GamitETM(ETM):
 
         ETM.__init__(self, cnn, self.gamit_soln, no_model)
 
-        l = np.array([self.gamit_soln.x, self.gamit_soln.y, self.gamit_soln.z])
+        # no offset applied
+        self.L = np.array([self.gamit_soln.x,
+                           self.gamit_soln.y,
+                           self.gamit_soln.z])
 
-        self.run_adjustment(cnn, l, plotit)
+        # reduced to x y z coordinate of the station
+        self.l = self.rotate_2neu(np.array([self.gamit_soln.x - self.gamit_soln.auto_x,
+                                            self.gamit_soln.y - self.gamit_soln.auto_y,
+                                            self.gamit_soln.z - self.gamit_soln.auto_z]))
 
-    def get_residuals_dict(self, project):
+        self.run_adjustment(cnn, self.l, plotit)
+
+    def get_residuals_dict(self, use_ppp_model=False, cnn=None):
         # this function return the values of the ETM ONLY
 
         dict_o = []
         if self.A is not None:
-            # find this epoch in the t vector
-            # negative to use with stacker
-            px = np.divide(1, np.sqrt(self.P[0]))
-            py = np.divide(1, np.sqrt(self.P[1]))
-            pz = np.divide(1, np.sqrt(self.P[2]))
 
-            # dict_o += [{'x': -x, 'y': -y, 'z': -z,
-            #             'sigmax': sigx, 'sigmay': sigy, 'sigmaz': sigz,
-            #             'NetworkCode': net, 'StationCode': stn, 'Year': year, 'DOY': doy, 'Project': prj}
-            #             for x, y, z, sigx, sigy, sigz, net, stn, year, doy, prj in
-            #                 zip(self.R[0].tolist(), self.R[1].tolist(), self.R[2].tolist(),
-            #                     px.tolist(), py.tolist(), pz.tolist(),
-            #                     repeat(self.NetworkCode), repeat(self.StationCode),
-            #                     [date.year for date in self.gamit_soln.date],
-            #                     [date.doy for date in self.gamit_soln.date],
-            #                     repeat(project))]
-            dict_o += [(net, stn, prj, -x, -y, -z, sigx, sigy, sigz, year, doy)
-                       for x, y, z, sigx, sigy, sigz, net, stn, year, doy, prj in
-                       zip(self.R[0].tolist(), self.R[1].tolist(), self.R[2].tolist(),
+            neu = []
+
+            if not use_ppp_model:
+                # get residuals from GAMIT solutions to GAMIT model
+                for i in range(3):
+                    neu.append(np.dot(self.A, self.C[i]))
+            else:
+                # get residuals from GAMIT solutions to PPP model
+                etm = PPPETM(cnn, self.NetworkCode, self.StationCode)
+                index = np.isin(etm.soln.ts, self.soln.t)
+                for i in range(3):
+                    # use the etm object to obtain the design matrix that matches the dimensions of self.soln.t
+                    neu.append(np.dot(etm.As[index, :], etm.C[i]))
+
+                del etm
+
+            xyz = self.rotate_2xyz(np.array(neu)) + np.array([self.soln.auto_x, self.soln.auto_y, self.soln.auto_z])
+
+            rxyz = xyz - self.L
+
+            px = np.ones(self.P[0].shape)
+            py = np.ones(self.P[1].shape)
+            pz = np.ones(self.P[2].shape)
+
+            dict_o += [(net, stn, x, y, z, sigx, sigy, sigz, year, doy)
+                       for x, y, z, sigx, sigy, sigz, net, stn, year, doy in
+                       zip(rxyz[0].tolist(), rxyz[1].tolist(), rxyz[2].tolist(),
                            px.tolist(), py.tolist(), pz.tolist(),
                            repeat(self.NetworkCode), repeat(self.StationCode),
                            [date.year for date in self.gamit_soln.date],
-                           [date.doy for date in self.gamit_soln.date],
-                           repeat(project))]
+                           [date.doy for date in self.gamit_soln.date])]
         else:
             raise pyETMException_NoDesignMatrix('No design matrix available for %s.%s' %
                                                    (self.NetworkCode, self.StationCode))
@@ -2112,39 +2139,42 @@ class DailyRep(ETM):
 
         ETM.__init__(self, cnn, self.gamit_soln, no_model, False, False, False)
 
-        l = np.array([self.gamit_soln.x, self.gamit_soln.y, self.gamit_soln.z])
+        # for repetitivities, vector with difference
+        self.l = self.rotate_2neu(np.array([self.gamit_soln.x,
+                                            self.gamit_soln.y,
+                                            self.gamit_soln.z]))
 
-        self.run_adjustment(cnn, l, plotit)
+        # for repetitivities, same vector for both
+        self.L = self.l
 
-    def get_residuals_dict(self, project):
+        self.run_adjustment(cnn, self.l, plotit)
+
+    def get_residuals_dict(self):
         # this function return the values of the ETM ONLY
 
         dict_o = []
         if self.A is not None:
-            # find this epoch in the t vector
-            # negative to use with stacker
-            px = np.divide(1, np.sqrt(self.P[0]))
-            py = np.divide(1, np.sqrt(self.P[1]))
-            pz = np.divide(1, np.sqrt(self.P[2]))
 
-            # dict_o += [{'x': -x, 'y': -y, 'z': -z,
-            #             'sigmax': sigx, 'sigmay': sigy, 'sigmaz': sigz,
-            #             'NetworkCode': net, 'StationCode': stn, 'Year': year, 'DOY': doy, 'Project': prj}
-            #             for x, y, z, sigx, sigy, sigz, net, stn, year, doy, prj in
-            #                 zip(self.R[0].tolist(), self.R[1].tolist(), self.R[2].tolist(),
-            #                     px.tolist(), py.tolist(), pz.tolist(),
-            #                     repeat(self.NetworkCode), repeat(self.StationCode),
-            #                     [date.year for date in self.gamit_soln.date],
-            #                     [date.doy for date in self.gamit_soln.date],
-            #                     repeat(project))]
-            dict_o += [(net, stn, prj, -x, -y, -z, sigx, sigy, sigz, year, doy)
-                       for x, y, z, sigx, sigy, sigz, net, stn, year, doy, prj in
-                       zip(self.R[0].tolist(), self.R[1].tolist(), self.R[2].tolist(),
+            neu = []
+
+            for i in range(3):
+                neu.append(np.dot(self.A, self.C[i]))
+
+            xyz = self.rotate_2xyz(np.array(neu)) + np.array([self.soln.auto_x, self.soln.auto_y, self.soln.auto_z])
+
+            rxyz = xyz - self.L
+
+            px = np.ones(self.P[0].shape)
+            py = np.ones(self.P[1].shape)
+            pz = np.ones(self.P[2].shape)
+
+            dict_o += [(net, stn, x, y, z, sigx, sigy, sigz, year, doy)
+                       for x, y, z, sigx, sigy, sigz, net, stn, year, doy in
+                       zip(rxyz[0].tolist(), rxyz[1].tolist(), rxyz[2].tolist(),
                            px.tolist(), py.tolist(), pz.tolist(),
                            repeat(self.NetworkCode), repeat(self.StationCode),
                            [date.year for date in self.gamit_soln.date],
-                           [date.doy for date in self.gamit_soln.date],
-                           repeat(project))]
+                           [date.doy for date in self.gamit_soln.date])]
         else:
             raise pyETMException_NoDesignMatrix('No design matrix available for %s.%s' %
                                                    (self.NetworkCode, self.StationCode))

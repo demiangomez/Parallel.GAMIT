@@ -85,7 +85,7 @@ def main():
                      pyDate.Date(year=datetime.now().year, month=datetime.now().month, day=datetime.now().day)]
 
         # go through the dates
-        drange = np.arange(dates[0].mjd, dates[1].mjd, 1)
+        drange = np.arange(dates[0].mjd, dates[1].mjd + 1, 1)
 
         download_data(cnn, Config, stnlist, drange)
 
@@ -165,8 +165,9 @@ def download_data(cnn, Config, stnlist, drange):
 def process_file(filepath, filename, destiny, source, StationCode, date):
     # post-process of data
 
+    temp_dir = os.path.join(destiny, 'temp')
+
     try:
-        temp_dir = os.path.join(destiny, 'temp')
 
         if os.path.isfile(filepath):
             if not os.path.isdir(temp_dir):
@@ -199,6 +200,16 @@ def process_file(filepath, filename, destiny, source, StationCode, date):
 
     except Exception as e:
         tqdm.write('   -- ERROR in process_file: %s' % (str(e)))
+
+        try:
+            if os.path.isdir(temp_dir):
+                rmtree(temp_dir)
+
+            if os.path.isfile(filepath):
+                os.remove(filepath)
+
+        except Exception as e:
+            tqdm.write('   -- ERROR in ERROR_HANDLER: %s' % (str(e)))
 
 
 def download_ftp(fqdn, username, password, folder, destiny, filename):
@@ -263,7 +274,7 @@ def download_sftp(fqdn, username, password, folder, destiny, filename):
         ftp_list = sftp.listdir()
 
         if filename in ftp_list:
-            sftp.get(filename,os.path.join(destiny, filename))
+            sftp.get(filename, os.path.join(destiny, filename))
         else:
             sftp.close()
             return False

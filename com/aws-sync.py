@@ -26,6 +26,19 @@ from datetime import datetime
 import shutil
 import string
 import random
+from time import time
+
+
+def tic():
+
+    global tt
+    tt = time()
+
+
+def toc(text):
+
+    global tt
+    print text + ': ' + str(time() - tt)
 
 
 class callback_class():
@@ -58,6 +71,7 @@ def rinex_task(NetworkCode, StationCode, date, ObservationFYear):
     cnn = dbConnection.Cnn('gnss_data.cfg')
 
     # create Archive object
+
     Archive = pyArchiveStruct.RinexStruct(cnn)  # type: pyArchiveStruct.RinexStruct
 
     ArchiveFile = Archive.build_rinex_path(NetworkCode, StationCode, date.year, date.doy)
@@ -100,7 +114,6 @@ def rinex_task(NetworkCode, StationCode, date, ObservationFYear):
     apr_tbl = cnn.query('SELECT * FROM apr_coords WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' '
                         'AND "Year" = %i AND "DOY" = %i' %
                         (NetworkCode, StationCode, date.year, date.doy))
-
     apr = apr_tbl.dictresult()
 
     if len(apr) > 0:
@@ -127,7 +140,7 @@ def rinex_task(NetworkCode, StationCode, date, ObservationFYear):
 
         # Use the argument 'ObservationFYear' to get the exact RINEX session fyear without opening the file
         rnx_date = pyDate.Date(fyear=float(ObservationFYear))
-        stninfo = pyStationInfo.StationInfo(cnn, NetworkCode, StationCode, rnx_date)
+        stninfo = pyStationInfo.StationInfo(cnn, NetworkCode, StationCode, rnx_date, h_tolerance=12)
 
     except pyStationInfo.pyStationInfoException:
         # if no metadata, warn user and continue
@@ -137,7 +150,6 @@ def rinex_task(NetworkCode, StationCode, date, ObservationFYear):
     aws_sync = cnn.query('SELECT * FROM aws_sync WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' '
                         'AND "Year" = %i AND "DOY" = %i' %
                         (NetworkCode, StationCode, date.year, date.doy)).dictresult()
-
     cnn.close()
 
     if len(aws_sync) == 0:
@@ -235,7 +247,7 @@ def main():
         date = pyDate.Date(year=int(dd.split('_')[0]), doy=int(dd.split('_')[1]))
     elif dd == 'all':
         # run all dates (1994 to 2018)
-        ts = range(pyDate.Date(year=1994, doy=1).mjd, pyDate.Date(year=2018, doy=87).mjd, 1)
+        ts = range(pyDate.Date(year=2004, doy=20).mjd, pyDate.Date(year=2018, doy=87).mjd, 1)
         ts = [pyDate.Date(mjd=tts) for tts in ts]
         for date in ts:
             print ' >> Processing ' + str(date)
@@ -289,7 +301,6 @@ def id_generator(size=4, chars=string.ascii_lowercase + string.digits):
 
 def pull_rinex(cnn, date, Config, JobServer):
 
-
     # before starting the sync, determine if there were any station code changes that will require file deletions in AWS
     # Join aws_sync with stations. If an entry in aws_sync has has no record in stations, station was renamed and needs
     # to be deleted. It will be resent in this run.
@@ -307,7 +318,10 @@ def pull_rinex(cnn, date, Config, JobServer):
             fid.write('rm %s/%s* # %s.%s not found in stations table with net.stn code declared in aws_sync\n'
                       % (date.yyyyddd().replace(' ', '/'), stn['StationAlias'], stn['NetworkCode'], stn['StationCode']))
 
-    # delete the records from aws_sync
+        # delete the records from aws_sync
+        cnn.query('DELETE FROM aws_sync WHERE "Year" = %i AND "DOY" = %i AND "NetworkCode" = \'%s\' AND '
+                  '"StationCode" = \'%s\''
+                  % (date.year, date.doy, stn['NetworkCode'], stn['StationCode']))
 
     # Join aws_sync with stationalias (stationalias is FK-ed to stations).
     # If an entry in aws_sync that has StationCode <> StationAlias has no record in stationalias OR
@@ -329,7 +343,10 @@ def pull_rinex(cnn, date, Config, JobServer):
             fid.write('rm %s/%s* # alias declared in aws_sync for %s.%s does not match alias in stationalias table\n'
                       % (date.yyyyddd().replace(' ', '/'), stn['StationAlias'], stn['NetworkCode'], stn['StationCode']))
 
-    # delete the records from aws_sync
+        # delete the records from aws_sync
+        cnn.query('DELETE FROM aws_sync WHERE "Year" = %i AND "DOY" = %i AND "NetworkCode" = \'%s\' AND '
+                  '"StationCode" = \'%s\''
+                  % (date.year, date.doy, stn['NetworkCode'], stn['StationCode']))
 
     # check the individual files for this day. All files reported as uploaded should have a match in the rinex_proc
     # table, otherwise this could be a station split or deletion. If that's the case, order their deletion from the AWS
@@ -350,7 +367,10 @@ def pull_rinex(cnn, date, Config, JobServer):
             fid.write('rm %s/%s* # rinex file for %s.%s could not be found in the rinex_proc table\n'
                       % (date.yyyyddd().replace(' ', '/'), stn['StationAlias'], stn['NetworkCode'], stn['StationCode']))
 
-    # delete the records from aws_sync
+        # delete the records from aws_sync
+        cnn.query('DELETE FROM aws_sync WHERE "Year" = %i AND "DOY" = %i AND "NetworkCode" = \'%s\' AND '
+                  '"StationCode" = \'%s\''
+                  % (date.year, date.doy, stn['NetworkCode'], stn['StationCode']))
 
     ####################################################################################################################
     # continue with sync of files

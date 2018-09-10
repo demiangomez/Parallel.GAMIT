@@ -9,13 +9,16 @@ import glob
 import subprocess
 import snxParse
 
+
 class GlobkException(Exception):
     def __init__(self, value):
         self.value = value
+
     def __str__(self):
         return repr(self.value)
 
-class Globk():
+
+class Globk(object):
 
     def __init__(self, pwd_comb, date, Sessions):
 
@@ -23,7 +26,10 @@ class Globk():
         self.VarianceFactor = None
         self.date           = date
         self.pwd_comb       = pwd_comb
-        self.Sessions       = Sessions # type: list
+        self.Sessions       = Sessions  # type: list
+        self.stdout = None
+        self.stderr = None
+        self.p = None
 
         # try to create the folder
         if not os.path.exists(pwd_comb):
@@ -38,11 +44,11 @@ class Globk():
         self.linktables(date.yyyy(), Sessions[0].GamitOpts['eop_type'])
         self.create_combination_script(date, Sessions[0].GamitOpts['org'])
 
-    def linktables(self,year,eop_type):
+    def linktables(self, year, eop_type):
 
         try:
             link_tables = open(os.path.join(self.pwd_comb, 'link_tables.sh'),'w')
-        except:
+        except Exception:
             raise GlobkException('could not open file link_tables.sh')
 
         # link the apr file as the lfile.
@@ -52,7 +58,7 @@ class Globk():
         sh_links.tables -frame J2000 -year %s -eop %s -topt none &> sh_links.out;
         # link the bulletin A
         ln -s ~/gg/tables/pmu.usno .
-        """ % (year,eop_type)
+        """ % (year, eop_type)
 
         link_tables.write(contents)
         link_tables.close()
@@ -64,7 +70,8 @@ class Globk():
     def execute(self):
 
         # loop through the folders and execute the script
-        self.p = subprocess.Popen('./globk.sh', shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=self.pwd_comb)
+        self.p = subprocess.Popen('./globk.sh', shell=False, stdout=subprocess.PIPE,
+                                  stderr=subprocess.PIPE, cwd=self.pwd_comb)
 
         self.stdout, self.stderr = self.p.communicate()
 
@@ -81,7 +88,7 @@ class Globk():
 
         try:
             run_file = open(run_file_path,'w')
-        except:
+        except Exception:
             raise GlobkException('could not open file '+run_file_path)
 
         contents = \
@@ -108,8 +115,9 @@ class Globk():
         echo " out_glb ../file.GLX"                                                 >> globk.cmd
         echo " in_pmu pmu.usno"                                                     >> globk.cmd
         echo " descript Daily combination of global and regional solutions"         >> globk.cmd
-        echo " apr_wob    10 10  10 10 "                                            >> globk.cmd
-        echo " apr_ut1    10 10        "                                            >> globk.cmd
+        echo "# activate for global network merge"                                  >> globk.cmd
+        echo "# apr_wob    10 10  10 10 "                                           >> globk.cmd
+        echo "# apr_ut1    10 10        "                                           >> globk.cmd
         echo " max_chii  1. 0.6"                                                    >> globk.cmd
         echo " apr_svs all 0.05 0.05 0.05 0.005 0.005 0.005 0.01 0.01 0.00 0.01 FR" >> globk.cmd
         echo " apr_neu  all       00.3   00.3   00.3   0 0 0"                       >> globk.cmd
@@ -183,7 +191,7 @@ class Globk():
         # all done
         run_file.close()
 
-        # add executable premissions
+        # add executable permissions
         os.system('chmod +x '+run_file_path)
 
         return
@@ -203,7 +211,9 @@ class Globk():
                 for StationInstance in GamitSession.StationInstances:
                     # replace the key
                     try:
-                        self.polyhedron[StationInstance.Station.NetworkCode + '.' + StationInstance.Station.StationCode] = self.polyhedron.pop(StationInstance.Station.StationAlias.upper())
+                        self.polyhedron[StationInstance.NetworkCode + '.' +
+                                        StationInstance.StationCode] = \
+                            self.polyhedron.pop(StationInstance.StationAlias.upper())
                     except KeyError:
                         # maybe the station didn't have a solution
                         pass

@@ -391,8 +391,9 @@ def process_stnlist(cnn, stnlist_in, print_summary=True):
     stnlist = []
 
     if len(stnlist_in) == 1 and stnlist_in[0] == 'all':
-       # all stations
-        rs = cnn.query('SELECT * FROM stations WHERE "NetworkCode" NOT LIKE \'?%%\' ORDER BY "NetworkCode", "StationCode"')
+        # all stations
+        rs = cnn.query('SELECT * FROM stations WHERE "NetworkCode" NOT LIKE \'?%%\' '
+                       'ORDER BY "NetworkCode", "StationCode"')
 
         for rstn in rs.dictresult():
             stnlist += [{'NetworkCode': rstn['NetworkCode'], 'StationCode': rstn['StationCode']}]
@@ -404,16 +405,21 @@ def process_stnlist(cnn, stnlist_in, print_summary=True):
                 # a net.stnm given
                 if stn.split('.')[1] == 'all':
                     # all stations from a network
-                    rs = cnn.query('SELECT * FROM stations WHERE "NetworkCode" = \'%s\' ORDER BY "NetworkCode", "StationCode"' % (stn.split('.')[0]))
+                    rs = cnn.query('SELECT * FROM stations WHERE "NetworkCode" = \'%s\' AND '
+                                   '"NetworkCode" NOT LIKE \'?%%\' ORDER BY "NetworkCode", "StationCode"'
+                                   % (stn.split('.')[0]))
 
                 else:
                     rs = cnn.query(
-                        'SELECT * FROM stations WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' ORDER BY "NetworkCode", "StationCode"' % (stn.split('.')[0], stn.split('.')[1]))
+                        'SELECT * FROM stations WHERE "NetworkCode" NOT LIKE \'?%%\' AND "NetworkCode" = \'%s\' '
+                        'AND "StationCode" = \'%s\' ORDER BY "NetworkCode", "StationCode"'
+                        % (stn.split('.')[0], stn.split('.')[1]))
 
             elif '.' not in stn and '-' not in stn:
                 # just a station name
                 rs = cnn.query(
-                    'SELECT * FROM stations WHERE "StationCode" = \'%s\' ORDER BY "NetworkCode", "StationCode"' % (stn))
+                    'SELECT * FROM stations WHERE "NetworkCode" NOT LIKE \'?%%\' AND '
+                    '"StationCode" = \'%s\' ORDER BY "NetworkCode", "StationCode"' % stn)
 
             if rs is not None:
                 for rstn in rs.dictresult():
@@ -421,7 +427,11 @@ def process_stnlist(cnn, stnlist_in, print_summary=True):
 
     # deal with station removals (-)
     for stn in [stn.replace('-', '') for stn in stnlist_in if '-' in stn]:
-        stnlist = [stnl for stnl in stnlist if stnl['NetworkCode'] + '.' + stnl['StationCode'] != stn.lower()]
+        # if netcode not given, remove everybody with that station code
+        if '.' in stn.lower():
+            stnlist = [stnl for stnl in stnlist if stnl['NetworkCode'] + '.' + stnl['StationCode'] != stn.lower()]
+        else:
+            stnlist = [stnl for stnl in stnlist if stnl['StationCode'] != stn.lower()]
 
     if print_summary:
         print ' >> Selected station list:'
@@ -466,6 +476,41 @@ def get_norm_doy_str(doy):
     elif len(doy) == 2:
         doy = "0"+doy
     return doy
+
+
+def parseIntSet(nputstr=""):
+
+    selection = []
+    invalid = []
+    # tokens are comma seperated values
+    tokens = [x.strip() for x in nputstr.split(',')]
+    for i in tokens:
+        if len(i) > 0:
+            if i[:1] == "<":
+                i = "1-%s"%(i[1:])
+        try:
+            # typically tokens are plain old integers
+            selection.append(int(i))
+        except Exception:
+            # if not, then it might be a range
+            try:
+                token = [int(k.strip()) for k in i.split('-')]
+                if len(token) > 1:
+                    token.sort()
+                    # we have items seperated by a dash
+                    # try to build a valid range
+                    first = token[0]
+                    last = token[len(token)-1]
+                    for x in range(first, last+1):
+                        selection.append(x)
+            except Exception:
+                # not an int and not a range...
+                invalid.append(i)
+    # Report invalid tokens before returning valid selection
+    if len(invalid) > 0:
+        print "Invalid set: " + str(invalid)
+        sys.exit(2)
+    return selection
 
 
 def parse_stnId(stnId):

@@ -7,16 +7,27 @@ Class that holds the station metadata needed to process in GAMIT
 """
 import pyStationInfo
 import pyETM
-import pyRinex
-import pyArchiveStruct
+import pyBunch
 import pyDate
 import random
 import string
 import os
 
-class Station():
+COMPLETION = 0.5
+INTERVAL = 120
 
-    def __init__(self, cnn, NetworkCode, StationCode):
+
+class pyStationException(Exception):
+    def __init__(self, value):
+        self.value = value
+
+    def __str__(self):
+        return str(self.value)
+
+
+class Station(object):
+
+    def __init__(self, cnn, NetworkCode, StationCode, dates):
 
         self.NetworkCode  = NetworkCode
         self.StationCode  = StationCode
@@ -32,80 +43,125 @@ class Station():
         self.Z            = None
         self.otl_H        = None
 
-        try:
-            rs = cnn.query('SELECT * FROM stations WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\''
-                           % (NetworkCode, StationCode))
+        rs = cnn.query_float('SELECT * FROM stations WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\''
+                             % (NetworkCode, StationCode), as_dict=True)
 
-            if rs.ntuples() != 0:
-                self.record = rs.dictresult() # type: dict
+        if len(rs) != 0:
+            self.record = pyBunch.Bunch().fromDict(rs[0])
 
-                self.lat = float(self.record[0]['lat'])
-                self.lon = float(self.record[0]['lon'])
-                self.height = float(self.record[0]['height'])
-                self.X      = float(self.record[0]['auto_x'])
-                self.Y      = float(self.record[0]['auto_y'])
-                self.Z      = float(self.record[0]['auto_z'])
-                self.otl_H  = self.record[0]['Harpos_coeff_otl']
+            self.otl_H = self.record.Harpos_coeff_otl
+            self.lat = self.record.lat
+            self.lon = self.record.lon
+            self.height = self.record.height
+            self.X = self.record.auto_x
+            self.Y = self.record.auto_y
+            self.Z = self.record.auto_z
 
-                self.etm = pyETM.PPPETM(cnn,NetworkCode,StationCode)  # type: pyETM.PPPETM
-                self.StationInfo = pyStationInfo.StationInfo(cnn, NetworkCode, StationCode)  # type: pyStationInfo.StationInfo
+            # get the available dates for the station (RINEX files with conditions to be processed)
+            rs = cnn.query(
+                'SELECT "ObservationYear" as y, "ObservationDOY" as d FROM rinex_proc '
+                'WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND '
+                '"ObservationSTime" >= \'%s\' AND "ObservationETime" <= \'%s\' AND '
+                '"Completion" >= %.3f AND "Interval" <= %i'
+                % (NetworkCode, StationCode, (dates[0] - 1).first_epoch(),
+                   (dates[1] + 1).last_epoch(), COMPLETION, INTERVAL))
 
-        except Exception:
-            raise
+            self.good_rinex = [pyDate.Date(year=r['y'], doy=r['d']) for r in rs.dictresult()
+                               if dates[0] <= pyDate.Date(year=r['y'], doy=r['d']) <= dates[1]]
 
-        return
+            # create a list of the missing days
+            good_rinex = [d.mjd for d in self.good_rinex]
 
-    def GenerateStationAlias(self):
+            self.missing_rinex = [pyDate.Date(mjd=d)
+                                  for d in range(dates[0].mjd, dates[1].mjd+1) if d not in good_rinex]
+
+            self.etm = pyETM.PPPETM(cnn, NetworkCode, StationCode)  # type: pyETM.PPPETM
+            self.StationInfo = pyStationInfo.StationInfo(cnn, NetworkCode, StationCode)
+        else:
+            raise ValueError('Specified station %s.%s could not be found' % (NetworkCode, StationCode))
+
+    def generate_alias(self):
         self.StationAlias = self.id_generator()
 
-    def id_generator(self, size=4, chars=string.ascii_lowercase + string.digits):
+    @staticmethod
+    def id_generator(size=4, chars=string.ascii_lowercase + string.digits):
         return ''.join(random.choice(chars) for _ in range(size))
 
-class StationInstance():
+    def __eq__(self, station):
 
-    def __init__(self, cnn, Station, date, Archive_path):
+        if not isinstance(station, Station):
+            raise pyStationException('type: '+str(type(station))+' invalid.  Can only compare pyStation.Station')
 
-        self.cnn          = cnn
-        self.Rinex        = None
-        self.Station      = Station # type: Station
-        self.StationInfo  = pyStationInfo.StationInfo(self.cnn, self.Station.NetworkCode, self.Station.StationCode, date) # type: pyStationInfo.StationInfo
-        self.date         = date # type: pyDate.Date
-        self.Archive_path = Archive_path
+        return self.NetworkCode == station.NetworkCode and self.StationCode == station.StationCode
+
+
+class StationInstance(object):
+
+    def __init__(self, cnn, archive, station, date, GamitConfig):
+
+        self.NetworkCode = station.NetworkCode
+        self.StationCode = station.StationCode
+        self.StationAlias = station.StationAlias
+        self.lat = station.record.lat
+        self.lon = station.record.lon
+        self.height = station.record.height
+        self.X = station.record.auto_x
+        self.Y = station.record.auto_y
+        self.Z = station.record.auto_z
+        self.otl_H = station.otl_H
+
+        # save the station information as text
+        self.StationInfo = pyStationInfo.StationInfo(cnn,
+                                                     station.NetworkCode, station.StationCode, date).return_stninfo()
+
+        self.date = date  # type: pyDate.Date
+        self.Archive_path = GamitConfig.archive_path
 
         # get the APR and sigmas for this date (let get_xyz_s determine which side of the jump returns, if any)
-        self.Apr, self.Sigmas, self.Window, self.source = self.Station.etm.get_xyz_s(self.date.year, self.date.doy)
+        self.Apr, self.Sigmas, \
+            self.Window, self.source = station.etm.get_xyz_s(self.date.year, self.date.doy,
+                                                             sigma_h=float(GamitConfig.gamitopt['sigma_floor_h']),
+                                                             sigma_v=float(GamitConfig.gamitopt['sigma_floor_v']))
 
-        return
+        # rinex file
+        self.ArchiveFile = archive.build_rinex_path(self.NetworkCode, self.StationCode,
+                                                    self.date.year, self.date.doy)
+
+        self.filename = self.StationAlias + self.date.ddd() + '0.' + self.date.yyyy()[2:4] + 'd.Z'
+
+        # save some information for debugging purposes
+        rs = cnn.query_float('SELECT * FROM ppp_soln WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND '
+                             '"Year" = %s AND "DOY" = %s'
+                             % (self.NetworkCode, self.StationCode, self.date.yyyy(), self.date.ddd()), as_dict=True)
+
+        if len(rs) > 0:
+            self.ppp = rs[0]
+        else:
+            self.ppp = None
 
     def GetRinexFilename(self):
 
-        self.Archive = pyArchiveStruct.RinexStruct(self.cnn) # type: pyArchiveStruct.RinexStruct
-        ArchiveFile = self.Archive.build_rinex_path(self.Station.NetworkCode, self.Station.StationCode, self.date.year, self.date.doy)
-
-        filename = self.Station.StationAlias + self.date.ddd() + '0.' + self.date.yyyy()[2:4] + 'd.Z'
-
-        return {'NetworkCode' : self.Station.NetworkCode,
-                'StationCode' : self.Station.StationCode,
-                'StationAlias': self.Station.StationAlias,
-                'source'      : os.path.join(self.Archive_path, ArchiveFile),
-                'destiny'     : filename,
-                'lat'         : self.Station.lat,
-                'lon'         : self.Station.lon,
-                'height'      : self.Station.height,
+        return {'NetworkCode' : self.NetworkCode,
+                'StationCode' : self.StationCode,
+                'StationAlias': self.StationAlias,
+                'source'      : os.path.join(self.Archive_path, self.ArchiveFile),
+                'destiny'     : self.filename,
+                'lat'         : self.lat,
+                'lon'         : self.lon,
+                'height'      : self.height,
                 'jump'        : self.Window}
-
 
     def GetApr(self):
         x = self.Apr
 
-        return ' ' + self.Station.StationAlias.upper() + '_GPS ' + '{:12.3f}'.format(x[0, 0]) + ' ' + '{:12.3f}'.format(
+        return ' ' + self.StationAlias.upper() + '_GPS ' + '{:12.3f}'.format(x[0, 0]) + ' ' + '{:12.3f}'.format(
             x[1, 0]) + ' ' + '{:12.3f}'.format(x[2, 0]) + ' 0.000 0.000 0.000 ' + '{:8.4f}'.format(
             self.date.fyear)
 
     def GetSittbl(self):
         s = self.Sigmas
 
-        return self.Station.StationAlias.upper() + ' ' + self.Station.StationAlias.upper() + '_GPS' + 'NNN'.rjust(8) + '    {:.5}'.format(
+        return self.StationAlias.upper() + ' ' + self.StationAlias.upper() + '_GPS' + 'NNN'.rjust(8) + '    {:.5}'.format(
             '%5.3f' % (s[0, 0])) + ' ' + '{:.5}'.format('%5.3f' % (s[1, 0])) + ' ' + '{:.5}'.format(
             '%5.3f' % (s[2, 0]))
 
@@ -113,26 +169,23 @@ class StationInstance():
         x = self.Apr
         s = self.Sigmas
 
-        rs = self.cnn.query('SELECT * FROM ppp_soln WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "Year" = %s AND "DOY" = %s' % (self.Station.NetworkCode,self.Station.StationCode, self.date.yyyy(), self.date.ddd()))
-
-        if rs.ntuples() > 0:
-            ppp = rs.dictresult()
+        if self.ppp is not None:
             return '%s %s_GPS %8.3f %8.3f %8.3f %14.3f %14.3f %14.3f %8.3f %8.3f %8.3f %8.4f %s' % \
-                   (self.Station.StationAlias.upper(), self.Station.StationAlias.upper(),
-                    float(ppp[0]['X']) - self.Station.X,
-                    float(ppp[0]['Y']) - self.Station.Y,
-                    float(ppp[0]['Z']) - self.Station.Z,
+                   (self.StationAlias.upper(), self.StationAlias.upper(),
+                    self.ppp['X'] - self.X,
+                    self.ppp['Y'] - self.Y,
+                    self.ppp['Z'] - self.Z,
                     x[0, 0], x[1, 0], x[2, 0],
                     s[0, 0], s[1, 0], s[2, 0],
                     self.date.fyear, self.source)
         else:
             return '%s %s_GPS %-26s %14.3f %14.3f %14.3f %8.3f %8.3f %8.3f %8.4f %s' % \
-                   (self.Station.StationAlias.upper(), self.Station.StationAlias.upper(), 'NO PPP COORDINATE',
+                   (self.StationAlias.upper(), self.StationAlias.upper(), 'NO PPP COORDINATE',
                     x[0, 0], x[1, 0], x[2, 0],
                     s[0, 0], s[1, 0], s[2, 0],
                     self.date.fyear, self.source)
 
     def GetStationInformation(self):
 
-        return self.StationInfo.return_stninfo().replace(self.Station.StationCode.upper(), self.Station.StationAlias.upper())
+        return self.StationInfo.replace(self.StationCode.upper(), self.StationAlias.upper())
 

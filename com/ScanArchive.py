@@ -486,7 +486,7 @@ def remove_from_archive(cnn, record, Rinex, Config):
     return
 
 
-def execute_ppp(record, rinex_path):
+def execute_ppp(record, rinex_path, h_tolerance):
 
     NetworkCode = record['NetworkCode']
     StationCode = record['StationCode']
@@ -551,7 +551,7 @@ def execute_ppp(record, rinex_path):
 
                     return
 
-                stninfo = pyStationInfo.StationInfo(cnn, NetworkCode, StationCode, Rinex.date)
+                stninfo = pyStationInfo.StationInfo(cnn, NetworkCode, StationCode, Rinex.date, h_tolerance=h_tolerance)
 
                 Rinex.normalize_header(stninfo, x=stn[0]['auto_x'], y=stn[0]['auto_y'], z=stn[0]['auto_z'])
 
@@ -875,7 +875,7 @@ def scan_station_info_manual(cnn, pyArchive, stn_info_path, stations, stn_info_n
 
     return
 
-def hash_check(cnn, master_list, sdate, edate, rehash=False):
+def hash_check(cnn, master_list, sdate, edate, rehash=False, h_tolerant=0):
 
     print " >> Running hash check to the PPP solutions..."
 
@@ -897,7 +897,8 @@ def hash_check(cnn, master_list, sdate, edate, rehash=False):
     for soln in tqdm(tbl,ncols=80):
         # load station info object
         try:
-            stninfo = pyStationInfo.StationInfo(cnn, soln['NetworkCode'], soln['StationCode'], pyDate.Date(year=soln['Year'],doy=soln['DOY']))
+            stninfo = pyStationInfo.StationInfo(cnn, soln['NetworkCode'], soln['StationCode'],
+                                                pyDate.Date(year=soln['Year'],doy=soln['DOY']), h_tolerance=h_tolerant)
 
             if stninfo.hash != soln['hash']:
                 if not rehash:
@@ -917,7 +918,7 @@ def hash_check(cnn, master_list, sdate, edate, rehash=False):
         print ' -- Done rehashing PPP records.'
 
 
-def process_ppp(cnn, pyArchive, archive_path, JobServer, run_parallel, master_list, sdate, edate):
+def process_ppp(cnn, pyArchive, archive_path, JobServer, run_parallel, master_list, sdate, edate, h_tolerance):
 
     print " >> Running PPP on the RINEX files in the archive..."
 
@@ -956,7 +957,7 @@ def process_ppp(cnn, pyArchive, archive_path, JobServer, run_parallel, master_li
 
             callback.append(callback_class(pbar))
 
-            arguments = (record, rinex_path)
+            arguments = (record, rinex_path, h_tolerance)
 
             JobServer.SubmitJob(execute_ppp, arguments, depfuncs, modules, callback, callback_class(pbar), 'callbackfunc')
 
@@ -967,7 +968,7 @@ def process_ppp(cnn, pyArchive, archive_path, JobServer, run_parallel, master_li
 
         else:
             callback.append(callback_class(pbar))
-            callback[0].callbackfunc(execute_ppp(record, rinex_path))
+            callback[0].callbackfunc(execute_ppp(record, rinex_path, h_tolerance))
             callback = output_handle(callback)
 
     if run_parallel:
@@ -1061,6 +1062,7 @@ def export_station(cnn, stnlist, pyArchive, archive_path):
     pbar1.close()
     print ""
 
+
 def import_station(files):
 
     files = glob.glob(files)
@@ -1071,6 +1073,31 @@ def import_station(files):
         # process each station file
         stn = json.load(file)
 
+
+def get_rinex_file(cnn, stnlist, date, Archive_path):
+
+    archive = pyArchiveStruct.RinexStruct(cnn)
+
+    print " >> Getting stations from db..."
+
+    for stn in tqdm(stnlist, ncols=80):
+
+        NetworkCode = stn['NetworkCode']
+        StationCode = stn['StationCode']
+
+        rinex = archive.build_rinex_path(NetworkCode, StationCode, date.year, date.doy)
+
+        if rinex is not None:
+            rinex = os.path.join(Archive_path, rinex)
+
+            with pyRinex.ReadRinex(NetworkCode, StationCode, rinex, False) as Rinex:  # type: pyRinex.ReadRinex
+
+                StationInfo = pyStationInfo.StationInfo(cnn, NetworkCode, StationCode, Rinex.date)
+
+                Rinex.normalize_header(StationInfo)
+                Rinex.compress_local_copyto('./')
+        else:
+            tqdm.write(" -- %s not found for %s.%s" % (date.yyyyddd(), NetworkCode, StationCode))
 
 def main():
 
@@ -1090,8 +1117,13 @@ def main():
                         "One file is created per station in the current directory")
     parser.add_argument('-import', '--import_station', nargs='+', metavar='{import json}',
                         help="Import a station from a file produced by another Parallel.GAMIT system. Wildcards are accepted to import multiple stations. Station list is ignored.")
+    parser.add_argument('-get', '--get_from_archive', nargs=1, metavar='{date}',
+                        help="Get the specified station from the archive and copy it to the current directory. Fix it "
+                             "to match the station information in the database.")
     parser.add_argument('-ppp', '--ppp', nargs='*', metavar='argument', help="Run ppp on the rinex files in the database. Append [date_start] and (optionally) [date_end] to limit the range of the processing. Allowed formats are yyyy_doy, wwww-d, fyear or yyyy/mm/dd. Append keyword 'hash' to the end to check the PPP hash values against the station information records. If hash doesn't match, recalculate the PPP solutions.")
     parser.add_argument('-rehash', '--rehash', nargs='*', metavar='argument', help="Check PPP hash against station information hash. Rehash PPP solutions to match the station information hash without recalculating the PPP solution. Optionally append [date_start] and (optionally) [date_end] to limit the rehashing time window. Allowed formats are yyyy.doy or yyyy/mm/dd.")
+    parser.add_argument('-tol', '--stninfo_tolerant', nargs=1, type=int, metavar='{hours}', default=[0],
+                        help="Specify a tolerance (in hours) for station information gaps (only use for early survey data). Default is zero.")
     parser.add_argument('-np', '--noparallel', action='store_true', help="Execute command without parallelization.")
 
     args = parser.parse_args()
@@ -1149,7 +1181,7 @@ def main():
         except ValueError as e:
             parser.error(str(e))
 
-        hash_check(cnn, stnlist, dates[0], dates[1], rehash=True)
+        hash_check(cnn, stnlist, dates[0], dates[1], rehash=True, h_tolerant=args.stninfo_tolerant[0])
 
     #########################################
 
@@ -1165,9 +1197,9 @@ def main():
             parser.error(str(e))
 
         if do_hash:
-            hash_check(cnn, stnlist, dates[0], dates[1], rehash=False)
+            hash_check(cnn, stnlist, dates[0], dates[1], rehash=False, h_tolerant=args.stninfo_tolerant[0])
 
-        process_ppp(cnn, pyArchive, Config.archive_path, JobServer, Config.run_parallel, stnlist, dates[0], dates[1])
+        process_ppp(cnn, pyArchive, Config.archive_path, JobServer, Config.run_parallel, stnlist, dates[0], dates[1], args.stninfo_tolerant[0])
 
     #########################################
 
@@ -1182,6 +1214,12 @@ def main():
         import_station(cnn, args.import_station)
 
     #########################################
+
+    if args.get_from_archive:
+
+        dates = process_date(args.get_from_archive)
+
+        get_rinex_file(cnn, stnlist, dates[0], Config.archive_path)
 
     # remove the production dir
     #if os.path.isdir('production'):

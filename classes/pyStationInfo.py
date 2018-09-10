@@ -166,13 +166,12 @@ class StationInfoRecord(object):
         return strDataStart, strDateEnd
 
 
-
-
-
-
 class StationInfo(StationInfoRecord):
-
-    def __init__(self, cnn, NetworkCode=None, StationCode=None, date=None, allow_empty=False):
+    """
+    New parameter: h_tolerance makes the station info more tolerant to gaps. This is because station info in the old
+    days had a break in the middle and the average epoch was falling right in between the gap
+    """
+    def __init__(self, cnn, NetworkCode=None, StationCode=None, date=None, allow_empty=False, h_tolerance=0):
 
         StationInfoRecord.__init__(self, NetworkCode, StationCode)
 
@@ -203,7 +202,8 @@ class StationInfo(StationInfoRecord):
                             else:
                                 DateStart = record['DateStart']
 
-                            if pDate >= DateStart:
+                            # make the gap-tolerant comparison
+                            if pDate >= DateStart - datetime.timedelta(hours=h_tolerance):
                                 self.load_data(record)
                                 self.currentrecord = record
                                 break
@@ -218,7 +218,9 @@ class StationInfo(StationInfoRecord):
                             else:
                                 DateEnd = record['DateEnd']
 
-                            if pDate >= DateStart and pDate <= DateEnd:
+                            # make the gap-tolerant comparison
+                            if DateStart - datetime.timedelta(hours=h_tolerance) <= pDate <= \
+                                    DateEnd + datetime.timedelta(hours=h_tolerance):
                                 self.load_data(record)
                                 self.currentrecord = record
                                 break

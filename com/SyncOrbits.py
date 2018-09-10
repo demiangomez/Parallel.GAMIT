@@ -75,7 +75,7 @@ def main():
                 folder = "/pub/gps/products/" + date.wwww() + repro
                 try:
                     ftp.cwd(folder)
-                except ftplib.error_perm:
+                except Exception:
                     # folder not present, skip
                     continue
 
@@ -89,20 +89,29 @@ def main():
 
                         if not os.path.isfile(os.path.join(sp3_archive, filename)) and filename in ftp_list:
                             tqdm.write('%-31s: %s' % (' -- trying to download ' + ext.replace('.Z', '').upper(), filename))
-                            ftp.retrbinary("RETR " + filename, open(os.path.join(sp3_archive, filename), 'wb').write)
+                            try:
+                                ftp.retrbinary("RETR " + filename, open(os.path.join(sp3_archive, filename), 'wb').write)
+                            except Exception:
+                                continue
 
                     # now the eop file
                     filename = orbit + date.wwww() + '7.erp.Z'
                     if not os.path.isfile(os.path.join(sp3_archive, filename)) and filename in ftp_list:
                         tqdm.write('%-31s: %s' % (' -- trying to download EOP', filename))
-                        ftp.retrbinary("RETR " + filename, open(os.path.join(sp3_archive, filename), 'wb').write)
+                        try:
+                            ftp.retrbinary("RETR " + filename, open(os.path.join(sp3_archive, filename), 'wb').write)
+                        except Exception:
+                            continue
 
             ###### now the brdc files #########
 
-            folder = "/pub/gps/data/daily/%s/%s/%sn" % (date.yyyy(), date.ddd(), date.yyyy()[2:])
-            tqdm.write(' -- Changing folder to ' + folder)
-            ftp.cwd(folder)
-            ftp_list = ftp.nlst()
+            try:
+                folder = "/pub/gps/data/daily/%s/%s/%sn" % (date.yyyy(), date.ddd(), date.yyyy()[2:])
+                tqdm.write(' -- Changing folder to ' + folder)
+                ftp.cwd(folder)
+                ftp_list = ftp.nlst()
+            except Exception:
+                continue
 
             brdc_archive = get_archive_path(Config.brdc_path, date)
 
@@ -113,10 +122,13 @@ def main():
 
             if not os.path.isfile(os.path.join(brdc_archive, filename)) and filename + '.Z' in ftp_list:
                 tqdm.write('%-31s: %s' % (' -- trying to download BRDC', filename))
-                ftp.retrbinary("RETR " + filename + '.Z', open(os.path.join(brdc_archive, filename + '.Z'), 'wb').write)
-                # decompress file
-                cmd = pyRunWithRetry.RunCommand('gunzip -f ' + os.path.join(brdc_archive, filename + '.Z'), 15)
-                cmd.run_shell()
+                try:
+                    ftp.retrbinary("RETR " + filename + '.Z', open(os.path.join(brdc_archive, filename + '.Z'), 'wb').write)
+                    # decompress file
+                    cmd = pyRunWithRetry.RunCommand('gunzip -f ' + os.path.join(brdc_archive, filename + '.Z'), 15)
+                    cmd.run_shell()
+                except Exception:
+                    continue
 
             pbar.set_postfix(gpsWeek='%i %i' % (date.gpsWeek, date.gpsWeekDay))
             pbar.update()

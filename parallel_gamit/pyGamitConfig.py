@@ -7,11 +7,14 @@ Author: Demian D. Gomez
 from pyOptions import ReadOptions
 import ConfigParser
 import os
+import pyBunch
 
 
 class pyGamitConfigException(Exception):
+
     def __init__(self, value):
         self.value = value
+
     def __str__(self):
         return str(self.value)
 
@@ -32,9 +35,10 @@ class GamitConfiguration(ReadOptions):
             self.gamitopt['process_defaults'] = None
             self.gamitopt['sestbl']           = None
             self.gamitopt['solutions_dir']    = None
-            self.gamitopt['atx']              = None
             self.gamitopt['max_cores']        = 1
             self.gamitopt['noftp']            = 'yes'
+            self.gamitopt['sigma_floor_h']    = 0.10
+            self.gamitopt['sigma_floor_v']    = 0.15
 
             self.NetworkConfig = None
 
@@ -45,7 +49,7 @@ class GamitConfiguration(ReadOptions):
         except Exception:
             raise
 
-    def load_session_config(self,session_config_file):
+    def load_session_config(self, session_config_file):
 
         try:
             # parse session config file
@@ -53,15 +57,18 @@ class GamitConfiguration(ReadOptions):
             config.readfp(open(session_config_file))
 
             # check that all required items are there and files exist
-            self.__check_config(config, session_config_file)
+            self.__check_config(config)
 
             # get gamit config items from session config file
-            for iconfig,val in dict(config.items('gamit')).iteritems():
+            for iconfig, val in dict(config.items('gamit')).iteritems():
                 self.gamitopt[iconfig] = val
 
-            self.NetworkConfig = dict(config.items('network'))
+            self.NetworkConfig = pyBunch.Bunch().fromDict(dict(config.items('network')))
 
-            self.gamitopt['gnss_data'] = config.get('Archive','gnss_data')
+            if 'type' not in self.NetworkConfig.keys():
+                raise ValueError('Network "type" must be specified in config file: use "regional" or "global"')
+
+            self.gamitopt['gnss_data'] = config.get('Archive', 'gnss_data')
             self.gamitopt['max_cores'] = int(self.gamitopt['max_cores'])
 
             # TO-DO: check that all the required parameters are present
@@ -71,26 +78,17 @@ class GamitConfiguration(ReadOptions):
         except ConfigParser.NoOptionError:
             raise
 
-    def __check_config(self, config, sess_config_file):
-        try:
-            item = config.get('gamit','process_defaults')
-            if not os.path.isfile(item):
-                raise pyGamitConfigException('process_defaults file '+item+' could not be found')
-        except:
-            raise
+    @staticmethod
+    def __check_config(config):
 
-        try:
-            item = config.get('gamit','sestbl')
-            if not os.path.isfile(item):
-                raise pyGamitConfigException('sestbl file '+item+' could not be found')
-        except:
-            raise
+        item = config.get('gamit', 'process_defaults')
+        if not os.path.isfile(item):
+            raise pyGamitConfigException('process_defaults file '+item+' could not be found')
 
-        try:
-            item = config.get('gamit','atx')
-            if not os.path.isfile(item):
-                raise pyGamitConfigException('atx file '+item+' could not be found')
-        except:
-            raise
+        item = config.get('gamit', 'sestbl')
+        if not os.path.isfile(item):
+            raise pyGamitConfigException('sestbl file '+item+' could not be found')
 
-        return
+        # item = config.get('gamit','atx')
+        # if not os.path.isfile(item):
+        #    raise pyGamitConfigException('atx file '+item+' could not be found')

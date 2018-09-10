@@ -11,7 +11,6 @@ from numpy import sin
 from numpy import cos
 from numpy import pi
 from scipy.stats import chi2
-from scipy.spatial.distance import mahalanobis
 import pyEvents
 from zlib import crc32
 from Utils import ct2lg
@@ -24,7 +23,20 @@ from pprint import pprint
 import traceback
 import warnings
 import sys
-import time
+from time import time
+
+
+def tic():
+
+    global tt
+    tt = time()
+
+
+def toc(text):
+
+    global tt
+    print text + ': ' + str(time() - tt)
+
 
 LIMIT = 2.5
 
@@ -1291,6 +1303,31 @@ class ETM:
             if plotit:
                 self.plot()
 
+    def process_covariance(self):
+
+        cov = np.zeros((3, 1))
+
+        # save the covariance between N-E, E-U, N-U to transform to NEU later
+        f = self.F[0] * self.F[1] * self.F[2]
+
+        # load the covariances using the correlations
+        cov[0] = np.corrcoef(self.R[0][f], self.R[1][f])[0, 1] * self.factor[0] * self.factor[1]
+        cov[1] = np.corrcoef(self.R[1][f], self.R[2][f])[0, 1] * self.factor[1] * self.factor[2]
+        cov[2] = np.corrcoef(self.R[0][f], self.R[2][f])[0, 1] * self.factor[0] * self.factor[2]
+
+        # build a variance-covariance matrix
+        self.covar = np.diag(np.square(self.factor))
+
+        self.covar[0, 1] = cov[0]
+        self.covar[1, 0] = cov[0]
+        self.covar[2, 1] = cov[1]
+        self.covar[1, 2] = cov[1]
+        self.covar[0, 2] = cov[2]
+        self.covar[2, 0] = cov[2]
+
+        if not self.isPD(self.covar):
+            self.covar = self.nearestPD(self.covar)
+
     def save_parameters(self, cnn):
 
         # insert linear parameters
@@ -1884,77 +1921,7 @@ class ETM:
         self.factor = factor
         self.P = np.array(p)
 
-    def process_covariance(self, R, F, factor):
-
-        cov = np.zeros((3, 1))
-
-        # save the covariance between N-E, E-U, N-U to transform to NEU later
-        f = F[0] * F[1] * F[2]
-
-        # load the covariances using the correlations
-        cov[0] = np.corrcoef(R[0][f], R[1][f])[0, 1] * factor[0] * factor[1]
-        cov[1] = np.corrcoef(R[1][f], R[2][f])[0, 1] * factor[1] * factor[2]
-        cov[2] = np.corrcoef(R[0][f], R[2][f])[0, 1] * factor[0] * factor[2]
-
-        # build a variance-covariance matrix
-        covar = np.diag(np.square(factor))
-
-        self.covar[0, 1] = cov[0]
-        self.covar[1, 0] = cov[0]
-        self.covar[2, 1] = cov[1]
-        self.covar[1, 2] = cov[1]
-        self.covar[0, 2] = cov[2]
-        self.covar[2, 0] = cov[2]
-
-        if not self.isPD(covar):
-            covar = self.nearestPD(covar)
-
-        return covar
-
-    def fit_model(self):
-
-        # constant vars
-        dof = (self.A.shape[0] - self.A.shape[1])
-        X1 = chi2.ppf(1 - 0.05 / 2, dof)
-        X2 = chi2.ppf(0.05 / 2, dof)
-
-        l = np.array([self.soln.x, self.soln.y, self.soln.z])
-
-        # first iteration has identity as weights
-        P = [self.A.get_p(constrains=True), self.A.get_p(constrains=True), self.A.get_p(constrains=True)]
-
-        cst_pass = [False, False, False]
-        residuals = np.zeros((self.A.shape[0], 3))
-        filt = np.zeros(self.A.shape[0], dtype=bool)
-        fact = np.zeros((1, 3))
-        x = [None, None, None]
-        s = [None, None, None]
-
-        iteration = 0
-
-        while not all(cst_pass) and iteration <= 10:
-            for i in range(3):
-
-                x[i], s[i], residuals[i], fact[i], P[i], cst_pass[i] = self.adjust_lsq(self.A, l[i], P[i], X1, X2)
-
-            # analyze outliers in NEU
-            neu = self.rotate_2neu(residuals)
-
-            # build the covariance matrix
-            covar = self.process_covariance(neu, filt, fact)
-
-            # analyze the Mahalanobis distance
-            d = mahalanobis(np.zeros(residuals.shape), residuals, np.invert(covar))
-
-            for i in range(3):
-                f = np.ones((residuals[i].shape[0],))
-                sw = np.power(10, LIMIT - d[d > LIMIT])
-                sw[sw < np.finfo(np.float).eps] = np.finfo(np.float).eps
-                f[s > LIMIT] = sw
-
-                P[i] = np.square(np.divide(f, fact[i]))
-
-    def adjust_lsq(self, Ai, Li, P, dof, X1, X2):
+    def adjust_lsq(self, Ai, Li):
 
         A = Ai(constrains=True)
         L = Ai.get_l(Li, constrains=True)
@@ -1963,9 +1930,15 @@ class ETM:
         iteration = 0
         factor = 1
         So = 1
+        dof = (Ai.shape[0] - Ai.shape[1])
+        X1 = chi2.ppf(1 - 0.05 / 2, dof)
+        X2 = chi2.ppf(0.05 / 2, dof)
 
+        s = np.array([])
         v = np.array([])
         C = np.array([])
+
+        P = Ai.get_p(constrains=True)
 
         while not cst_pass and iteration <= 10:
 
@@ -1993,9 +1966,18 @@ class ETM:
                 # if it falls in here it's because it didn't pass the Chi2 test
                 cst_pass = False
 
+                # reweigh by Mike's method of equal weight until 2 sigma
                 f = np.ones((v.shape[0], ))
+                # f[s > LIMIT] = 1. / (np.power(10, LIMIT - s[s > LIMIT]))
+                # do not allow sigmas > 100 m, which is basically not putting
+                # the observation in. Otherwise, due to a model problem
+                # (missing jump, etc) you end up with very unstable inversions
+                # f[f > 500] = 500
+                sw = np.power(10, LIMIT - s[s > LIMIT])
+                sw[sw < np.finfo(np.float).eps] = np.finfo(np.float).eps
+                f[s > LIMIT] = sw
 
-                P = np.square(np.divide(1, f * factor))
+                P = np.square(np.divide(f, factor))
             else:
                 cst_pass = True
 
@@ -2009,9 +1991,12 @@ class ETM:
 
         sigma = So*np.sqrt(np.diag(SS))
 
+        # mark observations with sigma <= LIMIT
+        index = Ai.remove_constrains(s <= LIMIT)
+
         v = Ai.remove_constrains(v)
 
-        return C, sigma, v, factor, P
+        return C, sigma, index, v, factor, P
 
     @staticmethod
     def chi2inv(chi, df):
@@ -2051,6 +2036,7 @@ class PPPETM(ETM):
 
         # load all the PPP coordinates available for this station
         # exclude ppp solutions in the exclude table and any solution that is more than 100 meters from the auto coord
+
         self.ppp_soln = PppSoln(cnn, NetworkCode, StationCode)
 
         l = np.array([self.ppp_soln.x, self.ppp_soln.y, self.ppp_soln.z])

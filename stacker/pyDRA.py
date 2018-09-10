@@ -17,7 +17,6 @@ import traceback
 from pprint import pprint
 import os
 import numpy as np
-from scipy.stats import chi2
 from Utils import process_date
 from Utils import ct2lg
 from Utils import ecef2lla
@@ -28,6 +27,10 @@ LIMIT = 2.5
 
 def adjust_lsq(A, L, P=None):
 
+    LIMIT = 2.5
+
+    from scipy.stats import chi2
+
     cst_pass = False
     iteration = 0
     factor = 1
@@ -36,58 +39,58 @@ def adjust_lsq(A, L, P=None):
     X1 = chi2.ppf(1 - 0.05 / 2, dof)
     X2 = chi2.ppf(0.05 / 2, dof)
 
-    s = np.array([])
-    v = np.array([])
-    C = np.array([])
+    s = numpy.array([])
+    v = numpy.array([])
+    C = numpy.array([])
 
     if P is None:
-        P = np.ones((A.shape[0]))
+        P = numpy.ones((A.shape[0]))
 
     while not cst_pass and iteration <= 10:
 
-        W = np.sqrt(P)
+        W = numpy.sqrt(P)
 
-        Aw = np.multiply(W[:, None], A)
-        Lw = np.multiply(W, L)
+        Aw = numpy.multiply(W[:, None], A)
+        Lw = numpy.multiply(W, L)
 
-        C = np.linalg.lstsq(Aw, Lw, rcond=-1)[0]
+        C = numpy.linalg.lstsq(Aw, Lw, rcond=-1)[0]
 
-        v = L - np.dot(A, C)
+        v = L - numpy.dot(A, C)
 
         # unit variance
-        So = np.sqrt(np.dot(v, np.multiply(P, v)) / dof)
+        So = numpy.sqrt(numpy.dot(v, numpy.multiply(P, v)) / dof)
 
-        x = np.power(So, 2) * dof
+        x = numpy.power(So, 2) * dof
 
         # obtain the overall uncertainty predicted by lsq
         factor = factor * So
 
         # calculate the normalized sigmas
 
-        s = np.abs(np.divide(v, factor))
+        s = numpy.abs(numpy.divide(v, factor))
 
         if x < X2 or x > X1:
             # if it falls in here it's because it didn't pass the Chi2 test
             cst_pass = False
 
             # reweigh by Mike's method of equal weight until 2 sigma
-            f = np.ones((v.shape[0],))
+            f = numpy.ones((v.shape[0],))
 
-            sw = np.power(10, LIMIT - s[s > LIMIT])
-            sw[sw < np.finfo(np.float).eps] = np.finfo(np.float).eps
+            sw = numpy.power(10, LIMIT - s[s > LIMIT])
+            sw[sw < numpy.finfo(numpy.float).eps] = numpy.finfo(numpy.float).eps
 
             f[s > LIMIT] = sw
 
-            P = np.square(np.divide(f, factor))
+            P = numpy.square(numpy.divide(f, factor))
         else:
             cst_pass = True
 
         iteration += 1
 
     # some statistics
-    SS = np.linalg.inv(np.dot(A.transpose(), np.multiply(P[:, None], A)))
+    SS = numpy.linalg.inv(numpy.dot(A.transpose(), numpy.multiply(P[:, None], A)))
 
-    sigma = So * np.sqrt(np.diag(SS))
+    sigma = So * numpy.sqrt(numpy.diag(SS))
 
     # mark observations with sigma <= LIMIT
     index = s <= LIMIT

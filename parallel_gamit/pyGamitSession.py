@@ -9,6 +9,8 @@ from shutil import copyfile
 from shutil import rmtree
 import pyGamitConfig
 import snxParse
+from pyStation import StationInstance
+from Utils import determine_frame
 
 
 class GamitSessionException(Exception):
@@ -21,26 +23,41 @@ class GamitSessionException(Exception):
 
 class GamitSession(object):
 
-    def __init__(self, Name, date, GamitConfig, StationInstances, ready=False):
+    def __init__(self, cnn, archive, name, date, GamitConfig, stations, core_stations, ready=False):
         """
 
         :param date: pyDate.Date
         :param GamitConfig: pyGamitConfig.GamitConfiguration
         :param NetIndex: index of station list in GamitConfig.Network.GetStationList()
         """
-        self.NetName          = Name
+        self.NetName          = name
         self.date             = date
         self.GamitOpts        = GamitConfig.gamitopt  # type: pyGamitConfig.GamitConfiguration().gamitopt
         self.Config           = GamitConfig           # type: pyGamitConfig.GamitConfiguration
-        self.StationInstances = StationInstances      # type: list
+        self.frame            = None
+
+        # core station dictionary
+        self.core_dict = [{'name': stn.NetworkCode + '.' + stn.StationCode, 'coords': [(stn.lon, stn.lat)]}
+                          for stn in core_stations]
+
+        # station dictionary
+        self.stations_dict = [{'name': stn.NetworkCode + '.' + stn.StationCode, 'coords': [(stn.lon, stn.lat)]}
+                              for stn in stations]
+
+        # make StationInstances
+        station_instances = []
+        for stn in stations:
+            station_instances += [StationInstance(cnn, archive, stn, date, GamitConfig)]
+
+        self.StationInstances = station_instances
 
         # to store the polyhedron read from the final SINEX
-        self.polyhedron       = None
-        self.VarianceFactor   = None
+        self.polyhedron = None
+        self.VarianceFactor = None
 
         # gamit task will be filled with the GamitTask object
-        self.GamitTask        = None  # type: pyGamitTask.GamitTask
-        self.ready            = ready
+        self.GamitTask = None
+        self.ready = ready
 
         # a list to report missing data for this session
         self.missing_data = []
@@ -168,16 +185,16 @@ $$ END HEADER
 $$\n""" % (self.Config.options['otlmodel']))
 
             for stn in self.StationInstances:
-                otl = stn.Station.otl_H.split('\n')
+                otl = stn.otl_H.split('\n')
                 # remove BLQ header
                 otl = otl[29:]
                 # need to change the station record for GAMIT to take it
-                otl[0] = '  %s' % stn.Station.StationAlias.upper()
-                if stn.Station.lon < 0:
-                    lon = 360+stn.Station.lon
+                otl[0] = '  %s' % stn.StationAlias.upper()
+                if stn.lon < 0:
+                    lon = 360+stn.lon
                 else:
-                    lon = stn.Station.lon
-                otl[3] = '$$ %s                                 RADI TANG lon/lat:%10.4f%10.4f' % (stn.Station.StationAlias.upper(), lon, stn.Station.lat)
+                    lon = stn.lon
+                otl[3] = '$$ %s                                 RADI TANG lon/lat:%10.4f%10.4f' % (stn.StationAlias.upper(), lon, stn.lat)
                 otl = '\n'.join(otl)
 
                 otl_list.write(otl)
@@ -222,13 +239,15 @@ $$\n""" % (self.Config.options['otlmodel']))
         return
 
     def copy_sestbl_procdef_atx(self):
+
+        self.frame, atx = determine_frame(self.Config.options['frames'], self.date)
+
         # copy process.defaults and sestbl.
         copyfile(self.GamitOpts['process_defaults'], os.path.join(self.pwd_tables, 'process.defaults'))
-        copyfile(self.GamitOpts['atx'], os.path.join(self.pwd_tables, 'antmod.dat'))
+        # copyfile(self.GamitOpts['atx'], os.path.join(self.pwd_tables, 'antmod.dat'))
+        copyfile(atx, os.path.join(self.pwd_tables, 'antmod.dat'))
 
         # change the scratch directory in the sestbl. file
-        #copyfile(self.GamitOpts['sestbl'], os.path.join(self.pwd_tables, 'sestbl.'))
-
         with open(os.path.join(self.pwd_tables, 'sestbl.'), 'w') as sestbl:
             with open(self.GamitOpts['sestbl']) as orig_sestbl:
                 for line in orig_sestbl:
@@ -253,9 +272,12 @@ $$\n""" % (self.Config.options['otlmodel']))
             # set up links
             cd %s;
             sh_links.tables -frame J2000 -year %s -eop %s -topt none &> sh_links.out;
-            # ln -s %s.apr lfile.
+            # kill the earthquake rename file
+            rm eq_rename
+            # create an empty rename file
+            echo "" > eq_rename
             cd ..;
-            """ % (self.pwd_tables, self.date.yyyy(), self.GamitOpts['eop_type'], self.GamitOpts['expt'])
+            """ % (self.pwd_tables, self.date.yyyy(), self.GamitOpts['eop_type'])
 
         link_tables.write(contents)
         link_tables.close()
@@ -280,12 +302,10 @@ $$\n""" % (self.Config.options['otlmodel']))
                 sitedef.write(' all_sites %s xstinfo\n' % (self.GamitOpts['expt']))
 
                 for StationInstance in self.StationInstances:
-                    sitedef.write(" %s_GPS  %s localrx\n" % (StationInstance.Station.StationAlias.upper(), self.GamitOpts['expt']))
+                    sitedef.write(" %s_GPS  %s localrx\n" % (StationInstance.StationAlias.upper(), self.GamitOpts['expt']))
 
         except Exception as e:
             raise GamitSessionException(e)
-        except:
-            raise
 
     def parse_sinex(self):
 
@@ -301,7 +321,7 @@ $$\n""" % (self.Config.options['otlmodel']))
             for StationInstance in self.StationInstances:
                 # replace the key
                 try:
-                    self.polyhedron[StationInstance.Station.NetworkCode + '.' + StationInstance.Station.StationCode] = self.polyhedron.pop(StationInstance.Station.StationAlias.upper())
+                    self.polyhedron[StationInstance.NetworkCode + '.' + StationInstance.StationCode] = self.polyhedron.pop(StationInstance.StationAlias.upper())
                 except KeyError:
                     # maybe the station didn't have a solution
                     pass
