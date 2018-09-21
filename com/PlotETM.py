@@ -22,16 +22,16 @@ def main():
     parser = argparse.ArgumentParser(description='Plot ETM for stations in the database')
 
     parser.add_argument('stnlist', type=str, nargs='+', help="List of networks/stations to plot given in [net].[stnm] format or just [stnm] (separated by spaces; if [stnm] is not unique in the database, all stations with that name will be plotted). Use keyword 'all' to plot all stations in all networks. If [net].all is given, all stations from network [net] will be plotted")
-    parser.add_argument('-np', '--noparallel', action='store_true', help="Execute command without parallelization")
+    parser.add_argument('-nop', '--no_plots', action='store_true', help="Do not produce plots", default=False)
     parser.add_argument('-nm', '--no_model', action='store_true', help="Plot time series without fitting a model")
     parser.add_argument('-r', '--residuals', action='store_true', help="Plot time series residuals")
     parser.add_argument('-dir', '--directory', type=str, help="Directory to save the resulting PNG files. If not specified, assumed to be the production directory")
     parser.add_argument('-json', '--json', type=int, help="Export ETM adjustment to JSON. Append '1' to export time series or append '0' to just output the ETM parameters.")
     parser.add_argument('-gui', '--interactive', action='store_true', help="Interactive mode: allows to zoom and view the plot interactively")
     parser.add_argument('-win', '--time_window', nargs='+', metavar='interval', help='Date range to window data. Can be specified in yyyy/mm/dd, yyyy.doy or as a single integer value (N) which shall be interpreted as last epoch-N')
-    parser.add_argument('-gamit', '--gamit', type=str, nargs=2, metavar='type',
-                        help="Plot the GAMIT time series. Specify type = \'stack\' to plot the time series after "
-                             "stacking or \'gamit\' to just plot the coordinates of the polyhedron")
+    parser.add_argument('-gamit', '--gamit', type=str, nargs=2, metavar='{project} {type}',
+                        help="Plot the GAMIT time series. Specify project and type = \'stack\' to plot the time "
+                             "series after stacking or \'gamit\' to just plot the coordinates of the polyhedron")
 
     args = parser.parse_args()
 
@@ -78,19 +78,23 @@ def main():
                 if args.gamit is None:
                     etm = pyETM.PPPETM(cnn, stn['NetworkCode'], stn['StationCode'], False, args.no_model)
                 else:
-                    if args.gamit[0] == 'stack':
+                    if args.gamit[1] == 'stack':
                         polyhedrons = cnn.query_float('SELECT "X", "Y", "Z", "Year", "DOY" FROM stacks '
                                                       'WHERE "Project" = \'%s\' AND "NetworkCode" = \'%s\' AND '
                                                       '"StationCode" = \'%s\' '
                                                       'ORDER BY "Year", "DOY", "NetworkCode", "StationCode"'
-                                                      % (args.gamit[1], stn['NetworkCode'], stn['StationCode']))
+                                                      % (args.gamit[0], stn['NetworkCode'], stn['StationCode']))
 
                         soln = pyETM.GamitSoln(cnn, polyhedrons, stn['NetworkCode'], stn['StationCode'])
 
                         etm = pyETM.GamitETM(cnn, stn['NetworkCode'], stn['StationCode'], False,
                                              args.no_model, gamit_soln=soln)
 
-                    elif args.gamit[0] == 'gamit':
+                        print ' > %5.2f %5.2f %5.2f %i' % \
+                              (etm.factor[0]*1000, etm.factor[1]*1000, etm.factor[2]*1000, etm.soln.t.shape[0],
+                               etm.F)
+
+                    elif args.gamit[1] == 'gamit':
                         etm = pyETM.GamitETM(cnn, stn['NetworkCode'], stn['StationCode'], False,
                                              args.no_model, project=args.gamit[1])
                     else:
@@ -102,10 +106,11 @@ def main():
                 else:
                     pngfile = os.path.join(args.directory, etm.NetworkCode + '.' + etm.StationCode + '.png')
 
-                if args.residuals:
-                    etm.plot(pngfile, t_win=dates, residuals=True)
-                else:
-                    etm.plot(pngfile, t_win=dates)
+                if not args.no_plots:
+                    if args.residuals:
+                        etm.plot(pngfile, t_win=dates, residuals=True)
+                    else:
+                        etm.plot(pngfile, t_win=dates)
 
                 if args.json is not None:
                     with open(os.path.join(args.directory, etm.NetworkCode + '.' + etm.StationCode + '.json'), 'w') as f:

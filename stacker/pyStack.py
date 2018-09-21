@@ -39,12 +39,13 @@ def station_etm(project, station, stn_ts, exclude, insert_only, iteration=0):
     # make sure it is sorted by date
     stn_ts.sort(key=lambda k: (k[3], k[4]))
 
-    cnn.executemany(sql_s, stn_ts)
-
     if not exclude and not insert_only:
         try:
             # save the time series
             ts = pyETM.GamitSoln(cnn, stn_ts, station.NetworkCode, station.StationCode)
+
+            cnn.executemany(sql_s, zip(ts.x.tolist(), ts.y.tolist(), ts.z.tolist(),
+                                       [t.year for t in ts.date], [t.doy for t in ts.date], [t.fyear for t in ts.date]))
 
             # create the ETM object
             etm = pyETM.GamitETM(cnn, station.NetworkCode, station.StationCode, False, False, ts)
@@ -177,7 +178,8 @@ def helmert_stack(name, date, exclude):
 
         msg = ' -- ' + traceback.format_exc() + 'Error during ' + date.yyyyddd() + ': ' + str(e) + '\n' + \
               'Stations in meta not in gamit: ' + str(list(set(metadata) - set(gamit))) + '\n' + \
-              'Stations in gamit not in meta: ' + str(list(set(gamit) - set(metadata)))
+              'Stations in gamit not in meta: ' + str(list(set(gamit) - set(metadata))) + '\n' + \
+              sql_where
 
         return [0, 0, 0, 0, 0, 0, 0], [], date, eq_count, it, msg
 
@@ -291,7 +293,7 @@ class Project(object):
 
         # get the station list
         rs = cnn.query('SELECT "NetworkCode", "StationCode" FROM gamit_soln '
-                       'WHERE "Project" = \'%s\' AND "Year" between 1999 and 2011 GROUP BY "NetworkCode", "StationCode" '
+                       'WHERE "Project" = \'%s\' AND "Year" between 1999 and 2015 GROUP BY "NetworkCode", "StationCode" '
                        'ORDER BY "NetworkCode", "StationCode"' % name)
 
         self.stnlist = [Station(cnn, item['NetworkCode'], item['StationCode']) for item in rs.dictresult()]
@@ -309,7 +311,7 @@ class Project(object):
 
         # get the epochs
         rs = cnn.query('SELECT "Year", "DOY" FROM gamit_soln '
-                       'WHERE "Project" = \'%s\' AND "Year" between 1999 and 2011 GROUP BY "Year", "DOY" ORDER BY "Year", "DOY"' % name)
+                       'WHERE "Project" = \'%s\' AND "Year" between 1999 and 2015 GROUP BY "Year", "DOY" ORDER BY "Year", "DOY"' % name)
 
         rs = rs.dictresult()
         self.epochs = [Date(year=item['Year'], doy=item['DOY']) for item in rs]
@@ -319,7 +321,7 @@ class Project(object):
 
         print ' >> Loading polyhedrons. Please wait...'
 
-        self.polyhedrons = cnn.query_float('SELECT * FROM gamit_soln WHERE "Project" = \'%s\' AND "Year" between 1999 and 2011 '
+        self.polyhedrons = cnn.query_float('SELECT * FROM gamit_soln WHERE "Project" = \'%s\' AND "Year" between 1999 and 2015 '
                                            'ORDER BY "Year", "DOY", "NetworkCode", "StationCode"' % name, as_dict=True)
 
         # load the transformations, if any

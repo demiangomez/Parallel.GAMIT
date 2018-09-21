@@ -187,6 +187,7 @@ class PppSoln:
 
                 # continuous time vector for plots
                 ts = np.arange(np.min(self.mjd), np.max(self.mjd) + 1, 1)
+                self.mjds = ts
                 self.ts = np.array([pyDate.Date(mjd=tts).fyear for tts in ts])
             else:
                 if len(self.blunders) >= 1:
@@ -279,6 +280,7 @@ class GamitSoln:
 
                     # continuous time vector for plots
                     ts = np.arange(np.min(self.mjd), np.max(self.mjd) + 1, 1)
+                    self.mjds = ts
                     self.ts = np.array([pyDate.Date(mjd=tts).fyear for tts in ts])
                 else:
                     dd = np.sqrt(np.square(np.sum(
@@ -2090,7 +2092,8 @@ class GamitETM(ETM):
             else:
                 # get residuals from GAMIT solutions to PPP model
                 etm = PPPETM(cnn, self.NetworkCode, self.StationCode)
-                index = np.isin(etm.soln.ts, self.soln.t)
+                # DDG: 20-SEP-2018 compare using MJD not FYEAR to avoid round off errors
+                index = np.isin(etm.soln.mjds, self.soln.mjd)
                 for i in range(3):
                     # use the etm object to obtain the design matrix that matches the dimensions of self.soln.t
                     neu.append(np.dot(etm.As[index, :], etm.C[i]))

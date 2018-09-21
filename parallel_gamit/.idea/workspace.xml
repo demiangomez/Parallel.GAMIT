@@ -2,62 +2,10 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="7a238ac9-ca54-4fb0-8f11-7c3d466db594" name="Default" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../stacker/.idea/vcs.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../stacker/pyNEQStack.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../stacker/setup.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../classes/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../classes/Utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/Utils.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../classes/pyDate.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/pyDate.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../classes/pyDownloadSources.py" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../classes/pyETM.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/pyETM.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../classes/pyETM2.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../classes/pyIntegrityCheck.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../classes/pyLocateRinex.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../classes/pyOptions.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/pyOptions.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../classes/pyPPPETM.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../classes/pyPPPETM_bak.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../classes/pyPPPETM_double.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../classes/pyPPPETM_full_cov.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../classes/pyPPPETM_new.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../classes/pyPPPETM_old.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../classes/pyStationInfo.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/pyStationInfo.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../com/PlotETM.py" beforeDir="false" afterPath="$PROJECT_DIR$/../com/PlotETM.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../com/ScanArchive.py" beforeDir="false" afterPath="$PROJECT_DIR$/../com/ScanArchive.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../com/SyncOrbits.py" beforeDir="false" afterPath="$PROJECT_DIR$/../com/SyncOrbits.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../com/aws-sync.py" beforeDir="false" afterPath="$PROJECT_DIR$/../com/aws-sync.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pyGamitConfig.py" beforeDir="false" afterPath="$PROJECT_DIR$/pyGamitConfig.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pyGamitSession.py" beforeDir="false" afterPath="$PROJECT_DIR$/pyGamitSession.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pyGamitTask.py" beforeDir="false" afterPath="$PROJECT_DIR$/pyGamitTask.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pyGamitTask_bak.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/pyGlobkTask.py" beforeDir="false" afterPath="$PROJECT_DIR$/pyGlobkTask.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pyNetwork.py" beforeDir="false" afterPath="$PROJECT_DIR$/pyNetwork.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pyParallelGamit.py" beforeDir="false" afterPath="$PROJECT_DIR$/pyParallelGamit.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pyStation.py" beforeDir="false" afterPath="$PROJECT_DIR$/pyStation.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/snxParse.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_v2/.idea/dictionaries/demian.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_v2/.idea/misc.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_v2/.idea/modules.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_v2/.idea/parallel_gamit.iml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_v2/.idea/workspace.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_v2/StationList.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_v2/link_tables.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_v2/pyGamitConfig.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_v2/pyGamitSession.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_v2/pyGamitTask.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_v2/pyGlobkTask.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_v2/pyNetwork.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_v2/pyParallelGamit.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_v2/pyStation.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_v2/snxParse.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_v2/uml/classes_gamit_queue.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_v2/uml/classes_gamit_session.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_v2/uml/classes_resources.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_v2/uml/classes_session.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../stacker/.idea/stacker.iml" beforeDir="false" afterPath="$PROJECT_DIR$/../stacker/.idea/stacker.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../stacker/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../stacker/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../stacker/pyDRA.py" beforeDir="false" afterPath="$PROJECT_DIR$/../stacker/pyDRA.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../stacker/pyStack.py" beforeDir="false" afterPath="$PROJECT_DIR$/../stacker/pyStack.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
@@ -152,7 +100,7 @@
       <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/GenerateKml.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="160">
+            <state relative-caret-position="203">
               <caret line="45" selection-start-line="45" selection-end-line="45" />
               <folding>
                 <element signature="e#172#187#0" expanded="true" />
@@ -286,7 +234,7 @@
       </list>
     </option>
   </component>
-  <component name="ProjectFrameBounds" extendedState="6">
+  <component name="ProjectFrameBounds" extendedState="7">
     <option name="x" value="1920" />
     <option name="y" value="-2" />
     <option name="width" value="1920" />
@@ -442,7 +390,7 @@
     <servers />
   </component>
   <component name="ToolWindowManager">
-    <frame x="1920" y="-2" width="1920" height="1082" extended-state="6" />
+    <frame x="1920" y="-2" width="1920" height="1082" extended-state="7" />
     <editor active="true" />
     <layout>
       <window_info content_ui="combo" id="Project" order="0" sideWeight="0.46132973" visible="true" weight="0.12177122" />
@@ -722,7 +670,7 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/GenerateKml.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="160">
+        <state relative-caret-position="203">
           <caret line="45" selection-start-line="45" selection-end-line="45" />
           <folding>
             <element signature="e#172#187#0" expanded="true" />
