@@ -94,6 +94,10 @@ class Station(object):
 
         return self.NetworkCode == station.NetworkCode and self.StationCode == station.StationCode
 
+    def __hash__(self):
+        # to make the object hashable
+        return hash(self.NetworkCode + '.' + self.StationCode)
+
 
 class StationInstance(object):
 

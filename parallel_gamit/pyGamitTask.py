@@ -142,7 +142,7 @@ class GamitTask(object):
                                       ' -> An error occurred while trying to copy ' +
                                       rinex['source'] + ' to ' + rinex['destiny'] + ': File skipped.\n')
 
-                    except pyRinex.pyRinexException as e:
+                    except (pyRinex.pyRinexException, Exception) as e:
                         monitor.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') +
                                       ' -> An error occurred while trying to copy ' +
                                       rinex['source'] + ': ' + str(e) + '\n')
@@ -183,44 +183,13 @@ class GamitTask(object):
                     self.success = True
 
             # output statistics to the parent to display
-            nrms = 100
-            wl = 0
-            nl = 0
-            missing_sites = []
-            if self.success:
-                vals = []
-                pattern1 = re.compile('^\s\w+\s\w+:\s+\d\.\d+[Ee][+-]?\d+\s+\w+\s\w+:\s+(\d\.\d+[Ee][+-]?\d+).*$')
-                pattern2 = re.compile('^\s\w+\s\w+\s\w+\s\w+\s+(\d+\.\d)\%\s\w+\s\w+\s+(\d+\.\d)\%.*')
-                pattern3 = re.compile('^\s\w+\s\w+\s\w+\s\w+\s+(\w+)')
-                with open(self.pwd + '/monitor.log', 'r') as monitor:
-                    for line in monitor:
-                        nrms = pattern1.findall(line)
-                        if nrms:
-                            vals.append(float(nrms[0]))
-
-                        wlnl = pattern2.findall(line)
-                        if wlnl:
-                            wl = float(wlnl[0][0])
-                            nl = float(wlnl[0][1])
-
-                        missing = pattern3.findall(line)
-                        if missing:
-                            for rinex in self.params['rinex']:
-                                if rinex['StationAlias'].lower() == missing[0].lower():
-                                    missing_sites.append(rinex['NetworkCode'] + '.' + rinex['StationCode'])
-
-                    if vals:
-                        # bias free WL ambiguities
-                        nrms = vals[0]
-                    else:
-                        nrms = 100
+            result = self.parse_monitor(self.success)
 
             # no matter the result of the processing, move folder to final destination
             if not dry_run:
                 self.finish()
 
-            return {'Session': '%s %s' % (self.params['NetName'], self.date.yyyyddd()), 'Success': self.success,
-                    'NRMS': nrms, 'WL': wl, 'NL': nl, 'Missing': missing_sites}
+            return result
 
         except Exception:
 
@@ -231,14 +200,22 @@ class GamitTask(object):
                 monitor.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') +
                               ' -> ERROR in pyGamitTask.start()\n%s' % msg)
 
+            # the solution folder exists because it was created by GamitSession to start the processing.
+            # erase it to upload the result
+            if os.path.exists(self.solution_pwd):
+                shutil.rmtree(self.solution_pwd)
+
             # execute final error step: copy to self.solution_pwd
             shutil.copytree(self.pwd, self.solution_pwd, symlinks=True)
             # remove the remote pwd
             shutil.rmtree(self.pwd)
 
+            # output statistics to the parent to display
+            result = self.parse_monitor(False)
+            result['error'] = msg
+
             # return useful information to the main node
-            return {'Session': '%s %s' % (self.params['NetName'], self.date.yyyyddd()), 'Success': False,
-                    'NRMS': 100, 'WL': 0, 'NL': 0, 'Missing': [], 'error': msg}
+            return result
 
     def window_rinex(self, Rinex, window):
 
@@ -248,6 +225,149 @@ class GamitTask(object):
             Rinex.window_data(start=window.datetime())
         else:
             Rinex.window_data(end=window.datetime())
+
+    def parse_monitor(self, success):
+
+        f = open(self.pwd + '/monitor.log', 'r')
+        lines = f.readlines()
+        f.close()
+
+        output = ''.join(lines)
+
+        if '.' + self.gamitopts['org'] in self.params['NetName']:
+            # a subnet for a daily solution
+            project = self.params['NetName'].split('.' + self.gamitopts['org'])[0]
+            subnet = int(self.params['NetName'].split('.' + self.gamitopts['org'])[1])
+        else:
+            # no subnet
+            project = self.params['NetName']
+            subnet = 0
+
+        try:
+            start_time = datetime.datetime.strptime(
+                re.findall('run.sh \((\d+-\d+-\d+ \d+:\d+:\d+)\): Iteration depth: 1',
+                           output, re.MULTILINE)[0], '%Y-%m-%d %H:%M:%S')
+        except Exception:
+            start_time = datetime.datetime(2001, 1, 1, 0, 0, 0)
+
+        try:
+            if success:
+                end_time = datetime.datetime.strptime(
+                    re.findall('finish.sh \((\d+-\d+-\d+ \d+:\d+:\d+)\): Done processing h-files and generating SINEX.',
+                               output, re.MULTILINE)[0], '%Y-%m-%d %H:%M:%S')
+            else:
+                end_time = datetime.datetime.now()
+
+        except Exception:
+            end_time = datetime.datetime(2001, 1, 1, 0, 0, 0)
+
+        try:
+            iterations = int(re.findall('run.sh \(\d+-\d+-\d+ \d+:\d+:\d+\): Iteration depth: (\d+)',
+                             output, re.MULTILINE)[-1])
+        except Exception:
+            iterations = 0
+
+        try:
+            nrms = float(
+                re.findall('Prefit nrms:\s+\d+.\d+[eEdD]\+\d+\s+Postfit nrms:\s+(\d+.\d+[eEdD][+-]\d+)', output,
+                           re.MULTILINE)[-1])
+        except Exception:
+            # maybe GAMIT didn't finish
+            nrms = 100
+
+        try:
+            updated_apr = re.findall(' (\w+).*?Updated from', output, re.MULTILINE)[0]
+            updated_apr = [upd.replace('_GPS', '').lower() for upd in updated_apr]
+            upd_stn = []
+            for stn in updated_apr:
+                for rinex in self.params['rinex']:
+                    if rinex['StationAlias'].lower() == stn.lower():
+                        upd_stn += [rinex['NetworkCode'] + '.' + rinex['StationCode']]
+
+            upd_stn = ','.join(upd_stn)
+        except Exception:
+            # maybe GAMIT didn't finish
+            upd_stn = None
+
+        try:
+            wl = float(re.findall('WL fixed\s+(\d+.\d+)', output, re.MULTILINE)[0])
+        except Exception:
+            # maybe GAMIT didn't finish
+            wl = 0
+
+        try:
+            nl = float(re.findall('NL fixed\s+(\d+.\d+)', output, re.MULTILINE)[0])
+        except Exception:
+            # maybe GAMIT didn't finish
+            nl = 0
+
+        try:
+            oc = re.findall('relaxing over constrained stations (\w+.*)', output, re.MULTILINE)[0]
+            oc = oc.replace('|', ',').replace('_GPS', '').lower()
+
+            oc_stn = []
+            for stn in oc.split(','):
+                for rinex in self.params['rinex']:
+                    if rinex['StationAlias'].lower() == stn.lower():
+                        oc_stn += [rinex['NetworkCode'] + '.' + rinex['StationCode']]
+
+            oc_stn = ','.join(oc_stn)
+
+        except Exception:
+            # maybe GAMIT didn't finish
+            oc_stn = None
+
+        try:
+            max_overconstrained = None
+            overcons = re.findall('GCR APTOL (\w+).{10}\s+([-]?\d+.\d+)', output, re.MULTILINE)
+
+            if len(overcons) > 0:
+                vals = [float(o[1]) for o in overcons]
+                i = vals.index(max([abs(v) for v in vals]))
+                stn = overcons[i][0]
+
+                for rinex in self.params['rinex']:
+                    if rinex['StationAlias'].lower() == stn.lower():
+                        # get the real station code
+                        max_overconstrained = rinex['NetworkCode'] + '.' + rinex['StationCode']
+
+            else:
+                max_overconstrained = None
+
+        except Exception:
+            # maybe GAMIT didn't finish
+            max_overconstrained = None
+
+        try:
+            ms = re.findall('No data for site (\w+)', output, re.MULTILINE)
+            missing_sites = []
+            for stn in ms:
+                for rinex in self.params['rinex']:
+                    if rinex['StationAlias'].lower() == stn.lower():
+                        missing_sites += [rinex['NetworkCode'] + '.' + rinex['StationCode']]
+
+        except Exception:
+            # maybe GAMIT didn't finish
+            missing_sites = []
+
+        return {'session': '%s %s' % (self.params['NetName'], self.date.yyyyddd()),
+                'Project': project,
+                'subnet': subnet,
+                'Year': self.date.year,
+                'DOY': self.date.doy,
+                'FYear': self.date.fyear,
+                'wl': wl,
+                'nl': nl,
+                'nrms': nrms,
+                'relaxed_constrains': oc_stn,
+                'max_overconstrained': max_overconstrained,
+                'updated_apr': upd_stn,
+                'iterations': iterations,
+                'node': platform.node(),
+                'execution_time': int((end_time - start_time).total_seconds() / 60.0),
+                'execution_date': start_time,
+                'missing': missing_sites,
+                'success': success}
 
     def finish(self):
 

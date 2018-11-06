@@ -4,6 +4,17 @@ Date: 02/16/2017
 Author: Demian D. Gomez
 
 Ocean loading coefficients class. It runs and reads grdtab (from GAMIT).
+
+Subject: Ocean Loading Tides
+Header = ---- Ocean loading values follow next: ----
+Model = FES2014b
+LoadingType = displacement
+GreensF = mc00egbc
+CMC = 1
+Plot = 0
+OutputFormat = BLQ
+Stations = %s
+MyEmail = demiang@gmail.com
 """
 
 import dbConnection
@@ -14,6 +25,7 @@ import re
 
 # Import the email modules we'll need
 from email.mime.text import MIMEText
+
 
 def main():
     parser = argparse.ArgumentParser(description='Ocean tide loading program')
@@ -34,6 +46,8 @@ def create_files():
     cnn = dbConnection.Cnn("gnss_data.cfg")
 
     rs = cnn.query('SELECT * FROM stations WHERE "NetworkCode" NOT LIKE \'?%%\' AND "Harpos_coeff_otl" LIKE \'%%HARPOS%%\' ORDER BY "NetworkCode", "StationCode"')
+    # rs = cnn.query(
+    #    'SELECT * FROM stations WHERE "NetworkCode" NOT LIKE \'?%%\' ORDER BY "NetworkCode", "StationCode"')
 
     stations = rs.dictresult()
     print ' >> Cantidad de estaciones a procesar en Chalmers: ' + str(len(stations))
@@ -44,17 +58,7 @@ def create_files():
 
         if len(stnlist) == 99:
 
-            body = """Subject: Ocean Loading Tides
-Header = ---- Ocean loading values follow next: ----
-Model = FES2014b
-LoadingType = displacement
-GreensF = mc00egbc
-CMC = 1
-Plot = 0
-OutputFormat = BLQ
-Stations = %s
-MyEmail = demiang@gmail.com\n
-""" % ('\n'.join(stnlist))
+            body = '\n'.join(stnlist)
 
             with open('otl_%i.list' % index, 'w') as otl_list:
                 otl_list.write(body)
@@ -74,20 +78,11 @@ MyEmail = demiang@gmail.com\n
             stnlist = []
 
     if len(stnlist) > 0:
-        body = """Subject: Ocean Loading Tides
-Header = ---- Ocean loading values follow next: ----
-Model = FES2014b
-LoadingType = displacement
-GreensF = mc00egbc
-CMC = 1
-Plot = 0
-OutputFormat = BLQ
-Stations = %s
-MyEmail = demiang@gmail.com\n
-""" % ('\n'.join(stnlist))
+        body = '\n'.join(stnlist)
 
         with open('otl_%i.list' % index, 'w') as otl_list:
             otl_list.write(body)
+
 
 def import_harpos(filename):
 
@@ -117,6 +112,7 @@ def import_harpos(filename):
 
             else:
                 print ' >> Could not find a valid header'
+
 
 def import_blq(filename):
 

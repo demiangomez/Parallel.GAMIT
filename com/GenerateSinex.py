@@ -117,6 +117,8 @@ def main():
 
     process_sinex(cnn, project, dates, sinex)
 
+    # generate REP file
+
 
 if __name__ == '__main__':
     main()

@@ -423,7 +423,8 @@ def process_stnlist(cnn, stnlist_in, print_summary=True):
 
             if rs is not None:
                 for rstn in rs.dictresult():
-                    stnlist += [{'NetworkCode': rstn['NetworkCode'], 'StationCode': rstn['StationCode']}]
+                    if {'NetworkCode': rstn['NetworkCode'], 'StationCode': rstn['StationCode']} not in stnlist:
+                        stnlist += [{'NetworkCode': rstn['NetworkCode'], 'StationCode': rstn['StationCode']}]
 
     # deal with station removals (-)
     for stn in [stn.replace('-', '') for stn in stnlist_in if '-' in stn]:

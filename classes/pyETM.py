@@ -23,7 +23,12 @@ from pprint import pprint
 import traceback
 import warnings
 import sys
+import os
 from time import time
+from matplotlib.widgets import Button
+import matplotlib
+if not os.environ['DISPLAY']:
+    matplotlib.use('Agg')
 
 
 def tic():
@@ -1228,6 +1233,10 @@ class ETM:
         self.covar = np.zeros((3, 3))
         self.A = None
         self.soln = soln
+        self.no_model = no_model
+        self.FitEarthquakes = FitEarthquakes
+        self.FitGenericJumps = FitGenericJumps
+        self.FitPeriodic = FitPeriodic
 
         self.NetworkCode = soln.NetworkCode
         self.StationCode = soln.StationCode
@@ -1509,11 +1518,49 @@ class ETM:
                     self.plot_missing_soln(ax)
 
         if not pngfile:
+            self.f = f
+            self.picking = False
+            self.plt = plt
+            axprev = plt.axes([0.85, 0.01, 0.08, 0.055])
+            bcut = Button(axprev, 'Add jump', color='red', hovercolor='green')
+            bcut.on_clicked(self.enable_picking)
             plt.show()
             plt.close()
         else:
             plt.savefig(pngfile)
             plt.close()
+
+    def onpick(self, event):
+
+        import dbConnection
+
+        self.f.canvas.mpl_disconnect(self.cid)
+        self.picking = False
+        print 'Epoch: %s' % pyDate.Date(fyear=event.xdata).yyyyddd()
+        jtype = int(input(' -- Enter type of jump (0 = mechanic; 1 = geophysical): '))
+        if jtype == 1:
+            relx = input(' -- Enter relaxation (e.g. 0.5, 0.5,0.01): ')
+        operation = str(raw_input(' -- Enter operation (+, -): '))
+        print ' >> Jump inserted'
+
+        # now insert the jump into the db
+        cnn = dbConnection.Cnn('gnss_data.cfg')
+
+        self.plt.close()
+
+        # reinitialize ETM
+
+        # wait for 'keep' or 'undo' command
+
+    def enable_picking(self, event):
+        if not self.picking:
+            print 'Entering picking mode'
+            self.picking = True
+            self.cid = self.f.canvas.mpl_connect('button_press_event', self.onpick)
+        else:
+            print 'Disabling picking mode'
+            self.picking = False
+            self.f.canvas.mpl_disconnect(self.cid)
 
     def plot_hist(self):
 
@@ -1614,7 +1661,7 @@ class ETM:
                 ax.plot((jump.date.fyear, jump.date.fyear), ax.get_ylim(), ':', color='tab:gray')
 
     def todictionary(self, time_series=False):
-        # convert the ETM adjustment into a dirtionary
+        # convert the ETM adjustment into a dictionary
         # optionally, output the whole time series as well
 
         L = self.l
@@ -1644,13 +1691,15 @@ class ETM:
 
         if time_series:
             ts = dict()
-            ts['t'] = self.soln.t.tolist()
+            ts['t'] = np.array([self.soln.t.tolist(), self.soln.mjd.tolist()]).transpose().tolist()
+            ts['mjd'] = self.soln.mjd.tolist()
             ts['x'] = self.soln.x.tolist()
             ts['y'] = self.soln.y.tolist()
             ts['z'] = self.soln.z.tolist()
             ts['n'] = L[0].tolist()
             ts['e'] = L[1].tolist()
             ts['u'] = L[2].tolist()
+            ts['weights'] = self.P.transpose().tolist()
 
             if self.A is not None:
                 ts['filter'] = np.logical_and(np.logical_and(self.F[0], self.F[1]), self.F[2]).tolist()
@@ -1682,10 +1731,10 @@ class ETM:
                         else:
                             jmp = 'pre'
                     # use the previous or next date to get the APR
-                    if jmp == 'pre':
-                        date -= 1
-                    else:
-                        date += 1
+                    # if jmp == 'pre':
+                    #    date -= 1
+                    # else:
+                    #    date += 1
 
         index = np.where(self.soln.mjd == date.mjd)
         index = index[0]

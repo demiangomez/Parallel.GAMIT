@@ -110,25 +110,18 @@ class Globk(object):
         for file in $(find .. -name "*.glx" -print);do echo $file;done | grep -v "\/n0\/" >> globk.gdl
 
         # create the globk cmd file
-        echo " app_ptid all"                                                         > globk.cmd
-        echo " prt_opt GDLF MIDP CMDS"                                              >> globk.cmd
-        echo " out_glb ../file.GLX"                                                 >> globk.cmd
-        echo " in_pmu pmu.usno"                                                     >> globk.cmd
-        echo " descript Daily combination of global and regional solutions"         >> globk.cmd
-        echo "# activate for global network merge"                                  >> globk.cmd
-        echo "# apr_wob    10 10  10 10 "                                           >> globk.cmd
-        echo "# apr_ut1    10 10        "                                           >> globk.cmd
-        echo " max_chii  1. 0.6"                                                    >> globk.cmd
-        echo " apr_svs all 0.05 0.05 0.05 0.005 0.005 0.005 0.01 0.01 0.00 0.01 FR" >> globk.cmd
-        echo " apr_neu  all       00.3   00.3   00.3   0 0 0"                       >> globk.cmd
-        #cat ../resources/*.apr | sed -n '2,$p' | while read line; do
-        #
-        #        stn=`echo $line| awk '{print $1}' |cut -d"." -f2`;
-        #        sign=`echo $line | awk '{print $5}'`;
-        #        sige=`echo $line | awk '{print $6}'`;
-        #        sigu=`echo $line | awk '{print $7}'`;
-        #        echo " apr_neu  $stn  $sign  $sige  $sigu  0 0 0"                   >> globk.cmd;
-        #done
+        echo " app_ptid all"                                                          > globk.cmd
+        echo " prt_opt GDLF MIDP CMDS"                                               >> globk.cmd
+        echo " out_glb ../file.GLX"                                                  >> globk.cmd
+        echo " in_pmu pmu.usno"                                                      >> globk.cmd
+        echo " descript Daily combination of global and regional solutions"          >> globk.cmd
+        echo "# activate for global network merge"                                   >> globk.cmd
+        echo "# apr_wob    10 10  10 10 "                                            >> globk.cmd
+        echo "# apr_ut1    10 10        "                                            >> globk.cmd
+        echo " max_chii  1. 0.6"                                                     >> globk.cmd
+        echo "# apr_svs all 0.05 0.05 0.05 0.005 0.005 0.005 0.01 0.01 0.00 0.01 FR" >> globk.cmd
+        echo " apr_site  all 1 1 1 0 0 0"                                            >> globk.cmd
+        echo " apr_atm   all 1 1 1"                                                  >> globk.cmd
 
         # create the sinex header file
         echo "+FILE/REFERENCE                               " >  head.snx

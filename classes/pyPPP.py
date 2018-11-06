@@ -91,12 +91,25 @@ class PPPSpatialCheck:
             where_clause = ''
 
         # start by reducing the number of stations filtering everything beyond 100 km from the point of interest
+        # rs = cnn.query("""
+        #     SELECT * FROM
+        #     (SELECT *, 2*asin(sqrt(sin((radians(%.8f)-radians(lat))/2)^2 + cos(radians(lat)) * cos(radians(%.8f)) * sin((radians(%.8f)-radians(lon))/2)^2))*6371000 AS distance
+        #     FROM stations %s) as DD
+        #     WHERE distance <= %f
+        #     """ % (self.lat[0], self.lat[0], self.lon[0], where_clause, 1e3))  # DO NOT RETURN RESULTS WITH NetworkCode = '?%'
+
         rs = cnn.query("""
-            SELECT * FROM
-            (SELECT *, 2*asin(sqrt(sin((radians(%.8f)-radians(lat))/2)^2 + cos(radians(lat)) * cos(radians(%.8f)) * sin((radians(%.8f)-radians(lon))/2)^2))*6371000 AS distance
-            FROM stations %s) as DD
-            WHERE distance <= %f
-            """ % (self.lat[0], self.lat[0], self.lon[0], where_clause, 1e3))  # DO NOT RETURN RESULTS WITH NetworkCode = '?%'
+            SELECT st1."NetworkCode", st1."StationCode", st1."StationName", st1."DateStart", st1."DateEnd",
+             st1."auto_x", st1."auto_y", st1."auto_z", st1."Harpos_coeff_otl", st1."lat", st1."lon", st1."height",
+             st1."max_dist", st1."dome" FROM
+            (SELECT *, 2*asin(sqrt(sin((radians(%.8f)-radians(lat))/2)^2 + cos(radians(lat)) * 
+            cos(radians(%.8f)) * sin((radians(%.8f)-radians(lon))/2)^2))*6371000 AS distance
+            FROM stations %s) as st1 left join stations as st2 ON 
+                st1."StationCode" = st2."StationCode" and
+                st1."NetworkCode" = st2."NetworkCode" and
+                st1.distance < coalesce(st2.max_dist, 20)
+                WHERE st2."NetworkCode" is not NULL
+            """ % (self.lat[0], self.lat[0], self.lon[0], where_clause))  # DO NOT RETURN RESULTS NetworkCode = '?%'
 
         stn_match = rs.dictresult()
 
@@ -106,7 +119,8 @@ class PPPSpatialCheck:
             # get the closest station and distance in km to help the caller function
             rs = cnn.query("""
                 SELECT * FROM
-                    (SELECT *, 2*asin(sqrt(sin((radians(%.8f)-radians(lat))/2)^2 + cos(radians(lat)) * cos(radians(%.8f)) * sin((radians(%.8f)-radians(lon))/2)^2))*6371000 AS distance
+                    (SELECT *, 2*asin(sqrt(sin((radians(%.8f)-radians(lat))/2)^2 + cos(radians(lat)) * 
+                    cos(radians(%.8f)) * sin((radians(%.8f)-radians(lon))/2)^2))*6371000 AS distance
                         FROM stations %s) as DD ORDER BY distance
                 """ % (self.lat[0], self.lat[0], self.lon[0], where_clause))
 

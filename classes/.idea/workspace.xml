@@ -2,61 +2,19 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="6b0f93cd-0427-4f5b-bf1e-f42168078fd7" name="Default" comment="">
-      <change afterPath="$PROJECT_DIR$/../parallel_gamit/.idea/vcs.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../stacker/.idea/vcs.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../stacker/pyNEQStack.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../stacker/setup.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../com/create_ppp_ts.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../com/gamit_stats.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/Utils.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pyDate.py" beforeDir="false" afterPath="$PROJECT_DIR$/pyDate.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pyDownloadSources.py" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/pyETM.py" beforeDir="false" afterPath="$PROJECT_DIR$/pyETM.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pyETM2.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/pyIntegrityCheck.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/pyLocateRinex.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/pyOptions.py" beforeDir="false" afterPath="$PROJECT_DIR$/pyOptions.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pyPPPETM.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/pyPPPETM_bak.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/pyPPPETM_double.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/pyPPPETM_full_cov.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/pyPPPETM_new.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/pyPPPETM_old.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/pyStationInfo.py" beforeDir="false" afterPath="$PROJECT_DIR$/pyStationInfo.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../com/IntegrityCheck.py" beforeDir="false" afterPath="$PROJECT_DIR$/../com/IntegrityCheck.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../com/PlotETM.py" beforeDir="false" afterPath="$PROJECT_DIR$/../com/PlotETM.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../com/ScanArchive.py" beforeDir="false" afterPath="$PROJECT_DIR$/../com/ScanArchive.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../com/SyncOrbits.py" beforeDir="false" afterPath="$PROJECT_DIR$/../com/SyncOrbits.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../com/aws-sync.py" beforeDir="false" afterPath="$PROJECT_DIR$/../com/aws-sync.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../parallel_gamit/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit/pyGamitConfig.py" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/pyGamitConfig.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit/pyGamitSession.py" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/pyGamitSession.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../parallel_gamit/pyGamitTask.py" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/pyGamitTask.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit/pyGamitTask_bak.py" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../parallel_gamit/pyGlobkTask.py" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/pyGlobkTask.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../parallel_gamit/pyNetwork.py" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/pyNetwork.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../parallel_gamit/pyParallelGamit.py" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/pyParallelGamit.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../parallel_gamit/pyStation.py" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/pyStation.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit/snxParse.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_v2/.idea/dictionaries/demian.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_v2/.idea/misc.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_v2/.idea/modules.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_v2/.idea/parallel_gamit.iml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_v2/.idea/workspace.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_v2/StationList.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_v2/link_tables.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_v2/pyGamitConfig.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_v2/pyGamitSession.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_v2/pyGamitTask.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_v2/pyGlobkTask.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_v2/pyNetwork.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_v2/pyParallelGamit.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_v2/pyStation.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_v2/snxParse.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_v2/uml/classes_gamit_queue.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_v2/uml/classes_gamit_session.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_v2/uml/classes_resources.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_v2/uml/classes_session.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../stacker/.idea/stacker.iml" beforeDir="false" afterPath="$PROJECT_DIR$/../stacker/.idea/stacker.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../stacker/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../stacker/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../stacker/pyDRA.py" beforeDir="false" afterPath="$PROJECT_DIR$/../stacker/pyDRA.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../stacker/pyStack.py" beforeDir="false" afterPath="$PROJECT_DIR$/../stacker/pyStack.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
@@ -72,9 +30,10 @@
     <session id="-1646261373">
       <usages-collector id="statistics.lifecycle.project">
         <counts>
-          <entry key="project.closed" value="1" />
+          <entry key="project.closed" value="2" />
+          <entry key="project.open.time.1" value="1" />
           <entry key="project.open.time.2" value="1" />
-          <entry key="project.opened" value="1" />
+          <entry key="project.opened" value="2" />
         </counts>
       </usages-collector>
     </session>
@@ -213,10 +172,9 @@
     </option>
   </component>
   <component name="ProjectFrameBounds" extendedState="6">
-    <option name="x" value="1920" />
-    <option name="y" value="-2" />
+    <option name="y" value="25" />
     <option name="width" value="1920" />
-    <option name="height" value="1082" />
+    <option name="height" value="1006" />
   </component>
   <component name="ProjectInspectionProfilesVisibleTreeState">
     <entry key="Project Default">
@@ -250,7 +208,17 @@
     </navigator>
     <panes>
       <pane id="Scope" />
-      <pane id="ProjectPane" />
+      <pane id="ProjectPane">
+        <subPane>
+          <expand>
+            <path>
+              <item name="classes" type="b2602c69:ProjectViewProjectNode" />
+              <item name="classes" type="462c0819:PsiDirectoryNode" />
+            </path>
+          </expand>
+          <select />
+        </subPane>
+      </pane>
     </panes>
   </component>
   <component name="PropertiesComponent">
@@ -440,7 +408,7 @@
     </todo-panel>
   </component>
   <component name="ToolWindowManager">
-    <frame x="1920" y="-2" width="1920" height="1082" extended-state="6" />
+    <frame x="0" y="25" width="1920" height="1006" extended-state="6" />
     <layout>
       <window_info active="true" content_ui="combo" id="Project" order="0" sideWeight="0.49468893" visible="true" weight="0.13389562" />
       <window_info id="Structure" order="1" weight="0.118746236" />
@@ -453,7 +421,7 @@
       <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
       <window_info anchor="bottom" id="TODO" order="6" weight="0.32786885" />
       <window_info anchor="bottom" id="Event Log" order="7" sideWeight="0.5117541" side_tool="true" weight="0.21169591" />
-      <window_info anchor="bottom" id="Python Console" order="8" sideWeight="0.48824593" visible="true" weight="0.22058824" />
+      <window_info anchor="bottom" id="Python Console" order="8" sideWeight="0.48824593" visible="true" weight="0.22031963" />
       <window_info anchor="bottom" id="Terminal" order="9" weight="0.3290398" />
       <window_info anchor="bottom" id="Version Control" order="10" show_stripe_button="false" />
       <window_info anchor="right" id="Commander" order="0" weight="0.4" />

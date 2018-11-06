@@ -761,7 +761,7 @@ def main():
     parser.add_argument('stnlist', type=str, nargs='+', metavar='all|net.stnm',
                         help="List of networks/stations to process given in [net].[stnm] format or just [stnm] (separated by spaces; if [stnm] is not unique in the database, all stations with that name will be processed). Use keyword 'all' to process all stations in the database. If [net].all is given, all stations from network [net] will be processed. Alternatevily, a file with the station list can be provided.")
 
-    parser.add_argument('-d', '--date_filter', nargs='+', metavar='date', help='Date range filter for all operations. Can be specified in yyyy/mm/dd or yyyy.doy format')
+    parser.add_argument('-d', '--date_filter', nargs='+', metavar='date', help='Date range filter for all operations. Can be specified in wwww-d, yyyy_ddd, yyyy/mm/dd or fyear format')
     parser.add_argument('-rinex', '--check_rinex', action='store_true', help='Check the RINEX integrity of the archive-database by verifying that the RINEX files reported in the rinex table exist in the archive. If a RINEX file does not exist, remove the record. PPP records or gamit_soln are deleted.')
     parser.add_argument('-rnx_count', '--rinex_count', action='store_true',
                         help='Count the total number of RINEX files (unique station-days) per day for a given time interval.')

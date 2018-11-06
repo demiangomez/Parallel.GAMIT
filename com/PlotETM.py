@@ -15,7 +15,8 @@ import traceback
 import json
 import Utils
 from Utils import process_date
-
+import numpy as np
+import pyDate
 
 def main():
 
@@ -23,8 +24,9 @@ def main():
 
     parser.add_argument('stnlist', type=str, nargs='+', help="List of networks/stations to plot given in [net].[stnm] format or just [stnm] (separated by spaces; if [stnm] is not unique in the database, all stations with that name will be plotted). Use keyword 'all' to plot all stations in all networks. If [net].all is given, all stations from network [net] will be plotted")
     parser.add_argument('-nop', '--no_plots', action='store_true', help="Do not produce plots", default=False)
+    parser.add_argument('-nom', '--no_missing_data', action='store_true', help="Do not show missing days", default=False)
     parser.add_argument('-nm', '--no_model', action='store_true', help="Plot time series without fitting a model")
-    parser.add_argument('-r', '--residuals', action='store_true', help="Plot time series residuals")
+    parser.add_argument('-r', '--residuals', action='store_true', help="Plot time series residuals", default=False)
     parser.add_argument('-dir', '--directory', type=str, help="Directory to save the resulting PNG files. If not specified, assumed to be the production directory")
     parser.add_argument('-json', '--json', type=int, help="Export ETM adjustment to JSON. Append '1' to export time series or append '0' to just output the ETM parameters.")
     parser.add_argument('-gui', '--interactive', action='store_true', help="Interactive mode: allows to zoom and view the plot interactively")
@@ -90,9 +92,22 @@ def main():
                         etm = pyETM.GamitETM(cnn, stn['NetworkCode'], stn['StationCode'], False,
                                              args.no_model, gamit_soln=soln)
 
-                        print ' > %5.2f %5.2f %5.2f %i' % \
-                              (etm.factor[0]*1000, etm.factor[1]*1000, etm.factor[2]*1000, etm.soln.t.shape[0],
-                               etm.F)
+                        # print ' > %5.2f %5.2f %5.2f %i %i' % \
+                        #      (etm.factor[0]*1000, etm.factor[1]*1000, etm.factor[2]*1000, etm.soln.t.shape[0],
+                        #       etm.soln.t.shape[0] - np.sum(np.logical_and(np.logical_and(etm.F[0], etm.F[1]), etm.F[2])))
+
+                        # print two largest outliers
+                        if etm.A is not None:
+                            lres = np.sqrt(np.sum(np.square(etm.R), axis=0))
+                            slres = lres[np.argsort(-lres)]
+
+                            print ' >> Two largest residuals:'
+                            for i in [0, 1]:
+                                print(' %s %6.3f %6.3f %6.3f'
+                                      % (pyDate.Date(mjd=etm.soln.mjd[lres == slres[i]]).yyyyddd(),
+                                         etm.R[0, lres == slres[i]],
+                                         etm.R[1, lres == slres[i]],
+                                         etm.R[2, lres == slres[i]]))
 
                     elif args.gamit[1] == 'gamit':
                         etm = pyETM.GamitETM(cnn, stn['NetworkCode'], stn['StationCode'], False,
@@ -106,11 +121,9 @@ def main():
                 else:
                     pngfile = os.path.join(args.directory, etm.NetworkCode + '.' + etm.StationCode + '.png')
 
+                # leave pngfile empty to enter interactive mode (GUI)
                 if not args.no_plots:
-                    if args.residuals:
-                        etm.plot(pngfile, t_win=dates, residuals=True)
-                    else:
-                        etm.plot(pngfile, t_win=dates)
+                    etm.plot(pngfile, t_win=dates, residuals=args.residuals, plot_missing=not args.no_missing_data)
 
                 if args.json is not None:
                     with open(os.path.join(args.directory, etm.NetworkCode + '.' + etm.StationCode + '.json'), 'w') as f:

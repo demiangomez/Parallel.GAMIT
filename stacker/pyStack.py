@@ -16,11 +16,12 @@ import traceback
 import os
 from Utils import lg2ct
 from pyDRA import adjust_lsq
+import json
 
 pi = 3.141592653589793
 
 
-def station_etm(project, station, stn_ts, exclude, insert_only, iteration=0):
+def station_etm(project, station, stn_ts, exclude, iteration=0):
 
     msg = None
     add_exclude = []
@@ -39,14 +40,14 @@ def station_etm(project, station, stn_ts, exclude, insert_only, iteration=0):
     # make sure it is sorted by date
     stn_ts.sort(key=lambda k: (k[3], k[4]))
 
-    if not exclude and not insert_only:
-        try:
-            # save the time series
-            ts = pyETM.GamitSoln(cnn, stn_ts, station.NetworkCode, station.StationCode)
+    try:
+        # save the time series
+        ts = pyETM.GamitSoln(cnn, stn_ts, station.NetworkCode, station.StationCode)
 
-            cnn.executemany(sql_s, zip(ts.x.tolist(), ts.y.tolist(), ts.z.tolist(),
-                                       [t.year for t in ts.date], [t.doy for t in ts.date], [t.fyear for t in ts.date]))
+        cnn.executemany(sql_s, zip(ts.x.tolist(), ts.y.tolist(), ts.z.tolist(),
+                                   [t.year for t in ts.date], [t.doy for t in ts.date], [t.fyear for t in ts.date]))
 
+        if not exclude:
             # create the ETM object
             etm = pyETM.GamitETM(cnn, station.NetworkCode, station.StationCode, False, False, ts)
 
@@ -63,10 +64,10 @@ def station_etm(project, station, stn_ts, exclude, insert_only, iteration=0):
                     # on next iters, the target frame is the inner geometry of the stack
                     cnn.executemany(sql_r, etm.get_residuals_dict())
 
-        except Exception as e:
+    except Exception as e:
 
-            add_exclude = [station.dictionary]
-            msg = 'Error while producing ETM for %s.%s: ' % (station.NetworkCode, station.StationCode) + str(e)
+        add_exclude = [station.dictionary]
+        msg = 'Error while producing ETM for %s.%s: ' % (station.NetworkCode, station.StationCode) + str(e)
 
     return add_exclude, msg
 
@@ -87,15 +88,15 @@ def helmert_stack(name, date, exclude):
             sql_where = ' AND "NetworkCode" || \'.\' || "StationCode" NOT IN (%s)' % sql_where
 
         x = cnn.query_float(
-            'SELECT 0, -"Z", "Y", "X", 1, 0, 0 FROM stacks WHERE "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i '
+            'SELECT 0, -"Z"*1e-9, "Y"*1e-9, 1, 0, 0 FROM stacks WHERE "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i '
             % (name, date.year, date.doy) + sql_where + ' ORDER BY "NetworkCode", "StationCode"')
 
         y = cnn.query_float(
-            'SELECT "Z", 0, -"X", "Y", 0, 1, 0 FROM stacks WHERE "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i '
+            'SELECT "Z"*1e-9, 0, -"X"*1e-9, 0, 1, 0 FROM stacks WHERE "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i '
             % (name, date.year, date.doy) + sql_where + ' ORDER BY "NetworkCode", "StationCode"')
 
         z = cnn.query_float(
-            'SELECT -"Y", "X", 0, "Z", 0, 0, 1 FROM stacks WHERE "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i '
+            'SELECT -"Y"*1e-9, "X"*1e-9, 0, 0, 0, 1 FROM stacks WHERE "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i '
             % (name, date.year, date.doy) + sql_where + ' ORDER BY "NetworkCode", "StationCode"')
 
         r = cnn.query_float(
@@ -128,19 +129,19 @@ def helmert_stack(name, date, exclude):
 
         A = numpy.row_stack((Ax, Ay, Az))
 
-        c, _, _, _, _, _, it = adjust_lsq(A, r)
+        c, _, index, v, factor, P, it = adjust_lsq(A, r)
 
         # rebuild A to include all stations
         x = cnn.query_float(
-            'SELECT 0, -"Z", "Y", "X", 1, 0, 0 FROM stacks WHERE "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i '
+            'SELECT 0, -"Z"*1e-9, "Y"*1e-9, 1, 0, 0 FROM stacks WHERE "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i '
             % (name, date.year, date.doy) + ' ORDER BY "NetworkCode", "StationCode"')
 
         y = cnn.query_float(
-            'SELECT "Z", 0, -"X", "Y", 0, 1, 0 FROM stacks WHERE "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i '
+            'SELECT "Z"*1e-9, 0, -"X"*1e-9, 0, 1, 0 FROM stacks WHERE "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i '
             % (name, date.year, date.doy) + ' ORDER BY "NetworkCode", "StationCode"')
 
         z = cnn.query_float(
-            'SELECT -"Y", "X", 0, "Z", 0, 0, 1 FROM stacks WHERE "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i '
+            'SELECT -"Y"*1e-9, "X"*1e-9, 0, 0, 0, 1 FROM stacks WHERE "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i '
             % (name, date.year, date.doy) + ' ORDER BY "NetworkCode", "StationCode"')
 
         Ax = numpy.array(x)
@@ -160,7 +161,7 @@ def helmert_stack(name, date, exclude):
                             'X': X[i][0], 'Y': X[i][1], 'Z': X[i][2],
                             'Year': date.year, 'DOY': date.doy, 'FYear': date.fyear}]
 
-        return c, polyhedron, date, eq_count, it, None
+        return c, polyhedron, date, eq_count, it, index.tolist(), P.tolist(), factor, v.tolist(), None
 
     except Exception as e:
 
@@ -181,7 +182,7 @@ def helmert_stack(name, date, exclude):
               'Stations in gamit not in meta: ' + str(list(set(gamit) - set(metadata))) + '\n' + \
               sql_where
 
-        return [0, 0, 0, 0, 0, 0, 0], [], date, eq_count, it, msg
+        return [0, 0, 0, 0, 0, 0, 0], [], date, eq_count, it, [], [], 0, [], msg
 
 
 class AlignClass:
@@ -191,6 +192,11 @@ class AlignClass:
         self.stations_used = None
         self.iterations = None
         self.qbar = qbar
+        self.index = None
+        self.weights = None
+        self.wrms = None
+        self.residuals = None
+        self.msg = None
         self.x = None
 
     def finalize(self, args):
@@ -199,12 +205,23 @@ class AlignClass:
         self.date = args[2]
         self.stations_used = args[3]
         self.iterations = args[4]
+        self.index = args[5]
+        self.weights = args[6]
+        self.wrms = args[7]
+        self.residuals = args[8]
+        self.msg = args[9]
         self.qbar.update()
 
-        if args[5] is None:
-            self.qbar.write(' -- %s (%3i) %2i it: translation (mm mm mm) scale: (%6.1f %6.1f %6.1f) %10.2e' % \
-                            (self.date.yyyyddd(), self.stations_used, self.iterations, self.x[-3] * 1000,
-                             self.x[-2] * 1000, self.x[-1] * 1000, self.x[-4]))
+        if self.msg is None:
+            #self.qbar.write(' -- %s (%3i) %2i it: translation (mm mm mm) scale: (%6.1f %6.1f %6.1f)' % \
+            #                (self.date.yyyyddd(), self.stations_used, self.iterations, self.x[-3] * 1000,
+            #                 self.x[-2] * 1000, self.x[-1] * 1000))
+            if self.wrms > 0.004:
+                self.qbar.write(' -- %s (%3i) %2i it: high wrms -> %6.1f T %6.1f %6.1f %6.1f '
+                                'R (%6.1f %6.1f %6.1f)*1e-9' %
+                                (self.date.yyyyddd(), self.stations_used, self.iterations, self.wrms*1000,
+                                 self.x[-3] * 1000, self.x[-2] * 1000, self.x[-1] * 1000,
+                                 self.x[-6], self.x[-5], self.x[-4]))
         else:
             self.qbar.write(' -- %s' % args[5])
 
@@ -290,10 +307,11 @@ class Project(object):
         self.iter = 0
         self.ts = []
         self.cnn = cnn
+        self.json = dict()
 
         # get the station list
         rs = cnn.query('SELECT "NetworkCode", "StationCode" FROM gamit_soln '
-                       'WHERE "Project" = \'%s\' AND "Year" between 1999 and 2015 GROUP BY "NetworkCode", "StationCode" '
+                       'WHERE "Project" = \'%s\' GROUP BY "NetworkCode", "StationCode" '
                        'ORDER BY "NetworkCode", "StationCode"' % name)
 
         self.stnlist = [Station(cnn, item['NetworkCode'], item['StationCode']) for item in rs.dictresult()]
@@ -311,7 +329,7 @@ class Project(object):
 
         # get the epochs
         rs = cnn.query('SELECT "Year", "DOY" FROM gamit_soln '
-                       'WHERE "Project" = \'%s\' AND "Year" between 1999 and 2015 GROUP BY "Year", "DOY" ORDER BY "Year", "DOY"' % name)
+                       'WHERE "Project" = \'%s\' GROUP BY "Year", "DOY" ORDER BY "Year", "DOY"' % name)
 
         rs = rs.dictresult()
         self.epochs = [Date(year=item['Year'], doy=item['DOY']) for item in rs]
@@ -321,7 +339,7 @@ class Project(object):
 
         print ' >> Loading polyhedrons. Please wait...'
 
-        self.polyhedrons = cnn.query_float('SELECT * FROM gamit_soln WHERE "Project" = \'%s\' AND "Year" between 1999 and 2015 '
+        self.polyhedrons = cnn.query_float('SELECT * FROM gamit_soln WHERE "Project" = \'%s\' '
                                            'ORDER BY "Year", "DOY", "NetworkCode", "StationCode"' % name, as_dict=True)
 
         # load the transformations, if any
@@ -495,10 +513,11 @@ def align_stack(cnn, project, JobServer):
 
     for i in range(project.max_iters):
 
-        qbar = tqdm(total=len(project.epochs), desc=' >> Aligning polyhedrons', ncols=160)
-
         # add one to the iteration count
         project.iter += 1
+
+        qbar = tqdm(total=len(project.epochs),
+                    desc=' >> Aligning polyhedrons (iteration: %i)' % project.iter, ncols=160)
 
         # list for aligned polyhedron objects
         AlignedList = []
@@ -514,10 +533,12 @@ def align_stack(cnn, project, JobServer):
                                     AlignedList, AlignClass(qbar), 'finalize')
 
                 if JobServer.process_callback:
+                    JobServer.job_server.wait()
                     JobServer.process_callback = False
             else:
 
-                x, poly, dd, stations_used, iterations, msg = helmert_stack(project.name, date, project.exclude)
+                x, poly, dd, stations_used, iterations, index, P, factor, v, msg = helmert_stack(
+                    project.name, date, project.exclude)
 
                 if msg is None:
                     qbar.write(' -- %s (%3i) %2i it: translation (mm mm mm) scale: (%6.1f %6.1f %6.1f) %10.2e' %
@@ -528,6 +549,9 @@ def align_stack(cnn, project, JobServer):
 
                 updated_poly += poly
 
+        # dictionary to save the stats of the alignment
+        stats_dict = dict()
+
         if JobServer is not None:
             qbar.write(' -- Waiting for alignments to finish...')
             JobServer.job_server.wait()
@@ -535,6 +559,18 @@ def align_stack(cnn, project, JobServer):
 
             for doy in AlignedList:
                 updated_poly += doy.polyhedron
+                stats_dict[doy.date.yyyyddd()] = {'residuals': doy.residuals,
+                                                  'iterations': doy.iterations,
+                                                  'stations': [p['NetworkCode'] + '.' +
+                                                               p['StationCode'] for p in doy.polyhedron],
+                                                  'index': doy.index,
+                                                  'weights': doy.weights,
+                                                  'used_stations': doy.stations_used,
+                                                  'wrms': doy.wrms,
+                                                  'date': doy.date.yyyyddd(),
+                                                  'helmert': doy.x.tolist()}
+
+        project.json['iter_' + str(project.iter)] = stats_dict
 
         # sort the polyhedrons by date
         updated_poly.sort(key=lambda k: k['FYear'])
@@ -546,8 +582,12 @@ def align_stack(cnn, project, JobServer):
 
         calculate_etms(cnn, project, JobServer)
 
+    print ' >> Dumping alignment stats to json file...'
+    with open(os.path.join('./', project.name + '.json'), 'w') as f:
+        json.dump(project.json, f, indent=4, sort_keys=False)
 
-def calculate_etms(cnn, project, JobServer, insert_only=False):
+
+def calculate_etms(cnn, project, JobServer):
 
     qbar = tqdm(total=len(project.stnlist), desc=' >> Calculating ETMs', ncols=160)
 
@@ -574,7 +614,7 @@ def calculate_etms(cnn, project, JobServer, insert_only=False):
 
         if JobServer is not None:
 
-            JobServer.SubmitJob(station_etm, (project.name, station, stn_ts, exclude, insert_only, project.iter), (),
+            JobServer.SubmitJob(station_etm, (project.name, station, stn_ts, exclude, project.iter), (),
                                 ('pyETM', 'pyDate', 'dbConnection', 'traceback'),
                                 etm_list, EtmClass(qbar), 'finalize')
 
@@ -584,7 +624,7 @@ def calculate_etms(cnn, project, JobServer, insert_only=False):
 
             etm_list += [EtmClass(qbar)]
 
-            etm_list[-1].finalize(station_etm(project.name, station, stn_ts, exclude, insert_only, project.iter))
+            etm_list[-1].finalize(station_etm(project.name, station, stn_ts, exclude, project.iter))
 
     if JobServer is not None:
         qbar.write(' -- Waiting for jobs to finish...')

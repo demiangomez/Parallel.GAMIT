@@ -127,6 +127,12 @@ def purge_solutions(cnn, args, dates, GamitConfig):
             cnn.query('DELETE FROM gamit_soln WHERE "Year" = %i AND "DOY" = %i '
                       'AND "Project" = \'%s\'' % (date.year, date.doy, GamitConfig.NetworkConfig.network_id.lower()))
 
+            cnn.query('DELETE FROM gamit_stats WHERE "Year" = %i AND "DOY" = %i '
+                      'AND "Project" = \'%s\'' % (date.year, date.doy, GamitConfig.NetworkConfig.network_id.lower()))
+
+            cnn.query('DELETE FROM gamit_ztd WHERE "Date" BETWEEN \'%s\' AND \'%s\' '
+                      'AND "Project" = \'%s\'' % (date.first_epoch(), date.last_epoch(),
+                                                  GamitConfig.NetworkConfig.network_id.lower()))
 
 def station_list(cnn, NetworkConfig, dates):
 
@@ -214,7 +220,7 @@ def main():
     parser.add_argument('-dry', '--dry_run', action='store_true',
                         help="Generate the directory structures (locally) but do not run GAMIT. "
                              "Output is left in the production directory.")
-    parser.add_argument('-kml', '--kml_only', action='store_true', help="Generate KML and exit without running GAMIT.")
+    parser.add_argument('-kml', '--generate_kml', action='store_true', help="Generate KML and exit without running GAMIT.")
 
     args = parser.parse_args()
 
@@ -296,18 +302,15 @@ def main():
 
         sessions += net_object.sessions
 
-    # generate a KML of the sessions
-    generate_kml(dates, sessions, GamitConfig)
-
-    if args.kml_only:
-        # user requested to just generate the KML file for the run. Exit if so.
-        return
+    if args.generate_kml:
+        # generate a KML of the sessions
+        generate_kml(dates, sessions, GamitConfig)
 
     # print a summary of the current project
     print_summary(stations, sessions, drange)
 
     # run the job server
-    ExecuteGamit(GamitConfig, sessions, JobServer, dry_run)
+    ExecuteGamit(cnn, GamitConfig, sessions, JobServer, dry_run)
 
     # execute globk on doys that had to be divided into subnets
     if not args.dry_run:
@@ -372,34 +375,59 @@ def ParseZTD(cnn, project, Sessions, GamitConfig):
 
     for GamitSession in tqdm(Sessions, ncols=80):
 
-        znd = os.path.join(GamitSession.pwd_glbf, GamitConfig.gamitopt['org'] + GamitSession.date.wwwwd() + '.znd')
+        try:
+            znd = os.path.join(GamitSession.pwd_glbf, GamitConfig.gamitopt['org'] + GamitSession.date.wwwwd() + '.znd')
 
-        if os.path.isfile(znd):
-            # read the content of the file
-            f = open(znd, 'r')
-            output = f.readlines()
-            f.close()
+            if os.path.isfile(znd):
+                # read the content of the file
+                f = open(znd, 'r')
+                output = f.readlines()
+                f.close()
 
-            atmzen = re.findall('ATM_ZEN X (\w+) .. (\d+)\s*(\d*)\s*(\d*)\s*(\d*)\s*(\d*)\s*\d*\s*[- ]?\d*.\d+\s*[+-]*\s*\d*.\d*\s*(\d*.\d*)', ''.join(output), re.MULTILINE)
+                atmzen = re.findall('ATM_ZEN X (\w+) .. (\d+)\s*(\d*)\s*(\d*)\s*(\d*)\s*(\d*)\s*\d*\s*[- ]?\d*.\d+\s*[+-]*\s*\d*.\d*\s*(\d*.\d*)', ''.join(output), re.MULTILINE)
 
-            for zd in atmzen:
+                for zd in atmzen:
 
-                date = datetime(int(zd[1]), int(zd[2]), int(zd[3]), int(zd[4]), int(zd[5]))
+                    date = datetime(int(zd[1]), int(zd[2]), int(zd[3]), int(zd[4]), int(zd[5]))
 
-                # translate alias to network.station
-                stn = [{'NetworkCode': StnIns.NetworkCode, 'StationCode': StnIns.StationCode} for StnIns in GamitSession.StationInstances if StnIns.StationAlias.upper() == zd[0]][0]
+                    # translate alias to network.station
+                    stn = [{'NetworkCode': StnIns.NetworkCode, 'StationCode': StnIns.StationCode}
+                           for StnIns in GamitSession.StationInstances if StnIns.StationAlias.upper() == zd[0]]
 
-                # see if ZND exists
-                rs = cnn.query('SELECT * FROM gamit_ztd WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND '
-                               '"Date" = \'%s\' AND "Project" = \'%s\''
-                               % (stn['NetworkCode'], stn['StationCode'],
-                                  date.strftime('%Y/%m/%d %H:%M:%S'), project.lower()))
+                    if len(stn) > 0:
+                        stn = stn[0]
+                        # see if ZND exists
+                        rs = cnn.query('SELECT * FROM gamit_ztd WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\''
+                                       ' AND "Date" = \'%s\' AND "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i'
+                                       % (stn['NetworkCode'], stn['StationCode'],
+                                          date.strftime('%Y-%m-%d %H:%M:%S'), project.lower(),
+                                          GamitSession.date.year, GamitSession.date.doy))
 
-                if rs.ntuples() == 0:
-                    cnn.query('INSERT INTO gamit_ztd ("NetworkCode", "StationCode", "Date", "ZTD", "Project") VALUES '
-                              '(\'%s\', \'%s\', \'%s\', %f, \'%s\')'
-                              % (stn['NetworkCode'], stn['StationCode'], date.strftime('%Y/%m/%d %H:%M:%S'),
-                                 float(zd[6]), project.lower()))
+                        if rs.ntuples() == 0:
+                            cnn.query('INSERT INTO gamit_ztd ("NetworkCode", "StationCode", "Date", "ZTD", '
+                                      '                       "Project", "Year", "DOY") VALUES '
+                                      '(\'%s\', \'%s\', \'%s\', %f, \'%s\', %i, %i)'
+                                      % (stn['NetworkCode'], stn['StationCode'], date.strftime('%Y-%m-%d %H:%M:%S'),
+                                         float(zd[6]), project.lower(), GamitSession.date.year, GamitSession.date.doy))
+                        else:
+                            # already a zenith delay in place! take average as suggested by Bob King (see email from
+                            # 10/31/2018
+                            rs = rs.dictresult()
+                            ztd_val = float(rs[0]['ZTD'])
+
+                            cnn.query('UPDATE gamit_ztd SET "ZTD" = %f WHERE '
+                                      ' ("NetworkCode", "StationCode", "Date", "Project", "Year", "DOY") = '
+                                      ' (\'%s\', \'%s\', \'%s\', \'%s\', %i, %i)'
+                                      % ((float(zd[6]) + ztd_val)/2., stn['NetworkCode'], stn['StationCode'],
+                                         date.strftime('%Y-%m-%d %H:%M:%S'), project.lower(), GamitSession.date.year,
+                                         GamitSession.date.doy))
+
+                    else:
+                        tqdm.write(' -- Could not find station %s in the GamitSession (%s) station instances!'
+                                   % (zd[0], GamitSession.NetName))
+
+        except Exception as e:
+            tqdm.write(' -- Error parsing zenith delays for session %s: %s' % (GamitSession.NetName, str(e)))
 
 
 def ExecuteGlobk(cnn, GamitConfig, sessions, dates):
@@ -471,47 +499,53 @@ def ExecuteGlobk(cnn, GamitConfig, sessions, dates):
                                    sigmayz=value.sigYZ * sqrt(variance),
                                    VarianceFactor=variance)
                     except dbConnection.dbErrInsert as e:
-                        tqdm.write('    --> Error inserting ' + key + ' -> ' + str(e))
+                        #tqdm.write('    --> Error inserting ' + key + ' -> ' + str(e))
+                        pass
                 else:
                     tqdm.write(' >> Invalid key found in session %s -> %s' % (date.yyyyddd(), key))
     return
 
 
-def ExecuteGamit(Config, Sessions, JobServer, dry_run=False):
+def ExecuteGamit(cnn, Config, Sessions, JobServer, dry_run=False):
 
     def update_gamit_progress_bar(result):
 
         gamit_pbar.update(1)
 
         if 'error' not in result.keys():
-            if result['NRMS'] > 0.5:
-                msg_nrms = 'WARNING! NRMS > 0.5 (%.3f)' % (result['NRMS'])
+            if result['nrms'] > 0.3:
+                msg_nrms = 'WARNING! NRMS > 0.3 (%.3f)' % (result['nrms'])
             else:
                 msg_nrms = ''
 
-            if result['WL'] < 70:
+            if result['wl'] < 70:
                 if msg_nrms:
-                    msg_wl = ' AND WL fixed < 70%% (%.1f)' % (result['WL'])
+                    msg_wl = ' AND WL fixed < 70%% (%.1f)' % (result['wl'])
                 else:
-                    msg_wl = 'WARNING! WL fixed %.1f' % (result['WL'])
+                    msg_wl = 'WARNING! WL fixed %.1f' % (result['wl'])
             else:
                 msg_wl = ''
 
-            if result['Missing']:
-                msg_missing = '\n    Missing sites in solution: ' + ', '.join(result['Missing'])
+            if result['missing']:
+                msg_missing = '\n    Missing sites in solution: ' + ', '.join(result['missing'])
             else:
                 msg_missing = ''
 
             # DDG: only show sessions with problems to facilitate debugging.
-            if result['Success']:
+            if result['success']:
                 if msg_nrms + msg_wl + msg_missing:
-                    tqdm.write(' -- Done processing: ' + result['Session'] + ' -> ' + msg_nrms + msg_wl + msg_missing)
+                    tqdm.write(' -- Done processing: ' + result['session'] + ' -> ' + msg_nrms + msg_wl + msg_missing)
 
             else:
-                tqdm.write(' -- Done processing: ' + result['Session'] + ' -> Failed to complete. Check monitor.log')
+                tqdm.write(' -- Done processing: ' + result['session'] + ' -> Failed to complete. Check monitor.log')
         else:
-            tqdm.write(' -- Error in session ' + result['Session'] + ' message from node follows -> \n%s'
+            tqdm.write(' -- Error in session ' + result['session'] + ' message from node follows -> \n%s'
                        % result['error'])
+
+        try:
+            cnn.insert('gamit_stats', result)
+        except dbConnection.dbErrInsert as e:
+            tqdm.write(' -- Error while inserting GAMIT stat: ' + str(e))
 
     gamit_pbar = tqdm(total=len([GamitSession for GamitSession in Sessions if not GamitSession.ready]),
                       desc=' >> GAMIT sessions completion', ncols=100)  # type: tqdm

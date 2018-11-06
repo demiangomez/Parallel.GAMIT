@@ -9,6 +9,7 @@ from tqdm import tqdm
 import numpy as np
 import glob
 import re
+import os
 from scipy.spatial import ConvexHull
 
 NET_LIMIT = 40
@@ -89,7 +90,7 @@ class Network(object):
 
         secondary = [stn for stn in stations if date in stn.good_rinex and stn not in core_network]
 
-        partition, ready = self.recover_subnets(core_network, stations, date)
+        core_network, partition, uid, ready = self.recover_subnets(core_network, stations, date)
 
         if len(core_network) > 0:
             # it was determined that this network requires partitioning
@@ -104,17 +105,19 @@ class Network(object):
                     p += core_network
                     ready += [False]
 
+                uid = range(len(partition))
+
             sessions = [GamitSession(cnn, archive, '%s.%s%02i' % (self.name, self.org, i), date,
-                                     self.GamitConfig, part[0], core_network, part[1])
-                        for i, part in enumerate(zip(partition, ready))]
+                                     self.GamitConfig, partition, core_network, ready)
+                        for i, partition, ready in zip(uid, partition, ready)]
         else:
             if not partition:
                 partition = [secondary]
                 ready = [False]
 
             # all stations fit in a single run
-            sessions = [GamitSession(cnn, archive, self.name, date, self.GamitConfig,
-                                     partition[0], core_network, ready[0])]
+            sessions = [GamitSession(cnn, archive, self.name, date, self.GamitConfig, partition[0],
+                                     core_network, ready[0])]
 
         return sessions
 
@@ -124,8 +127,7 @@ class Network(object):
 
         partition = []
         ready = []
-
-        pattern = re.compile('.*-> fetching rinex for (\w+.\w+)\s(\w+)')
+        uid = []
 
         if len(core_network) > 0:
             # multiple networks per day
@@ -137,35 +139,34 @@ class Network(object):
 
         for pwd in pwds:
 
-            stn_list = []
+            if len(core_network) > 0:
+                folder = os.path.basename(pwd)
+                uid += [int(folder.split('.' + self.org)[1])]
+            else:
+                uid = [0]
 
-            with open(pwd + '/monitor.log', 'r') as monitor:
-                for line in monitor:
-                    stn = pattern.findall(line)
+            f = open(pwd + '/monitor.log', 'r')
+            lines = f.readlines()
+            f.close()
 
-                    if stn:
-                        # get the station
-                        sta = None
-                        for s in stations:
-                            if s.NetworkCode + '.' + s.StationCode == stn[0][0]:
-                                sta = s
-                                break
+            output = ''.join(lines)
 
-                        # if station was found:
-                        if sta:
-                            stn_list.append(sta)
+            sstn = re.findall('.*-> fetching rinex for (\w+.\w+)\s(\w+)', output, re.MULTILINE)
 
-                            # check that the alias of the station is the same, if not, change it!
-                            if sta.StationAlias != stn[0][1]:
-                                sta.StationAlias = stn[0][1]
-                        else:
-                            tqdm.write(' -- WARNING: Station %s could not be found in existing processing folder (%s). '
-                                       'Check you are using the same station set' % (stn[0][1], pwd))
+            # loop through the stations checking the aliases
+            for stn in sstn:
+                found = False
+                for s in stations:
+                    if s.NetworkCode + '.' + s.StationCode == stn[0]:
+                        found = True
+                        # check that the alias of the station is the same, if not, change it!
+                        if s.StationAlias != stn[1]:
+                            s.StationAlias = stn[1]
+                if not found:
+                    tqdm.write(' -- WARNING: Station %s could not be found in existing processing folder (%s). '
+                               'Check you are using the same station set' % (stn[0], pwd))
 
-                    if '-> executing GAMIT' in line:
-                        # it reached to execute GAMIT, use the net config
-                        partition.append(stn_list)
-                        break
+            partition.append([s for s in stations if s.NetworkCode + '.' + s.StationCode in [stn[0] for stn in sstn]])
 
             # if the glx file is present, then the all the processes should be ready
             if glob.glob(pwd + '/glbf/*.glx*'):
@@ -173,7 +174,11 @@ class Network(object):
             else:
                 ready += [False]
 
-        return partition, ready
+        if len(core_network) > 0 and len(partition) > 1:
+            # determine the core_network by intersecting the lists
+            core_network = set(partition[0]).intersection(*partition)
+
+        return core_network, partition, uid, ready
 
     @staticmethod
     def partition(lst, n):
