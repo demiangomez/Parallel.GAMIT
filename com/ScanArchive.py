@@ -1135,7 +1135,7 @@ def main():
                              "If [net].all is given, all stations from network [net] will be processed. "
                              "Alternatevily, a file with the station list can be provided.")
 
-    parser.add_argument('-rinex', '--rinex', action='{ignore_stnlist}', type=str, nargs=1, default=None,
+    parser.add_argument('-rinex', '--rinex', metavar='{ignore_stnlist}', type=int, nargs=1, default=None,
                         help="Scan the current archive for RINEX files (d.Z) and add them to the database if missing. "
                              "Station list will be used to filter specific networks and stations if {ignore_stnlist} = "
                              "0. For example: ScanArchive [net].all -rinex 0 will process all the stations in network "
@@ -1166,7 +1166,7 @@ def main():
                              "Parallel.GAMIT system using the -import option."
                              "One file is created per station in the current directory")
 
-    parser.add_argument('-import', '--import_station', nargs=2, type=str, metavar='{zipfiles} {default net}',
+    parser.add_argument('-import', '--import_station', nargs=2, type=str, metavar=('{zipfiles}', '{default net}'),
                         help="Import a station from zipfiles produced by another Parallel.GAMIT system. "
                              "Wildcards are accepted to import multiple zipfiles. If station does not exist, use "
                              "{default net} to specify the network where station should be added to. If {default net} "

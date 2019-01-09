@@ -784,7 +784,7 @@ def main():
     parser.add_argument('-es', '--exclude_solutions', metavar=('{start_date}', '{end_date}'), nargs=2,
                         help='Exclude PPP solutions (by adding them to the excluded table) between {start_date} '
                              'and {end_date}')
-    parser.add_argument('-del', '--delete_rinex', metavar=('{start_date}', '{end_date}, {completion}'), nargs=3,
+    parser.add_argument('-del', '--delete_rinex', metavar=('{start_date}', '{end_date}', '{completion}'), nargs=3,
                         help='Delete RINEX files (and associated solutions, PPP and GAMIT) '
                              'from archive between {start_date} and {end_date} with completion <= {completion}. '
                              'Completion ranges form 1.0 to 0.0. Use 1.0 to delete all data. '

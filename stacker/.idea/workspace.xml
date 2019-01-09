@@ -2,18 +2,9 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="a64c3a05-b10f-4d88-bc8d-bee6a190e9d3" name="Default" comment="">
-      <change afterPath="$PROJECT_DIR$/../parallel_gamit/.idea/encodings.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/encodings.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../classes/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../classes/pyArchiveStruct.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/pyArchiveStruct.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../classes/pyETM.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/pyETM.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../classes/pyRinex.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/pyRinex.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../com/ArchiveService.py" beforeDir="false" afterPath="$PROJECT_DIR$/../com/ArchiveService.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../com/DownloadSources.py" beforeDir="false" afterPath="$PROJECT_DIR$/../com/DownloadSources.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../com/IntegrityCheck.py" beforeDir="false" afterPath="$PROJECT_DIR$/../com/IntegrityCheck.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../com/ScanArchive.py" beforeDir="false" afterPath="$PROJECT_DIR$/../com/ScanArchive.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../parallel_gamit/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -38,8 +29,8 @@
       <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/../com/ScanArchive.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="231">
-              <caret line="1085" lean-forward="true" selection-start-line="1085" selection-end-line="1085" />
+            <state relative-caret-position="126">
+              <caret line="1168" column="113" selection-start-line="1168" selection-start-column="113" selection-end-line="1168" selection-end-column="113" />
               <folding>
                 <element signature="e#3736#3758#0" expanded="true" />
               </folding>
@@ -101,8 +92,8 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/../com/IntegrityCheck.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="396">
-              <caret line="753" column="34" selection-start-line="753" selection-start-column="34" selection-end-line="753" selection-end-column="34" />
+            <state relative-caret-position="411">
+              <caret line="787" column="88" selection-start-line="787" selection-start-column="88" selection-end-line="787" selection-end-column="88" />
             </state>
           </provider>
         </entry>
@@ -198,8 +189,8 @@
         <option value="$PROJECT_DIR$/../com/GenerateSinex.py" />
         <option value="$PROJECT_DIR$/../com/DownloadSources.py" />
         <option value="$PROJECT_DIR$/../com/ArchiveService.py" />
-        <option value="$PROJECT_DIR$/../com/IntegrityCheck.py" />
         <option value="$PROJECT_DIR$/../classes/pyArchiveStruct.py" />
+        <option value="$PROJECT_DIR$/../com/IntegrityCheck.py" />
         <option value="$PROJECT_DIR$/../com/ScanArchive.py" />
       </list>
     </option>
@@ -671,13 +662,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/../com/IntegrityCheck.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="396">
-          <caret line="753" column="34" selection-start-line="753" selection-start-column="34" selection-end-line="753" selection-end-column="34" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/../classes/pyArchiveStruct.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="201">
@@ -692,10 +676,17 @@
         </state>
       </provider>
     </entry>
+    <entry file="file://$PROJECT_DIR$/../com/IntegrityCheck.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="411">
+          <caret line="787" column="88" selection-start-line="787" selection-start-column="88" selection-end-line="787" selection-end-column="88" />
+        </state>
+      </provider>
+    </entry>
     <entry file="file://$PROJECT_DIR$/../com/ScanArchive.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="231">
-          <caret line="1085" lean-forward="true" selection-start-line="1085" selection-end-line="1085" />
+        <state relative-caret-position="126">
+          <caret line="1168" column="113" selection-start-line="1168" selection-start-column="113" selection-end-line="1168" selection-end-column="113" />
           <folding>
             <element signature="e#3736#3758#0" expanded="true" />
           </folding>
