@@ -35,8 +35,9 @@ import pyEvents
 import pyProducts
 import argparse
 
-# class to handle the output of the parallel processing
+
 class callback_class():
+    # class to handle the output of the parallel processing
     def __init__(self, pbar):
         self.errors = None
         self.stns = None
@@ -62,13 +63,14 @@ def check_rinex_timespan_int(rinex, stn):
     else:
         return True
 
+
 def write_error(folder, filename, msg):
 
     # do append just in case...
     count = 0
     while True:
         try:
-            file = open(os.path.join(folder,filename),'a')
+            file = open(os.path.join(folder, filename), 'a')
             file.write(msg)
             file.close()
             break
@@ -324,7 +326,7 @@ PSQL# INSERT INTO stations ("NetworkCode", "StationCode", "auto_x", "auto_y", "a
 
                         # add the file to the locks table so that it doesn't get processed over and over
                         # this will be removed by user so that the file gets reprocessed once all the metadata is ready
-                        cnn.insert('locks',filename=os.path.relpath(crinez, Config.repository_data_in))
+                        cnn.insert('locks', filename=os.path.relpath(crinez, Config.repository_data_in))
 
                         # return a string with the relevant information to insert into the database (NetworkCode = default (rnx))
                         return (None, [StationCode, (ppp.x, ppp.y, ppp.z), coeff, (ppp.lat[0], ppp.lon[0], ppp.h[0]), crinez])

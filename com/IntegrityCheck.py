@@ -732,7 +732,7 @@ def ExcludeSolutions(cnn, stnlist, start_date, end_date):
                 tqdm.write('PPP solution for %i %i is already in the excluded solutions table\n' % (soln['Year'], soln['DOY']))
 
 
-def DeleteRinex(cnn, stnlist, start_date, end_date):
+def DeleteRinex(cnn, stnlist, start_date, end_date, completion_limit=0.0):
 
     Archive = pyArchiveStruct.RinexStruct(cnn)
 
@@ -742,17 +742,21 @@ def DeleteRinex(cnn, stnlist, start_date, end_date):
 
         rs = cnn.query(
             'SELECT * FROM rinex WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' '
-            'AND "ObservationFYear" BETWEEN %f AND %f' %
-            (NetworkCode, StationCode, start_date.fyear, end_date.fyear))
+            'AND "ObservationFYear" BETWEEN %f AND %f AND "Completion" <= %f' %
+            (NetworkCode, StationCode, start_date.fyear, end_date.fyear, completion_limit))
 
         rinex = rs.dictresult()
-        tqdm.write(' >> Deleting %i RINEX files and solutions for %s.%s between %s - %s' % (len(rinex), NetworkCode, StationCode, start_date.yyyyddd(), end_date.yyyyddd()))
+        tqdm.write(' >> Deleting %i RINEX files and solutions for %s.%s between %s - %s and completion <= %.3f' %
+                   (len(rinex), NetworkCode, StationCode, start_date.yyyyddd(), end_date.yyyyddd(), completion_limit))
         for rnx in tqdm(rinex):
             try:
                 # delete rinex file
                 Archive.remove_rinex(rnx)
+
             except dbConnection.dbErrDelete as e:
-                tqdm.write('Failed to delete solutions and/or RINEX files for %i %i. Reason: %s\n' % (rnx['Year'], rnx['DOY'], str(e)))
+                tqdm.write('Failed to delete solutions and/or RINEX files for %i %i. Reason: %s\n' %
+                           (rnx['Year'], rnx['DOY'], str(e)))
+
 
 def main():
 
@@ -777,18 +781,24 @@ def main():
                                                          "It also changes the rinex filenames in the archive to match those of the new destiny station. "
                                                          "Only a single station can be given as the origin and destiny. "
                                                          "Limit the date range using the -d option.")
-    parser.add_argument('-es','--exclude_solutions', metavar=('{start_date}', '{end_date}'), nargs=2, help='Exclude PPP solutions (by adding them to the excluded table) between {start_date} and {end_date}')
-    parser.add_argument('-del', '--delete_rinex', metavar=('{start_date}', '{end_date}'), nargs=2, help='Delete RINEX files (and associated solutions, PPP and GAMIT) from archive between {start_date} and {end_date}. Operation cannot be undone!')
+    parser.add_argument('-es', '--exclude_solutions', metavar=('{start_date}', '{end_date}'), nargs=2,
+                        help='Exclude PPP solutions (by adding them to the excluded table) between {start_date} '
+                             'and {end_date}')
+    parser.add_argument('-del', '--delete_rinex', metavar=('{start_date}', '{end_date}, {completion}'), nargs=3,
+                        help='Delete RINEX files (and associated solutions, PPP and GAMIT) '
+                             'from archive between {start_date} and {end_date} with completion <= {completion}. '
+                             'Completion ranges form 1.0 to 0.0. Use 1.0 to delete all data. '
+                             'Operation cannot be undone!')
     parser.add_argument('-np', '--noparallel', action='store_true', help="Execute command without parallelization.")
 
     args = parser.parse_args()
 
-    cnn = dbConnection.Cnn("gnss_data.cfg") # type: dbConnection.Cnn
+    cnn = dbConnection.Cnn("gnss_data.cfg")  # type: dbConnection.Cnn
 
     # create the execution log
     cnn.insert('executions', script='pyIntegrityCheck.py')
 
-    Config = pyOptions.ReadOptions("gnss_data.cfg") # type: pyOptions.ReadOptions
+    Config = pyOptions.ReadOptions("gnss_data.cfg")  # type: pyOptions.ReadOptions
 
     stnlist = Utils.process_stnlist(cnn, args.stnlist)
 

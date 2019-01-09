@@ -27,7 +27,10 @@ import os
 from time import time
 from matplotlib.widgets import Button
 import matplotlib
-if not os.environ['DISPLAY']:
+if 'DISPLAY' in os.environ.keys():
+    if not os.environ['DISPLAY']:
+        matplotlib.use('Agg')
+else:
     matplotlib.use('Agg')
 
 

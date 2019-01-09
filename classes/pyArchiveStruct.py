@@ -187,7 +187,7 @@ class RinexStruct():
                     description = 'RINEX %s was removed from the database and archive. File was deleted. See next events for reason.' % (record['Filename'])
 
             else:
-                description = 'RINEX %s was removed from the database and archive. File was NOT found so no deletion was performed. See next events for reason.' % (record['Filename'])
+                description = 'RINEX %s was removed from the database and archive. File was NOT found in the archive so no deletion was performed. See next events for reason.' % (record['Filename'])
 
             # insert an event
             event = pyEvents.Event(

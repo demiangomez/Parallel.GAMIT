@@ -2,20 +2,12 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="6b0f93cd-0427-4f5b-bf1e-f42168078fd7" name="Default" comment="">
-      <change afterPath="$PROJECT_DIR$/../com/create_ppp_ts.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../com/gamit_stats.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/Utils.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../stacker/.idea/encodings.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/pyETM.py" beforeDir="false" afterPath="$PROJECT_DIR$/pyETM.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../com/IntegrityCheck.py" beforeDir="false" afterPath="$PROJECT_DIR$/../com/IntegrityCheck.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../com/PlotETM.py" beforeDir="false" afterPath="$PROJECT_DIR$/../com/PlotETM.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../com/ArchiveService.py" beforeDir="false" afterPath="$PROJECT_DIR$/../com/ArchiveService.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../parallel_gamit/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit/pyGamitTask.py" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/pyGamitTask.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit/pyGlobkTask.py" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/pyGlobkTask.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit/pyNetwork.py" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/pyNetwork.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit/pyParallelGamit.py" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/pyParallelGamit.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit/pyStation.py" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/pyStation.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../stacker/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../stacker/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../stacker/pyStack.py" beforeDir="false" afterPath="$PROJECT_DIR$/../stacker/pyStack.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -25,18 +17,6 @@
   </component>
   <component name="CreatePatchCommitExecutor">
     <option name="PATCH_PATH" value="" />
-  </component>
-  <component name="FUSProjectUsageTrigger">
-    <session id="-1646261373">
-      <usages-collector id="statistics.lifecycle.project">
-        <counts>
-          <entry key="project.closed" value="2" />
-          <entry key="project.open.time.1" value="1" />
-          <entry key="project.open.time.2" value="1" />
-          <entry key="project.opened" value="2" />
-        </counts>
-      </usages-collector>
-    </session>
   </component>
   <component name="FavoritesManager">
     <favorites_list name="classes" />
@@ -208,17 +188,7 @@
     </navigator>
     <panes>
       <pane id="Scope" />
-      <pane id="ProjectPane">
-        <subPane>
-          <expand>
-            <path>
-              <item name="classes" type="b2602c69:ProjectViewProjectNode" />
-              <item name="classes" type="462c0819:PsiDirectoryNode" />
-            </path>
-          </expand>
-          <select />
-        </subPane>
-      </pane>
+      <pane id="ProjectPane" />
     </panes>
   </component>
   <component name="PropertiesComponent">
@@ -421,16 +391,13 @@
       <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
       <window_info anchor="bottom" id="TODO" order="6" weight="0.32786885" />
       <window_info anchor="bottom" id="Event Log" order="7" sideWeight="0.5117541" side_tool="true" weight="0.21169591" />
-      <window_info anchor="bottom" id="Python Console" order="8" sideWeight="0.48824593" visible="true" weight="0.22031963" />
+      <window_info anchor="bottom" id="Python Console" order="8" sideWeight="0.48824593" visible="true" weight="0.22006841" />
       <window_info anchor="bottom" id="Terminal" order="9" weight="0.3290398" />
       <window_info anchor="bottom" id="Version Control" order="10" show_stripe_button="false" />
       <window_info anchor="right" id="Commander" order="0" weight="0.4" />
       <window_info anchor="right" id="Ant Build" order="1" weight="0.25" />
       <window_info anchor="right" content_ui="combo" id="Hierarchy" order="2" weight="0.25" />
     </layout>
-  </component>
-  <component name="VcsContentAnnotationSettings">
-    <option name="myLimit" value="2678400000" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
@@ -466,9 +433,6 @@
           <option name="timeStamp" value="158" />
         </line-breakpoint>
       </breakpoints>
-      <breakpoints-dialog>
-        <breakpoints-dialog />
-      </breakpoints-dialog>
       <default-breakpoints>
         <breakpoint type="python-exception">
           <properties notifyOnTerminate="true" exception="BaseException">

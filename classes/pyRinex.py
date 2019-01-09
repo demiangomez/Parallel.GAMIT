@@ -1035,45 +1035,66 @@ class ReadRinex(RinexRecord):
                 rnx.remove_systems()
                 self.log_event('Removing systems S, R and E to run auto_coord')
 
-            # copy brdc orbit
-            copyfile(brdc.brdc_path, os.path.join(rnx.rootdir, brdc.brdc_filename))
-
         except pyRinexException as e:
             # print str(e)
             # ooops, something went wrong, try with local file (without removing systems or decimating)
             rnx = self
             # raise pyRinexExceptionBadFile('During decimation or remove_systems (to run auto_coord), teqc returned: %s' + str(e))
 
-        cmd = pyRunWithRetry.RunCommand('sh_rx2apr -site ' + rnx.rinex + ' -nav ' + brdc.brdc_filename + ' -chi ' + str(chi_limit), 40, rnx.rootdir)
-        # leave errors un-trapped on purpose (will raise an error to the parent)
-        out, err = cmd.run_shell()
+        # copy brdc orbit
+        copyfile(brdc.brdc_path, os.path.join(rnx.rootdir, brdc.brdc_filename))
 
-        if err != '' and err is not None:
-            raise pyRinexExceptionNoAutoCoord(str(err) + '\n' + out)
+        # check if the apr coordinate is zero and iterate more than once if true
+        if self.x == 0 and self.y == 0 and self.z == 0:
+            max_it = 2
         else:
-            # check that the Final chi**2 is < 3
-            for line in out.split('\n'):
-                if '* Final sqrt(chi**2/n)' in line:
-                    chi = line.split()[-1]
+            max_it = 1
 
-                    if chi == 'NaN':
-                        raise pyRinexExceptionNoAutoCoord('chi2 = NaN! ' + str(err) + '\n' + out)
+        for i in range(max_it):
 
-                    elif float(chi) < chi_limit:
-                        # open the APR file and read the coordinates
-                        if os.path.isfile(os.path.join(rnx.rootdir, rnx.rinex[0:4] + '.apr')):
-                            with open(os.path.join(rnx.rootdir, rnx.rinex[0:4] + '.apr')) as apr:
-                                line = apr.readline().split()
+            cmd = pyRunWithRetry.RunCommand(
+                'sh_rx2apr -site ' + rnx.rinex + ' -nav ' + brdc.brdc_filename + ' -chi ' + str(chi_limit), 40,
+                rnx.rootdir)
+            # leave errors un-trapped on purpose (will raise an error to the parent)
+            out, err = cmd.run_shell()
 
-                                self.x = float(line[1])
-                                self.y = float(line[2])
-                                self.z = float(line[3])
+            if err != '' and err is not None:
+                raise pyRinexExceptionNoAutoCoord(str(err) + '\n' + out)
+            else:
+                # check that the Final chi**2 is < 3
+                for line in out.split('\n'):
+                    if '* Final sqrt(chi**2/n)' in line:
+                        chi = line.split()[-1]
 
-                                self.lat, self.lon, self.h = ecef2lla([self.x, self.y, self.z])
+                        if chi == 'NaN':
+                            raise pyRinexExceptionNoAutoCoord('chi2 = NaN! ' + str(err) + '\n' + out)
 
-                            return (float(line[1]), float(line[2]), float(line[3])), (self.lat, self.lon, self.h)
+                        elif float(chi) < chi_limit:
+                            # open the APR file and read the coordinates
+                            if os.path.isfile(os.path.join(rnx.rootdir, rnx.rinex[0:4] + '.apr')):
+                                with open(os.path.join(rnx.rootdir, rnx.rinex[0:4] + '.apr')) as apr:
+                                    line = apr.readline().split()
 
-            raise pyRinexExceptionNoAutoCoord(str(out) + '\nLIMIT FOR CHI**2 was %i' % chi_limit)
+                                    self.x = float(line[1])
+                                    self.y = float(line[2])
+                                    self.z = float(line[3])
+
+                                    self.lat, self.lon, self.h = ecef2lla([self.x, self.y, self.z])
+
+                                # only exit and return coordinate if current iteration == max_it
+                                # (minus one due to arrays starting at 0).
+                                if i == max_it - 1:
+                                    return (float(line[1]), float(line[2]), float(line[3])), \
+                                           (self.lat, self.lon, self.h)
+
+                # copy the header to replace with new coordinate
+                # note that this piece of code only executes if there is more than one iteration
+                new_header = self.header
+                new_header = self.replace_record(new_header, 'APPROX POSITION XYZ', (self.x, self.y, self.z))
+                # write the rinex file with the new header
+                rnx.write_rinex(new_header)
+
+        raise pyRinexExceptionNoAutoCoord(str(out) + '\nLIMIT FOR CHI**2 was %i' % chi_limit)
 
     def window_data(self, start=None, end=None, copyto=None):
         """

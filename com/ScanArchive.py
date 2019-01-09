@@ -92,6 +92,7 @@ import scandir
 import json
 import shutil
 import glob
+import uuid
 from decimal import Decimal
 
 
@@ -634,7 +635,7 @@ def output_handle(callback):
     return []
 
 
-def post_scan_rinex_job(cnn, Config, Archive, rinex_file, rinexpath, master_list, JobServer, callback, pbar):
+def post_scan_rinex_job(cnn, Config, Archive, rinex_file, rinexpath, master_list, JobServer, callback, pbar, ignore):
 
     valid, result = Archive.parse_archive_keys(rinex_file, key_filter=('network', 'station', 'year', 'doy'))
 
@@ -650,7 +651,7 @@ def post_scan_rinex_job(cnn, Config, Archive, rinex_file, rinexpath, master_list
         doy = result['doy']
 
         # check the master_list
-        if NetworkCode + '.' + StationCode in master_list:
+        if NetworkCode + '.' + StationCode in master_list or ignore:
             # check existence of network in the db
             rs = cnn.query('SELECT * FROM networks WHERE "NetworkCode" = \'%s\'' % (NetworkCode))
             if rs.ntuples() == 0:
@@ -680,13 +681,19 @@ def post_scan_rinex_job(cnn, Config, Archive, rinex_file, rinexpath, master_list
 
     return callback
 
-def scan_rinex(cnn, JobServer, pyArchive, archive_path, Config, master_list):
+
+def scan_rinex(cnn, JobServer, pyArchive, archive_path, Config, master_list, ignore):
 
     callback = []
     master_list = [item['NetworkCode'] + '.' + item['StationCode'] for item in master_list]
 
     print " >> Analyzing the archive's structure..."
     pbar = tqdm(ncols=80, unit='crz')
+
+    if ignore[0] == 1:
+        ignore = True
+    else:
+        ignore = False
 
     #archivefiles, path2rinex, _ = pyArchive.scan_archive_struct(archive_path, execute_function=post_scan_rinex_job, arguments=(master_list, JobServer, callback, pbar))
     for path, _, files in scandir.walk(archive_path):
@@ -700,8 +707,8 @@ def scan_rinex(cnn, JobServer, pyArchive, archive_path, Config, master_list):
                 pbar.set_postfix(crinex=rnx)
                 pbar.update()
 
-                callback = post_scan_rinex_job(cnn, Config, pyArchive, rnx, path2rnx, master_list, JobServer, callback, pbar)
-
+                callback = post_scan_rinex_job(cnn, Config, pyArchive, rnx, path2rnx,
+                                               master_list, JobServer, callback, pbar, ignore)
 
     if Config.run_parallel:
         tqdm.write(' -- waiting for jobs to finish...')
@@ -827,6 +834,7 @@ def scan_station_info(JobServer, run_parallel, pyArchive, archive_path, master_l
 
     return
 
+
 def scan_station_info_manual(cnn, pyArchive, stn_info_path, stations, stn_info_net, stdin=None):
     # input "stations" has a list in net.stnm format
 
@@ -874,6 +882,7 @@ def scan_station_info_manual(cnn, pyArchive, stn_info_path, stations, stn_info_n
                     tqdm.write('   >> Station %s.%s was not found in the station info file %s' % (Station['NetworkCode'], Station['StationCode'], stninfopath))
 
     return
+
 
 def hash_check(cnn, master_list, sdate, edate, rehash=False, h_tolerant=0):
 
@@ -1063,15 +1072,30 @@ def export_station(cnn, stnlist, pyArchive, archive_path):
     print ""
 
 
-def import_station(files):
+def import_station(cnn, args):
 
-    files = glob.glob(files)
+    files = glob.glob(args[0])
+
+    archive = pyArchiveStruct.RinexStruct(cnn)
 
     print " >> Processing input files..."
 
-    for file in files:
+    for ff in files:
+
+        fileparts = archive.parse_crinex_filename(os.path.basename(ff))
+
+        StationCode = fileparts[0].lower()
+        doy = int(fileparts[1])
+        year = int(Utils.get_norm_year_str(fileparts[3]))
+
+        path = 'production/archive/' + str(uuid.uuid4())
+
         # process each station file
-        stn = json.load(file)
+        shutil.unpack_archive(ff, path)
+
+        json = glob.glob(os.path.join(path, '*.json'))
+
+        stninfo = json.load(os.path.join(path, json[0]))
 
 
 def get_rinex_file(cnn, stnlist, date, Archive_path):
@@ -1099,38 +1123,82 @@ def get_rinex_file(cnn, stnlist, date, Archive_path):
         else:
             tqdm.write(" -- %s not found for %s.%s" % (date.yyyyddd(), NetworkCode, StationCode))
 
+
 def main():
 
     parser = argparse.ArgumentParser(description='Archive operations Main Program')
 
-    parser.add_argument('stnlist', type=str, nargs='+', metavar='all|net.stnm', help="List of networks/stations to process given in [net].[stnm] format or just [stnm] (separated by spaces; if [stnm] is not unique in the database, all stations with that name will be processed). Use keyword 'all' to process all stations in the database. If [net].all is given, all stations from network [net] will be processed. Alternatevily, a file with the station list can be provided.")
-    parser.add_argument('-rinex', '--rinex', action='store_true', help="Scan the current archive for RINEX files (d.Z).")
-    parser.add_argument('-otl', '--ocean_loading', action='store_true', help="Calculate ocean loading coefficients.")
-    parser.add_argument('-stninfo', '--station_info', nargs='*', metavar='argument', help="Insert station information to the database. "
-        "If no arguments are given, then scan the archive for station info files and use their location (folder) to determine the network to use during insertion. "
-        "Only stations in the station list will be processed. "
-        "If a filename is provided, then scan that file only, in which case a second argument specifies the network to use during insertion. Eg: -stninfo ~/station.info arg. "
-        "In cases where multiple networks are being processed, the network argument will be used to desambiguate station code conflicts. "
-        "Eg: pyScanArchive all -stninfo ~/station.info arg -> if a station named igm1 exists in networks 'igs' and 'arg', only 'arg.igm1' will get the station information insert. "
-        "Use keyword 'stdin' to read the station information data from the pipeline.")
-    parser.add_argument('-export', '--export_station', action='store_true', help="Export a station from the local database that can be imported into another Parallel.GAMIT system using the -import option."
-                        "One file is created per station in the current directory")
-    parser.add_argument('-import', '--import_station', nargs='+', metavar='{import json}',
-                        help="Import a station from a file produced by another Parallel.GAMIT system. Wildcards are accepted to import multiple stations. Station list is ignored.")
+    parser.add_argument('stnlist', type=str, nargs='+', metavar='all|net.stnm',
+                        help="List of networks/stations to process given in [net].[stnm] format or just [stnm] "
+                             "(separated by spaces; if [stnm] is not unique in the database, all stations with that "
+                             "name will be processed). Use keyword 'all' to process all stations in the database. "
+                             "If [net].all is given, all stations from network [net] will be processed. "
+                             "Alternatevily, a file with the station list can be provided.")
+
+    parser.add_argument('-rinex', '--rinex', action='{ignore_stnlist}', type=str, nargs=1, default=None,
+                        help="Scan the current archive for RINEX files (d.Z) and add them to the database if missing. "
+                             "Station list will be used to filter specific networks and stations if {ignore_stnlist} = "
+                             "0. For example: ScanArchive [net].all -rinex 0 will process all the stations in network "
+                             "[net], but networks and stations have to exist in the database. "
+                             "If ScanArchive [net].all -rinex 1 the station list will be ignored and everything in the "
+                             "archive will be checked (and added to the db if missing) even if networks and stations "
+                             "don't exist. Networks and stations will be added if they don't exist.")
+
+    parser.add_argument('-otl', '--ocean_loading', action='store_true',
+                        help="Calculate ocean loading coefficients using FES2004. To calculate FES2014b coefficients, "
+                             "use OTL_FES2014b.py")
+
+    parser.add_argument('-stninfo', '--station_info', nargs='*', metavar='argument',
+                        help="Insert station information to the database. "
+                             "If no arguments are given, then scan the archive for station info files and use their "
+                             "location (folder) to determine the network to use during insertion. "
+                             "Only stations in the station list will be processed. "
+                             "If a filename is provided, then scan that file only, in which case a second argument "
+                             "specifies the network to use during insertion. Eg: -stninfo ~/station.info arg. "
+                             "In cases where multiple networks are being processed, the network argument will be used "
+                             "to desambiguate station code conflicts. "
+                             "Eg: pyScanArchive all -stninfo ~/station.info arg -> if a station named igm1 exists in "
+                             "networks 'igs' and 'arg', only 'arg.igm1' will get the station information insert. "
+                             "Use keyword 'stdin' to read the station information data from the pipeline.")
+
+    parser.add_argument('-export', '--export_station', action='store_true',
+                        help="Export a station from the local database that can be imported into another "
+                             "Parallel.GAMIT system using the -import option."
+                             "One file is created per station in the current directory")
+
+    parser.add_argument('-import', '--import_station', nargs=2, type=str, metavar='{zipfiles} {default net}',
+                        help="Import a station from zipfiles produced by another Parallel.GAMIT system. "
+                             "Wildcards are accepted to import multiple zipfiles. If station does not exist, use "
+                             "{default net} to specify the network where station should be added to. If {default net} "
+                             "does not exit, it will be created. Station list is ignored.")
+
     parser.add_argument('-get', '--get_from_archive', nargs=1, metavar='{date}',
                         help="Get the specified station from the archive and copy it to the current directory. Fix it "
                              "to match the station information in the database.")
-    parser.add_argument('-ppp', '--ppp', nargs='*', metavar='argument', help="Run ppp on the rinex files in the database. Append [date_start] and (optionally) [date_end] to limit the range of the processing. Allowed formats are yyyy_doy, wwww-d, fyear or yyyy/mm/dd. Append keyword 'hash' to the end to check the PPP hash values against the station information records. If hash doesn't match, recalculate the PPP solutions.")
-    parser.add_argument('-rehash', '--rehash', nargs='*', metavar='argument', help="Check PPP hash against station information hash. Rehash PPP solutions to match the station information hash without recalculating the PPP solution. Optionally append [date_start] and (optionally) [date_end] to limit the rehashing time window. Allowed formats are yyyy.doy or yyyy/mm/dd.")
+
+    parser.add_argument('-ppp', '--ppp', nargs='*', metavar='argument',
+                        help="Run ppp on the rinex files in the database. Append [date_start] and (optionally) "
+                             "[date_end] to limit the range of the processing. Allowed formats are yyyy_doy, wwww-d, "
+                             "fyear or yyyy/mm/dd. Append keyword 'hash' to the end to check the PPP hash values "
+                             "against the station information records. If hash doesn't match, recalculate the PPP "
+                             "solutions.")
+
+    parser.add_argument('-rehash', '--rehash', nargs='*', metavar='argument',
+                        help="Check PPP hash against station information hash. Rehash PPP solutions to match the "
+                             "station information hash without recalculating the PPP solution. Optionally append "
+                             "[date_start] and (optionally) [date_end] to limit the rehashing time window. "
+                             "Allowed formats are yyyy.doy or yyyy/mm/dd.")
+
     parser.add_argument('-tol', '--stninfo_tolerant', nargs=1, type=int, metavar='{hours}', default=[0],
-                        help="Specify a tolerance (in hours) for station information gaps (only use for early survey data). Default is zero.")
+                        help="Specify a tolerance (in hours) for station information gaps (only use for early "
+                             "survey data). Default is zero.")
+
     parser.add_argument('-np', '--noparallel', action='store_true', help="Execute command without parallelization.")
 
     args = parser.parse_args()
 
-    if not args.station_info is None and (not len(args.station_info) in (0,2)):
+    if args.station_info is not None and (not len(args.station_info) in (0, 2)):
         parser.error('-stninfo requires 0 or 2 arguments. {} given.'.format(len(args.station_info)))
-
 
     Config = pyOptions.ReadOptions("gnss_data.cfg") # type: pyOptions.ReadOptions
 
@@ -1151,8 +1219,8 @@ def main():
         Config.run_parallel = False
     #########################################
 
-    if args.rinex:
-        scan_rinex(cnn, JobServer, pyArchive, Config.archive_path, Config, stnlist)
+    if args.rinex is not None:
+        scan_rinex(cnn, JobServer, pyArchive, Config.archive_path, Config, stnlist, args.rinex)
 
     #########################################
 
@@ -1161,7 +1229,7 @@ def main():
 
     #########################################
 
-    if not args.station_info is None:
+    if args.station_info is not None:
         if len(args.station_info) == 0:
             scan_station_info(JobServer, Config.run_parallel, pyArchive, Config.archive_path, stnlist)
         else:
@@ -1222,8 +1290,9 @@ def main():
         get_rinex_file(cnn, stnlist, dates[0], Config.archive_path)
 
     # remove the production dir
-    #if os.path.isdir('production'):
+    # if os.path.isdir('production'):
     #    rmtree('production')
+
 
 if __name__ == '__main__':
 

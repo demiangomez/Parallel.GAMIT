@@ -269,7 +269,7 @@ def download_sftp(fqdn, username, password, folder, destiny, filename):
 
         tqdm.write('   -- Changing folder to ' + folder)
 
-        sftp.cd(folder)
+        sftp.chdir(folder)
 
         ftp_list = sftp.listdir()
 
