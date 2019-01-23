@@ -890,7 +890,7 @@ class GenericJumps(object):
 
         for stninfo in self.stninfo.records[1:]:
 
-            date = pyDate.Date(datetime=stninfo['DateStart'])
+            date = stninfo['DateStart']
 
             table = [j['action'] for j in jp if j['Year'] == date.year and j['DOY'] == date.doy]
 

@@ -8,18 +8,20 @@ import pyOptions
 import argparse
 import dbConnection
 import pyStationInfo
-from datetime import datetime
+import pyDate
 import curses
 from curses import panel
 import curses.ascii
 from curses.textpad import Textbox, rectangle
 from collections import OrderedDict
+import traceback
 
 cnn = dbConnection.Cnn('gnss_data.cfg')
 Config = pyOptions.ReadOptions("gnss_data.cfg")  # type: pyOptions.ReadOptions
 selection = 0
 stn = None
 records = []
+
 
 class _Textbox(Textbox):
     """
@@ -39,7 +41,9 @@ class _Textbox(Textbox):
                 Textbox.do_command(self, chr)
 
     def edit(self, validate=None):
-        "Edit in the widget window and collect the results."
+        """
+        Edit in the widget window and collect the results.
+        """
         while 1:
             ch = self.win.getch()
             if validate:
@@ -65,6 +69,7 @@ class _Textbox(Textbox):
             Textbox.gather(self)
             return -1
         return Textbox.do_command(self, ch)
+
 
 class Menu(object):
 
@@ -117,7 +122,10 @@ class Menu(object):
                     mode = curses.A_NORMAL
 
                 if self.type == 'edit' and index < len(self.items)-1:
-                    msg = '%2d. %20s: %-30s' % (index, item['field'], item['value'].replace('\n',' ') if len(item['value']) <= 30 else item['value'].replace('\n',' ')[0:25] + '...')
+                    msg = '%2d. %20s: %-30s' % (index, item['field'],
+                                                item['value'].replace('\n', ' ')
+                                                if len(item['value']) <= 30
+                                                else item['value'].replace('\n', ' ')[0:25] + '...')
                     self.window.addstr(sx + index, 1, msg, mode)
                 else:
                     msg = '%2d. %s' % (index, item['field'])
@@ -154,7 +162,8 @@ class Menu(object):
                     # edit mode, hightlight the field and replace text
                     if key == 4: # control + D
                         # ask if user want to delete record
-                        self.window.addstr(sx + len(self.items), 1, 'Are you sure you want to delete this record?', curses.color_pair(2))
+                        self.window.addstr(sx + len(self.items), 1,
+                                           'Are you sure you want to delete this record?', curses.color_pair(2))
                         key = self.window.getch()
                         if chr(key).upper() == 'Y':
                             # delete record
@@ -208,15 +217,12 @@ class Menu(object):
 
         if self.items[self.position]['field'] in ['DateStart', 'DateEnd']:
             # VALIDATE THE date strings
-            stninfo = pyStationInfo.StationInfoRecord()
-
             try:
-                if edit_field == '' and self.items[self.position]['field'] == 'DateEnd':
-                    _, edit_field = stninfo.datetime2stninfodate(datetime(2010,01,01), None)
+                if edit_field.strip() == '' and self.items[self.position]['field'] == 'DateEnd':
+                    edit_field = str(pyDate.Date(stninfo=None))
                 else:
-                    date,_ = stninfo.stninfodate2datetime(edit_field, edit_field)
                     # if success, then reformat the datetime
-                    edit_field, _ = stninfo.datetime2stninfodate(date, date)
+                    edit_field = str(pyDate.Date(stninfo=edit_field))
 
             except Exception:
                 self.ShowError('Invalid station information datetime format!')
@@ -251,8 +257,11 @@ class Menu(object):
 
         elif self.items[self.position]['field'] == 'HeightCode':
 
-            if not edit_field.upper() in ['DHTGP', 'DHPAB', 'SLBDN', 'SLBCR', 'SLTEP', 'DHBCR', 'SLHGP', 'SLTGN', 'DHARP', 'SLBCE']:
-                self.ShowError('Value must be one of the following: ' + ' '.join(['DHTGP', 'DHPAB', 'SLBDN', 'SLBCR', 'SLTEP', 'DHBCR', 'SLHGP', 'SLTGN', 'DHARP', 'SLBCE']))
+            if not edit_field.upper() in ['DHTGP', 'DHPAB', 'SLBDN', 'SLBCR', 'SLTEP', 'DHBCR', 'SLHGP',
+                                          'SLTGN', 'DHARP', 'SLBCE']:
+                self.ShowError('Value must be one of the following: ' + ' '.join(['DHTGP', 'DHPAB', 'SLBDN', 'SLBCR',
+                                                                                  'SLTEP', 'DHBCR', 'SLHGP', 'SLTGN',
+                                                                                  'DHARP', 'SLBCE']))
                 return False
             else:
                 edit_field = edit_field.upper()
@@ -281,9 +290,8 @@ def save_changes(menu):
 
     # check if there are any changes
     if len(menu.edited_fields.keys()) > 0:
-        record = dict()
-        stnrec = pyStationInfo.StationInfoRecord()
 
+        record = dict()
         record['NetworkCode'] = stn['NetworkCode']
         record['StationCode'] = stn['StationCode']
 
@@ -295,12 +303,11 @@ def save_changes(menu):
 
             if item['field'] in ['DateStart', 'DateEnd']:
 
-                if item['field'] == 'DateStart':
-                    date, _ = stnrec.stninfodate2datetime(item['value'], item['value'])
-                else:
-                    _, date = stnrec.stninfodate2datetime('2010 001 00 00 00', item['value'])
+                if item['field'] == 'DateEnd' and item['value'].strip() == '':
+                    record[item['field']] = None
 
-                record[item['field']] = date
+        # convert the dictionary into a valid StationInfoRecord object
+        record = pyStationInfo.StationInfoRecord(stn['NetworkCode'], stn['StationCode'], record)
 
         # try to insert and catch errors
         try:
@@ -312,11 +319,12 @@ def save_changes(menu):
                 StnInfo.UpdateStationInfo(StnInfo.records[menu.record_index], record)
 
         except Exception as e:
-            menu.ShowError(str(e))
+            menu.ShowError(traceback.format_exc())
             return False
 
         # nothing failed, exit
     return True
+
 
 def get_records():
 
@@ -387,13 +395,15 @@ def selection_main_menu(menu):
 
     return
 
+
 def edit_record(position):
 
     global StnInfo
 
     items = get_fields(position)
 
-    menu = Menu(cnn, items, screen, 'Editing (ESC to cancel): ' + StnInfo.return_stninfo_short().split('\n')[position], 'edit', record_index=position)
+    menu = Menu(cnn, items, screen, 'Editing (ESC to cancel): ' +
+                StnInfo.return_stninfo_short().split('\n')[position], 'edit', record_index=position)
 
     menu.display()
 
@@ -431,19 +441,11 @@ def get_fields(position):
         if field not in ['NetworkCode', 'StationCode']:
             if type(value) is str:
                 out.append({'field': field, 'value': value})
-
-            elif field in ['DateStart', 'DateEnd']:
-                stnrec = pyStationInfo.StationInfoRecord()
-                if field == 'DateStart':
-                    date, _ = stnrec.datetime2stninfodate(value, value)
-                else:
-                    _, date = stnrec.datetime2stninfodate(datetime(2010,1,1), value)
-                out.append({'field': field, 'value': date})
-
             else:
                 out.append({'field': field, 'value': str(value)})
 
-    return out #sorted(out, key=lambda k: k['field'])
+    return out  # sorted(out, key=lambda k: k['field'])
+
 
 class MyApp(object):
 
@@ -462,9 +464,11 @@ class MyApp(object):
 
         main_menu_items += [{'field': 'Insert new station information record', 'function': selection_main_menu}]
 
-        main_menu = Menu(cnn, main_menu_items, self.screen, 'Station information new/edit/delete - %s.%s' % (stn['NetworkCode'], stn['StationCode']))
+        main_menu = Menu(cnn, main_menu_items, self.screen,
+                         'Station information new/edit/delete - %s.%s' % (stn['NetworkCode'], stn['StationCode']))
 
         main_menu.display()
+
 
 if __name__ == '__main__':
 
@@ -478,11 +482,11 @@ if __name__ == '__main__':
 
     if '.' in stn:
         rs = cnn.query(
-            'SELECT * FROM stations WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' ORDER BY "NetworkCode", "StationCode"' % (
-                stn.split('.')[0], stn.split('.')[1]))
+            'SELECT * FROM stations WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' '
+            'ORDER BY "NetworkCode", "StationCode"' % (stn.split('.')[0], stn.split('.')[1]))
     else:
         rs = cnn.query(
-            'SELECT * FROM stations WHERE "StationCode" = \'%s\' ORDER BY "NetworkCode", "StationCode"' % (stn))
+            'SELECT * FROM stations WHERE "StationCode" = \'%s\' ORDER BY "NetworkCode", "StationCode"' % stn)
 
     if rs.ntuples() == 0:
         print 'ERROR: Station code not found!'

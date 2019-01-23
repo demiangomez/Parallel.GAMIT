@@ -93,15 +93,17 @@ class PPPSpatialCheck:
         # start by reducing the number of stations filtering everything beyond 100 km from the point of interest
         # rs = cnn.query("""
         #     SELECT * FROM
-        #     (SELECT *, 2*asin(sqrt(sin((radians(%.8f)-radians(lat))/2)^2 + cos(radians(lat)) * cos(radians(%.8f)) * sin((radians(%.8f)-radians(lon))/2)^2))*6371000 AS distance
+        #     (SELECT *, 2*asin(sqrt(sin((radians(%.8f)-radians(lat))/2)^2 + cos(radians(lat)) * cos(radians(%.8f)) *
+        #     sin((radians(%.8f)-radians(lon))/2)^2))*6371000 AS distance
         #     FROM stations %s) as DD
         #     WHERE distance <= %f
-        #     """ % (self.lat[0], self.lat[0], self.lon[0], where_clause, 1e3))  # DO NOT RETURN RESULTS WITH NetworkCode = '?%'
+        #     """ % (self.lat[0], self.lat[0], self.lon[0], where_clause, 1e3))  # DO NOT RETURN RESULTS
+        #     WITH NetworkCode = '?%'
 
         rs = cnn.query("""
             SELECT st1."NetworkCode", st1."StationCode", st1."StationName", st1."DateStart", st1."DateEnd",
              st1."auto_x", st1."auto_y", st1."auto_z", st1."Harpos_coeff_otl", st1."lat", st1."lon", st1."height",
-             st1."max_dist", st1."dome" FROM
+             st1."max_dist", st1."dome", st1.distance FROM
             (SELECT *, 2*asin(sqrt(sin((radians(%.8f)-radians(lat))/2)^2 + cos(radians(lat)) * 
             cos(radians(%.8f)) * sin((radians(%.8f)-radians(lon))/2)^2))*6371000 AS distance
             FROM stations %s) as st1 left join stations as st2 ON 
@@ -152,8 +154,10 @@ class PPPSpatialCheck:
 
 
 class RunPPP(PPPSpatialCheck):
-    def __init__(self,rinexobj,otl_coeff,options,sp3types,sp3altrn,antenna_height,strict=True,apply_met=True,kinematic=False, clock_interpolation=False, hash=0, erase=True):
-        assert isinstance(rinexobj,pyRinex.ReadRinex)
+    def __init__(self, rinexobj, otl_coeff, options, sp3types, sp3altrn, antenna_height, strict=True, apply_met=True,
+                 kinematic=False, clock_interpolation=False, hash=0, erase=True):
+
+        assert isinstance(rinexobj, pyRinex.ReadRinex)
 
         PPPSpatialCheck.__init__(self)
 
@@ -164,6 +168,11 @@ class RunPPP(PPPSpatialCheck):
         self.ppp       = options['ppp_exe']
         self.options   = options
         self.kinematic = kinematic
+
+        self.file_summary = None
+        self.proc_parameters = None
+        self.observation_session = None
+        self.coordinate_estimate = None
 
         self.clock_interpolation = clock_interpolation
 
@@ -322,7 +331,8 @@ class RunPPP(PPPSpatialCheck):
                          "' ANTENNA HEIGHT                           (m)'          %6.4f\n"
                          "' CUTOFF ELEVATION                       (deg)'          10.000\n"
                          "' GDOP CUTOFF                                 '          20.000\n"
-                         % ('1' if not self.kinematic else '2', '1' if not self.clock_interpolation else '2', self.antH))
+                         % ('1' if not self.kinematic else '2', '1'
+                if not self.clock_interpolation else '2', self.antH))
 
         cmd_file.write(cmd_file_cont)
 
@@ -354,11 +364,11 @@ class RunPPP(PPPSpatialCheck):
 
         options = self.options
 
-        orbits1 = pySp3.GetSp3Orbits(options['sp3'],self.rinex.date, type, os.path.join(self.rootdir,'orbits'),True)
-        orbits2 = pySp3.GetSp3Orbits(options['sp3'],self.rinex.date+1, type, os.path.join(self.rootdir,'orbits'),True)
+        orbits1 = pySp3.GetSp3Orbits(options['sp3'], self.rinex.date, type, os.path.join(self.rootdir, 'orbits'), True)
+        orbits2 = pySp3.GetSp3Orbits(options['sp3'], self.rinex.date+1, type, os.path.join(self.rootdir, 'orbits'), True)
 
-        clocks1 = pyClk.GetClkFile(options['sp3'],self.rinex.date, type, os.path.join(self.rootdir,'orbits'),True)
-        clocks2 = pyClk.GetClkFile(options['sp3'],self.rinex.date+1, type, os.path.join(self.rootdir,'orbits'),True)
+        clocks1 = pyClk.GetClkFile(options['sp3'], self.rinex.date, type, os.path.join(self.rootdir, 'orbits'), True)
+        clocks2 = pyClk.GetClkFile(options['sp3'], self.rinex.date+1, type, os.path.join(self.rootdir, 'orbits'), True)
 
         try:
             eop_file = pyEOP.GetEOP(options['sp3'],self.rinex.date, type, self.rootdir)
@@ -511,8 +521,10 @@ class RunPPP(PPPSpatialCheck):
 
         self.file_summary = self.get_text(self.summary, 'SECTION 1.', 'SECTION 2.')
         self.proc_parameters = self.get_text(self.summary, 'SECTION 2. ', ' SECTION 3. ')
-        self.observation_session = self.get_text(self.summary, '3.2 Observation Session', '3.3 Coordinate estimates')
-        self.coordinate_estimate = self.get_text(self.summary, '3.3 Coordinate estimates', '3.4 Coordinate differences ITRF')
+        self.observation_session = self.get_text(self.summary,
+                                                 '3.2 Observation Session', '3.3 Coordinate estimates')
+        self.coordinate_estimate = self.get_text(self.summary,
+                                                 '3.3 Coordinate estimates', '3.4 Coordinate differences ITRF')
 
         if self.strict and not self.check_phase_center(self.proc_parameters):
             raise pyRunPPPException(
@@ -552,7 +564,8 @@ class RunPPP(PPPSpatialCheck):
 
         # not implemented in PPP: apply NE offset if is NOT zero
         if self.rinex.antOffsetN != 0.0 or self.rinex.antOffsetE != 0.0:
-            dx, dy, dz = lg2ct(numpy.array(self.rinex.antOffsetN), numpy.array(self.rinex.antOffsetE), numpy.array([0]), self.lat, self.lon)
+            dx, dy, dz = lg2ct(numpy.array(self.rinex.antOffsetN), numpy.array(self.rinex.antOffsetE),
+                               numpy.array([0]), self.lat, self.lon)
             # reduce coordinates
             self.x -= dx[0]
             self.y -= dy[0]

@@ -11,6 +11,7 @@ import traceback
 import inspect
 import re
 
+
 class Event(dict):
 
     def __init__(self, **kwargs):
@@ -64,4 +65,10 @@ class Event(dict):
                 val[key] = re.sub(r'PSQL.*', '', val[key])
 
         return val
+
+    def __repr__(self):
+        return 'pyEvent.Event('+str(self['Description'])+')'
+
+    def __str__(self):
+        return str(self['Description'])
 

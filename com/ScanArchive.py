@@ -94,6 +94,7 @@ import shutil
 import glob
 import uuid
 from decimal import Decimal
+import zipfile
 
 
 class Encoder(json.JSONEncoder):
@@ -421,18 +422,21 @@ def insert_stninfo(NetworkCode, StationCode, stninfofile):
     try:
         cnn = dbConnection.Cnn("gnss_data.cfg")
     except Exception:
-        return traceback.format_exc() + ' insert_stninfo: ' + NetworkCode + ' ' + StationCode + ' using node ' + platform.node()
+        return traceback.format_exc() + ' insert_stninfo: ' + NetworkCode + ' ' + StationCode + \
+               ' using node ' + platform.node()
 
     try:
-        stnInfo = pyStationInfo.StationInfo(cnn,NetworkCode,StationCode, allow_empty=True)
+        stnInfo = pyStationInfo.StationInfo(cnn, NetworkCode, StationCode, allow_empty=True)
         stninfo = stnInfo.parse_station_info(stninfofile)
 
     except pyStationInfo.pyStationInfoException as e:
-        return traceback.format_exc() + ' insert_stninfo: ' + NetworkCode + ' ' + StationCode + ' using node ' + platform.node()
+        return traceback.format_exc() + ' insert_stninfo: ' + NetworkCode + ' ' + StationCode + \
+               ' using node ' + platform.node()
 
     # insert all the receivers and antennas in the db
     for stn in stninfo:
-        # there is a racing condition in this part due to many instances trying to insert the same receivers at the same time
+        # there is a racing condition in this part due to many instances
+        # trying to insert the same receivers at the same time
         try:
             rec = cnn.query('SELECT * FROM receivers WHERE "ReceiverCode" = \'%s\'' % (stn['ReceiverCode']))
             if rec.ntuples() == 0:
@@ -454,8 +458,10 @@ def insert_stninfo(NetworkCode, StationCode, stninfofile):
                 stnInfo.InsertStationInfo(stn)
             except pyStationInfo.pyStationInfoException as e:
                 errors.append(str(e))
+
             except Exception:
-                errors.append(traceback.format_exc() + ' insert_stninfo: ' + NetworkCode + ' ' + StationCode + ' using node ' + platform.node())
+                errors.append(traceback.format_exc() + ' insert_stninfo: ' + NetworkCode + ' ' + StationCode +
+                              ' using node ' + platform.node())
                 continue
 
     if not errors:
@@ -556,7 +562,8 @@ def execute_ppp(record, rinex_path, h_tolerance):
 
                 Rinex.normalize_header(stninfo, x=stn[0]['auto_x'], y=stn[0]['auto_y'], z=stn[0]['auto_z'])
 
-                with pyPPP.RunPPP(Rinex, stn[0]['Harpos_coeff_otl'], Config.options, Config.sp3types, Config.sp3altrn, stninfo.AntennaHeight, hash=stninfo.hash) as ppp:
+                with pyPPP.RunPPP(Rinex, stn[0]['Harpos_coeff_otl'], Config.options, Config.sp3types, Config.sp3altrn,
+                                  stninfo.currentrecord.AntennaHeight, hash=stninfo.currentrecord.hash) as ppp:
                     ppp.exec_ppp()
 
                     # verify that the solution is from the station it claims to be
@@ -855,7 +862,8 @@ def scan_station_info_manual(cnn, pyArchive, stn_info_path, stations, stn_info_n
                 if out:
                     tqdm.write(out)
             else:
-                tqdm.write('   >> Station %s.%s was not found in the station info file %s' % (Station['NetworkCode'], Station['StationCode'], 'standard input'))
+                tqdm.write('   >> Station %s.%s was not found in the station info file %s' %
+                           (Station['NetworkCode'], Station['StationCode'], 'standard input'))
 
     else:
         if os.path.isfile(stn_info_path):
@@ -874,12 +882,13 @@ def scan_station_info_manual(cnn, pyArchive, stn_info_path, stations, stn_info_n
                 # input "stations" has a list in net.stnm format
                 if Station['StationCode'] in [stn['StationCode'].lower() for stn in stn_list]:
                     tqdm.write("   >> Processing %s using network code %s" % (Station['StationCode'], NetworkCode))
-                    out = insert_stninfo(NetworkCode,Station['StationCode'],stninfopath)
+                    out = insert_stninfo(NetworkCode, Station['StationCode'], stninfopath)
 
                     if out:
                         tqdm.write(out)
                 else:
-                    tqdm.write('   >> Station %s.%s was not found in the station info file %s' % (Station['NetworkCode'], Station['StationCode'], stninfopath))
+                    tqdm.write('   >> Station %s.%s was not found in the station info file %s' %
+                               (Station['NetworkCode'], Station['StationCode'], stninfopath))
 
     return
 
@@ -907,15 +916,18 @@ def hash_check(cnn, master_list, sdate, edate, rehash=False, h_tolerant=0):
         # load station info object
         try:
             stninfo = pyStationInfo.StationInfo(cnn, soln['NetworkCode'], soln['StationCode'],
-                                                pyDate.Date(year=soln['Year'],doy=soln['DOY']), h_tolerance=h_tolerant)
+                                                pyDate.Date(year=soln['Year'], doy=soln['DOY']), h_tolerance=h_tolerant)
 
-            if stninfo.hash != soln['hash']:
+            if stninfo.currentrecord.hash != soln['hash']:
                 if not rehash:
-                    tqdm.write(" -- Hash value for %s.%s %i %03i does not match with Station Information hash. PPP coordinate will be recalculated." % (soln['NetworkCode'], soln['StationCode'], soln['Year'], soln['DOY']))
+                    tqdm.write(" -- Hash value for %s.%s %i %03i does not match with Station Information hash. "
+                               "PPP coordinate will be recalculated."
+                               % (soln['NetworkCode'], soln['StationCode'], soln['Year'], soln['DOY']))
                     cnn.delete('ppp_soln', soln)
                 else:
-                    tqdm.write(" -- %s.%s %i %03i has been rehashed." % (soln['NetworkCode'], soln['StationCode'], soln['Year'], soln['DOY']))
-                    cnn.update('ppp_soln', soln, hash=stninfo.hash)
+                    tqdm.write(" -- %s.%s %i %03i has been rehashed."
+                               % (soln['NetworkCode'], soln['StationCode'], soln['Year'], soln['DOY']))
+                    cnn.update('ppp_soln', soln, hash=stninfo.currentrecord.hash)
         except pyStationInfo.pyStationInfoException as e:
             tqdm.write(str(e))
         except Exception:
@@ -994,7 +1006,7 @@ def process_ppp(cnn, pyArchive, archive_path, JobServer, run_parallel, master_li
         JobServer.job_server.print_stats()
 
 
-def export_station(cnn, stnlist, pyArchive, archive_path):
+def export_station(cnn, stnlist, pyArchive, archive_path, dataless):
 
     # loop collecting the necessary information
     print " >> Collecting the information for each station in the list..."
@@ -1015,7 +1027,8 @@ def export_station(cnn, stnlist, pyArchive, archive_path):
         export_dic = dict()
 
         # list of rinex files
-        rinex_lst = cnn.query('SELECT * FROM rinex WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' ORDER BY "ObservationYear", "ObservationDOY"' % (NetworkCode, StationCode))
+        rinex_lst = cnn.query('SELECT * FROM rinex WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' '
+                              'ORDER BY "ObservationYear", "ObservationDOY"' % (NetworkCode, StationCode))
         rinex_lst = rinex_lst.dictresult()
         # rinex_lst = pyArchive.get_rinex_record(NetworkCode=NetworkCode, StationCode=StationCode)
         # list of metadata
@@ -1023,7 +1036,7 @@ def export_station(cnn, stnlist, pyArchive, archive_path):
 
         export_dic['NetworkCode'] = NetworkCode
         export_dic['StationCode'] = StationCode
-        export_dic['StationInfo'] = stninfo.records
+        export_dic['StationInfo'] = stninfo
 
         if stn['lat'] and stn['auto_x'] and stn['Harpos_coeff_otl']:
             export_dic['lat'] = stn['lat']
@@ -1046,9 +1059,13 @@ def export_station(cnn, stnlist, pyArchive, archive_path):
         for rnx in rinex_lst:
 
             # make a copy of each file
-            rnx_path = pyArchive.build_rinex_path(NetworkCode=NetworkCode, StationCode=StationCode, ObservationYear=rnx['ObservationYear'], ObservationDOY=rnx['ObservationDOY'], filename=rnx['Filename'])
+            rnx_path = pyArchive.build_rinex_path(NetworkCode=NetworkCode, StationCode=StationCode,
+                                                  ObservationYear=rnx['ObservationYear'],
+                                                  ObservationDOY=rnx['ObservationDOY'], filename=rnx['Filename'])
             try:
-                shutil.copy(os.path.join(archive_path, rnx_path), os.path.join(dest, os.path.basename(rnx_path)))
+                if not dataless:
+                    # only copy the files if dataless == False
+                    shutil.copy(os.path.join(archive_path, rnx_path), os.path.join(dest, os.path.basename(rnx_path)))
 
                 rinex_dict = rinex_dict + [rnx]
             except IOError:
@@ -1065,7 +1082,15 @@ def export_station(cnn, stnlist, pyArchive, archive_path):
         with open(os.path.join(dest, '%s.%s.json') % (NetworkCode, StationCode), 'w') as file:
             json.dump(export_dic, file, indent=4, sort_keys=True, cls=Encoder)
 
-        shutil.make_archive('%s.%s' % (NetworkCode, StationCode), 'zip', root_dir=dest)
+        # make the zip file with the station
+        with zipfile.ZipFile('%s.%s.zip' % (NetworkCode, StationCode),
+                             "w", zipfile.ZIP_DEFLATED, allowZip64=True) as zf:
+            for root, _, filenames in os.walk(dest):
+                for name in filenames:
+                    name = os.path.join(root, name)
+                    name = os.path.normpath(name)
+                    zf.write(name, os.path.basename(name))
+
         shutil.rmtree(dest)
 
     pbar1.close()
@@ -1074,28 +1099,131 @@ def export_station(cnn, stnlist, pyArchive, archive_path):
 
 def import_station(cnn, args):
 
-    files = glob.glob(args[0])
+    files = args[1:]
+    network = args[0]
 
     archive = pyArchiveStruct.RinexStruct(cnn)
 
     print " >> Processing input files..."
 
-    for ff in files:
+    for ff in tqdm(files):
 
-        fileparts = archive.parse_crinex_filename(os.path.basename(ff))
+        filename = os.path.basename(ff)
 
-        StationCode = fileparts[0].lower()
-        doy = int(fileparts[1])
-        year = int(Utils.get_norm_year_str(fileparts[3]))
+        if filename.endswith('.zip'):
 
-        path = 'production/archive/' + str(uuid.uuid4())
+            fileparts = filename.split('.')
 
-        # process each station file
-        shutil.unpack_archive(ff, path)
+            NetworkCode = fileparts[0].lower()
+            StationCode = fileparts[1].lower()
 
-        json = glob.glob(os.path.join(path, '*.json'))
+            path = 'production/archive/' + str(uuid.uuid4())
 
-        stninfo = json.load(os.path.join(path, json[0]))
+            try:
+                # process each station file
+                zipfile.ZipFile(ff).extractall(path)
+
+                jfile = glob.glob(os.path.join(path, '*.json'))
+
+                station = json.load(open(jfile[0], 'r'))
+
+                spatial = pyPPP.PPPSpatialCheck([station['lat']], [station['lon']], [station['height']])
+
+                result, match, closest_stn = spatial.verify_spatial_coherence(cnn, StationCode)
+
+                if result:
+                    tqdm.write(' -- Found external station %s.%s in network %s'
+                               % (NetworkCode, StationCode, match[0]['NetworkCode']))
+
+                    try_insert_files(cnn, archive, station, match[0]['NetworkCode'],
+                                     StationCode, glob.glob(os.path.join(path, '*d.Z')))
+
+                else:
+                    if len(match) == 1:
+                        tqdm.write(' -- External station %s.%s not found. Possible match is %s.%s: %.3f m'
+                                   % (NetworkCode, StationCode, match[0]['NetworkCode'],
+                                      match[0]['StationCode'], match[0]['distance']))
+
+                    elif len(match) > 1:
+                        tqdm.write(' -- External station %s.%s not found. Possible matches are %s'
+                                   % (NetworkCode, StationCode,
+                                      ', '.join(['%s.%s: %.3f m' %
+                                                 (m['NetworkCode'], m['StationCode'], m['distance']) for m in match])))
+
+                    else:
+                        tqdm.write(' -- External station %s.%s not found. Closest station is %s.%s: %.3f m'
+                                   % (NetworkCode, StationCode, closest_stn[0]['NetworkCode'],
+                                      closest_stn[0]['StationCode'], closest_stn[0]['distance']))
+
+                # delete all files once we're done.
+                shutil.rmtree(path)
+
+            except zipfile.BadZipfile:
+                tqdm.write(' -- Bad zipfile detected: %s' % ff)
+
+
+def try_insert_files(cnn, archive, station, NetworkCode, StationCode, rinex):
+
+    import_stninfo = station['StationInfo']
+    stninfo = pyStationInfo.StationInfo(cnn, NetworkCode, StationCode)
+
+    if rinex:
+        # a station file with rinex data in it. Attempt to insert the data and the associated station information
+        for rnx in rinex:
+
+            with pyRinex.ReadRinex(NetworkCode, StationCode, rnx) as rinexinfo:
+
+                inserted = archive.insert_rinex(rinexobj=rinexinfo)
+
+                if not inserted:
+                    # display an error message
+                    tqdm.write(' -- %s.%s (%s) not imported: already existed in database.'
+                               % (NetworkCode, StationCode, os.path.basename(rnx)))
+
+                else:
+                    tqdm.write(' -- %s.%s (%s) successfully imported into database.'
+                               % (NetworkCode, StationCode, os.path.basename(rnx)))
+
+                try:
+                    pyStationInfo.StationInfo(cnn, NetworkCode, StationCode, rinexinfo.date)
+
+                except pyStationInfo.pyStationInfoException:
+
+                    # station info not in db! import the corresponding station info
+
+                    stninfo_inserted = False
+
+                    for record in import_stninfo:
+                        import_record = pyStationInfo.StationInfoRecord(NetworkCode, StationCode, record)
+
+                        if rinexinfo.datetime_firstObs >= import_record.DateStart.datetime() and \
+                                rinexinfo.datetime_lastObs <= import_record.DateEnd.datetime():
+                            # the record we are looking for
+                            try:
+                                stninfo.InsertStationInfo(import_record)
+                                stninfo_inserted = True
+
+                            except pyStationInfo.pyStationInfoException as e:
+                                tqdm.write(' -- ' + str(e))
+
+                    if not stninfo_inserted:
+                        tqdm.write('  -- Could not find a valid station info in the database or in the station '
+                                   'package. File remains in database without metadata.')
+    else:
+        # a station file without rinex data
+        # attempt to merge the station information
+
+        for record in import_stninfo:
+
+            import_record = pyStationInfo.StationInfoRecord(NetworkCode, StationCode, record)
+
+            try:
+                stninfo.InsertStationInfo(import_record)
+                tqdm.write('  -- Successful insert: %s -> %s' +
+                           str(import_record['DateStart']), str(import_record['DateEnd']))
+
+            except pyStationInfo.pyStationInfoException as e:
+                tqdm.write(' -- ' + str(e))
 
 
 def get_rinex_file(cnn, stnlist, date, Archive_path):
@@ -1161,12 +1289,14 @@ def main():
                              "networks 'igs' and 'arg', only 'arg.igm1' will get the station information insert. "
                              "Use keyword 'stdin' to read the station information data from the pipeline.")
 
-    parser.add_argument('-export', '--export_station', action='store_true',
+    parser.add_argument('-export', '--export_station', nargs='?', metavar='[dataless seed]', default=None, const=False,
                         help="Export a station from the local database that can be imported into another "
                              "Parallel.GAMIT system using the -import option."
-                             "One file is created per station in the current directory")
+                             "One file is created per station in the current directory. If the [dataless seed] switch "
+                             "is passed (e.g. -export true), then the export seed is created without data "
+                             "(only metadata included, i.e. station info, station record, etc).")
 
-    parser.add_argument('-import', '--import_station', nargs=2, type=str, metavar=('{zipfiles}', '{default net}'),
+    parser.add_argument('-import', '--import_station', nargs='+', type=str, metavar=('{default net}', '{zipfiles}'),
                         help="Import a station from zipfiles produced by another Parallel.GAMIT system. "
                              "Wildcards are accepted to import multiple zipfiles. If station does not exist, use "
                              "{default net} to specify the network where station should be added to. If {default net} "
@@ -1270,10 +1400,9 @@ def main():
         process_ppp(cnn, pyArchive, Config.archive_path, JobServer, Config.run_parallel, stnlist, dates[0], dates[1], args.stninfo_tolerant[0])
 
     #########################################
+    if args.export_station is not None:
 
-    if args.export_station:
-
-        export_station(cnn, stnlist, pyArchive, Config.archive_path)
+        export_station(cnn, stnlist, pyArchive, Config.archive_path, args.export_station)
 
     #########################################
 

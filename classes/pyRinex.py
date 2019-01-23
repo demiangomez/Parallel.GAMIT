@@ -1200,12 +1200,16 @@ class ReadRinex(RinexRecord):
 
         if type(NewValues) is pyStationInfo.StationInfo:
             if NewValues.date is not None and NewValues.date != self.date:
-                raise pyRinexException('The StationInfo object was initialized for a different date than that of the RINEX file. Date on RINEX: ' + self.date.yyyyddd() + '; Station Info: ' + NewValues.date.yyyyddd())
+                raise pyRinexException('The StationInfo object was initialized for a different date than that of the '
+                                       'RINEX file. Date on RINEX: ' + self.date.yyyyddd() +
+                                       '; Station Info: ' + NewValues.date.yyyyddd())
             else:
                 NewValues = NewValues.currentrecord
 
-        fieldnames = ['AntennaHeight', 'AntennaNorth', 'AntennaEast', 'ReceiverCode', 'ReceiverVers', 'ReceiverSerial', 'AntennaCode', 'RadomeCode', 'AntennaSerial']
-        rinex_field = ['AntennaOffset', None, None, 'ReceiverType', 'ReceiverFw', 'ReceiverSerial', 'AntennaType', 'AntennaDome', 'AntennaSerial']
+        fieldnames = ['AntennaHeight', 'AntennaNorth', 'AntennaEast', 'ReceiverCode', 'ReceiverVers',
+                      'ReceiverSerial', 'AntennaCode', 'RadomeCode', 'AntennaSerial']
+        rinex_field = ['AntennaOffset', None, None, 'ReceiverType', 'ReceiverFw', 'ReceiverSerial',
+                       'AntennaType', 'AntennaDome', 'AntennaSerial']
 
         new_header = self.header
 
@@ -1226,7 +1230,9 @@ class ReadRinex(RinexRecord):
             NewValues['ReceiverVers'] != self.recVers or
             NewValues['ReceiverSerial'] != self.recNo):
 
-            new_header = self.replace_record(new_header, 'REC # / TYPE / VERS', (NewValues['ReceiverSerial'], NewValues['ReceiverCode'], NewValues['ReceiverVers']))
+            new_header = self.replace_record(new_header, 'REC # / TYPE / VERS',
+                                             (NewValues['ReceiverSerial'], NewValues['ReceiverCode'],
+                                              NewValues['ReceiverVers']))
 
             if NewValues['ReceiverSerial'] != self.recNo:
                 new_header = self.insert_comment(new_header, 'PREV REC #   : ' + self.recNo)
@@ -1247,7 +1253,9 @@ class ReadRinex(RinexRecord):
             # stations. Eg:
             # 13072               ASH700936D_M    NONE                    ANT # / TYPE
             # 13072               ASH700936D_M SNOW                       ANT # / TYPE
-            new_header = self.replace_record(new_header, 'ANT # / TYPE', (NewValues['AntennaSerial'], '%-15s' % NewValues['AntennaCode'] + ' ' + NewValues['RadomeCode']))
+            new_header = self.replace_record(new_header, 'ANT # / TYPE',
+                                             (NewValues['AntennaSerial'],
+                                              '%-15s' % NewValues['AntennaCode'] + ' ' + NewValues['RadomeCode']))
 
             if NewValues['AntennaCode'] != self.antType:
                 new_header = self.insert_comment(new_header, 'PREV ANT #   : ' + self.antType)
@@ -1263,7 +1271,9 @@ class ReadRinex(RinexRecord):
             NewValues['AntennaNorth'] != self.antOffsetN or
             NewValues['AntennaEast'] != self.antOffsetE):
 
-            new_header = self.replace_record(new_header, 'ANTENNA: DELTA H/E/N', (NewValues['AntennaHeight'], NewValues['AntennaEast'], NewValues['AntennaNorth']))
+            new_header = self.replace_record(new_header, 'ANTENNA: DELTA H/E/N',
+                                             (NewValues['AntennaHeight'], NewValues['AntennaEast'],
+                                              NewValues['AntennaNorth']))
 
             if NewValues['AntennaHeight'] != self.antOffset:
                 new_header = self.insert_comment(new_header, 'PREV DELTA H: %.4f' % self.antOffset)
@@ -1278,7 +1288,8 @@ class ReadRinex(RinexRecord):
         # always replace the APPROX POSITION XYZ
         if x is None and brdc is None and self.x is None:
             raise pyRinexException(
-                'Cannot normalize the header\'s APPROX POSITION XYZ without a coordinate or a valid broadcast ephemeris object')
+                'Cannot normalize the header\'s APPROX POSITION XYZ without a coordinate or '
+                'a valid broadcast ephemeris object')
 
         elif self.x is None and brdc is not None:
             self.auto_coord(brdc)
@@ -1291,7 +1302,8 @@ class ReadRinex(RinexRecord):
         new_header = self.replace_record(new_header, 'APPROX POSITION XYZ', (self.x, self.y, self.z))
 
         new_header = self.insert_comment(new_header, 'APPROX POSITION SET TO AUTONOMOUS SOLUTION')
-        new_header = self.insert_comment(new_header, 'HEADER NORMALIZED BY pyRinex ON ' + datetime.datetime.now().strftime('%Y/%m/%d %H:%M'))
+        new_header = self.insert_comment(new_header, 'HEADER NORMALIZED BY pyRinex ON ' +
+                                         datetime.datetime.now().strftime('%Y/%m/%d %H:%M'))
 
         self.write_rinex(new_header)
 
@@ -1314,7 +1326,8 @@ class ReadRinex(RinexRecord):
             year = 1900
 
         if self.record['ObservationDOY'] != doy or self.record['ObservationYear'] != year:
-            # this if still remains here but we do not allow this condition any more to happen. See process_crinex_file -> if Result...
+            # this if still remains here but we do not allow this condition any more to happen.
+            # See process_crinex_file -> if Result...
             # NO! rename the file before moving to the archive
             filename = self.StationCode + self.date.ddd() + '0.' + self.date.yyyy()[2:4] + 'o'
             # rename file

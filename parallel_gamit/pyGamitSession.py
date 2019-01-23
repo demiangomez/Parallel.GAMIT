@@ -209,7 +209,9 @@ $$\n""" % (self.Config.options['otlmodel']))
             os.remove(os.path.join(self.pwd_tables, 'station.info'))
 
         with open(os.path.join(self.pwd_tables, 'station.info'), 'w') as stninfo_file:
-            stninfo_file.write('*SITE  Station Name      Session Start      Session Stop       Ant Ht   HtCod  Ant N    Ant E    Receiver Type         Vers                  SwVer  Receiver SN           Antenna Type     Dome   Antenna SN          \n')
+            stninfo_file.write('*SITE  Station Name      Session Start      Session Stop       Ant Ht   HtCod  '
+                               'Ant N    Ant E    Receiver Type         Vers                  SwVer  '
+                               'Receiver SN           Antenna Type     Dome   Antenna SN          \n')
 
             for stn in self.StationInstances:
                 # stninfo_file.write(stn.StationInfo.return_stninfo() + '\n')

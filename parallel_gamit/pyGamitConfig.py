@@ -21,7 +21,7 @@ class pyGamitConfigException(Exception):
 
 class GamitConfiguration(ReadOptions):
 
-    def __init__(self, session_config_file):
+    def __init__(self, session_config_file, check_config=True):
 
         try:
             self.gamitopt = dict()
@@ -42,14 +42,14 @@ class GamitConfiguration(ReadOptions):
 
             self.NetworkConfig = None
 
-            self.load_session_config(session_config_file)
+            self.load_session_config(session_config_file, check_config)
 
-            ReadOptions.__init__(self, self.gamitopt['gnss_data']) # type: ReadOptions
+            ReadOptions.__init__(self, self.gamitopt['gnss_data'])  # type: ReadOptions
 
         except Exception:
             raise
 
-    def load_session_config(self, session_config_file):
+    def load_session_config(self, session_config_file, check_config):
 
         try:
             # parse session config file
@@ -57,7 +57,8 @@ class GamitConfiguration(ReadOptions):
             config.readfp(open(session_config_file))
 
             # check that all required items are there and files exist
-            self.__check_config(config)
+            if check_config:
+                self.__check_config(config)
 
             # get gamit config items from session config file
             for iconfig, val in dict(config.items('gamit')).iteritems():
