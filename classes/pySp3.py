@@ -7,8 +7,10 @@ Author: Demian D. Gomez
 import pyProducts
 import os
 
+
 class pySp3Exception(pyProducts.pyProductsException):
     pass
+
 
 class GetSp3Orbits(pyProducts.OrbitalProduct):
 
@@ -44,7 +46,7 @@ class GetSp3Orbits(pyProducts.OrbitalProduct):
                     line = fileio.readline()
 
                     self.RF = line[46:51].strip()
-            except:
+            except Exception:
                 raise
 
         return

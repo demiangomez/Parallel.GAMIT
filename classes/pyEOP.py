@@ -10,12 +10,15 @@ This class fetches earth orientation parameters files from the orbits folder (sp
 import pyProducts
 import pyEvents
 
+
 class pyEOPException(pyProducts.pyProductsException):
     def __init__(self, value):
         self.value = value
         self.event = pyEvents.Event(Description=value, EventType='error', module=type(self).__name__)
+
     def __str__(self):
         return str(self.value)
+
 
 class GetEOP(pyProducts.OrbitalProduct):
 
@@ -26,17 +29,20 @@ class GetEOP(pyProducts.OrbitalProduct):
         self.eop_path = None
 
         for sp3type in sp3types:
+
             self.eop_filename = sp3type + date.wwww() + '7.erp'
 
             try:
                 pyProducts.OrbitalProduct.__init__(self, sp3archive, date, self.eop_filename, copyto)
                 self.eop_path = self.file_path
+                self.type = sp3type
+                break
 
             except pyProducts.pyProductsExceptionUnreasonableDate:
                 raise
 
             # rapid EOP files do not work in NRCAN PPP
-            #except pyProducts.pyProductsException:
+            # except pyProducts.pyProductsException:
             #    # rapid orbits do not have 7.erp, try wwwwd.erp
 
             #    self.eop_filename = sp3type + date.wwwwd() + '.erp'
@@ -44,7 +50,6 @@ class GetEOP(pyProducts.OrbitalProduct):
             #    pyProducts.OrbitalProduct.__init__(self, sp3archive, date, self.eop_filename, copyto)
             #    self.eop_path = self.file_path
 
-            #break
             except pyProducts.pyProductsException:
                 # if the file was not found, go to next
                 pass
@@ -52,6 +57,7 @@ class GetEOP(pyProducts.OrbitalProduct):
         # if we get here and self.sp3_path is still none, then no type of sp3 file was found
         if self.eop_path is None:
             raise pyEOPException(
-                'Could not find a valid earth orientation parameters file for gps week ' + date.wwww() + ' using any of the provided sp3 types')
+                'Could not find a valid earth orientation parameters file for gps week ' + date.wwww() +
+                ' using any of the provided sp3 types')
 
         return

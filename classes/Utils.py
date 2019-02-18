@@ -1,5 +1,12 @@
 
-import os, re, subprocess, sys, pyDate, filecmp, argparse, numpy
+import os
+import re
+import subprocess
+import sys
+import pyDate
+import filecmp
+import argparse
+import numpy
 from datetime import datetime
 
 
@@ -9,6 +16,38 @@ class UtilsException(Exception):
         
     def __str__(self):
         return str(self.value)
+
+
+def parse_atx_antennas(atx_file):
+
+    f = open(atx_file, 'r')
+    output = f.readlines()
+    f.close()
+
+    return re.findall(r'START OF ANTENNA\s+(\w+[.-\/+]?\w*[.-\/+]?\w*)\s+(\w+)', ''.join(output), re.MULTILINE)
+
+
+def smallestN_indices(a, N):
+    """
+    Function to return the row and column of the N smallest values
+    :param a: array to search (any dimension)
+    :param N: number of values to search
+    :return: array with the rows-cols of min values
+    """
+    idx = a.ravel().argsort()[:N]
+    return numpy.stack(numpy.unravel_index(idx, a.shape)).T
+
+
+def ll2sphere_xyz(ell):
+    
+    r = 6371000.0
+    x = []
+    for lla in ell:
+        x.append((r * numpy.cos(lla[0] * numpy.pi / 180) * numpy.cos(lla[1] * numpy.pi / 180),
+                  r * numpy.cos(lla[0] * numpy.pi / 180) * numpy.sin(lla[1] * numpy.pi / 180),
+                  r * numpy.sin(lla[0] * numpy.pi / 180)))
+
+    return numpy.array(x)
 
 
 def required_length(nmin,nmax):

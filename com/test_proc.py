@@ -1,212 +1,88 @@
 
-import threading
-import subprocess
-import pyRinex
-import pyArchiveStruct
 import dbConnection
-import pyStationInfo
-import pyDate
-import datetime
-import pyRunWithRetry
-import pySp3
-import pyBrdc
-import pyEOP
-import pyPPP
-import pyParseAntex
-import pyEarthquakes
-import pyPPPETM_full_cov
-import pyPPPETM
+import pyJobServer
 import pyOptions
-import atexit
+import pyArchiveStruct
 import os
-import pyEvents
+from tqdm import tqdm
+import pyRinex
 
-class run_command(threading.Thread):
-    def __init__(self,command):
-        self.stdout = None
-        self.stderr = None
-        self.cmd = command
-        threading.Thread.__init__(self)
 
-    def run(self):
-        self.p = subprocess.Popen(self.cmd.split(),
-                             shell=False,
-                             stdout=subprocess.PIPE,
-                             stderr=subprocess.PIPE)
+class callback_class():
+    # class to handle the output of the parallel processing
+    def __init__(self, pbar):
+        self.msg = None
+        self.stns = None
+        self.pbar = pbar
 
-        self.stdout, self.stderr = self.p.communicate()
+    def callbackfunc(self, args):
+        self.msg = args
+        self.pbar.update(1)
 
-    def wait(self, timeout=None):
 
-        self.join(timeout=timeout)
-        if self.is_alive():
-            try:
-                self.p.kill()
-            except Exception:
-                # the process was done
-                return False
-            return True
+def check_rinex(NetworkCode, StationCode, path, filename):
 
-def insert_stninfo_ign(cnn):
+    f = os.path.join(path, filename)
 
-    stnInfo = pyStationInfo.StationInfo(cnn)
+    with pyRinex.ReadRinex(NetworkCode, StationCode, f, allow_multiday=True) as r:
 
-    stninfo = stnInfo.parse_station_info('/Volumes/home/ign/stationinfo/cord.station.info')
-
-    # insert all the receivers and antennas in the db
-
-    for stn in stninfo:
-        try:
-            cnn.insert('receivers', ReceiverCode=stn.get('ReceiverType'))
-        except dbConnection.dbErrInsert:
-            pass
-        try:
-            cnn.insert('antennas', AntennaCode=stn.get('AntennaType'))
-        except dbConnection.dbErrInsert:
-            pass
-
-    # ready to insert stuff to station info table
-    for stn in stninfo:
-        sdate1 = stn.get('SessionStart').split()
-        if int(sdate1[2]) > 23:
-            sdate1[2] = '23'; sdate1[3] = '59'; sdate1[4] = '59'
-        date_start = pyDate.Date(year=sdate1[0], doy=sdate1[1])
-        date_start = datetime.datetime(int(date_start.year),date_start.month,date_start.day,int(sdate1[2]),int(sdate1[3]),int(sdate1[4]))
-        date_start = date_start.strftime('%Y/%m/%d %H:%M:%S')
-
-        sdate2 = stn.get('SessionStop').split()
-        if sdate2[0] == '9999':
-            date_end = []
+        if 'P2' not in r.observables:
+            return '%s.%s %s has not P2 -> available observables are %s' % (NetworkCode, StationCode, r.date.yyyyddd()
+                                                                            , ' '.join(r.observables))
         else:
-            date_end = pyDate.Date(year=sdate2[0], doy=sdate2[1])
-            if int(sdate2[2]) > 23:
-                sdate2[2] = '23'; sdate2[3] = '59'; sdate2[4] = '59'
-            date_end = datetime.datetime(int(date_end.year),date_end.month,date_end.day,int(sdate2[2]),int(sdate2[3]),int(sdate2[4]))
-            date_end = date_end.strftime('%Y/%m/%d %H:%M:%S')
+            return ''
 
-        try:
-            cnn.insert('stationinfo',
-                       NetworkCode='rnx',
-                       StationCode=stn.get('StationCode').lower(),
-                       ReceiverCode=stn.get('ReceiverType'),
-                       ReceiverSerial=stn.get('ReceiverSN'),
-                       ReceiverFirmware=stn.get('SwVer'),
-                       AntennaCode=stn.get('AntennaType'),
-                       AntennaSerial=stn.get('AntennaSN'),
-                       AntennaHeight=stn.get('AntHt'),
-                       AntennaNorth=stn.get('AntN'),
-                       AntennaEast=stn.get('AntE'),
-                       HeightCode=stn.get('HtCod'),
-                       RadomeCode=stn.get('Dome'),
-                       ReceiverVers=stn.get('Vers'),
-                       DateStart=date_start,
-                       DateEnd=date_end)
-        except dbConnection.dbErrInsert as e:
-            print str(e)
-            continue
 
-def process_prueba(i):
-    return 'hola ' + str(i)
+def output_handle(callback):
 
-def imprimir_resultado(inp):
+    for c in callback:
+        if c.msg != '':
+            tqdm.write(c.msg)
 
-    print inp
+    return []
 
-def kill_ppp():
-    os.system('kill -9 ppp34613')
 
 def main():
-    #myclass = run_command('crx2rnx -f azul2490.08d')
-    #myclass = run_command('crx2rnx')
-    #myclass.start()
-    #timeout = myclass.wait(2)
 
-    #if timeout:
-    #    print "timeout expired"
-    #else:
-    #    print "process finished"
-    Config = pyOptions.ReadOptions('gnss_data.cfg') # type: pyOptions.ReadOptions
+    Config = pyOptions.ReadOptions('gnss_data.cfg')
+    JobServer = pyJobServer.JobServer(Config)  # type: pyJobServer.JobServer
 
     cnn = dbConnection.Cnn('gnss_data.cfg')
 
     archive = pyArchiveStruct.RinexStruct(cnn)
-    file = archive.build_rinex_path('rms','tuc1',2010,186)
 
-    try:
-        rinexinfo = pyRinex.ReadRinex('rms', 'tuc1', os.path.join(Config.archive_path, file))  # type: pyRinex.ReadRinex
+    rinex = cnn.query_float('SELECT * FROM rinex WHERE "ObservationYear" <= 1995 ORDER BY "NetworkCode", '
+                            '"StationCode", "ObservationYear", "ObservationDOY"', as_dict=True)
 
-        brdc = pyBrdc.GetBrdcOrbits(Config.brdc_path, rinexinfo.date, rinexinfo.rootdir)
+    pbar = tqdm(desc='%-30s' % ' >> Processing rinex files', total=len(rinex), ncols=160)
 
-        stninfo = pyStationInfo.StationInfo(cnn, 'rms', rinexinfo.StationCode, rinexinfo.date)
-        rinexinfo.normalize_header(stninfo,brdc)
+    modules = ('os', 'pyRinex')
+    callback = []
 
-        ppp = pyPPP.RunPPP(rinexinfo, '', Config.options, Config.sp3types, Config.sp3altrn, 0, False)
-        ppp.exec_ppp()
+    for rnx in rinex:
 
-    except pyRinex.pyRinexException as e:
-        print e.event['stack']
-    except pyPPP.pyRunPPPException as e:
-        pass
+        filename = archive.build_rinex_path(rnx['NetworkCode'], rnx['StationCode'], rnx['ObservationYear'],
+                                            rnx['ObservationDOY'],
+                                            filename=rnx['Filename'])
 
-    event = pyEvents.Event(Description='hola')
-    print rinexinfo.event['stack']
+        arguments = (rnx['NetworkCode'], rnx['StationCode'], Config.archive_path, filename)
 
-    #atx = pyParseAntex.ParseAntexFile('igs08.atx')
+        JobServer.SubmitJob(check_rinex, arguments, (), modules, callback,
+                            callback_class(pbar), 'callbackfunc')
 
-    #stninfo2 = pyStationInfo.StationInfo(cnn, 'rnx', 'igm1', pyDate.Date(year=2017, doy=40))
-    #stninfo3 = pyStationInfo.StationInfo(cnn, 'rnx', 'igm1')
+        if JobServer.process_callback:
+            # handle any output messages during this batch
+            callback = output_handle(callback)
+            JobServer.process_callback = False
 
-    #pyEarthquakes.AddEarthquakes(cnn)
-    #etm = pyPPPETM.ETM(cnn,'arg','ecgm',plotit=True)
+    tqdm.write(' >> waiting for jobs to finish...')
+    JobServer.job_server.wait()
+    tqdm.write(' >> Done.')
 
-    #x, s = etm.get_xyz_s(2003,180)
-    #insert_stninfo_ign(cnn)
+    # process the errors and the new stations
+    output_handle(callback)
 
-
-    #rs = cnn.query('select * from stations where "StationCode" = \'lhcl\'')
-    #igm1 = rs.dictresult()
-
-    date = pyDate.Date(year=2016, doy=190)
-
-
-
-
-    stninfo1 = pyStationInfo.StationInfo(cnn, 'rms', 'rufi', date)
-    #rinexinfo.normalize_header(stninfo1,x=igm1[0].get('auto_x'),y=igm1[0].get('auto_y'),z=igm1[0].get('auto_z'))
-
-    options = pyOptions.ReadOptions('gnss_data.cfg')
-
-    #ppp = pyPPP.RunPPP(rinexinfo,'',options.options,options.sp3types,0,False)
-
-    #try:
-    #    ppp.exec_ppp()
-    #except pyPPP.pyRunPPPException as e:
-    #    print str(e)
-    #except Exception as e:
-    #    print str(e)
-
-    try:
-        rinexinfo.normalize_header(stninfo1, brdc=None, x=1, y=2, z=3)
-        with pyPPP.RunPPP(rinexinfo,'',options.options,options.sp3types, options.sp3altrn,0,False,False) as ppp:
-
-
-            ppp.exec_ppp()
-    except pyPPP.pyRunPPPException as e:
-            cnn.insert_warning(str(e))
-    except Exception as e:
-            cnn.insert_warning(str(e))
-
-    print ppp.x
-    #insert_stninfo_ign(cnn)
-
-    print "out"
-    #archive = pyArchiveStruct.RinexStruct(cnn)
-    #file = archive.build_rinex_path('rnx','vbca',2006,98)
-    #rinexinfo = pyRinex.ReadRinex('rnx', 'ucor', '/Volumes/home/ign/rnx/2004/091/ucor0910.04d.Z')
-    #xyz = rinexinfo.auto_coords
-
-    #rnx = pyRinex.ReadRinex('rnx','mgue','/Volumes/home/ign/rnx/2013/')
-    cnn.close()
+    pbar.close()
 
 
 if __name__ == '__main__':

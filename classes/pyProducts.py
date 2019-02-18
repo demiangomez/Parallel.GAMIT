@@ -10,6 +10,7 @@ import pyEvents
 import pyDate
 from datetime import datetime
 
+
 class pyProductsException(Exception):
     def __init__(self, value):
         self.value = value
@@ -18,12 +19,14 @@ class pyProductsException(Exception):
     def __str__(self):
         return str(self.value)
 
+
 class pyProductsExceptionUnreasonableDate(pyProductsException):
     pass
 
-class OrbitalProduct():
 
-    def __init__(self,archive, date, filename, copyto):
+class OrbitalProduct(object):
+
+    def __init__(self, archive, date, filename, copyto):
 
         if date.gpsWeek < 0 or date > pyDate.Date(datetime=datetime.now()):
             # do not allow negative weeks or future orbit downloads!
@@ -47,7 +50,7 @@ class OrbitalProduct():
             try:
                 copyfile(archive_file_path, os.path.join(copyto, self.filename))
                 self.file_path = os.path.join(copyto, self.filename)
-            except:
+            except Exception:
                 raise
         else:
             ext = None
@@ -58,16 +61,14 @@ class OrbitalProduct():
             elif os.path.isfile(archive_file_path + '.zip'):
                 ext = '.zip'
 
-            if not ext is None:
+            if ext is not None:
                 copyfile(archive_file_path + ext, os.path.join(copyto, self.filename + ext))
                 self.file_path = os.path.join(copyto, self.filename)
 
                 cmd = pyRunWithRetry.RunCommand('gunzip -f ' + self.file_path + ext, 15)
                 try:
                     cmd.run_shell()
-                except:
+                except Exception:
                     raise
             else:
                 raise pyProductsException('Could not find the archive file for ' + self.filename)
-
-        return

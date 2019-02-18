@@ -531,8 +531,8 @@ def execute_ppp(record, rinex_path, h_tolerance):
             with pyRinex.ReadRinex(NetworkCode, StationCode, rinex_path) as Rinex:
 
                 if not verify_rinex_date_multiday(cnn, Rinex.date, Rinex, Config):
-                    # the file is a multiday file. These files are not supposed to be in the archive, but, due to a bug in
-                    # ScanArchive (now fixed - 2017-10-26) some multiday files are still in the rinex table
+                    # the file is a multiday file. These files are not supposed to be in the archive, but, due to a bug
+                    # in ScanArchive (now fixed - 2017-10-26) some multiday files are still in the rinex table
                     # the file is moved out of the archive (into the retry folder and the rinex record is deleted
                     event = pyEvents.Event(EventType='warn',
                                            Description='RINEX record in database belonged to a multiday file. '
@@ -546,14 +546,20 @@ def execute_ppp(record, rinex_path, h_tolerance):
 
                     cnn.begin_transac()
                     cnn.query(
-                        'DELETE FROM gamit_soln WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "Year" = %i AND "DOY" = %i'
-                        % (record['NetworkCode'], record['StationCode'], record['ObservationYear'], record['ObservationDOY']))
+                        'DELETE FROM gamit_soln WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' '
+                        'AND "Year" = %i AND "DOY" = %i'
+                        % (record['NetworkCode'], record['StationCode'], record['ObservationYear'],
+                           record['ObservationDOY']))
                     cnn.query(
-                        'DELETE FROM ppp_soln WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "Year" = %i AND "DOY" = %i'
-                        % (record['NetworkCode'], record['StationCode'], record['ObservationYear'], record['ObservationDOY']))
+                        'DELETE FROM ppp_soln WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' '
+                        'AND "Year" = %i AND "DOY" = %i'
+                        % (record['NetworkCode'], record['StationCode'], record['ObservationYear'],
+                           record['ObservationDOY']))
                     cnn.query(
-                        'DELETE FROM rinex WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "ObservationYear" = %i AND "ObservationDOY" = %i AND "Filename" = \'%s\''
-                        % (record['NetworkCode'], record['StationCode'], record['ObservationYear'], record['ObservationDOY'], record['Filename']))
+                        'DELETE FROM rinex WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' '
+                        'AND "ObservationYear" = %i AND "ObservationDOY" = %i AND "Filename" = \'%s\''
+                        % (record['NetworkCode'], record['StationCode'], record['ObservationYear'],
+                           record['ObservationDOY'], record['Filename']))
                     cnn.commit_transac()
 
                     return
@@ -563,7 +569,8 @@ def execute_ppp(record, rinex_path, h_tolerance):
                 Rinex.normalize_header(stninfo, x=stn[0]['auto_x'], y=stn[0]['auto_y'], z=stn[0]['auto_z'])
 
                 with pyPPP.RunPPP(Rinex, stn[0]['Harpos_coeff_otl'], Config.options, Config.sp3types, Config.sp3altrn,
-                                  stninfo.currentrecord.AntennaHeight, hash=stninfo.currentrecord.hash) as ppp:
+                                  stninfo.currentrecord.to_dharp(Config.options['height_codes']),
+                                  hash=stninfo.currentrecord.hash) as ppp:
                     ppp.exec_ppp()
 
                     # verify that the solution is from the station it claims to be
@@ -574,9 +581,9 @@ def execute_ppp(record, rinex_path, h_tolerance):
                             # the match agrees with the station-day that we THINK we are processing
                             # this check should not be necessary if the rinex went through Archive Service, since we
                             # already match rinex vs station
-                            # but it's still here to prevent that a rinex imported by pyScanArchive (which assumes the rinex
-                            # files belong to the network/station of the folder) doesn't get into the PPP table if it's not
-                            # of the station it claims to be.
+                            # but it's still here to prevent that a rinex imported by ScanArchive (which assumes the
+                            # rinex files belong to the network/station of the folder) doesn't get into the PPP table
+                            # if it's not of the station it claims to be.
 
                             # insert record in DB
                             cnn.insert('ppp_soln', ppp.record)
@@ -619,7 +626,8 @@ def execute_ppp(record, rinex_path, h_tolerance):
         cnn.insert_event(e.event)
 
     except Exception:
-        return traceback.format_exc() + ' processing: ' + NetworkCode + '.' + StationCode + ' ' + str(year) + ' ' + str(doy) + ' using node ' + platform.node()
+        return traceback.format_exc() + ' processing: ' + NetworkCode + '.' + StationCode + ' ' + str(year) + ' ' + \
+               str(doy) + ' using node ' + platform.node()
 
 
 def output_handle(callback):
@@ -961,7 +969,8 @@ def process_ppp(cnn, pyArchive, archive_path, JobServer, run_parallel, master_li
 
     pbar = tqdm(total=len(tblrinex), ncols=80)
 
-    modules = ('dbConnection', 'pyRinex', 'pyPPP', 'pyStationInfo', 'pyDate', 'pySp3', 'os', 'platform', 'pyArchiveStruct', 'traceback', 'pyOptions', 'pyEvents', 'Utils')
+    modules = ('dbConnection', 'pyRinex', 'pyPPP', 'pyStationInfo', 'pyDate', 'pySp3', 'os', 'platform',
+               'pyArchiveStruct', 'traceback', 'pyOptions', 'pyEvents', 'Utils')
     depfuncs = (remove_from_archive, verify_rinex_date_multiday)
 
     callback = []
@@ -980,7 +989,8 @@ def process_ppp(cnn, pyArchive, archive_path, JobServer, run_parallel, master_li
 
             arguments = (record, rinex_path, h_tolerance)
 
-            JobServer.SubmitJob(execute_ppp, arguments, depfuncs, modules, callback, callback_class(pbar), 'callbackfunc')
+            JobServer.SubmitJob(execute_ppp, arguments, depfuncs, modules, callback,
+                                callback_class(pbar), 'callbackfunc')
 
             if JobServer.process_callback:
                 # handle any output messages during this batch
@@ -1001,9 +1011,32 @@ def process_ppp(cnn, pyArchive, archive_path, JobServer, run_parallel, master_li
     output_handle(callback)
     pbar.close()
 
+    # print a summary of the events generated by the run
+    print_scan_archive_summary(cnn)
+
     if run_parallel:
         print '\n'
         JobServer.job_server.print_stats()
+
+
+def print_scan_archive_summary(cnn):
+
+    # find the last event in the executions table
+    exec_date = cnn.query_float('SELECT max(exec_date) as mx FROM executions WHERE script = \'ScanArchive.py\'')
+
+    info = cnn.query_float('SELECT count(*) as cc FROM events WHERE "EventDate" >= \'%s\' AND "EventType" = \'info\''
+                           % exec_date[0][0])
+
+    erro = cnn.query_float('SELECT count(*) as cc FROM events WHERE "EventDate" >= \'%s\' AND "EventType" = \'error\''
+                           % exec_date[0][0])
+
+    warn = cnn.query_float('SELECT count(*) as cc FROM events WHERE "EventDate" >= \'%s\' AND "EventType" = \'warn\''
+                           % exec_date[0][0])
+
+    print ' >> Summary of events for this run:'
+    print ' -- info    : %i' % info[0][0]
+    print ' -- errors  : %i' % erro[0][0]
+    print ' -- warnings: %i' % warn[0][0]
 
 
 def export_station(cnn, stnlist, pyArchive, archive_path, dataless):
@@ -1204,10 +1237,10 @@ def try_insert_files(cnn, archive, station, NetworkCode, StationCode, rinex):
                                 stninfo_inserted = True
 
                             except pyStationInfo.pyStationInfoException as e:
-                                tqdm.write(' -- ' + str(e))
+                                tqdm.write('    ' + str(e))
 
                     if not stninfo_inserted:
-                        tqdm.write('  -- Could not find a valid station info in the database or in the station '
+                        tqdm.write('    Could not find a valid station info in the database or in the station '
                                    'package. File remains in database without metadata.')
     else:
         # a station file without rinex data
@@ -1261,7 +1294,7 @@ def main():
                              "(separated by spaces; if [stnm] is not unique in the database, all stations with that "
                              "name will be processed). Use keyword 'all' to process all stations in the database. "
                              "If [net].all is given, all stations from network [net] will be processed. "
-                             "Alternatevily, a file with the station list can be provided.")
+                             "Alternatively, a file with the station list can be provided.")
 
     parser.add_argument('-rinex', '--rinex', metavar='{ignore_stnlist}', type=int, nargs=1, default=None,
                         help="Scan the current archive for RINEX files (d.Z) and add them to the database if missing. "
@@ -1285,7 +1318,7 @@ def main():
                              "specifies the network to use during insertion. Eg: -stninfo ~/station.info arg. "
                              "In cases where multiple networks are being processed, the network argument will be used "
                              "to desambiguate station code conflicts. "
-                             "Eg: pyScanArchive all -stninfo ~/station.info arg -> if a station named igm1 exists in "
+                             "Eg: ScanArchive all -stninfo ~/station.info arg -> if a station named igm1 exists in "
                              "networks 'igs' and 'arg', only 'arg.igm1' will get the station information insert. "
                              "Use keyword 'stdin' to read the station information data from the pipeline.")
 
@@ -1334,7 +1367,7 @@ def main():
 
     cnn = dbConnection.Cnn("gnss_data.cfg")
     # create the execution log
-    cnn.insert('executions', script='pyScanArchive.py')
+    cnn.insert('executions', script='ScanArchive.py')
 
     # get the station list
     stnlist = Utils.process_stnlist(cnn, args.stnlist)

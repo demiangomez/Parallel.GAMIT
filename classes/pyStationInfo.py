@@ -10,6 +10,8 @@ import pyDate
 import zlib
 import pyBunch
 import pyEvents
+import re
+import numpy as np
 from json import JSONEncoder
 
 
@@ -144,6 +146,30 @@ class StationInfoRecord(pyBunch.Bunch):
                                      self.ReceiverFirmware, self.ReceiverSerial,
                                      self.AntennaCode, self.RadomeCode,
                                      self.AntennaSerial)
+
+    def to_dharp(self, height_codes):
+        """
+        function to convert the current height code to DHARP
+        :return: DHARP height using hi.dat
+        """
+
+        if self.HeightCode == 'DHARP':
+            return self.AntennaHeight
+
+        else:
+            f = open(height_codes, 'r')
+            output = f.readlines()
+            f.close()
+
+            offsets = re.findall(r'\s%s\s+......\s%s\s([-]?\d+[.]?[0-9 ]+)([-]?\d+[.]?[0-9 ]+)'
+                                 % (self.AntennaCode, self.HeightCode), ''.join(output), re.MULTILINE)
+
+            if offsets:
+                return np.sqrt(np.square(float(self.AntennaHeight)) - 
+                               np.square(float(offsets[0][1]))) - float(offsets[0][0])
+            else:
+                raise pyStationInfoException('Could not translate height code %s to DHARP. Check the heigh_codes file.'
+                                             % self.HeightCode)
 
 
 class StationInfo(object):

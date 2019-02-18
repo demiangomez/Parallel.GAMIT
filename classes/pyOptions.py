@@ -11,8 +11,8 @@ import os
 from Utils import process_date
 from pyDate import Date
 
-class ReadOptions:
 
+class ReadOptions:
     def __init__(self, configfile):
 
         self.options = {'path': None,
@@ -36,6 +36,7 @@ class ReadOptions:
                         'sp3': None,
                         'frames': None,
                         'atx': None,
+                        'height_codes': None,
                         'ppp_exe': None}
 
         config = ConfigParser.ConfigParser()
@@ -54,7 +55,7 @@ class ReadOptions:
             self.options[iconfig] = val
 
         # get the sigma floor config
-        #for iconfig, val in dict(config.items('sigmas')).iteritems():
+        # for iconfig, val in dict(config.items('sigmas')).iteritems():
         #    self.options[iconfig] = val
 
         # frames and dates
@@ -93,5 +94,10 @@ class ReadOptions:
             self.run_parallel = True
         else:
             self.run_parallel = False
+
+        if 'height_codes' not in self.options.keys():
+            raise ValueError('Must specify a valid height codes file (usually in gamit/tables/hi.dat)')
+        elif not os.path.isfile(self.options['height_codes']):
+            raise ValueError('Could not find height codes file (usually in gamit/tables/hi.dat)')
 
         return

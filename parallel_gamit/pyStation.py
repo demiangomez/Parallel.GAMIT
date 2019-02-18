@@ -98,6 +98,12 @@ class Station(object):
         # to make the object hashable
         return hash(self.NetworkCode + '.' + self.StationCode)
 
+    def __str__(self):
+        return self.NetworkCode + '.' + self.StationCode
+
+    def __repr__(self):
+        return 'pyStation.Station(' + str(self) + ')'
+
 
 class StationInstance(object):
 

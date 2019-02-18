@@ -155,7 +155,7 @@ class PPPSpatialCheck:
 
 class RunPPP(PPPSpatialCheck):
     def __init__(self, rinexobj, otl_coeff, options, sp3types, sp3altrn, antenna_height, strict=True, apply_met=True,
-                 kinematic=False, clock_interpolation=False, hash=0, erase=True):
+                 kinematic=False, clock_interpolation=False, hash=0, erase=True, decimate=True):
 
         assert isinstance(rinexobj, pyRinex.ReadRinex)
 
@@ -168,6 +168,8 @@ class RunPPP(PPPSpatialCheck):
         self.ppp       = options['ppp_exe']
         self.options   = options
         self.kinematic = kinematic
+
+        self.ppp_version = None
 
         self.file_summary = None
         self.proc_parameters = None
@@ -251,7 +253,8 @@ class RunPPP(PPPSpatialCheck):
 
             # make a local copy of the rinex file
             # decimate the rinex file if the interval is < 15 sec.
-            if self.rinex.interval < 15:
+            # DDG: only decimate when told by caller
+            if self.rinex.interval < 15 and decimate:
                 self.rinex.decimate(30)
 
             copyfile(self.rinex.rinex_path, os.path.join(self.rootdir, self.rinex.rinex))
@@ -267,7 +270,8 @@ class RunPPP(PPPSpatialCheck):
             copyfile(os.path.join(self.ppp_path, 'gpsppp.met'), os.path.join(self.rootdir, 'gpsppp.met'))
 
         copyfile(os.path.join(self.ppp_path, 'gpsppp.stc'), os.path.join(self.rootdir, 'gpsppp.stc'))
-        copyfile(os.path.join(self.ppp_path, 'gpsppp.svb_gps_yrly'), os.path.join(self.rootdir, 'gpsppp.svb_gps_yrly'))
+        copyfile(os.path.join(self.ppp_path, 'gpsppp.svb_gnss_yrly'),
+                 os.path.join(self.rootdir, 'gpsppp.svb_gnss_yrly'))
         copyfile(os.path.join(self.ppp_path, 'gpsppp.flt'), os.path.join(self.rootdir, 'gpsppp.flt'))
         copyfile(os.path.join(self.ppp_path, 'gpsppp.stc'), os.path.join(self.rootdir, 'gpsppp.stc'))
         copyfile(os.path.join(self.atx), os.path.join(self.rootdir, os.path.basename(self.atx)))
@@ -287,11 +291,11 @@ class RunPPP(PPPSpatialCheck):
         options = self.options
 
         # create the def file
-        def_file = open(os.path.join(self.rootdir,'gpsppp.def'), 'w')
+        def_file = open(os.path.join(self.rootdir, 'gpsppp.def'), 'w')
 
         def_file_cont = ("'LNG' 'ENGLISH'\n"
                          "'TRF' 'gpsppp.trf'\n"
-                         "'SVB' 'gpsppp.svb_gps_yrly'\n"
+                         "'SVB' 'gpsppp.svb_gnss_yrly'\n"
                          "'PCV' '%s'\n"
                          "'FLT' 'gpsppp.flt'\n"
                          "'OLC' '%s.olc'\n"
@@ -308,7 +312,7 @@ class RunPPP(PPPSpatialCheck):
         def_file.write(def_file_cont)
         def_file.close()
 
-        cmd_file = open(os.path.join(self.rootdir,'commands.cmd'), 'w')
+        cmd_file = open(os.path.join(self.rootdir, 'commands.cmd'), 'w')
 
         cmd_file_cont = ("' UT DAYS OBSERVED                      (1-45)'               1\n"
                          "' USER DYNAMICS         (1=STATIC,2=KINEMATIC)'               %s\n"
@@ -332,7 +336,7 @@ class RunPPP(PPPSpatialCheck):
                          "' CUTOFF ELEVATION                       (deg)'          10.000\n"
                          "' GDOP CUTOFF                                 '          20.000\n"
                          % ('1' if not self.kinematic else '2', '1'
-                if not self.clock_interpolation else '2', self.antH))
+                            if not self.clock_interpolation else '2', self.antH))
 
         cmd_file.write(cmd_file_cont)
 
@@ -341,18 +345,18 @@ class RunPPP(PPPSpatialCheck):
         inp_file = open(os.path.join(self.rootdir, 'input.inp'), 'w')
 
         inp_file_cont = ("%s\n"
-            "commands.cmd\n"
-            "0 0\n"
-            "0 0\n"
-            "orbits/%s\n"
-            "orbits/%s\n"
-            "orbits/%s\n"
-            "orbits/%s\n"
-            % (self.rinex.rinex,
-               self.orbits1.sp3_filename,
-               self.clocks1.clk_filename,
-               self.orbits2.sp3_filename,
-               self.clocks2.clk_filename))
+                         "commands.cmd\n"
+                         "0 0\n"
+                         "0 0\n"
+                         "orbits/%s\n"
+                         "orbits/%s\n"
+                         "orbits/%s\n"
+                         "orbits/%s\n"
+                         % (self.rinex.rinex,
+                            self.orbits1.sp3_filename,
+                            self.clocks1.clk_filename,
+                            self.orbits2.sp3_filename,
+                            self.clocks2.clk_filename))
 
         inp_file.write(inp_file_cont)
 
@@ -365,13 +369,15 @@ class RunPPP(PPPSpatialCheck):
         options = self.options
 
         orbits1 = pySp3.GetSp3Orbits(options['sp3'], self.rinex.date, type, os.path.join(self.rootdir, 'orbits'), True)
-        orbits2 = pySp3.GetSp3Orbits(options['sp3'], self.rinex.date+1, type, os.path.join(self.rootdir, 'orbits'), True)
+        orbits2 = pySp3.GetSp3Orbits(options['sp3'], self.rinex.date + 1, type, 
+                                     os.path.join(self.rootdir, 'orbits'), True)
 
         clocks1 = pyClk.GetClkFile(options['sp3'], self.rinex.date, type, os.path.join(self.rootdir, 'orbits'), True)
-        clocks2 = pyClk.GetClkFile(options['sp3'], self.rinex.date+1, type, os.path.join(self.rootdir, 'orbits'), True)
+        clocks2 = pyClk.GetClkFile(options['sp3'], self.rinex.date + 1, type,
+                                   os.path.join(self.rootdir, 'orbits'), True)
 
         try:
-            eop_file = pyEOP.GetEOP(options['sp3'],self.rinex.date, type, self.rootdir)
+            eop_file = pyEOP.GetEOP(options['sp3'], self.rinex.date, type, self.rootdir)
             eop_file = eop_file.eop_filename
         except pyEOP.pyEOPException:
             # no eop, continue with out one
@@ -405,9 +411,9 @@ class RunPPP(PPPSpatialCheck):
     @staticmethod
     def get_xyz(section):
 
-        x = re.findall('X\s\(m\)\s+(-?\d+\.\d+|[nN]a[nN]|\*+)\s+(-?\d+\.\d+|[nN]a[nN]|\*+)', section)[0][1]
-        y = re.findall('Y\s\(m\)\s+(-?\d+\.\d+|[nN]a[nN]|\*+)\s+(-?\d+\.\d+|[nN]a[nN]|\*+)', section)[0][1]
-        z = re.findall('Z\s\(m\)\s+(-?\d+\.\d+|[nN]a[nN]|\*+)\s+(-?\d+\.\d+|[nN]a[nN]|\*+)', section)[0][1]
+        x = re.findall(r'X\s\(m\)\s+(-?\d+\.\d+|[nN]a[nN]|\*+)\s+(-?\d+\.\d+|[nN]a[nN]|\*+)', section)[0][1]
+        y = re.findall(r'Y\s\(m\)\s+(-?\d+\.\d+|[nN]a[nN]|\*+)\s+(-?\d+\.\d+|[nN]a[nN]|\*+)', section)[0][1]
+        z = re.findall(r'Z\s\(m\)\s+(-?\d+\.\d+|[nN]a[nN]|\*+)\s+(-?\d+\.\d+|[nN]a[nN]|\*+)', section)[0][1]
 
         if '*' not in x and '*' not in y and '*' not in z:
             x = float(x)
@@ -426,9 +432,9 @@ class RunPPP(PPPSpatialCheck):
 
         if kinematic:
 
-            sx = re.findall('X\s\(m\)\s+-?\d+\.\d+\s+-?\d+\.\d+\s+(-?\d+\.\d+|[nN]a[nN]|\*+)', section)[0]
-            sy = re.findall('Y\s\(m\)\s+-?\d+\.\d+\s+-?\d+\.\d+\s+(-?\d+\.\d+|[nN]a[nN]|\*+)', section)[0]
-            sz = re.findall('Z\s\(m\)\s+-?\d+\.\d+\s+-?\d+\.\d+\s+(-?\d+\.\d+|[nN]a[nN]|\*+)', section)[0]
+            sx = re.findall(r'X\s\(m\)\s+-?\d+\.\d+\s+-?\d+\.\d+\s+(-?\d+\.\d+|[nN]a[nN]|\*+)', section)[0]
+            sy = re.findall(r'Y\s\(m\)\s+-?\d+\.\d+\s+-?\d+\.\d+\s+(-?\d+\.\d+|[nN]a[nN]|\*+)', section)[0]
+            sz = re.findall(r'Z\s\(m\)\s+-?\d+\.\d+\s+-?\d+\.\d+\s+(-?\d+\.\d+|[nN]a[nN]|\*+)', section)[0]
 
             if '*' not in sx and '*' not in sy and '*' not in sz:
                 sx = float(sx)
@@ -441,9 +447,10 @@ class RunPPP(PPPSpatialCheck):
                 raise pyRunPPPExceptionNaN('One or more sigma is NaN')
 
         else:
-            sx, sxy, sxz = re.findall('X\(m\)\s+(-?\d+\.\d+|[nN]a[nN]|\*+)\s+(-?\d+\.\d+|[nN]a[nN]|\*+)\s+(-?\d+\.\d+|[nN]a[nN]|\*+)', section)[0]
-            sy, syz      = re.findall('Y\(m\)\s+(-?\d+\.\d+|[nN]a[nN]|\*+)\s+(-?\d+\.\d+|[nN]a[nN]|\*+)', section)[0]
-            sz           = re.findall('Z\(m\)\s+(-?\d+\.\d+|[nN]a[nN]|\*+)', section)[0]
+            sx, sxy, sxz = re.findall(r'X\(m\)\s+(-?\d+\.\d+|[nN]a[nN]|\*+)\s+(-?\d+\.\d+|[nN]a[nN]|\*+)'
+                                      r'\s+(-?\d+\.\d+|[nN]a[nN]|\*+)', section)[0]
+            sy, syz      = re.findall(r'Y\(m\)\s+(-?\d+\.\d+|[nN]a[nN]|\*+)\s+(-?\d+\.\d+|[nN]a[nN]|\*+)', section)[0]
+            sz           = re.findall(r'Z\(m\)\s+(-?\d+\.\d+|[nN]a[nN]|\*+)', section)[0]
 
             if '*' in sx or '*' in sy or '*' in sz or '*' in sxy or '*' in sxz or '*' in syz:
                 raise pyRunPPPExceptionNaN('Sigmas are NaN')
@@ -460,22 +467,24 @@ class RunPPP(PPPSpatialCheck):
 
         return sx, sy, sz, sxy, sxz, syz
 
-    @staticmethod
-    def get_pr_observations(section, kinematic):
+    def get_pr_observations(self, section, kinematic):
 
-        processed = re.findall('Number of epochs processed\s+\:\s+(\d+)', section)[0]
+        if self.ppp_version == '1.05':
+            processed = re.findall(r'Number of epochs processed\s+\:\s+(\d+)', section)[0]
+        else:
+            processed = re.findall(r'Number of epochs processed \(%fix\)\s+\:\s+(\d+)', section)[0]
 
         if kinematic:
-            rejected = re.findall('Number of epochs rejected\s+\:\s+(\d+)', section)
+            rejected = re.findall(r'Number of epochs rejected\s+\:\s+(\d+)', section)
 
             if len(rejected) > 0:
                 rejected = int(rejected[0])
             else:
                 rejected = 0
         else:
-            #processed = re.findall('Number of observations processed\s+\:\s+(\d+)', section)[0]
+            # processed = re.findall('Number of observations processed\s+\:\s+(\d+)', section)[0]
 
-            rejected = re.findall('Number of observations rejected\s+\:\s+(\d+)', section)
+            rejected = re.findall(r'Number of observations rejected\s+\:\s+(\d+)', section)
 
             if len(rejected) > 0:
                 rejected = int(rejected[0])
@@ -487,7 +496,7 @@ class RunPPP(PPPSpatialCheck):
     @staticmethod
     def check_phase_center(section):
 
-        if len(re.findall('Antenna phase center.+NOT AVAILABLE', section)) > 0:
+        if len(re.findall(r'Antenna phase center.+NOT AVAILABLE', section)) > 0:
             return False
         else:
             return True
@@ -495,14 +504,14 @@ class RunPPP(PPPSpatialCheck):
     @staticmethod
     def check_otl(section):
 
-        if len(re.findall('Ocean loading coefficients.+NOT FOUND', section)) > 0:
+        if len(re.findall(r'Ocean loading coefficients.+NOT FOUND', section)) > 0:
             return False
         else:
             return True
 
     @staticmethod
     def check_eop(section):
-        pole = re.findall('Pole X\s+.\s+(-?\d+\.\d+|[nN]a[nN])\s+(-?\d+\.\d+|[nN]a[nN])', section)
+        pole = re.findall(r'Pole X\s+.\s+(-?\d+\.\d+|[nN]a[nN])\s+(-?\d+\.\d+|[nN]a[nN])', section)
         if len(pole) > 0:
             if type(pole[0]) is tuple and 'nan' not in pole[0][0].lower():
                 return True
@@ -513,11 +522,18 @@ class RunPPP(PPPSpatialCheck):
 
     @staticmethod
     def get_frame(section):
-        return re.findall('\s+ITRF\s\((\s*\w+\s*)\)', section)[0].strip()
+        return re.findall(r'\s+ITRF\s\((\s*\w+\s*)\)', section)[0].strip()
 
     def parse_summary(self):
 
         self.summary = ''.join(self.out)
+
+        self.ppp_version = re.findall(r'.*Version\s+(\d.\d+)\/', self.summary)
+
+        if len(self.ppp_version) == 0:
+            self.ppp_version = re.findall(r'.*CSRS-PPP ver.\s+(\d.\d+)\/', self.summary)[0]
+        else:
+            self.ppp_version = self.ppp_version[0]
 
         self.file_summary = self.get_text(self.summary, 'SECTION 1.', 'SECTION 2.')
         self.proc_parameters = self.get_text(self.summary, 'SECTION 2. ', ' SECTION 3. ')
@@ -548,7 +564,7 @@ class RunPPP(PPPSpatialCheck):
         if self.processed_obs == 0:
             raise pyRunPPPExceptionZeroProcEpochs('PPP returned zero processed epochs')
 
-        #if self.strict and (self.processed_obs == 0 or self.rejected_obs > 0.95 * self.processed_obs):
+        # if self.strict and (self.processed_obs == 0 or self.rejected_obs > 0.95 * self.processed_obs):
         #    raise pyRunPPPExceptionTooFewAcceptedObs('The processed observations (' + str(self.processed_obs) +
         #                                             ') is zero or more than 95% of the observations were rejected (' +
         #                                             str(self.rejected_obs) + ')')
@@ -578,7 +594,7 @@ class RunPPP(PPPSpatialCheck):
             # DDG: handle the error found in PPP (happens every now and then)
             # Fortran runtime error: End of file
             for i in range(2):
-                cmd = pyRunWithRetry.RunCommand(self.ppp, 45, self.rootdir, 'input.inp')
+                cmd = pyRunWithRetry.RunCommand(self.ppp, 60, self.rootdir, 'input.inp')
                 out, err = cmd.run_shell()
 
                 if '*END - NORMAL COMPLETION' not in out:

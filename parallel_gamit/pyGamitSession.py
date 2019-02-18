@@ -23,7 +23,7 @@ class GamitSessionException(Exception):
 
 class GamitSession(object):
 
-    def __init__(self, cnn, archive, name, date, GamitConfig, stations, core_stations, ready=False):
+    def __init__(self, cnn, archive, name, date, GamitConfig, stations, ties, ready=False):
         """
 
         :param date: pyDate.Date
@@ -37,8 +37,8 @@ class GamitSession(object):
         self.frame            = None
 
         # core station dictionary
-        self.core_dict = [{'name': stn.NetworkCode + '.' + stn.StationCode, 'coords': [(stn.lon, stn.lat)]}
-                          for stn in core_stations]
+        self.tie_dict = [{'name': stn.NetworkCode + '.' + stn.StationCode, 'coords': [(stn.lon, stn.lat)]}
+                         for stn in ties]
 
         # station dictionary
         self.stations_dict = [{'name': stn.NetworkCode + '.' + stn.StationCode, 'coords': [(stn.lon, stn.lat)]}
@@ -63,9 +63,10 @@ class GamitSession(object):
         self.missing_data = []
 
         # create working dirs for this session
-        self.solution_pwd = self.GamitOpts['solutions_dir'].rstrip('/') + '/' + date.yyyy() + '/' + date.ddd() + '/' + self.NetName
+        self.solution_pwd = self.GamitOpts['solutions_dir'].rstrip('/') + '/%s/%s/%s' % (date.yyyy(),
+                                                                                         date.ddd(), self.NetName)
 
-        self.remote_pwd = 'production/gamit/' + date.yyyy() + '/' + date.ddd() + '/' + self.NetName
+        self.remote_pwd = 'production/gamit/' + '/%s/%s/%s' % (date.yyyy(), date.ddd(), self.NetName)
 
         if not os.path.exists(self.solution_pwd):
             os.makedirs(self.solution_pwd)
@@ -194,7 +195,8 @@ $$\n""" % (self.Config.options['otlmodel']))
                     lon = 360+stn.lon
                 else:
                     lon = stn.lon
-                otl[3] = '$$ %s                                 RADI TANG lon/lat:%10.4f%10.4f' % (stn.StationAlias.upper(), lon, stn.lat)
+                otl[3] = '$$ %s                                 RADI TANG lon/lat:%10.4f%10.4f' \
+                         % (stn.StationAlias.upper(), lon, stn.lat)
                 otl = '\n'.join(otl)
 
                 otl_list.write(otl)
@@ -304,7 +306,8 @@ $$\n""" % (self.Config.options['otlmodel']))
                 sitedef.write(' all_sites %s xstinfo\n' % (self.GamitOpts['expt']))
 
                 for StationInstance in self.StationInstances:
-                    sitedef.write(" %s_GPS  %s localrx\n" % (StationInstance.StationAlias.upper(), self.GamitOpts['expt']))
+                    sitedef.write(" %s_GPS  %s localrx\n" % (StationInstance.StationAlias.upper(),
+                                                             self.GamitOpts['expt']))
 
         except Exception as e:
             raise GamitSessionException(e)
@@ -323,7 +326,8 @@ $$\n""" % (self.Config.options['otlmodel']))
             for StationInstance in self.StationInstances:
                 # replace the key
                 try:
-                    self.polyhedron[StationInstance.NetworkCode + '.' + StationInstance.StationCode] = self.polyhedron.pop(StationInstance.StationAlias.upper())
+                    self.polyhedron[StationInstance.NetworkCode + '.' + StationInstance.StationCode] = \
+                        self.polyhedron.pop(StationInstance.StationAlias.upper())
                 except KeyError:
                     # maybe the station didn't have a solution
                     pass

@@ -66,7 +66,8 @@ class GamitTask(object):
                 monitor.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' -> fetching orbits\n')
 
                 try:
-                    Sp3 = pySp3.GetSp3Orbits(self.orbits['sp3_path'], self.date, self.orbits['sp3types'], self.pwd_igs, True)  # type: pySp3.GetSp3Orbits
+                    Sp3 = pySp3.GetSp3Orbits(self.orbits['sp3_path'], self.date, self.orbits['sp3types'],
+                                             self.pwd_igs, True)  # type: pySp3.GetSp3Orbits
 
                 except pySp3.pySp3Exception:
 
@@ -75,7 +76,8 @@ class GamitTask(object):
 
                     # try alternative orbits
                     if self.options['sp3altrn']:
-                        Sp3 = pySp3.GetSp3Orbits(self.orbits['sp3_path'], self.date, self.orbits['sp3altrn'], self.pwd_igs, True)  # type: pySp3.GetSp3Orbits
+                        Sp3 = pySp3.GetSp3Orbits(self.orbits['sp3_path'], self.date, self.orbits['sp3altrn'],
+                                                 self.pwd_igs, True)  # type: pySp3.GetSp3Orbits
                     else:
                         raise
 
@@ -85,7 +87,8 @@ class GamitTask(object):
 
                 monitor.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' -> fetching broadcast orbits\n')
 
-                pyBrdc.GetBrdcOrbits(self.orbits['brdc_path'], self.date, self.pwd_brdc, no_cleanup=True)  # type: pyBrdc.GetBrdcOrbits
+                pyBrdc.GetBrdcOrbits(self.orbits['brdc_path'], self.date, self.pwd_brdc,
+                                     no_cleanup=True)  # type: pyBrdc.GetBrdcOrbits
 
                 for rinex in self.params['rinex']:
 
@@ -100,12 +103,13 @@ class GamitTask(object):
                                                rinex['source'], False) as Rinex:  # type: pyRinex.ReadRinex
 
                             # WARNING! some multiday RINEX were generating conflicts because the RINEX has a name, say,
-                            # tuc12302.10o and the program wants to rename it as tuc12030.10o but because it's a multiday
-                            # file, during __init__ it's already split and renamed as tuc12300.10o and additional folders
-                            # are generated with the information for each file. Therefore, find the rinex that corresponds
-                            # to the date being processed and use that one instead of the original file
-                            # These files are not allowed by pyArchiveService, but the "start point" of the database
-                            # (i.e. the files already in the folders read by pyScanArchive) has such problems.
+                            # tuc12302.10o and the program wants to rename it as tuc12030.10o but because it's a
+                            # multiday file, during __init__ it's already split and renamed as tuc12300.10o and
+                            # additional folders are generated with the information for each file. Therefore, find
+                            # the rinex that corresponds to the date being processed and use that one instead of the
+                            # original file. These files are not allowed by pyArchiveService, but the "start point" of
+                            # the database (i.e. the files already in the folders read by pyScanArchive) has such
+                            # problems.
 
                             # figure out if this station has been affected by an earthquake
                             # if so, window the data
@@ -245,7 +249,7 @@ class GamitTask(object):
 
         try:
             start_time = datetime.datetime.strptime(
-                re.findall('run.sh \((\d+-\d+-\d+ \d+:\d+:\d+)\): Iteration depth: 1',
+                re.findall(r'run.sh \((\d+-\d+-\d+ \d+:\d+:\d+)\): Iteration depth: 1',
                            output, re.MULTILINE)[0], '%Y-%m-%d %H:%M:%S')
         except Exception:
             start_time = datetime.datetime(2001, 1, 1, 0, 0, 0)
@@ -253,8 +257,8 @@ class GamitTask(object):
         try:
             if success:
                 end_time = datetime.datetime.strptime(
-                    re.findall('finish.sh \((\d+-\d+-\d+ \d+:\d+:\d+)\): Done processing h-files and generating SINEX.',
-                               output, re.MULTILINE)[0], '%Y-%m-%d %H:%M:%S')
+                    re.findall(r'finish.sh \((\d+-\d+-\d+ \d+:\d+:\d+)\): Done processing h-files and generating SINEX.'
+                               , output, re.MULTILINE)[0], '%Y-%m-%d %H:%M:%S')
             else:
                 end_time = datetime.datetime.now()
 
@@ -262,21 +266,21 @@ class GamitTask(object):
             end_time = datetime.datetime(2001, 1, 1, 0, 0, 0)
 
         try:
-            iterations = int(re.findall('run.sh \(\d+-\d+-\d+ \d+:\d+:\d+\): Iteration depth: (\d+)',
+            iterations = int(re.findall(r'run.sh \(\d+-\d+-\d+ \d+:\d+:\d+\): Iteration depth: (\d+)',
                              output, re.MULTILINE)[-1])
         except Exception:
             iterations = 0
 
         try:
             nrms = float(
-                re.findall('Prefit nrms:\s+\d+.\d+[eEdD]\+\d+\s+Postfit nrms:\s+(\d+.\d+[eEdD][+-]\d+)', output,
+                re.findall(r'Prefit nrms:\s+\d+.\d+[eEdD]\+\d+\s+Postfit nrms:\s+(\d+.\d+[eEdD][+-]\d+)', output,
                            re.MULTILINE)[-1])
         except Exception:
             # maybe GAMIT didn't finish
             nrms = 100
 
         try:
-            updated_apr = re.findall(' (\w+).*?Updated from', output, re.MULTILINE)[0]
+            updated_apr = re.findall(r' (\w+).*?Updated from', output, re.MULTILINE)[0]
             updated_apr = [upd.replace('_GPS', '').lower() for upd in updated_apr]
             upd_stn = []
             for stn in updated_apr:
@@ -290,19 +294,19 @@ class GamitTask(object):
             upd_stn = None
 
         try:
-            wl = float(re.findall('WL fixed\s+(\d+.\d+)', output, re.MULTILINE)[0])
+            wl = float(re.findall(r'WL fixed\s+(\d+.\d+)', output, re.MULTILINE)[0])
         except Exception:
             # maybe GAMIT didn't finish
             wl = 0
 
         try:
-            nl = float(re.findall('NL fixed\s+(\d+.\d+)', output, re.MULTILINE)[0])
+            nl = float(re.findall(r'NL fixed\s+(\d+.\d+)', output, re.MULTILINE)[0])
         except Exception:
             # maybe GAMIT didn't finish
             nl = 0
 
         try:
-            oc = re.findall('relaxing over constrained stations (\w+.*)', output, re.MULTILINE)[0]
+            oc = re.findall(r'relaxing over constrained stations (\w+.*)', output, re.MULTILINE)[0]
             oc = oc.replace('|', ',').replace('_GPS', '').lower()
 
             oc_stn = []
@@ -319,7 +323,7 @@ class GamitTask(object):
 
         try:
             max_overconstrained = None
-            overcons = re.findall('GCR APTOL (\w+).{10}\s+([-]?\d+.\d+)', output, re.MULTILINE)
+            overcons = re.findall(r'GCR APTOL (\w+).{10}\s+([-]?\d+.\d+)', output, re.MULTILINE)
 
             if len(overcons) > 0:
                 vals = [float(o[1]) for o in overcons]
@@ -339,7 +343,7 @@ class GamitTask(object):
             max_overconstrained = None
 
         try:
-            ms = re.findall('No data for site (\w+)', output, re.MULTILINE)
+            ms = re.findall(r'No data for site (\w+)', output, re.MULTILINE)
             missing_sites = []
             for stn in ms:
                 for rinex in self.params['rinex']:

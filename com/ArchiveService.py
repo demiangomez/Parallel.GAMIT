@@ -604,12 +604,35 @@ def remove_empty_folders(folder):
     return
 
 
+def print_archive_service_summary(cnn):
+
+    # find the last event in the executions table
+    exec_date = cnn.query_float('SELECT max(exec_date) as mx FROM executions WHERE script = \'ArchiveService.py\'')
+
+    info = cnn.query_float('SELECT count(*) as cc FROM events WHERE "EventDate" >= \'%s\' AND "EventType" = \'info\''
+                           % exec_date[0][0])
+
+    erro = cnn.query_float('SELECT count(*) as cc FROM events WHERE "EventDate" >= \'%s\' AND "EventType" = \'error\''
+                           % exec_date[0][0])
+
+    warn = cnn.query_float('SELECT count(*) as cc FROM events WHERE "EventDate" >= \'%s\' AND "EventType" = \'warn\''
+                           % exec_date[0][0])
+
+    print ' >> Summary of events for this run:'
+    print ' -- info    : %i' % info[0][0]
+    print ' -- errors  : %i' % erro[0][0]
+    print ' -- warnings: %i' % warn[0][0]
+
+
 def main():
 
     # bind to the repository directory
     parser = argparse.ArgumentParser(description='Archive operations Main Program')
 
-    parser.add_argument('-purge', '--purge_locks', action='store_true', help="Delete any network starting with '?' from the stations table and purge the contents of the locks table, deleting the associated files from data_in.")
+    parser.add_argument('-purge', '--purge_locks', action='store_true',
+                        help="Delete any network starting with '?' from the stations table and purge the contents of "
+                             "the locks table, deleting the associated files from data_in.")
+
     parser.add_argument('-np', '--noparallel', action='store_true', help="Execute command without parallelization.")
 
     args = parser.parse_args()
@@ -629,7 +652,7 @@ def main():
 
     cnn = dbConnection.Cnn('gnss_data.cfg')
     # create the execution log
-    cnn.insert('executions', script='pyArchiveService.py')
+    cnn.insert('executions', script='ArchiveService.py')
 
     # set the data_xx directories
     data_in = os.path.join(Config.repository,'data_in')
@@ -645,7 +668,6 @@ def main():
 
     if not os.path.isdir(data_reject):
         os.makedirs(data_reject)
-
 
     # delete any locks with a NetworkCode != '?%'
     cnn.query('delete from locks where "NetworkCode" not like \'?%\'')
@@ -669,8 +691,6 @@ def main():
         # get the locks to avoid reprocessing files that had no metadata in the database
         locks = cnn.query('SELECT * FROM locks')
         locks = locks.dictresult()
-
-
 
     # look for data in the data_in_retry and move it to data_in
 
@@ -748,7 +768,8 @@ def main():
 
             arguments = (file_to_process, file, data_reject, data_in_retry)
 
-            JobServer.SubmitJob(process_crinex_file, arguments, depfuncs, modules, callback, callback_class(pbar), 'callbackfunc')
+            JobServer.SubmitJob(process_crinex_file, arguments, depfuncs, modules, callback,
+                                callback_class(pbar), 'callbackfunc')
 
             if JobServer.process_callback:
                 # handle any output messages during this batch
@@ -771,8 +792,11 @@ def main():
 
     pbar.close()
 
+    print_archive_service_summary(cnn)
+
     # iterate to delete empty folders
     remove_empty_folders(data_in)
+
 
 if __name__ == '__main__':
 

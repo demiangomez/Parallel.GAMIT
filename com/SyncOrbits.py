@@ -19,6 +19,7 @@ import ftplib
 import zlib
 import pyRunWithRetry
 
+
 def get_archive_path(archive, date):
 
     archive = archive.replace('$year', str(date.year))
@@ -28,10 +29,14 @@ def get_archive_path(archive, date):
 
     return archive
 
+
 def main():
     parser = argparse.ArgumentParser(description='Archive operations Main Program')
 
-    parser.add_argument('-date', '--date_range', nargs='+', action=required_length(1,2), metavar='date_start|date_end', help="Date range to check given as [date_start] or [date_start] and [date_end]. Allowed formats are yyyy.doy or yyyy/mm/dd..")
+    parser.add_argument('-date', '--date_range', nargs='+', action=required_length(1, 2), metavar='date_start|date_end',
+                        help="Date range to check given as [date_start] or [date_start] and [date_end]. "
+                             "Allowed formats are yyyy.doy or yyyy/mm/dd..")
+
     parser.add_argument('-win', '--window', nargs=1, metavar='days', type=int,
                         help="Download data from a given time window determined by today - {days}.")
     try:

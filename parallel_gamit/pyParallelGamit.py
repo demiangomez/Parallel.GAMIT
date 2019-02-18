@@ -134,6 +134,7 @@ def purge_solutions(cnn, args, dates, GamitConfig):
                       'AND "Project" = \'%s\'' % (date.first_epoch(), date.last_epoch(),
                                                   GamitConfig.NetworkConfig.network_id.lower()))
 
+
 def station_list(cnn, NetworkConfig, dates):
 
     stations = process_stnlist(cnn, NetworkConfig['stn_list'].split(','))
@@ -220,7 +221,8 @@ def main():
     parser.add_argument('-dry', '--dry_run', action='store_true',
                         help="Generate the directory structures (locally) but do not run GAMIT. "
                              "Output is left in the production directory.")
-    parser.add_argument('-kml', '--generate_kml', action='store_true', help="Generate KML and exit without running GAMIT.")
+    parser.add_argument('-kml', '--generate_kml', action='store_true',
+                        help="Generate KML and exit without running GAMIT.")
 
     args = parser.parse_args()
 
@@ -305,6 +307,7 @@ def main():
     if args.generate_kml:
         # generate a KML of the sessions
         generate_kml(dates, sessions, GamitConfig)
+        exit()
 
     # print a summary of the current project
     print_summary(stations, sessions, drange)
@@ -328,6 +331,23 @@ def generate_kml(dates, sessions, GamitConfig):
 
     kml = simplekml.Kml()
 
+    # define styles
+    styles_stn = simplekml.StyleMap()
+    styles_stn.normalstyle.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/placemark_square.png'
+    styles_stn.normalstyle.iconstyle.color = 'ff00ff00'
+    styles_stn.normalstyle.labelstyle.scale = 0
+    styles_stn.highlightstyle.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/placemark_square.png'
+    styles_stn.highlightstyle.iconstyle.color = 'ff00ff00'
+    styles_stn.highlightstyle.labelstyle.scale = 2
+
+    styles_tie = simplekml.StyleMap()
+    styles_tie.normalstyle.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/placemark_square.png'
+    styles_tie.normalstyle.iconstyle.color = 'ff0000ff'
+    styles_tie.normalstyle.labelstyle.scale = 0
+    styles_tie.highlightstyle.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/placemark_square.png'
+    styles_tie.highlightstyle.iconstyle.color = 'ff0000ff'
+    styles_tie.highlightstyle.labelstyle.scale = 2
+
     for date in tqdm(dates, ncols=80):
 
         folder = kml.newfolder(name=date.yyyyddd())
@@ -341,27 +361,17 @@ def generate_kml(dates, sessions, GamitConfig):
             for session in sess:
                 folder_net = folder.newfolder(name=session.NetName)
 
-                if len(session.core_dict) > 1:
-                    folder_core = folder_net.newfolder(name='core network')
-
-                    for stn in session.core_dict:
-                        pt = folder_core.newpoint(**stn)
-                        pt.style.iconstyle.scale = 2
-                        pt.style.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/' \
-                                                       'placemark_square_highlight.png'
-
-                folder_stn = folder_net.newfolder(name='all stations')
-
                 for stn in session.stations_dict:
-                    pt = folder_stn.newpoint(**stn)
-                    pt.style.iconstyle.scale = 2
-                    pt.style.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png'
+                    pt = folder_net.newpoint(**stn)
+                    if stn in session.tie_dict:
+                        pt.stylemap = styles_tie
+                    else:
+                        pt.stylemap = styles_stn
 
         elif len(sess) == 1:
             for stn in sess[0].stations_dict:
                 pt = folder.newpoint(**stn)
-                pt.style.iconstyle.scale = 2
-                pt.style.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png'
+                pt.stylemap = styles_stn
 
     if not os.path.exists('production'):
         os.makedirs('production')
@@ -384,7 +394,8 @@ def ParseZTD(cnn, project, Sessions, GamitConfig):
                 output = f.readlines()
                 f.close()
 
-                atmzen = re.findall('ATM_ZEN X (\w+) .. (\d+)\s*(\d*)\s*(\d*)\s*(\d*)\s*(\d*)\s*\d*\s*[- ]?\d*.\d+\s*[+-]*\s*\d*.\d*\s*(\d*.\d*)', ''.join(output), re.MULTILINE)
+                atmzen = re.findall(r'ATM_ZEN X (\w+) .. (\d+)\s*(\d*)\s*(\d*)\s*(\d*)\s*(\d*)\s*\d*\s*[- ]?'
+                                    r'\d*.\d+\s*[+-]*\s*\d*.\d*\s*(\d*.\d*)', ''.join(output), re.MULTILINE)
 
                 for zd in atmzen:
 

@@ -97,6 +97,8 @@ import argparse
 from Utils import print_columns
 from Utils import process_date
 from Utils import ecef2lla
+from Utils import parse_atx_antennas
+from Utils import determine_frame
 import pyJobServer
 import platform
 import pyEvents
@@ -318,8 +320,13 @@ def StnInfoRinexIntegrity(cnn, stnlist, start_date, end_date, Config, JobServer)
             sys.stdout.write("No inconsistencies found.\n")
 
 
-def StnInfoCheck(cnn, stnlist):
+def StnInfoCheck(cnn, stnlist, Config):
     # check that there are no inconsistencies in the station info records
+
+    atx = dict()
+    for frame in Config.options['frames']:
+        # read all the available atx files
+        atx[frame['name']] = parse_atx_antennas(frame['atx'])
 
     for stn in stnlist:
         NetworkCode = stn['NetworkCode']
@@ -341,8 +348,19 @@ def StnInfoCheck(cnn, stnlist):
 
             # there should not be a DateStart < DateEnd of different record
             list_problems = []
-
+            atx_problem = False
             for i, record in enumerate(stninfo.records):
+
+                # check existence of ANTENNA in ATX
+                # determine the reference frame using the start date
+                frame, atx_file = determine_frame(Config.options['frames'], record['DateStart'])
+                # check if antenna in atx, if not, produce a warning
+                if (record['AntennaCode'], record['RadomeCode']) not in atx[frame]:
+                    sys.stdout.write('%s.%s -> Error: %-16s%s not found on atx %s (%s)\n'
+                                     % (NetworkCode, StationCode, record['AntennaCode'], record['RadomeCode'],
+                                        os.path.basename(atx_file), frame))
+                    atx_problem = True
+
                 overlaps = stninfo.overlaps(record)
                 if overlaps:
 
@@ -362,7 +380,7 @@ def StnInfoCheck(cnn, stnlist):
 
                     # if the delta between previous and current session exceeds one second, check if any rinex falls
                     # in that gap
-                    if (sdate.datetime() - edate.datetime()).seconds > 1:
+                    if (sdate.datetime() - edate.datetime()).total_seconds > 1:
                         count = cnn.query('SELECT count(*) as rcount FROM rinex_proc '
                                           'WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND '
                                           '"ObservationSTime" > \'%s\' AND "ObservationSTime" < \'%s\''
@@ -420,7 +438,8 @@ def StnInfoCheck(cnn, stnlist):
                 sys.stdout.write('There are conflicting recods in the station information table for %s.%s.\n   %s\n'
                                  % (NetworkCode, StationCode, list_problems))
 
-            if len(empty_edata) > 1 or len(list_problems) > 0 or first_obs or len(station_list_gaps) > 0:
+            if len(empty_edata) > 1 or len(list_problems) > 0 or first_obs or len(station_list_gaps) > 0 or \
+                atx_problem:
                 # only print a partial of the station info:
                 sys.stdout.write('\n' + stninfo.return_stninfo_short() + '\n\n')
             else:
@@ -778,7 +797,7 @@ def DeleteRinex(cnn, stnlist, start_date, end_date, completion_limit=0.0):
                    (len(rinex), NetworkCode, StationCode, start_date.yyyyddd(), end_date.yyyyddd(), completion_limit))
         for rnx in tqdm(rinex):
             try:
-                # delete rinex file
+                # delete rinex file (also deletes PPP and GAMIT solutions)
                 Archive.remove_rinex(rnx)
 
             except dbConnection.dbErrDelete as e:
@@ -904,7 +923,7 @@ def main():
     #####################################
 
     if args.station_info_check:
-        StnInfoCheck(cnn, stnlist)
+        StnInfoCheck(cnn, stnlist, Config)
 
     #####################################
 
@@ -950,11 +969,11 @@ def main():
 
     if args.delete_rinex is not None:
         try:
-            dates = process_date(args.delete_rinex)
+            dates = process_date(args.delete_rinex[0:2])
         except ValueError as e:
             parser.error(str(e))
 
-        DeleteRinex(cnn, stnlist, dates[0], dates[1])
+        DeleteRinex(cnn, stnlist, dates[0], dates[1], float(args.delete_rinex[2]))
 
     #####################################
 

@@ -11,9 +11,16 @@ import glob
 import re
 import os
 from scipy.spatial import ConvexHull
+from scipy.spatial import Delaunay
+from Utils import ll2sphere_xyz
+from Utils import smallestN_indices
+import sklearn.cluster as cluster
+from scipy.spatial import distance
 
+BACKBONE_NET = 60
 NET_LIMIT = 40
-MIN_CORE_NET = 10
+MAX_DIST = 5000
+MIN_DIST = 20
 
 
 class NetworkException(Exception):
@@ -32,19 +39,289 @@ class Network(object):
         self.org = GamitConfig.gamitopt['org']
         self.GamitConfig = GamitConfig
 
-        if GamitConfig.NetworkConfig.type == 'regional':
-            # determine the core network by getting a convex hull and centroid
-            core_network = self.determine_core_network(stations, date)
-        else:
-            raise ValueError('Global network logic not implemented!')
+        # start by dividing up the stations into clusters
+        # get all the coordinates of valid stations for this date
+        points = np.array([[stn.X, stn.Y, stn.Z] for stn in stations if date in stn.good_rinex])
 
-        self.sessions = self.create_gamit_sessions(cnn, archive, core_network, stations, date)
+        # create a list that only has the active stations for this day
+        active_stations = [stn for stn in stations if date in stn.good_rinex]
+
+        # create station clusters
+        # cluster centroids will be used later to tie the networks
+        clusters = self.make_clusters(points, active_stations)
+
+        if len(clusters['stations']) > 1:
+            # get the ties between subnetworks
+            ties = self.tie_subnetworks(points, clusters, active_stations)
+
+            # build the backbone network
+            backbone = self.backbone_delauney(points, active_stations)
+        else:
+            ties = []
+            backbone = []
+
+        self.sessions = self.create_gamit_sessions(cnn, archive, clusters, backbone, ties, date)
 
         return
 
+    def make_clusters(self, points, stations):
+
+        stn_count = points.shape[0]
+        subnet_count = int(np.ceil(float(float(stn_count) / float(NET_LIMIT))))
+
+        if subnet_count > 1:
+            centroids, labels, _ = cluster.k_means(points, subnet_count)
+
+            # array for centroids
+            cc = np.array([]).reshape((0, 3))
+
+            # array for labels
+            ll = np.zeros(points.shape[0])
+            ll[:] = np.nan
+
+            # index
+            save_i = 0
+            # list to process at the end (to merge points in subnets with < 3 items
+            merge = []
+
+            for i in range(len(centroids)):
+
+                if len([la for la in labels if la == i]) > NET_LIMIT:
+                    # rerun this cluster to make it smaller
+                    tpoints = points[labels == i]
+                    # make a selection of the stations
+                    tstations = [st for la, st in zip(labels.tolist(), stations) if la == i]
+                    # run make_clusters
+                    tclusters = self.make_clusters(tpoints, tstations)
+                    # save the ouptput
+                    tcentroids = tclusters['centroids']
+                    tlabels = tclusters['labels']
+
+                    for j in range(len(tcentroids)):
+                        # don't do anything with empty centroids
+                        if len(tpoints[tlabels == j]) > 0:
+                            cc, ll, save_i = self.save_cluster(points, tpoints[tlabels == j], cc,
+                                                               tcentroids[j], ll, save_i)
+
+                elif 0 < len([la for la in labels if la == i]) <= 3:
+                    # this subnet is made of only two elements: merge to closest subnet
+                    merge.append(i)
+
+                elif len([la for la in labels if la == i]) == 0:
+                    # nothing to do if length == 0
+                    pass
+
+                else:
+                    # everything is good! save the cluster
+                    cc, ll, save_i = self.save_cluster(points, points[labels == i], cc, centroids[i], ll, save_i)
+
+            # now process the subnets with < 3 stations
+            for i in merge:
+                # find the distance to the centroids (excluding itself, which is not in cc)
+                dist = distance.cdist(points[labels == i], cc) / 1e3
+                # get the closest
+                min_centroid = np.argmin(dist, axis=1).tolist()
+                # assign the closest cluster to the point
+                for centroid, label in zip(min_centroid, np.where(labels == i)[0].tolist()):
+                    ll[label] = centroid
+
+            # final check: for each subnetwork, check that the distances between stations is at least 20 km
+            # if distance less than 20 km, move the station to the closest subnetwork
+            # this avoids problems during GAMIT LC run
+            if len(cc) > 1:  # otherwise if doesn't make any sense to do this
+                for i in range(len(cc)):
+                    pp = points[ll == i]
+                    # find the distance between stations
+                    dist = distance.cdist(pp, pp) / 1e3
+                    # remove zeros
+                    dist[dist == 0] = np.inf
+
+                    # some stations are too close to each other
+                    while np.any(dist < MIN_DIST):
+                        # row col of the pair of stations too close to each other
+                        idx = np.unravel_index(np.argmin(dist), dist.shape)
+                        # move the "row" station to closest subnetwork
+                        cc_p = cc[np.arange(len(cc)) != i]  # all centroids but the centroid we are working with (i)
+                        dc = distance.cdist(np.array([pp[idx[0]]]), cc_p) / 1e3
+
+                        min_centroid = np.argmin(dc, axis=1)
+
+                        # next line finds the centroid index in the global centroid variable cc
+                        centroid_index = np.argmax((cc == cc_p[min_centroid[0]]).all(axis=1))
+                        # assign the centroid_index to the label of the point in question
+                        ll[np.where(ll == i)[0][idx[0]]] = centroid_index
+
+                        # calculate again without this point
+                        pp = points[ll == i]
+                        dist = distance.cdist(pp, pp) / 1e3
+                        # remove zeros
+                        dist[dist == 0] = np.inf
+        else:
+            # not necessary to split the network
+            cc = np.array([np.mean(points, axis=0)])
+            ll = np.zeros(len(stations))
+
+        # put everything in a dictionary
+        clusters = dict()
+        clusters['centroids'] = cc
+        clusters['labels'] = ll
+        clusters['stations'] = []
+
+        for l in range(len(clusters['centroids'])):
+            clusters['stations'].append([s for i, s in zip(ll.tolist(), stations) if i == l])
+
+        return clusters
+
+    @staticmethod
+    def save_cluster(all_points, c_points, cc, centroid, ll, save_i):
+
+        cc = np.vstack((cc, centroid))
+        for p in c_points:
+            # find in all_points the location where all elements in axis 1 match p (the passed centroid)
+            ll[(all_points == p).all(axis=1)] = save_i
+        save_i += 1
+
+        return cc, ll, save_i
+
+    @staticmethod
+    def tie_subnetworks(points, clusters, stations):
+
+        # get centroids and lables
+        centroids = clusters['centroids']
+        labels = clusters['labels']
+
+        # calculate distance between centroids
+        dist = distance.cdist(centroids, centroids) / 1e3
+
+        # variable to keep track of the number of ties for each subnetwork
+        ties = np.zeros((centroids.shape[0], centroids.shape[0]))
+
+        # make distance to self centroid infinite
+        dist[dist == 0] = np.inf
+
+        ties_vector = [[] for _ in range(len(centroids))]
+
+        for c in range(len(centroids)):
+            # get the closest three centroids to find the closest subnetworks
+            neighbors = np.argsort(dist[:, c])
+
+            # check that there are less than 3 ties
+            if sum(ties[c, :]) < 3:
+                # for each neighbor
+                for n in neighbors:
+
+                    # only enter if not already tied AND ties of n < 3, unless ties c < 2 AND n != c
+                    if ties[n, c] == 0 and (np.sum(ties[n, :]) < 3 or np.sum(ties[c, :]) < 2) and n != c:
+                        # to link to this neighbor, it has to have less then 3 ties. Otherwise continue to next
+                        # print 'working on net ' + str(c) + ' - ' + str(n)
+
+                        # get all stations from current subnet and dist to each station of neighbor n
+                        sd = distance.cdist(points[labels == c], points[labels == n]) / 1e3
+
+                        # find the 4 closest stations
+                        tie_c = []
+                        tie_n = []
+                        for i in range(len(sd)):
+                            s = smallestN_indices(sd, len(sd))[i]
+                            # ONLY ALLOW TIES BETWEEN MIN_DIST AND MAX_DIST. Also, tie stations should be > MIN_DIST
+                            # from stations on the other subnetwork
+                            if MIN_DIST <= sd[s[0], s[1]] <= MAX_DIST and np.all(sd[s[0], :] > MIN_DIST) \
+                                    and np.all(sd[:, s[1]] > MIN_DIST):
+
+                                # print ' pair: ' + str([st for la, st in zip(labels.tolist(), stations)
+                                # if la == n][s[1]])\
+                                #       + ' - ' + str([st for la, st in zip(labels.tolist(),
+                                #       stations) if la == c][s[0]]) + ' ( %.1f' % sd[s[0], s[1]] + ' km)'
+
+                                # station objects:
+                                # find the stations that have labels == (c, n) and from that subset, find the row (c)
+                                # and col (n) obtained by smallestN_indices
+                                tie_c += [[st for la, st in zip(labels.tolist(), stations) if la == n][s[1]]]
+                                tie_n += [[st for la, st in zip(labels.tolist(), stations) if la == c][s[0]]]
+
+                                # make these distances infinite to avoid selecting again
+                                sd[s[0], :] = np.inf
+                                sd[:, s[1]] = np.inf
+
+                                if len(tie_c) == 4:
+                                    break
+
+                        # if successfully added 3 or more tie stations, then declared it tied
+                        if len(tie_c) >= 3:
+                            # add a tie to c and n subnets
+                            ties[n, c] += 1
+                            ties[c, n] += 1
+                            ties_vector[c] += tie_c
+                            ties_vector[n] += tie_n
+                            # print ties
+                        else:
+                            # print ' no suitable ties found between these two networks'
+                            pass
+
+                    if sum(ties[c, :]) >= 3:
+                        # if current subnet already has 3 ties, continue to next one
+                        break
+
+        # return the vector with the station objects representing the ties
+        return ties_vector
+
+    @staticmethod
+    def backbone_delauney(points, stations):
+
+        dt = Delaunay(points)
+
+        # start distance to remove stations
+        max_dist = 5
+
+        # create a mask with all the stations
+        mask = np.ones(points.shape[0], dtype=np.bool)
+
+        while len(points[mask]) > BACKBONE_NET:
+            # make a copy of the mask
+            n_mask = mask.copy()
+
+            while True:
+                # create variable to check if should iterate
+                iterate = False
+
+                # loop through each simplex
+                for v in dt.simplices:
+                    # get the distance of each edge
+                    d = distance.cdist(points[mask][v], points[mask][v]) / 1e3
+                    # make the zeros infinite
+                    d[d == 0] = np.inf
+                    # if any pair is closer than max_dist, remove point
+                    if np.any(d <= max_dist):
+                        rp = v[np.where((d <= max_dist))[0]][0]
+
+                        n_mask[np.where(mask)[0][rp]] = False
+                        # if mask was updated, then iterate
+                        iterate = True
+
+                        if len(points[n_mask]) <= BACKBONE_NET:
+                            break
+
+                mask = n_mask.copy()
+                dt = Delaunay(points[mask])
+
+                if not iterate or len(points[mask]) <= BACKBONE_NET:
+                    break
+
+            # make the distance double from the last run
+            max_dist = max_dist * 2
+
+        backbone = [s for i, s in enumerate(stations) if mask[i]]
+
+        return backbone
+
     @staticmethod
     def determine_core_network(stations, date):
-
+        """
+        Deprecated function to create the core network
+        :param stations: list of station objects
+        :param date: date to be processed
+        :return: a list of stations that make up the core network or empty is no need to split the processing
+        """
         if len(stations) > NET_LIMIT:
             # this session will require be split into more than one subnet
 
@@ -77,47 +354,29 @@ class Network(object):
 
             return []
 
-    def create_gamit_sessions(self, cnn, archive, core_network, stations, date):
-        """
-        analyzes the core NetClass and secondary NetClass for the processing day and makes sure that:
-        1) the total station count is <= NET_LIMIT. If it's > NET_LIMIT, splits the stations into two or more
-           sub networks both containing the Core stations.
-        2) If the stations were split into sub networks, then it verifies that there are at least 10 Core stations for
-           that day. If there aren't, it promotes stations from the Secondary as Core
+    def create_gamit_sessions(self, cnn, archive, clusters, backbone, ties, date):
 
-        :return: list
-        """
+        sessions = []
 
-        secondary = [stn for stn in stations if date in stn.good_rinex and stn not in core_network]
+        if len(backbone):
+            # a backbone network was created: at least two or more clusters
+            # backbone if always network 00
+            sessions.append(GamitSession(cnn, archive, '%s.%s00' % (self.name, self.org), date,
+                                         self.GamitConfig, backbone, [], False))
 
-        core_network, partition, uid, ready = self.recover_subnets(core_network, stations, date)
+            for c in range(len(clusters['centroids'])):
+                # create a session for each cluster
+                sessions.append(GamitSession(cnn, archive, '%s.%s%02i' % (self.name, self.org, c+1), date,
+                                             self.GamitConfig, clusters['stations'][c] + ties[c],
+                                             ties[c], False))
 
-        if len(core_network) > 0:
-            # it was determined that this network requires partitioning
-            # if the partition list is empty, it's because recover_subnets failed to read the monitor files
-            if not partition:
-                stn_count = len(secondary + core_network)
-                subnet_count = int(np.ceil(float(float(stn_count) / float(NET_LIMIT))))
-
-                partition = self.partition(secondary, subnet_count)
-
-                for p in partition:
-                    p += core_network
-                    ready += [False]
-
-                uid = range(len(partition))
-
-            sessions = [GamitSession(cnn, archive, '%s.%s%02i' % (self.name, self.org, i), date,
-                                     self.GamitConfig, partition, core_network, ready)
-                        for i, partition, ready in zip(uid, partition, ready)]
         else:
-            if not partition:
-                partition = [secondary]
-                ready = [False]
+            sessions.append(GamitSession(cnn, archive, '%s.%s' % self.name, date,
+                                         self.GamitConfig, clusters['stations'][0], [], False))
 
-            # all stations fit in a single run
-            sessions = [GamitSession(cnn, archive, self.name, date, self.GamitConfig, partition[0],
-                                     core_network, ready[0])]
+        # secondary = [stn for stn in stations if date in stn.good_rinex and stn not in core_network]
+
+        # core_network, partition, uid, ready = self.recover_subnets(core_network, stations, date)
 
         return sessions
 
@@ -151,7 +410,7 @@ class Network(object):
 
             output = ''.join(lines)
 
-            sstn = re.findall('.*-> fetching rinex for (\w+.\w+)\s(\w+)', output, re.MULTILINE)
+            sstn = re.findall(r'.*-> fetching rinex for (\w+.\w+)\s(\w+)', output, re.MULTILINE)
 
             # loop through the stations checking the aliases
             for stn in sstn:

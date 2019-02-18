@@ -266,7 +266,6 @@ class RinexStruct():
                 elif 'numeric' in fields[key]:
                     psql += ['"%s" = %f' % (key, arg)]
 
-
         sql = 'SELECT * FROM %s ' % table
         sql += 'WHERE ' + ' AND '.join(psql) if psql else ''
 
@@ -288,7 +287,7 @@ class RinexStruct():
     @staticmethod
     def parse_crinex_filename(filename):
         # parse a crinex filename
-        sfile = re.findall('(\w{4})(\d{3})(\w{1})\.(\d{2})([d])\.[Z]$', filename)
+        sfile = re.findall(r'(\w{4})(\d{3})(\w{1})\.(\d{2})([d])\.[Z]$', filename)
 
         if sfile:
             return sfile[0]
@@ -298,7 +297,7 @@ class RinexStruct():
     @staticmethod
     def parse_rinex_filename(filename):
         # parse a rinex filename
-        sfile = re.findall('(\w{4})(\d{3})(\w{1})\.(\d{2})([o])$', filename)
+        sfile = re.findall(r'(\w{4})(\d{3})(\w{1})\.(\d{2})([o])$', filename)
 
         if sfile:
             return sfile[0]
@@ -335,7 +334,7 @@ class RinexStruct():
 
         return rnx, path2rnx, fls
 
-    def scan_archive_struct_stninfo(self,rootdir):
+    def scan_archive_struct_stninfo(self, rootdir):
 
         # same as scan archive struct but looks for station info files
         self.archiveroot = rootdir

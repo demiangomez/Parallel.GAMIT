@@ -26,7 +26,10 @@ import sys
 import os
 from time import time
 from matplotlib.widgets import Button
+import pg
 import matplotlib
+
+
 if 'DISPLAY' in os.environ.keys():
     if not os.environ['DISPLAY']:
         matplotlib.use('Agg')
@@ -413,9 +416,9 @@ class JumpTable:
 
     def print_parameters(self):
 
-        output_n = ['Year     Relx    [mm]']
-        output_e = ['Year     Relx    [mm]']
-        output_u = ['Year     Relx    [mm]']
+        output_n = ['Year     Relx    [mm] Mag']
+        output_e = ['Year     Relx    [mm] Mag']
+        output_u = ['Year     Relx    [mm] Mag']
 
         for jump in self.table:
 
@@ -428,17 +431,20 @@ class JumpTable:
                     psc = jump.p.params[:, p]
 
                     if j == 0 and jump.p.jump_type in (GENERIC_JUMP, CO_SEISMIC_JUMP_DECAY):
-                        output_n.append('{}      {:>7.1f}'.format(jump.date.yyyyddd(), psc[0] * 1000.0))
-                        output_e.append('{}      {:>7.1f}'.format(jump.date.yyyyddd(), psc[1] * 1000.0))
-                        output_u.append('{}      {:>7.1f}'.format(jump.date.yyyyddd(), psc[2] * 1000.0))
+                        output_n.append('{}      {:>7.1f} {}'.format(jump.date.yyyyddd(), psc[0] * 1000.0,
+                                                                     jump.magnitude))
+                        output_e.append('{}      {:>7.1f} {}'.format(jump.date.yyyyddd(), psc[1] * 1000.0,
+                                                                     jump.magnitude))
+                        output_u.append('{}      {:>7.1f} {}'.format(jump.date.yyyyddd(), psc[2] * 1000.0,
+                                                                     jump.magnitude))
                     else:
 
-                        output_n.append('{} {:4.2f} {:>7.1f}'.format(jump.date.yyyyddd(), jump.p.relaxation[rx],
-                                                                     psc[0] * 1000.0))
-                        output_e.append('{} {:4.2f} {:>7.1f}'.format(jump.date.yyyyddd(), jump.p.relaxation[rx],
-                                                                     psc[1] * 1000.0))
-                        output_u.append('{} {:4.2f} {:>7.1f}'.format(jump.date.yyyyddd(), jump.p.relaxation[rx],
-                                                                     psc[2] * 1000.0))
+                        output_n.append('{} {:4.2f} {:>7.1f} {}'.format(jump.date.yyyyddd(), jump.p.relaxation[rx],
+                                                                        psc[0] * 1000.0, jump.magnitude))
+                        output_e.append('{} {:4.2f} {:>7.1f} {}'.format(jump.date.yyyyddd(), jump.p.relaxation[rx],
+                                                                        psc[1] * 1000.0, jump.magnitude))
+                        output_u.append('{} {:4.2f} {:>7.1f} {}'.format(jump.date.yyyyddd(), jump.p.relaxation[rx],
+                                                                        psc[2] * 1000.0, jump.magnitude))
                         # relaxation counter
                         rx += 1
 
@@ -512,6 +518,9 @@ class Jump(EtmFunction):
         self.p.metadata = metadata
         self.p.jump_type = dtype
 
+        # add the magnitude property to allow transformation from CO_SEISMIC_JUMP_DECAY to GENERIC_JUMP and still
+        # print the magnitude of the event in the jump table
+        self.magnitude = ''
         self.design = Jump.eval(self, t)
 
         if np.any(self.design) and not np.all(self.design):
@@ -548,7 +557,7 @@ class Jump(EtmFunction):
         c = np.sum(np.logical_xor(self.design[:, 0], jump.design[:, 0]))
 
         if self.p.jump_type in (CO_SEISMIC_JUMP_DECAY,
-                              CO_SEISMIC_DECAY) and jump.p.jump_type in (CO_SEISMIC_JUMP_DECAY, CO_SEISMIC_DECAY):
+                                CO_SEISMIC_DECAY) and jump.p.jump_type in (CO_SEISMIC_JUMP_DECAY, CO_SEISMIC_DECAY):
 
             # if self is a co-seismic jump and next jump is also co-seismic
             # and there are less than two weeks of data to constrain params, return false
@@ -558,7 +567,7 @@ class Jump(EtmFunction):
                 return False, None
 
         elif self.p.jump_type in (CO_SEISMIC_JUMP_DECAY,
-                                CO_SEISMIC_DECAY, GENERIC_JUMP) and jump.p.jump_type == GENERIC_JUMP:
+                                  CO_SEISMIC_DECAY, GENERIC_JUMP) and jump.p.jump_type == GENERIC_JUMP:
 
             if c <= JP_MIN_DAYS:
                 # can't fit the co-seismic or generic jump AND the generic jump after, remove "jump" generic jump
@@ -631,6 +640,9 @@ class CoSeisJump(Jump):
 
         # super-class initialization
         Jump.__init__(self, NetworkCode, StationCode, solution, t, date, metadata, dtype)
+
+        # new feature informs the magnitude of the event in the plot
+        self.magnitude = float(metadata.split('=')[1].strip())
 
         if dtype is NO_EFFECT:
             # passing default_type == NO_EFFECT, add the jump but make it NO_EFFECT by default
@@ -943,12 +955,22 @@ class GenericJumps(object):
 class Periodic(EtmFunction):
     """"class to determine the periodic terms to be included in the ETM"""
 
-    def __init__(self, NetworkCode, StationCode, solution, t, FitPeriodic=True):
+    def __init__(self, cnn, NetworkCode, StationCode, solution, t, FitPeriodic=True):
 
         super(Periodic, self).__init__(NetworkCode=NetworkCode, StationCode=StationCode, solution=solution)
 
-        # in the future, can load parameters from the db
-        self.p.frequencies = DEFAULT_FREQUENCIES
+        try:
+            # load the frequencies from the database
+            etm_param = cnn.get('etm_params',
+                                {'NetworkCode': NetworkCode, 'StationCode': StationCode, 'soln': solution,
+                                 'object': 'periodic'},
+                                ['NetworkCode', 'StationCode', 'soln', 'object'])
+
+            self.p.frequencies = np.array([float(p) for p in etm_param['frequencies']])
+
+        except pg.DatabaseError:
+            self.p.frequencies = DEFAULT_FREQUENCIES
+
         self.p.object = 'periodic'
 
         if t.size > 1 and FitPeriodic:
@@ -982,7 +1004,21 @@ class Periodic(EtmFunction):
         else:
             # no periodic terms
             self.frequency_count = 0
+            self.p.frequencies = np.array([])
             self.dt_max = 1  # one year of delta t
+
+        # build the metadata description for the json string
+        self.p.metadata = '['
+        for k in ['n', 'e', 'u']:
+            self.p.metadata = self.p.metadata + '['
+            meta = []
+            for i in ['sin', 'cos']:
+                for f in (1 / (self.p.frequencies * 365.25)).tolist():
+                    meta.append('%s:%s(%.1f yr)' % (k, i, f))
+
+            self.p.metadata = self.p.metadata + ','.join(meta) + '],'
+
+        self.p.metadata = self.p.metadata + ']'
 
         self.design = self.get_design_ts(t)
         self.param_count = self.frequency_count * 2
@@ -1047,7 +1083,7 @@ class Periodic(EtmFunction):
 class Polynomial(EtmFunction):
     """"class to build the linear portion of the design matrix"""
 
-    def __init__(self, NetworkCode, StationCode, solution, t, t_ref=0):
+    def __init__(self, cnn, NetworkCode, StationCode, solution, t, t_ref=0):
 
         super(Polynomial, self).__init__(NetworkCode=NetworkCode, StationCode=StationCode, solution=solution)
 
@@ -1058,20 +1094,41 @@ class Polynomial(EtmFunction):
         self.p.object = 'polynomial'
         self.p.t_ref = t_ref
 
-        # in the future, can load parameters from the db
-        self.terms = DEFAULT_POL_TERMS
+        try:
+            # load the number of terms from the database
+            etm_param = cnn.get('etm_params',
+                                {'NetworkCode': NetworkCode, 'StationCode': StationCode, 'soln': solution,
+                                 'object': 'polynomial'},
+                                ['NetworkCode', 'StationCode', 'soln', 'object'])
+
+            self.terms = int(etm_param['terms'])
+
+        except pg.DatabaseError:
+            self.terms = DEFAULT_POL_TERMS
 
         if self.terms == 1:
             self.format_str = 'Ref Position (' + '%.3f' % t_ref + ') X: {:.3f} Y: {:.3f} Z: {:.3f} [m]'
+            self.p.metadata = '[[n:pos],[e:pos],[u:pos]]'
 
         elif self.terms == 2:
             self.format_str = 'Ref Position (' + '%.3f' % t_ref + ') X: {:.3f} Y: {:.3f} Z: {:.3f} [m]\n' \
                               'Velocity N: {:.2f} E: {:.2f} U: {:.2f} [mm/yr]'
+            self.p.metadata = '[[n:pos, n:vel],[e:pos, e:vel],[u:pos, u:vel]]'
 
         elif self.terms == 3:
             self.format_str = 'Ref Position (' + '%.3f' % t_ref + ') X: {:.3f} Y: {:.3f} Z: {:.3f} [m]\n' \
                               'Velocity N: {:.3f} E: {:.3f} U: {:.3f} [mm/yr]\n' \
                               'Acceleration N: {:.2f} E: {:.2f} U: {:.2f} [mm/yr^2]'
+            self.p.metadata = '[[n:pos, n:vel, n:acc],[e:pos, e:vel, e:acc],[u:pos, u:vel, u:acc]]'
+
+        elif self.terms > 3:
+            self.format_str = 'Ref Position (' + '%.3f' % t_ref + ') X: {:.3f} Y: {:.3f} Z: {:.3f} [m]\n' \
+                              'Velocity N: {:.3f} E: {:.3f} U: {:.3f} [mm/yr]\n' \
+                              'Acceleration N: {:.2f} E: {:.2f} U: {:.2f} [mm/yr^2] + ' + '%i' % (self.terms - 3) + \
+                              ' other polynomial terms'
+            self.p.metadata = '[[n:pos, n:vel, n:acc, n:tx...],' \
+                              '[e:pos, e:vel, e:acc, e:tx...],' \
+                              '[u:pos, u:vel, u:acc, u:tx...]]'
 
         self.design = self.get_design_ts(t)
 
@@ -1245,8 +1302,8 @@ class ETM:
         self.StationCode = soln.StationCode
 
         # save the function objects
-        self.Linear = Polynomial(soln.NetworkCode, soln.StationCode, self.soln.type, soln.t)
-        self.Periodic = Periodic(soln.NetworkCode, soln.StationCode, self.soln.type, soln.t, FitPeriodic)
+        self.Linear = Polynomial(cnn, soln.NetworkCode, soln.StationCode, self.soln.type, soln.t)
+        self.Periodic = Periodic(cnn, soln.NetworkCode, soln.StationCode, self.soln.type, soln.t, FitPeriodic)
         self.Jumps = JumpTable(cnn, soln.NetworkCode, soln.StationCode, soln.type, soln.t,
                                FitEarthquakes, FitGenericJumps)
         # calculate the hash value for this station
@@ -1496,7 +1553,7 @@ class ETM:
                 if plot_missing:
                     self.plot_missing_soln(ax)
 
-            f.subplots_adjust(left=0.16)
+            f.subplots_adjust(left=0.17)
 
         else:
 
@@ -1702,6 +1759,7 @@ class ETM:
             ts['n'] = L[0].tolist()
             ts['e'] = L[1].tolist()
             ts['u'] = L[2].tolist()
+            ts['residuals'] = self.R.tolist()
             ts['weights'] = self.P.transpose().tolist()
 
             if self.A is not None:

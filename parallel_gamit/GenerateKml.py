@@ -22,6 +22,7 @@ from matplotlib.collections import PolyCollection
 from io import BytesIO
 import base64
 
+
 def main():
 
     parser = argparse.ArgumentParser(description='GNSS time series stacker')
@@ -188,15 +189,15 @@ def plot_station_info_rinex(cnn, NetworkCode, StationCode, stninfo):
 
     figfile = BytesIO()
 
-    #plt.savefig(figfile, format='png')
-    plt.show()
-    #figfile.seek(0)  # rewind to beginning of file
+    plt.savefig(figfile, format='png')
+    # plt.show()
+    figfile.seek(0)  # rewind to beginning of file
 
-    #figdata_png = base64.b64encode(figfile.getvalue())
+    figdata_png = base64.b64encode(figfile.getvalue())
 
-    #plt.close()
+    plt.close()
 
-    #return figdata_png
+    return figdata_png
 
 
 if __name__ == '__main__':
