@@ -33,14 +33,14 @@ class Stack(list):
             dates = self.cnn.query_float('SELECT "Year", "DOY" FROM gamit_soln WHERE "Project" = \'%s\' '
                                          'GROUP BY "Year", "DOY" ORDER BY "Year", "DOY"' % project)
 
-            self.dates = [Date(year=d[0], doy=d[1]) for d in dates]
+            self.dates = [Date(year=int(d[0]), doy=int(d[1])) for d in dates]
 
             self.stations = self.cnn.query_float('SELECT "NetworkCode", "StationCode" FROM gamit_soln '
                                                  'WHERE "Project" = \'%s\' '
                                                  'GROUP BY "NetworkCode", "StationCode" '
                                                  'ORDER BY "NetworkCode", "StationCode"' % project, as_dict=True)
 
-            for d in tqdm(self.dates, ncols=160, desc=project):
+            for d in tqdm(self.dates, ncols=160, desc=' >> Initializing the stack polyhedrons'):
                 self.append(Polyhedron(self.gamit_vertices, project, d))
 
         else:
@@ -94,7 +94,7 @@ class Stack(list):
                                                  'ORDER BY "NetworkCode", "StationCode"'
                                                  % (project, project), as_dict=True)
 
-            for d in tqdm(self.dates, ncols=160, desc=project):
+            for d in tqdm(self.dates, ncols=160, desc=' >> Initializing the stack polyhedrons'):
                 try:
                     self.append(Polyhedron(self.stack_vertices, project, d, aligned=True))
 
@@ -140,14 +140,15 @@ class Stack(list):
 
 
 class Polyhedron(object):
-    def __init__(self, vertices, project, date, rot=True, scale=True, aligned=False):
+    def __init__(self, vertices, project, date, rot=True, scale=False, aligned=False):
 
         self.project = project
         self.date = date
         self.aligned = aligned
         self.helmert = None
         self.wrms = None
-
+        self.stations_used = None
+        self.iterations = None
         # initialize the vertices of the polyhedron
         # self.vertices = [v for v in vertices if v[5] == date.year and v[6] == date.doy]
 
@@ -181,11 +182,13 @@ class Polyhedron(object):
             self.Ay = np.concatenate((self.Ay, self.vertices['y'][np.newaxis].transpose() * 1e-9), axis=1)
             self.Az = np.concatenate((self.Az, self.vertices['z'][np.newaxis].transpose() * 1e-9), axis=1)
 
-    def align(self, target):
+    def align(self, target, set_aligned=True):
         """
         Align to another polyhedron object using a Helmert transformation defined
         during the initialization of the object
         :param target: polyhedron object
+        :param set_aligned: determine whether the polyhedron should be marked as aligned or not after performing the
+        Helmert transformation
         :return: aligned polyhedron and residuals
         """
 
@@ -223,9 +226,11 @@ class Polyhedron(object):
         self.vertices['y'] += x[:, 1]
         self.vertices['z'] += x[:, 2]
 
-        self.aligned = True
+        self.aligned = set_aligned
         self.helmert = c
         self.wrms = wrms
+        self.stations_used = len(intersect)
+        self.iterations = it
 
 
 def main():

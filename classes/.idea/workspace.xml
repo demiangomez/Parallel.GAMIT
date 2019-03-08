@@ -2,11 +2,17 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="6b0f93cd-0427-4f5b-bf1e-f42168078fd7" name="Default" comment="">
-      <change afterPath="$PROJECT_DIR$/../stacker/.idea/encodings.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/pyETM.py" beforeDir="false" afterPath="$PROJECT_DIR$/pyETM.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../com/ArchiveService.py" beforeDir="false" afterPath="$PROJECT_DIR$/../com/ArchiveService.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pyOptions.py" beforeDir="false" afterPath="$PROJECT_DIR$/pyOptions.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pyStationInfo.py" beforeDir="false" afterPath="$PROJECT_DIR$/pyStationInfo.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../com/IntegrityCheck.py" beforeDir="false" afterPath="$PROJECT_DIR$/../com/IntegrityCheck.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../com/ScanArchive.py" beforeDir="false" afterPath="$PROJECT_DIR$/../com/ScanArchive.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../parallel_gamit/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../parallel_gamit/pyGamitSession.py" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/pyGamitSession.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../parallel_gamit/pyNetwork.py" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/pyNetwork.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../parallel_gamit/pyParallelGamit.py" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/pyParallelGamit.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../parallel_gamit/pyStation.py" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/pyStation.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../parallel_gamit/test_voronoi.py" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/test_voronoi.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../stacker/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../stacker/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
@@ -38,7 +44,7 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/pyArchiveStruct.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="4965">
+            <state relative-caret-position="5627">
               <caret line="339" column="8" selection-start-line="339" selection-start-column="8" selection-end-line="339" selection-end-column="8" />
             </state>
           </provider>
@@ -47,7 +53,7 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/dbConnection.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="1275">
+            <state relative-caret-position="1445">
               <caret line="92" selection-start-line="92" selection-end-line="92" />
             </state>
           </provider>
@@ -188,7 +194,17 @@
     </navigator>
     <panes>
       <pane id="Scope" />
-      <pane id="ProjectPane" />
+      <pane id="ProjectPane">
+        <subPane>
+          <expand>
+            <path>
+              <item name="classes" type="b2602c69:ProjectViewProjectNode" />
+              <item name="classes" type="462c0819:PsiDirectoryNode" />
+            </path>
+          </expand>
+          <select />
+        </subPane>
+      </pane>
     </panes>
   </component>
   <component name="PropertiesComponent">
@@ -593,14 +609,14 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/pyArchiveStruct.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="4965">
+        <state relative-caret-position="5627">
           <caret line="339" column="8" selection-start-line="339" selection-start-column="8" selection-end-line="339" selection-end-column="8" />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/dbConnection.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1275">
+        <state relative-caret-position="1445">
           <caret line="92" selection-start-line="92" selection-end-line="92" />
         </state>
       </provider>

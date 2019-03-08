@@ -95,9 +95,4 @@ class ReadOptions:
         else:
             self.run_parallel = False
 
-        if 'height_codes' not in self.options.keys():
-            raise ValueError('Must specify a valid height codes file (usually in gamit/tables/hi.dat)')
-        elif not os.path.isfile(self.options['height_codes']):
-            raise ValueError('Could not find height codes file (usually in gamit/tables/hi.dat)')
-
         return

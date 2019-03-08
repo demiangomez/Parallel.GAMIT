@@ -13,6 +13,7 @@ import cPickle as pickle
 import inspect
 import types
 
+
 def test_node(check_gamit_tables=None):
     # test node: function that makes sure that all required packages and tools are present in the nodes
     import traceback
@@ -28,7 +29,8 @@ def test_node(check_gamit_tables=None):
                 lines = luntab.readlines()
                 tabdate = pyDate.Date(mjd=lines[-1].split()[0])
                 if tabdate < date:
-                    return ' -- %s: Last entry in %s is %s but processing %s' % (platform.node(), tabfile, tabdate.yyyyddd(), date.yyyyddd())
+                    return ' -- %s: Last entry in %s is %s but processing %s' \
+                           % (platform.node(), tabfile, tabdate.yyyyddd(), date.yyyyddd())
 
         else:
             return ' -- %s: Could not find file %s' % (platform.node(), tabfile)
@@ -38,7 +40,8 @@ def test_node(check_gamit_tables=None):
     # BEFORE ANYTHING! check the python version
     version = sys.version_info
     if version.major > 2 or version.minor < 7 or (version.micro < 13 and version.minor <= 7):
-        return ' -- %s: Incorrect Python version: %i.%i.%i. Recommended version > 2.7.13' % (platform.node(), version.major, version.minor, version.micro)
+        return ' -- %s: Incorrect Python version: %i.%i.%i. Recommended version > 2.7.13' \
+               % (platform.node(), version.major, version.minor, version.micro)
 
     # start importing the modeles needed
     try:
@@ -101,21 +104,24 @@ def test_node(check_gamit_tables=None):
         # pick a test date to replace any possible parameters in the config file
         date = pyDate.Date(year=2010,doy=1)
     except Exception:
-        return ' -- %s: Problem while reading config file and/or testing archive access:\n%s' % (platform.node(), traceback.format_exc())
+        return ' -- %s: Problem while reading config file and/or testing archive access:\n%s' \
+               % (platform.node(), traceback.format_exc())
 
     try:
         brdc = pyBrdc.GetBrdcOrbits(Config.brdc_path, date, test_dir)
     except Exception:
-        return ' -- %s: Problem while testing the broadcast ephemeris archive (%s) access:\n%s' % (platform.node(), Config.brdc_path, traceback.format_exc())
+        return ' -- %s: Problem while testing the broadcast ephemeris archive (%s) access:\n%s' \
+               % (platform.node(), Config.brdc_path, traceback.format_exc())
 
     try:
         sp3 = pySp3.GetSp3Orbits(Config.sp3_path, date, Config.sp3types, test_dir)
     except Exception:
-        return ' -- %s: Problem while testing the sp3 orbits archive (%s) access:\n%s' % (platform.node(), Config.sp3_path, traceback.format_exc())
+        return ' -- %s: Problem while testing the sp3 orbits archive (%s) access:\n%s' \
+               % (platform.node(), Config.sp3_path, traceback.format_exc())
 
     # check that all executables and GAMIT bins are in the path
     list_of_prgs = ['crz2rnx', 'crx2rnx', 'rnx2crx', 'rnx2crz', 'RinSum', 'teqc', 'svdiff', 'svpos', 'tform',
-                    'sh_rx2apr', 'doy', 'RinEdit', 'sed']
+                    'sh_rx2apr', 'doy', 'RinEdit', 'sed', 'compress']
 
     for prg in list_of_prgs:
         with pyRunWithRetry.command('which ' + prg) as run:
@@ -167,7 +173,7 @@ def test_node(check_gamit_tables=None):
         if not os.path.isdir(tables):
             return ' -- %s: Could not GAMIT tables dir (gg)' % (platform.node())
 
-        #luntab
+        # luntab
         luntab = os.path.join(tables, 'luntab.' + date.yyyy() + '.J2000')
 
         result = check_tab_file(luntab, date)
@@ -175,7 +181,7 @@ def test_node(check_gamit_tables=None):
         if result:
             return result
 
-        #soltab
+        # soltab
         soltab = os.path.join(tables, 'soltab.' + date.yyyy() + '.J2000')
 
         result = check_tab_file(soltab, date)
@@ -183,7 +189,7 @@ def test_node(check_gamit_tables=None):
         if result:
             return result
 
-        #ut
+        # ut
         ut = os.path.join(tables, 'ut1.' + eop)
 
         result = check_tab_file(ut, date)
@@ -191,11 +197,11 @@ def test_node(check_gamit_tables=None):
         if result:
             return result
 
-        #leapseconds
+        # leapseconds
 
-        #vmf1
+        # vmf1
 
-        #pole
+        # pole
         pole = os.path.join(tables, 'pole.' + eop)
 
         result = check_tab_file(pole, date)
@@ -203,7 +209,7 @@ def test_node(check_gamit_tables=None):
         if result:
             return result
 
-        #fes_cmc consistency
+        # fes_cmc consistency
 
     return ' -- %s: Test passed!' % (platform.node())
 
@@ -250,10 +256,10 @@ class JobServer:
             # limit execution on the local machine to 'cpus'
             if Config.options['cpus'] is None:
                 self.job_server = pp.Server(ncpus=Utils.get_processor_count(), ppservers=ppservers,
-                                            socket_timeout=7200)  # type: pp.Server
+                                            socket_timeout=9000)  # type: pp.Server
             else:
                 self.job_server = pp.Server(ncpus=int(Config.options['cpus']), ppservers=ppservers,
-                                            socket_timeout=7200)  # type: pp.Server
+                                            socket_timeout=9000)  # type: pp.Server
 
             # sleep to allow the nodes to respond to the TCP request
             time.sleep(2)
@@ -269,7 +275,8 @@ class JobServer:
                 node_ip_port = node.split(':')
 
                 # open a worker for this node
-                rworker = pp._RWorker(node_ip_port[0], int(node_ip_port[1]), pp.Server.default_secret, self.job_server, "EXEC", True, 10)
+                rworker = pp._RWorker(node_ip_port[0], int(node_ip_port[1]), pp.Server.default_secret,
+                                      self.job_server, "EXEC", True, 10)
 
                 try:
                     rworker.csend(f)

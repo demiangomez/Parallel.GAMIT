@@ -32,6 +32,10 @@ class pyStationInfoException(Exception):
         return str(self.value)
 
 
+class pyStationInfoHeightCodeNotFound(pyStationInfoException):
+    pass
+
+
 class StationInfoRecord(pyBunch.Bunch):
     def __init__(self, NetworkCode=None, StationCode=None, record=None):
 
@@ -101,8 +105,8 @@ class StationInfoRecord(pyBunch.Bunch):
         if isinstance(record, str):
 
             fieldnames = ['StationCode', 'StationName', 'DateStart', 'DateEnd', 'AntennaHeight', 'HeightCode',
-                               'AntennaNorth', 'AntennaEast', 'ReceiverCode', 'ReceiverVers', 'ReceiverFirmware',
-                               'ReceiverSerial', 'AntennaCode', 'RadomeCode', 'AntennaSerial']
+                          'AntennaNorth', 'AntennaEast', 'ReceiverCode', 'ReceiverVers', 'ReceiverFirmware',
+                          'ReceiverSerial', 'AntennaCode', 'RadomeCode', 'AntennaSerial']
 
             fieldwidths = (
             1, 6, 18, 19, 19, 9, 7, 9, 9, 22, 22, 7, 22, 17, 7, 20)  # negative widths represent ignored padding fields
@@ -146,30 +150,6 @@ class StationInfoRecord(pyBunch.Bunch):
                                      self.ReceiverFirmware, self.ReceiverSerial,
                                      self.AntennaCode, self.RadomeCode,
                                      self.AntennaSerial)
-
-    def to_dharp(self, height_codes):
-        """
-        function to convert the current height code to DHARP
-        :return: DHARP height using hi.dat
-        """
-
-        if self.HeightCode == 'DHARP':
-            return self.AntennaHeight
-
-        else:
-            f = open(height_codes, 'r')
-            output = f.readlines()
-            f.close()
-
-            offsets = re.findall(r'\s%s\s+......\s%s\s([-]?\d+[.]?[0-9 ]+)([-]?\d+[.]?[0-9 ]+)'
-                                 % (self.AntennaCode, self.HeightCode), ''.join(output), re.MULTILINE)
-
-            if offsets:
-                return np.sqrt(np.square(float(self.AntennaHeight)) - 
-                               np.square(float(offsets[0][1]))) - float(offsets[0][0])
-            else:
-                raise pyStationInfoException('Could not translate height code %s to DHARP. Check the heigh_codes file.'
-                                             % self.HeightCode)
 
 
 class StationInfo(object):
@@ -224,9 +204,8 @@ class StationInfo(object):
         # function to load the station info records in the database
         # returns true if records found
         # returns false if none found, unless allow_empty = False in which case it raises an error.
-        stninfo = self.cnn.query(
-            'SELECT * FROM stationinfo WHERE "NetworkCode" = \'' + self.NetworkCode +
-            '\' AND "StationCode" = \'' + self.StationCode + '\' ORDER BY "DateStart"')
+        stninfo = self.cnn.query('SELECT * FROM stationinfo WHERE "NetworkCode" = \'' + self.NetworkCode +
+                                 '\' AND "StationCode" = \'' + self.StationCode + '\' ORDER BY "DateStart"')
 
         if stninfo.ntuples() == 0:
             if not self.allow_empty:
@@ -269,6 +248,37 @@ class StationInfo(object):
 
         return records
 
+    def to_dharp(self, record):
+        """
+        function to convert the current height code to DHARP
+        :return: DHARP height
+        """
+
+        if record.HeightCode == 'DHARP':
+            return record
+        else:
+            htc = self.cnn.query_float('SELECT * FROM gamit_htc WHERE "AntennaCode" = \'%s\' AND "HeightCode" = \'%s\''
+                                       % (record.AntennaCode, record.HeightCode), as_dict=True)
+
+            if len(htc):
+
+                record.AntennaHeight = np.sqrt(np.square(float(record.AntennaHeight)) -
+                                               np.square(float(htc[0]['h_offset']))) - float(htc[0]['v_offset'])
+                if record.Comments is not None:
+                    record.Comments = record.Comments + '\nChanged from %s to DHARP by pyStationInfo.\n' \
+                                      % record.HeightCode
+                else:
+                    record.Comments = 'Changed from %s to DHARP by pyStationInfo.\n' % record.HeightCode
+
+                record.HeightCode = 'DHARP'
+
+                return record
+            else:
+                raise pyStationInfoHeightCodeNotFound('Could not translate height code %s to DHARP (%s.%s: %s). '
+                                                      'Check the height codes table.'
+                                                       % (record.HeightCode, self.NetworkCode, self.StationCode,
+                                                          record.AntennaCode))
+
     def return_stninfo(self, record=None):
         """
         return a station information string to write to a file (without header
@@ -285,7 +295,7 @@ class StationInfo(object):
 
         if records is not None:
             for record in records:
-                stninfo.append(str(record))
+                stninfo.append(str(self.to_dharp(record)))
 
         return '\n'.join(stninfo)
 

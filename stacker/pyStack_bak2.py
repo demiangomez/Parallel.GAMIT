@@ -263,7 +263,6 @@ def main():
         Config.run_parallel = False
 
     # create the execution log
-    # cnn.insert('executions', script='pyStack.py')
 
     # load polyhedrons
     project = Project(cnn, args.project[0])

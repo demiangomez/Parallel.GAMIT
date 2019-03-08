@@ -22,15 +22,25 @@ def main():
 
     parser = argparse.ArgumentParser(description='Plot ETM for stations in the database')
 
-    parser.add_argument('stnlist', type=str, nargs='+', help="List of networks/stations to plot given in [net].[stnm] format or just [stnm] (separated by spaces; if [stnm] is not unique in the database, all stations with that name will be plotted). Use keyword 'all' to plot all stations in all networks. If [net].all is given, all stations from network [net] will be plotted")
+    parser.add_argument('stnlist', type=str, nargs='+',
+                        help="List of networks/stations to plot given in [net].[stnm] format or just [stnm] "
+                             "(separated by spaces; if [stnm] is not unique in the database, all stations with that "
+                             "name will be plotted). Use keyword 'all' to plot all stations in all networks. "
+                             "If [net].all is given, all stations from network [net] will be plotted")
     parser.add_argument('-nop', '--no_plots', action='store_true', help="Do not produce plots", default=False)
     parser.add_argument('-nom', '--no_missing_data', action='store_true', help="Do not show missing days", default=False)
     parser.add_argument('-nm', '--no_model', action='store_true', help="Plot time series without fitting a model")
     parser.add_argument('-r', '--residuals', action='store_true', help="Plot time series residuals", default=False)
-    parser.add_argument('-dir', '--directory', type=str, help="Directory to save the resulting PNG files. If not specified, assumed to be the production directory")
-    parser.add_argument('-json', '--json', type=int, help="Export ETM adjustment to JSON. Append '1' to export time series or append '0' to just output the ETM parameters.")
-    parser.add_argument('-gui', '--interactive', action='store_true', help="Interactive mode: allows to zoom and view the plot interactively")
-    parser.add_argument('-win', '--time_window', nargs='+', metavar='interval', help='Date range to window data. Can be specified in yyyy/mm/dd, yyyy.doy or as a single integer value (N) which shall be interpreted as last epoch-N')
+    parser.add_argument('-dir', '--directory', type=str,
+                        help="Directory to save the resulting PNG files. If not specified, assumed to be the "
+                             "production directory")
+    parser.add_argument('-json', '--json', type=int, help="Export ETM adjustment to JSON. Append '1' to export time "
+                                                          "series or append '0' to just output the ETM parameters.")
+    parser.add_argument('-gui', '--interactive', action='store_true',
+                        help="Interactive mode: allows to zoom and view the plot interactively")
+    parser.add_argument('-win', '--time_window', nargs='+', metavar='interval',
+                        help='Date range to window data. Can be specified in yyyy/mm/dd, yyyy.doy or as a single '
+                             'integer value (N) which shall be interpreted as last epoch-N')
     parser.add_argument('-gamit', '--gamit', type=str, nargs=2, metavar='{project} {type}',
                         help="Plot the GAMIT time series. Specify project and type = \'stack\' to plot the time "
                              "series after stacking or \'gamit\' to just plot the coordinates of the polyhedron")

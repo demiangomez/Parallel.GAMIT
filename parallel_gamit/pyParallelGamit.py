@@ -40,7 +40,7 @@ def print_summary(stations, sessions, dates):
     Utils.print_columns([item.NetworkCode + '.' + item.StationCode for item in stations])
 
     min_stn = 99999
-    min_date = pyDate.Date(year=1980,doy=1)
+    min_date = pyDate.Date(year=1980, doy=1)
     for session in sessions:
         if min_stn > len(session.stations_dict):
             min_stn = len(session.stations_dict)
@@ -130,8 +130,11 @@ def purge_solutions(cnn, args, dates, GamitConfig):
             cnn.query('DELETE FROM gamit_stats WHERE "Year" = %i AND "DOY" = %i '
                       'AND "Project" = \'%s\'' % (date.year, date.doy, GamitConfig.NetworkConfig.network_id.lower()))
 
-            cnn.query('DELETE FROM gamit_ztd WHERE "Date" BETWEEN \'%s\' AND \'%s\' '
-                      'AND "Project" = \'%s\'' % (date.first_epoch(), date.last_epoch(),
+            cnn.query('DELETE FROM gamit_subnets WHERE "Year" = %i AND "DOY" = %i '
+                      'AND "Project" = \'%s\'' % (date.year, date.doy, GamitConfig.NetworkConfig.network_id.lower()))
+
+            cnn.query('DELETE FROM gamit_ztd WHERE "Year" = %i AND "DOY" = %i  '
+                      'AND "Project" = \'%s\'' % (date.year, date.doy,
                                                   GamitConfig.NetworkConfig.network_id.lower()))
 
 
@@ -163,8 +166,6 @@ def station_list(cnn, NetworkConfig, dates):
                            % (NetworkCode, StationCode))
         else:
             tqdm.write(' -- %s.%s -> no data for requested time window' % (NetworkCode, StationCode))
-
-        sys.stdout.flush()
 
     # analyze duplicate names in the list of stations
     stn_obj = check_station_codes(stn_obj)
@@ -309,8 +310,8 @@ def main():
         generate_kml(dates, sessions, GamitConfig)
         exit()
 
-    # print a summary of the current project
-    print_summary(stations, sessions, drange)
+    # print a summary of the current project (NOT VERY USEFUL AFTER ALL)
+    # print_summary(stations, sessions, drange)
 
     # run the job server
     ExecuteGamit(cnn, GamitConfig, sessions, JobServer, dry_run)
@@ -422,7 +423,7 @@ def ParseZTD(cnn, project, Sessions, GamitConfig):
                                          float(zd[6]), project.lower(), GamitSession.date.year, GamitSession.date.doy))
                         else:
                             # already a zenith delay in place! take average as suggested by Bob King (see email from
-                            # 10/31/2018
+                            # 10/31/2018)
                             rs = rs.dictresult()
                             ztd_val = float(rs[0]['ZTD'])
 
@@ -524,14 +525,14 @@ def ExecuteGamit(cnn, Config, Sessions, JobServer, dry_run=False):
         gamit_pbar.update(1)
 
         if 'error' not in result.keys():
-            if result['nrms'] > 0.3:
-                msg_nrms = 'WARNING! NRMS > 0.3 (%.3f)' % (result['nrms'])
+            if result['nrms'] > 1:
+                msg_nrms = 'WARNING! NRMS > 1.0 (%.3f)' % (result['nrms'])
             else:
                 msg_nrms = ''
 
-            if result['wl'] < 70:
+            if result['wl'] < 60:
                 if msg_nrms:
-                    msg_wl = ' AND WL fixed < 70%% (%.1f)' % (result['wl'])
+                    msg_wl = ' AND WL fixed < 60%% (%.1f)' % (result['wl'])
                 else:
                     msg_wl = 'WARNING! WL fixed %.1f' % (result['wl'])
             else:

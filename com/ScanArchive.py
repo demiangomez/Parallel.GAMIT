@@ -433,23 +433,9 @@ def insert_stninfo(NetworkCode, StationCode, stninfofile):
         return traceback.format_exc() + ' insert_stninfo: ' + NetworkCode + ' ' + StationCode + \
                ' using node ' + platform.node()
 
-    # insert all the receivers and antennas in the db
-    for stn in stninfo:
-        # there is a racing condition in this part due to many instances
-        # trying to insert the same receivers at the same time
-        try:
-            rec = cnn.query('SELECT * FROM receivers WHERE "ReceiverCode" = \'%s\'' % (stn['ReceiverCode']))
-            if rec.ntuples() == 0:
-                cnn.insert('receivers', ReceiverCode=stn['ReceiverCode'])
-        except dbConnection.dbErrInsert:
-            sys.exc_clear()
-
-        try:
-            rec = cnn.query('SELECT * FROM antennas WHERE "AntennaCode" = \'%s\'' % (stn['AntennaCode']))
-            if rec.ntuples() == 0:
-                cnn.insert('antennas', AntennaCode=stn['AntennaCode'])
-        except dbConnection.dbErrInsert:
-            sys.exc_clear()
+    # DDG: 18-Feb-2019 used to have some code here to force the insertion of receivers and antennas
+    # this is not done anymore, and receivers and antennas should exists in the corresponding tables before inserting
+    # otherwise, a python exception will be raised.
 
     # ready to insert stuff to station info table
     for stn in stninfo:
@@ -569,7 +555,7 @@ def execute_ppp(record, rinex_path, h_tolerance):
                 Rinex.normalize_header(stninfo, x=stn[0]['auto_x'], y=stn[0]['auto_y'], z=stn[0]['auto_z'])
 
                 with pyPPP.RunPPP(Rinex, stn[0]['Harpos_coeff_otl'], Config.options, Config.sp3types, Config.sp3altrn,
-                                  stninfo.currentrecord.to_dharp(Config.options['height_codes']),
+                                  stninfo.to_dharp(stninfo.currentrecord).AntennaHeight,
                                   hash=stninfo.currentrecord.hash) as ppp:
                     ppp.exec_ppp()
 
@@ -909,10 +895,13 @@ def hash_check(cnn, master_list, sdate, edate, rehash=False, h_tolerant=0):
 
     ppp_soln = cnn.query('SELECT * FROM ppp_soln '
                          'WHERE "NetworkCode" || \'.\' || "StationCode" IN (\'' + '\',\''.join(master_list) + '\') '
-                         'AND "Year" || \' \' || to_char("DOY", \'fm000\') BETWEEN \'' + sdate.yyyyddd() + '\' AND \'' + (edate+1).yyyyddd() + '\' '
+                         'AND "Year" || \' \' || to_char("DOY", \'fm000\') '
+                         'BETWEEN \'' + sdate.yyyyddd() + '\' AND \'' + (edate+1).yyyyddd() + '\' '
                          'ORDER BY "Year", "DOY", "NetworkCode", "StationCode"')
 
     tbl = ppp_soln.dictresult()
+
+    archive = pyArchiveStruct.RinexStruct(cnn)
 
     # check the hash values if specified
     if not rehash:
@@ -920,22 +909,41 @@ def hash_check(cnn, master_list, sdate, edate, rehash=False, h_tolerant=0):
     else:
         print ' -- Rehashing all records. This may take a while...'
 
-    for soln in tqdm(tbl,ncols=80):
+    for soln in tqdm(tbl, ncols=80):
         # load station info object
         try:
-            stninfo = pyStationInfo.StationInfo(cnn, soln['NetworkCode'], soln['StationCode'],
-                                                pyDate.Date(year=soln['Year'], doy=soln['DOY']), h_tolerance=h_tolerant)
 
-            if stninfo.currentrecord.hash != soln['hash']:
-                if not rehash:
-                    tqdm.write(" -- Hash value for %s.%s %i %03i does not match with Station Information hash. "
-                               "PPP coordinate will be recalculated."
-                               % (soln['NetworkCode'], soln['StationCode'], soln['Year'], soln['DOY']))
-                    cnn.delete('ppp_soln', soln)
-                else:
-                    tqdm.write(" -- %s.%s %i %03i has been rehashed."
-                               % (soln['NetworkCode'], soln['StationCode'], soln['Year'], soln['DOY']))
-                    cnn.update('ppp_soln', soln, hash=stninfo.currentrecord.hash)
+            # lookup for the rinex_proc record
+            rinex = archive.get_rinex_record(NetworkCode=soln['NetworkCode'], StationCode=soln['StationCode'],
+                                             ObservationYear=soln['Year'], ObservationDOY=soln['DOY'])
+
+            if not rinex:
+                # if no records, print warning
+                tqdm.write(" -- Could not find RINEX for %s.%s %i %03i. PPP solution will be deleted."
+                           % (soln['NetworkCode'], soln['StationCode'], soln['Year'], soln['DOY']))
+
+                cnn.delete('ppp_soln', soln)
+            else:
+                # select the first record
+                rinex = rinex[0]
+
+                dd = rinex['ObservationSTime'] + (rinex['ObservationETime'] - rinex['ObservationSTime']) / 2
+
+                stninfo = pyStationInfo.StationInfo(cnn, soln['NetworkCode'], soln['StationCode'],
+                                                    pyDate.Date(datetime=dd),
+                                                    h_tolerance=h_tolerant)
+
+                if stninfo.currentrecord.hash != soln['hash']:
+                    if not rehash:
+                        tqdm.write(" -- Hash value for %s.%s %i %03i does not match with Station Information hash. "
+                                   "PPP coordinate will be recalculated."
+                                   % (soln['NetworkCode'], soln['StationCode'], soln['Year'], soln['DOY']))
+                        cnn.delete('ppp_soln', soln)
+                    else:
+                        tqdm.write(" -- %s.%s %i %03i has been rehashed."
+                                   % (soln['NetworkCode'], soln['StationCode'], soln['Year'], soln['DOY']))
+                        cnn.update('ppp_soln', soln, hash=stninfo.currentrecord.hash)
+
         except pyStationInfo.pyStationInfoException as e:
             tqdm.write(str(e))
         except Exception:

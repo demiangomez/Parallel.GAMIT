@@ -303,7 +303,6 @@ def main():
     Config = pyOptions.ReadOptions("gnss_data.cfg")  # type: pyOptions.ReadOptions
 
     # create the execution log
-    # cnn.insert('executions', script='pyStack.py')
 
     dates = [pyDate.Date(year=1980, doy=1), pyDate.Date(year=2100, doy=1)]
     try:

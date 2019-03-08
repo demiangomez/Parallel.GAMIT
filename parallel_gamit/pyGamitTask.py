@@ -238,15 +238,6 @@ class GamitTask(object):
 
         output = ''.join(lines)
 
-        if '.' + self.gamitopts['org'] in self.params['NetName']:
-            # a subnet for a daily solution
-            project = self.params['NetName'].split('.' + self.gamitopts['org'])[0]
-            subnet = int(self.params['NetName'].split('.' + self.gamitopts['org'])[1])
-        else:
-            # no subnet
-            project = self.params['NetName']
-            subnet = 0
-
         try:
             start_time = datetime.datetime.strptime(
                 re.findall(r'run.sh \((\d+-\d+-\d+ \d+:\d+:\d+)\): Iteration depth: 1',
@@ -354,9 +345,9 @@ class GamitTask(object):
             # maybe GAMIT didn't finish
             missing_sites = []
 
-        return {'session': '%s %s' % (self.params['NetName'], self.date.yyyyddd()),
-                'Project': project,
-                'subnet': subnet,
+        return {'session': '%s %s' % (self.params['DirName'], self.date.yyyyddd()),
+                'Project': self.params['NetName'],
+                'subnet': self.params['subnet'],
                 'Year': self.date.year,
                 'DOY': self.date.doy,
                 'FYear': self.date.fyear,

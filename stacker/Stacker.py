@@ -378,6 +378,9 @@ def main():
                         help="Manually specify stations to remove from the stacking process.")
     parser.add_argument('-use', '--use_stations', nargs='+', type=str, metavar='{net.stnm}',
                         help="Manually specify stations to use for the stacking process.")
+    parser.add_argument('-dir', '--directory', type=str,
+                        help="Directory to save the resulting PNG files. If not specified, assumed to be the "
+                             "production directory")
     parser.add_argument('-np', '--noparallel', action='store_true', help="Execute command without parallelization.")
 
     args = parser.parse_args()
@@ -408,34 +411,52 @@ def main():
 
     # create folder for plots
 
-    if not os.path.isdir(args.project[0]):
-        os.makedirs(args.project[0])
+    if args.directory:
+        if not os.path.exists(args.directory):
+            os.mkdir(args.directory)
+    else:
+        if not os.path.exists('production'):
+            os.mkdir('production')
+        args.directory = 'production'
 
-    # stack object
-
+    # create the stack object
     stack = pyStack.Stack(cnn, args.project[0], True)
 
-    target = calculate_etms(cnn, stack, JobServer, 0)
+    for i in range(max_iters):
+        # create the target polyhedrons based on iteration number (i == 0: PPP)
 
-    qbar = tqdm(total=len(stack), ncols=160, desc=' >> Aligning polyhedrons')
+        target = calculate_etms(cnn, stack, JobServer, i)
 
-    for i in range(0, len(stack)):
-        qbar.update()
-        if stack[i].date != target[i].date:
-            qbar.write(' -- dates don\'t agree')
-        else:
-            stack[i].align(target[i])
-            qbar.write(' -- %s (%3i) %2i it: wrms: %6.1f T %6.1f %6.1f %6.1f '
-                       'R (%6.1f %6.1f %6.1f)*1e-9' %
-                       (stack[i].date.yyyyddd(), stack[i].stations_used, stack[i].iterations, stack[i].wrms * 1000,
-                        stack[i].helmert[-3] * 1000, stack[i].helmert[-2] * 1000, stack[i].helmert[-1] * 1000,
-                        stack[i].helmert[-6], stack[i].helmert[-5], stack[i].helmert[-4]))
+        qbar = tqdm(total=len(stack), ncols=160, desc=' >> Aligning polyhedrons (%i of %i)' % (i+1, max_iters))
 
-    qbar.close()
+        # work on each polyhedron of the stack
+        for j in range(len(stack)):
+
+            qbar.update()
+
+            if stack[j].date != target[j].date:
+                # raise an error if dates don't agree!
+                raise StandardError('Error processing %s: dates don\'t agree (target date %s)'
+                                    % (stack[j].date.yyyyddd(), target[j].date.yyyyddd()))
+            else:
+                if not stack[j].aligned:
+                    # should only attempt to align a polyhedron that is unaligned
+                    # do not set the polyhedron as aligned unless we are in the max iteration step
+                    stack[j].align(target[j], True if i == max_iters - 1 else False)
+                    # write info to the screen
+                    qbar.write(' -- %s (%3i) %2i it: wrms: %6.1f T %6.1f %6.1f %6.1f '
+                               'R (%6.1f %6.1f %6.1f)*1e-9' %
+                               (stack[j].date.yyyyddd(), stack[j].stations_used, stack[j].iterations,
+                                stack[j].wrms * 1000, stack[j].helmert[-3] * 1000, stack[j].helmert[-2] * 1000,
+                                stack[j].helmert[-1] * 1000, stack[j].helmert[-6], stack[j].helmert[-5],
+                                stack[j].helmert[-4]))
+
+        qbar.close()
 
     qbar = tqdm(total=len(stack.stations), ncols=160)
 
     for stn in stack.stations:
+        # plot the ETMs
         qbar.update()
         qbar.postfix = '%s.%s' % (stn['NetworkCode'], stn['StationCode'])
         try:
@@ -444,7 +465,10 @@ def main():
             ts = pyETM.GamitSoln(cnn, ts, stn['NetworkCode'], stn['StationCode'])
 
             etm = pyETM.GamitETM(cnn, stn['NetworkCode'], stn['StationCode'], gamit_soln=ts)
-            etm.plot('production/%s.%s.png' % (stn['NetworkCode'], stn['StationCode']), plot_missing=False)
+
+            pngfile = os.path.join(args.directory, etm.NetworkCode + '.' + etm.StationCode + '.png')
+
+            etm.plot(pngfile, plot_missing=False)
 
         except pyETM.pyETMException as e:
             tqdm.write(str(e))

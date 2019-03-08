@@ -337,7 +337,7 @@ def StnInfoCheck(cnn, stnlist, Config):
             stninfo = pyStationInfo.StationInfo(cnn, NetworkCode, StationCode)  # type: pyStationInfo.StationInfo
 
             # there should not be more than one entry with 9999 999 in DateEnd
-            empty_edata = [[record['DateEnd'],record['DateStart']] for record in stninfo.records
+            empty_edata = [[record['DateEnd'], record['DateStart']] for record in stninfo.records
                            if not record['DateEnd']]
 
             if len(empty_edata) > 1:
@@ -349,6 +349,8 @@ def StnInfoCheck(cnn, stnlist, Config):
             # there should not be a DateStart < DateEnd of different record
             list_problems = []
             atx_problem = False
+            hc_problem = False
+
             for i, record in enumerate(stninfo.records):
 
                 # check existence of ANTENNA in ATX
@@ -360,6 +362,8 @@ def StnInfoCheck(cnn, stnlist, Config):
                                      % (NetworkCode, StationCode, record['AntennaCode'], record['RadomeCode'],
                                         os.path.basename(atx_file), frame))
                     atx_problem = True
+
+                # check if the station info has a slant height and if the slant can be translated into a DHARP
 
                 overlaps = stninfo.overlaps(record)
                 if overlaps:
@@ -513,7 +517,8 @@ def CheckSpatialCoherence(cnn, stnlist, start_date, end_date):
 def GetGaps(cnn, NetworkCode, StationCode, start_date, end_date):
 
     rs = cnn.query(
-        'SELECT * FROM rinex_proc WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "ObservationSTime" BETWEEN \'%s\' AND \'%s\' ORDER BY "ObservationSTime"' % (
+        'SELECT * FROM rinex_proc WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND '
+        '"ObservationSTime" BETWEEN \'%s\' AND \'%s\' ORDER BY "ObservationSTime"' % (
         NetworkCode, StationCode, start_date.yyyymmdd(), end_date.yyyymmdd()))
 
     # make the start date and end date the limits of the data
@@ -544,7 +549,11 @@ def RinexCount(cnn, stnlist, start_date, end_date):
     sys.stderr.write('Querying the database for the number of RINEX files...')
 
     rs = cnn.query(
-        'SELECT "ObservationYear" as year, "ObservationDOY" as doy, count(*) as suma FROM rinex_proc WHERE "NetworkCode" || \'.\' || "StationCode" IN (\'' + '\',\''.join(master_list) + '\') AND "ObservationSTime" BETWEEN \'%s\' AND \'%s\' ORDER BY "ObservationSTime"' % (start_date.yyyymmdd(), end_date.yyyymmdd()))
+        'SELECT "ObservationYear" as year, "ObservationDOY" as doy, count(*) as suma FROM '
+        'rinex_proc WHERE "NetworkCode" || \'.\' || "StationCode" IN '
+        '(\'' + '\',\''.join(master_list) + '\') AND "ObservationSTime" BETWEEN \'%s\' AND \'%s\' '
+                                            'ORDER BY "ObservationSTime"'
+        % (start_date.yyyymmdd(), end_date.yyyymmdd()))
 
     rnxtbl = rs.dictresult()
 
@@ -559,7 +568,9 @@ def GetStnGaps(cnn, stnlist, ignore_val, start_date, end_date):
         StationCode = stn['StationCode']
 
         rs = cnn.query(
-            'SELECT * FROM rinex_proc WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "ObservationSTime" BETWEEN \'%s\' AND \'%s\' ORDER BY "ObservationSTime"' % (NetworkCode, StationCode, start_date.yyyymmdd(), end_date.yyyymmdd()))
+            'SELECT * FROM rinex_proc WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' '
+            'AND "ObservationSTime" BETWEEN \'%s\' AND \'%s\' ORDER BY "ObservationSTime"'
+            % (NetworkCode, StationCode, start_date.yyyymmdd(), end_date.yyyymmdd()))
 
         rnxtbl = rs.dictresult()
         gap_begin = None
@@ -576,7 +587,8 @@ def GetStnGaps(cnn, stnlist, ignore_val, start_date, end_date):
                 if d1 == d2 + 1 and gap_begin:
                     days = ((d2-1).mjd - gap_begin.mjd)+1
                     if days > ignore_val:
-                        gaps.append('%s.%s gap in data found %s -> %s (%i days)' % (NetworkCode,StationCode,gap_begin.yyyyddd(),(d2-1).yyyyddd(), days))
+                        gaps.append('%s.%s gap in data found %s -> %s (%i days)'
+                                    % (NetworkCode, StationCode, gap_begin.yyyyddd(), (d2-1).yyyyddd(), days))
 
                     gap_begin = None
 
@@ -594,7 +606,7 @@ def PrintStationInfo(cnn, stnlist, short=False):
         StationCode = stn['StationCode']
 
         try:
-            stninfo = pyStationInfo.StationInfo(cnn,NetworkCode,StationCode)
+            stninfo = pyStationInfo.StationInfo(cnn, NetworkCode, StationCode)
 
             if short:
                 sys.stdout.write('\n' + stninfo.return_stninfo_short() + '\n\n')
@@ -603,7 +615,7 @@ def PrintStationInfo(cnn, stnlist, short=False):
                                  '\n' + stninfo.return_stninfo() + '\n')
 
         except pyStationInfo.pyStationInfoException as e:
-            sys.stdout.write(str(e))
+            sys.stderr.write(str(e) + '\n')
 
 
 def RenameStation(cnn, NetworkCode, StationCode, DestNetworkCode, DestStationCode, start_date, end_date, archive_path):

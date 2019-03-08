@@ -9,6 +9,7 @@ from shutil import copyfile
 from shutil import rmtree
 import pyGamitConfig
 import snxParse
+import simplekml
 from pyStation import StationInstance
 from Utils import determine_frame
 
@@ -23,18 +24,41 @@ class GamitSessionException(Exception):
 
 class GamitSession(object):
 
-    def __init__(self, cnn, archive, name, date, GamitConfig, stations, ties, ready=False):
+    def __init__(self, cnn, archive, name, org, subnet, date, GamitConfig, stations, ties=(), centroid=()):
         """
+        The GAMIT session object creates all the directory structure and configuration files according to the parameters
+        set in GamitConfig. Two stations list are passed and merged to create the session
+        :param cnn: connection to database object
+        :param archive: archive object to find rinex files in archive structure
+        :param name: name of the project/network
+        :param org: name of the organization
+        :param subnet: subnet number (may be None, in which case the directory name will not show ORGXX
+        :param date: date that is being processed
+        :param GamitConfig: configuration to run gamit
+        :param stations: list of stations to be processed
+        :param ties: tie stations as obtained by pyNetwork
+        """
+        self.NetName = name
+        self.org = org
+        self.subnet = subnet
 
-        :param date: pyDate.Date
-        :param GamitConfig: pyGamitConfig.GamitConfiguration
-        :param NetIndex: index of station list in GamitConfig.Network.GetStationList()
-        """
-        self.NetName          = name
-        self.date             = date
-        self.GamitOpts        = GamitConfig.gamitopt  # type: pyGamitConfig.GamitConfiguration().gamitopt
-        self.Config           = GamitConfig           # type: pyGamitConfig.GamitConfiguration
-        self.frame            = None
+        if subnet is not None:
+            self.DirName = '%s.%s%02i' % (self.NetName, self.org, self.subnet)
+        else:
+            self.DirName = self.NetName
+
+        self.date = date
+        self.GamitOpts = GamitConfig.gamitopt  # type: pyGamitConfig.GamitConfiguration().gamitopt
+        self.Config = GamitConfig              # type: pyGamitConfig.GamitConfiguration
+        self.frame = None
+        self.params = None
+        # to store the polyhedron read from the final SINEX
+        self.polyhedron = None
+        self.VarianceFactor = None
+        # gamit task will be filled with the GamitTask object
+        self.GamitTask = None
+
+        self.solution_base = self.GamitOpts['solutions_dir'].rstrip('/')
 
         # core station dictionary
         self.tie_dict = [{'name': stn.NetworkCode + '.' + stn.StationCode, 'coords': [(stn.lon, stn.lat)]}
@@ -49,27 +73,63 @@ class GamitSession(object):
         for stn in stations:
             station_instances += [StationInstance(cnn, archive, stn, date, GamitConfig)]
 
+        # do the same with ties
+        for stn in ties:
+            station_instances += [StationInstance(cnn, archive, stn, date, GamitConfig)]
+
         self.StationInstances = station_instances
 
-        # to store the polyhedron read from the final SINEX
-        self.polyhedron = None
-        self.VarianceFactor = None
+        # create working dirs for this session
+        self.solution_pwd = self.solution_base + '/%s/%s/%s' % (date.yyyy(), date.ddd(), self.DirName)
+        # the remote pwd is the directory where the processing will be performed
+        self.remote_pwd = 'production/gamit/' + '/%s/%s/%s' % (date.yyyy(), date.ddd(), self.DirName)
 
-        # gamit task will be filled with the GamitTask object
-        self.GamitTask = None
-        self.ready = ready
+        try:
+            # attempt to retrieve the session from the database. If error is raised, then the session has to be
+            # reprocessed
+            cnn.get('gamit_stats', {'Year': date.year, 'DOY': date.doy, 'Project': self.NetName,
+                                    'subnet': 0 if subnet is None else subnet})
+            self.ready = True
+        except Exception:
+            self.ready = False
+
+            try:
+                # since ready == False, then try to delete record in subnets
+                cnn.delete('gamit_subnets', {'Year': date.year, 'DOY': date.doy, 'Project': self.NetName,
+                                             'subnet': 0 if subnet is None else subnet})
+            except Exception:
+                pass
 
         # a list to report missing data for this session
         self.missing_data = []
 
-        # create working dirs for this session
-        self.solution_pwd = self.GamitOpts['solutions_dir'].rstrip('/') + '/%s/%s/%s' % (date.yyyy(),
-                                                                                         date.ddd(), self.NetName)
-
-        self.remote_pwd = 'production/gamit/' + '/%s/%s/%s' % (date.yyyy(), date.ddd(), self.NetName)
-
         if not os.path.exists(self.solution_pwd):
+            # if the path does not exist, create it!
             os.makedirs(self.solution_pwd)
+            # force ready = False, no matter what the database says
+            self.ready = False
+            try:
+                cnn.delete('gamit_stats', {'Year': date.year, 'DOY': date.doy, 'Project': self.NetName,
+                                           'subnet': 0 if subnet is None else subnet})
+
+                cnn.delete('gamit_subnets', {'Year': date.year, 'DOY': date.doy, 'Project': self.NetName,
+                                             'subnet': 0 if subnet is None else subnet})
+            except Exception:
+                pass
+
+        elif os.path.exists(self.solution_pwd) and not self.ready:
+            # if the solution directory exists but the session is not ready, kill the directory
+            rmtree(self.solution_pwd)
+
+        if not self.ready:
+            # insert the subnet in the database
+            cnn.insert('gamit_subnets', {'Year': date.year, 'DOY': date.doy, 'Project': self.NetName,
+                                         'subnet': 0 if subnet is None else subnet,
+                                         'stations': '{%s}' % ','.join([s.NetworkCode + '.' + s.StationCode
+                                                                        for s in stations]),
+                                         'alias': '{%s}' % ','.join([s.StationAlias for s in stations]),
+                                         'ties': '{%s}' % ','.join([s['name'] for s in self.tie_dict]),
+                                         'centroid': '{%s}' % ','.join(['%.1f' % c for c in centroid])})
 
         self.pwd_igs    = os.path.join(self.solution_pwd, 'igs')
         self.pwd_brdc   = os.path.join(self.solution_pwd, 'brdc')
@@ -78,7 +138,7 @@ class GamitSession(object):
         self.pwd_glbf   = os.path.join(self.solution_pwd, 'glbf')
         self.pwd_proc   = os.path.join(self.solution_pwd, date.ddd())
 
-        if not ready:
+        if not self.ready:
             # only create folders, etc if it was determined the solution isn't ready
             if not os.path.exists(self.pwd_igs):
                 os.makedirs(self.pwd_igs)
@@ -104,7 +164,7 @@ class GamitSession(object):
             if os.path.exists(self.pwd_proc):
                 rmtree(self.pwd_proc)
 
-        return
+            self.generate_kml()
 
     def initialize(self):
 
@@ -132,18 +192,18 @@ class GamitSession(object):
                             'sp3altrn'  : self.Config.sp3altrn,
                             'brdc_path' : self.Config.brdc_path}
 
-            self.params  = {'solution_pwd': self.solution_pwd,
-                            'remote_pwd'  : self.remote_pwd,
-                            'NetName'     : self.NetName,
-                            'rinex'       : rinex_list,
-                            'date'        : self.date,
-                            'options'     : self.Config.options,
-                            'orbits'      : orbit_params,
-                            'gamitopts'   : self.GamitOpts}
+            self.params = {'solution_pwd': self.solution_pwd,
+                           'remote_pwd'  : self.remote_pwd,
+                           'NetName'     : self.NetName,
+                           'DirName'     : self.DirName,
+                           'subnet'      : self.subnet if self.subnet is not None else 0,
+                           'rinex'       : rinex_list,
+                           'date'        : self.date,
+                           'options'     : self.Config.options,
+                           'orbits'      : orbit_params,
+                           'gamitopts'   : self.GamitOpts}
         except Exception:
             raise
-
-        return
 
     def create_otl_list(self):
 
@@ -240,8 +300,6 @@ $$\n""" % (self.Config.options['otlmodel']))
                         sittbl.write(stn.GetSittbl() + '\n')
                         debug.write(stn.DebugCoord() + '\n')
 
-        return
-
     def copy_sestbl_procdef_atx(self):
 
         self.frame, atx = determine_frame(self.Config.options['frames'], self.date)
@@ -260,8 +318,6 @@ $$\n""" % (self.Config.options['otlmodel']))
                         sestbl.write('Scratch directory = \n')
                     else:
                         sestbl.write(line)
-
-        return
 
     def link_tables(self):
 
@@ -288,8 +344,6 @@ $$\n""" % (self.Config.options['otlmodel']))
 
         os.system('chmod +x link_tables.sh')
         os.system('./link_tables.sh')
-
-        return
 
     def get_rinex_filenames(self):
         lst = []
@@ -332,3 +386,40 @@ $$\n""" % (self.Config.options['otlmodel']))
                     # maybe the station didn't have a solution
                     pass
         return self.polyhedron, self.VarianceFactor
+
+    def generate_kml(self):
+
+        # save this session as a kml
+        kml = simplekml.Kml()
+
+        # define styles
+        styles_stn = simplekml.StyleMap()
+        styles_stn.normalstyle.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/placemark_square.png'
+        styles_stn.normalstyle.iconstyle.color = 'ff00ff00'
+        styles_stn.normalstyle.labelstyle.scale = 0
+        styles_stn.highlightstyle.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/' \
+                                                        'placemark_square.png'
+        styles_stn.highlightstyle.iconstyle.color = 'ff00ff00'
+        styles_stn.highlightstyle.iconstyle.scale = 2
+        styles_stn.highlightstyle.labelstyle.scale = 2
+
+        styles_tie = simplekml.StyleMap()
+        styles_tie.normalstyle.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/placemark_square.png'
+        styles_tie.normalstyle.iconstyle.color = 'ff0000ff'
+        styles_tie.normalstyle.labelstyle.scale = 0
+        styles_tie.highlightstyle.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/' \
+                                                        'placemark_square.png'
+        styles_tie.highlightstyle.iconstyle.color = 'ff0000ff'
+        styles_tie.highlightstyle.iconstyle.scale = 2
+        styles_tie.highlightstyle.labelstyle.scale = 2
+
+        folder_net = kml.newfolder(name=self.DirName)
+
+        for stn in self.stations_dict + self.tie_dict:
+            pt = folder_net.newpoint(**stn)
+            if stn in self.tie_dict:
+                pt.stylemap = styles_tie
+            else:
+                pt.stylemap = styles_stn
+
+        kml.savekmz(os.path.join(self.solution_pwd, self.DirName) + '.kmz')

@@ -204,7 +204,8 @@ class PppSoln:
                 if len(self.blunders) >= 1:
                     raise pyETMException('No viable PPP solutions available for %s.%s (all blunders!)\n'
                                          '  -> min distance to station coordinate is %.1f meters'
-                                         % (NetworkCode, StationCode, np.array([item[5] for item in self.blunders]).min()))
+                                         % (NetworkCode, StationCode, np.array([item[5]
+                                                                                for item in self.blunders]).min()))
                 else:
                     raise pyETMException('No PPP solutions available for %s.%s' % (NetworkCode, StationCode))
 
@@ -227,7 +228,12 @@ class PppSoln:
 
             self.completion = 100. - float(len(self.ts_ns)) / float(len(self.ts_ns) + len(self.t)) * 100.
 
-            self.hash = crc32(str(len(self.t) + len(self.blunders)) + ' ' + str(ts[0]) + ' ' + str(ts[-1]))
+            ppp_hash = cnn.query_float('SELECT sum(hash) FROM ppp_soln p1 '
+                                       'WHERE p1."NetworkCode" = \'%s\' AND p1."StationCode" = \'%s\''
+                                       % (NetworkCode, StationCode))
+
+            self.hash = crc32(str(len(self.t) + len(self.blunders)) + ' ' +
+                              str(ts[0]) + ' ' + str(ts[-1]) + ' ' + str(ppp_hash[0][0]))
 
         else:
             raise pyETMException('Station %s.%s has no valid metadata in the stations table.'
@@ -2210,24 +2216,20 @@ class GamitETM(ETM):
 
                 del etm
 
-            xyz = self.rotate_2xyz(np.array(neu)) + np.array([self.soln.auto_x, self.soln.auto_y, self.soln.auto_z])
+            rxyz = self.rotate_2xyz(np.array(neu)) + np.array([self.soln.auto_x, self.soln.auto_y, self.soln.auto_z])
 
-            rxyz = xyz - self.L
+            # rxyz = xyz - self.L
 
-            px = np.ones(self.P[0].shape)
-            py = np.ones(self.P[1].shape)
-            pz = np.ones(self.P[2].shape)
-
-            dict_o += [(net, stn, x, y, z, sigx, sigy, sigz, year, doy)
-                       for x, y, z, sigx, sigy, sigz, net, stn, year, doy in
+            dict_o += [(net_stn, x, y, z, year, doy, fyear)
+                       for x, y, z, net_stn, year, doy, fyear in
                        zip(rxyz[0].tolist(), rxyz[1].tolist(), rxyz[2].tolist(),
-                           px.tolist(), py.tolist(), pz.tolist(),
-                           repeat(self.NetworkCode), repeat(self.StationCode),
+                           repeat(self.NetworkCode + '.' + self.StationCode),
                            [date.year for date in self.gamit_soln.date],
-                           [date.doy for date in self.gamit_soln.date])]
+                           [date.doy for date in self.gamit_soln.date],
+                           [date.fyear for date in self.gamit_soln.date])]
         else:
             raise pyETMException_NoDesignMatrix('No design matrix available for %s.%s' %
-                                                   (self.NetworkCode, self.StationCode))
+                                                (self.NetworkCode, self.StationCode))
 
         return dict_o
 

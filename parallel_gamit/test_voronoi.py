@@ -118,15 +118,15 @@ def main():
 
     GamitConfig = GamitConfiguration(args.project_file[0], check_config=False)  # type: GamitConfiguration
 
-    stations = station_list(cnn, GamitConfig.NetworkConfig, [Date(year=2019, doy=1), Date(year=2019, doy=7)])
+    stations = station_list(cnn, GamitConfig.NetworkConfig, [Date(year=1999, doy=100), Date(year=1999, doy=128)])
 
     # split the stations into subnet_count subnetworks
 
     archive = pyArchiveStruct.RinexStruct(cnn)  # type: pyArchiveStruct.RinexStruct
 
-    net_object = pyNetwork.Network(cnn, archive, GamitConfig, stations, Date(year=2019, doy=1))
+    net_object = pyNetwork.Network(cnn, archive, GamitConfig, stations, Date(year=1999, doy=128))
 
-    generate_kml([Date(year=2019, doy=1)], net_object.sessions, GamitConfig)
+    generate_kml([Date(year=1999, doy=128)], net_object.sessions, GamitConfig)
 
     # for subnet in range(len(centroids)):
     #     ts = len([la for la in labels if la == subnet])
