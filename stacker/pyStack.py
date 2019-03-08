@@ -1,715 +1,256 @@
-"""
-Project: Parallel.Stacker
-Date: 6/12/18 10:28 AM
-Author: Demian D. Gomez
-"""
 
+import numpy as np
 import dbConnection
-import pyOptions
-import argparse
-import pyETM
-import pyJobServer
-import numpy
 from pyDate import Date
 from tqdm import tqdm
-import traceback
-import os
-from Utils import lg2ct
 from pyDRA import adjust_lsq
-import json
+import pyETM
 
-pi = 3.141592653589793
 
+class Stack(list):
 
-def station_etm(project, station, stn_ts, exclude, iteration=0):
+    def __init__(self, cnn, project, redo=False):
 
-    msg = None
-    add_exclude = []
+        super(Stack, self).__init__()
 
-    cnn = dbConnection.Cnn("gnss_data.cfg")
-
-    sql_r = 'INSERT INTO stack_residuals ' \
-            '("NetworkCode", "StationCode", "Project", x, y, z, sigmax, sigmay, sigmaz, "Year", "DOY") ' \
-            'VALUES (%s, %s, \'' + project + '\', %f, %f, %f, %f, %f, %f, %i, %i)'
-
-    sql_s = 'INSERT INTO stacks ' \
-            '("NetworkCode", "StationCode", "Project", "X", "Y", "Z", sigmax, sigmay, sigmaz, "Year", "DOY", "FYear") ' \
-            'VALUES (\'' + station.NetworkCode + '\', \'' + station.StationCode + '\', \'' \
-            + project + '\', %f, %f, %f, 0, 0, 0, %i, %i, %f)'
-
-    # make sure it is sorted by date
-    stn_ts.sort(key=lambda k: (k[3], k[4]))
-
-    try:
-        # save the time series
-        ts = pyETM.GamitSoln(cnn, stn_ts, station.NetworkCode, station.StationCode)
-
-        cnn.executemany(sql_s, zip(ts.x.tolist(), ts.y.tolist(), ts.z.tolist(),
-                                   [t.year for t in ts.date], [t.doy for t in ts.date], [t.fyear for t in ts.date]))
-
-        if not exclude:
-            # create the ETM object
-            etm = pyETM.GamitETM(cnn, station.NetworkCode, station.StationCode, False, False, ts)
-
-            if etm.A is None:
-                # no contribution to stack, remove from the station list
-                add_exclude = [station.dictionary]
-            else:
-                # insert the residuals for the station in stack_residuals
-                # these values will be used later on in helmert_stack
-                if iteration == 0:
-                    # if iteration is == 0, then the target frame has to be the PPP ETMs
-                    cnn.executemany(sql_r, etm.get_residuals_dict(use_ppp_model=True, cnn=cnn))
-                else:
-                    # on next iters, the target frame is the inner geometry of the stack
-                    cnn.executemany(sql_r, etm.get_residuals_dict())
-
-    except Exception as e:
-
-        add_exclude = [station.dictionary]
-        msg = 'Error while producing ETM for %s.%s: ' % (station.NetworkCode, station.StationCode) + str(e)
-
-    return add_exclude, msg
-
-
-def helmert_stack(name, date, exclude):
-
-    eq_count = 0
-    it = 0
-
-    cnn = dbConnection.Cnn("gnss_data.cfg")
-
-    # exclude the solutions declared in "exclude"
-    sql_where = ','.join(["'" + stn['NetworkCode'] + '.' + stn['StationCode'] + "'" for stn in exclude])
-
-    try:
-
-        if sql_where is not '':
-            sql_where = ' AND "NetworkCode" || \'.\' || "StationCode" NOT IN (%s)' % sql_where
-
-        x = cnn.query_float(
-            'SELECT 0, -"Z"*1e-9, "Y"*1e-9, 1, 0, 0 FROM stacks WHERE "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i '
-            % (name, date.year, date.doy) + sql_where + ' ORDER BY "NetworkCode", "StationCode"')
-
-        y = cnn.query_float(
-            'SELECT "Z"*1e-9, 0, -"X"*1e-9, 0, 1, 0 FROM stacks WHERE "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i '
-            % (name, date.year, date.doy) + sql_where + ' ORDER BY "NetworkCode", "StationCode"')
-
-        z = cnn.query_float(
-            'SELECT -"Y"*1e-9, "X"*1e-9, 0, 0, 0, 1 FROM stacks WHERE "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i '
-            % (name, date.year, date.doy) + sql_where + ' ORDER BY "NetworkCode", "StationCode"')
-
-        r = cnn.query_float(
-            'SELECT x, y, z FROM stack_residuals WHERE "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i '
-            % (name, date.year, date.doy) + sql_where + ' ORDER BY "NetworkCode", "StationCode"')
-
-        # X vector has ALL the stations, not only the ones involved in the adjustment
-        X = cnn.query_float(
-            'SELECT "X", "Y", "Z" FROM stacks WHERE "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i '
-            % (name, date.year, date.doy) + ' ORDER BY "NetworkCode", "StationCode"')
-
-        # metadata also should include ALL stations
-        metadata = cnn.query('SELECT "NetworkCode", "StationCode" FROM stacks '
-                             'WHERE "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i '
-                             % (name, date.year, date.doy) + ' ORDER BY "NetworkCode", "StationCode"')
-
-        metadata = metadata.dictresult()
-
-        # done getting data from the DB, now run the adjustment
-
-        Ax = numpy.array(x)
-        Ay = numpy.array(y)
-        Az = numpy.array(z)
-
-        # save the number of stations used in the adjustment
-        eq_count = Ax.shape[0]
-
-        X = numpy.array(X).transpose().flatten()
-        r = numpy.array(r).transpose().flatten()
-
-        A = numpy.row_stack((Ax, Ay, Az))
-
-        c, _, index, v, factor, P, it = adjust_lsq(A, r)
-
-        # rebuild A to include all stations
-        x = cnn.query_float(
-            'SELECT 0, -"Z"*1e-9, "Y"*1e-9, 1, 0, 0 FROM stacks WHERE "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i '
-            % (name, date.year, date.doy) + ' ORDER BY "NetworkCode", "StationCode"')
-
-        y = cnn.query_float(
-            'SELECT "Z"*1e-9, 0, -"X"*1e-9, 0, 1, 0 FROM stacks WHERE "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i '
-            % (name, date.year, date.doy) + ' ORDER BY "NetworkCode", "StationCode"')
-
-        z = cnn.query_float(
-            'SELECT -"Y"*1e-9, "X"*1e-9, 0, 0, 0, 1 FROM stacks WHERE "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i '
-            % (name, date.year, date.doy) + ' ORDER BY "NetworkCode", "StationCode"')
-
-        Ax = numpy.array(x)
-        Ay = numpy.array(y)
-        Az = numpy.array(z)
-
-        A = numpy.row_stack((Ax, Ay, Az))
-
-        X = (numpy.dot(A, c) + X).reshape(3, len(metadata)).transpose()
-
-        # build the polyhedron dictionary
-        polyhedron = []
-
-        for i, stn in enumerate(metadata):
-            polyhedron += [{'NetworkCode': stn['NetworkCode'],
-                            'StationCode': stn['StationCode'],
-                            'X': X[i][0], 'Y': X[i][1], 'Z': X[i][2],
-                            'Year': date.year, 'DOY': date.doy, 'FYear': date.fyear}]
-
-        return c, polyhedron, date, eq_count, it, index.tolist(), P.tolist(), factor, v.tolist(), None
-
-    except Exception as e:
-
-        metadata = cnn.query('SELECT "NetworkCode", "StationCode" FROM stacks '
-                             'WHERE "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i '
-                             % (name, date.year, date.doy) + ' ORDER BY "NetworkCode", "StationCode"')
-
-        metadata = ['%s.%s' % (ns['NetworkCode'], ns['StationCode']) for ns in metadata.dictresult()]
-
-        gamit = cnn.query('SELECT "NetworkCode", "StationCode" FROM stacks '
-                          'WHERE "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i '
-                          % (name, date.year, date.doy) + sql_where + ' ORDER BY "NetworkCode", "StationCode"')
-
-        gamit = ['%s.%s' % (ns['NetworkCode'], ns['StationCode']) for ns in gamit.dictresult()]
-
-        msg = ' -- ' + traceback.format_exc() + 'Error during ' + date.yyyyddd() + ': ' + str(e) + '\n' + \
-              'Stations in meta not in gamit: ' + str(list(set(metadata) - set(gamit))) + '\n' + \
-              'Stations in gamit not in meta: ' + str(list(set(gamit) - set(metadata))) + '\n' + \
-              sql_where
-
-        return [0, 0, 0, 0, 0, 0, 0], [], date, eq_count, it, [], [], 0, [], msg
-
-
-class AlignClass:
-    def __init__(self, qbar):
-        self.date = None
-        self.polyhedron = None
-        self.stations_used = None
-        self.iterations = None
-        self.qbar = qbar
-        self.index = None
-        self.weights = None
-        self.wrms = None
-        self.residuals = None
-        self.msg = None
-        self.x = None
-
-    def finalize(self, args):
-        self.x = args[0]
-        self.polyhedron = args[1]
-        self.date = args[2]
-        self.stations_used = args[3]
-        self.iterations = args[4]
-        self.index = args[5]
-        self.weights = args[6]
-        self.wrms = args[7]
-        self.residuals = args[8]
-        self.msg = args[9]
-        self.qbar.update()
-
-        if self.msg is None:
-            #self.qbar.write(' -- %s (%3i) %2i it: translation (mm mm mm) scale: (%6.1f %6.1f %6.1f)' % \
-            #                (self.date.yyyyddd(), self.stations_used, self.iterations, self.x[-3] * 1000,
-            #                 self.x[-2] * 1000, self.x[-1] * 1000))
-            if self.wrms > 0.004:
-                self.qbar.write(' -- %s (%3i) %2i it: high wrms -> %6.1f T %6.1f %6.1f %6.1f '
-                                'R (%6.1f %6.1f %6.1f)*1e-9' %
-                                (self.date.yyyyddd(), self.stations_used, self.iterations, self.wrms*1000,
-                                 self.x[-3] * 1000, self.x[-2] * 1000, self.x[-1] * 1000,
-                                 self.x[-6], self.x[-5], self.x[-4]))
-        else:
-            self.qbar.write(' -- %s' % args[5])
-
-
-class EtmClass:
-    def __init__(self, qbar):
-        self.exclude = None
-        self.msg = None
-        self.qbar = qbar
-
-    def finalize(self, args):
-        self.exclude = args[0]
-        self.msg = args[1]
-        self.qbar.update()
-
-        if self.msg is not None:
-            self.qbar.write(' -- %s' % self.msg)
-
-
-class Station:
-
-    def __init__(self, cnn, NetworkCode, StationCode):
-
-        self.NetworkCode  = NetworkCode
-        self.StationCode  = StationCode
-        self.StationAlias = StationCode  # upon creation, Alias = StationCode
-        self.dictionary   = {'NetworkCode': NetworkCode, 'StationCode': StationCode}
-        self.record       = None
-        self.etm          = None
-        self.StationInfo  = None
-        self.lat          = None
-        self.lon          = None
-        self.height       = None
-        self.X            = None
-        self.Y            = None
-        self.Z            = None
-        self.otl_H        = None
-
-        try:
-            rs = cnn.query('SELECT * FROM stations WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\''
-                           % (NetworkCode, StationCode))
-
-            if rs.ntuples() != 0:
-                self.record = rs.dictresult() # type: dict
-
-                self.lat = float(self.record[0]['lat'])
-                self.lon = float(self.record[0]['lon'])
-                self.height = float(self.record[0]['height'])
-                self.X      = float(self.record[0]['auto_x'])
-                self.Y      = float(self.record[0]['auto_y'])
-                self.Z      = float(self.record[0]['auto_z'])
-
-        except Exception:
-            raise
-
-    def __str__(self):
-        return self.NetworkCode + '.' + self.StationCode
-
-    def __eq__(self, other):
-
-        return self.NetworkCode == self.NetworkCode and self.StationCode == other.StationCode
-
-    def __repr__(self):
-        return 'pyStack.Station(' + str(self) + ')'
-
-
-class Project(object):
-
-    def __init__(self, cnn, name, max_iters=4, exclude=(), use=()):
-
-        self.name = name
-
-        # incorporate the list of stations to remove from the stacking process
-        self.exclude = [{'NetworkCode': item[0], 'StationCode': item[1]}
-                        for item in [item.lower().split('.')
-                                     for item in exclude]]
-
-        self.use = [{'NetworkCode': item[0], 'StationCode': item[1]}
-                        for item in [item.lower().split('.')
-                                     for item in use]]
-
-        self.max_iters = max_iters
-        self.iter = 0
-        self.ts = []
+        self.project = project
         self.cnn = cnn
-        self.json = dict()
 
-        # get the station list
-        rs = cnn.query('SELECT "NetworkCode", "StationCode" FROM gamit_soln '
-                       'WHERE "Project" = \'%s\' GROUP BY "NetworkCode", "StationCode" '
-                       'ORDER BY "NetworkCode", "StationCode"' % name)
+        if redo:
+            # if redoing the stack, ignore the contents of the stacks table
+            print ' >> Redoing stack'
+            print ' >> Loading GAMIT solutions for project %s...' % project
 
-        self.stnlist = [Station(cnn, item['NetworkCode'], item['StationCode']) for item in rs.dictresult()]
+            gamit_vertices = self.cnn.query_float(
+                'SELECT "NetworkCode" || \'.\' || "StationCode", "X", "Y", "Z", "Year", "DOY", "FYear" '
+                'FROM gamit_soln WHERE "Project" = \'%s\' '
+                'ORDER BY "NetworkCode", "StationCode"' % project)
 
-        # if none selected, use all
-        if not self.use:
-            for stn in self.stnlist:
-                if stn.dictionary not in self.use and stn.dictionary not in self.exclude:
-                    self.use += [stn.dictionary]
+            self.gamit_vertices = np.array(gamit_vertices, dtype=[('stn', 'S8'), ('x', 'float64'), ('y', 'float64'),
+                                                                  ('z', 'float64'), ('yr', 'i4'), ('dd', 'i4'),
+                                                                  ('fy', 'float64')])
+
+            dates = self.cnn.query_float('SELECT "Year", "DOY" FROM gamit_soln WHERE "Project" = \'%s\' '
+                                         'GROUP BY "Year", "DOY" ORDER BY "Year", "DOY"' % project)
+
+            self.dates = [Date(year=d[0], doy=d[1]) for d in dates]
+
+            self.stations = self.cnn.query_float('SELECT "NetworkCode", "StationCode" FROM gamit_soln '
+                                                 'WHERE "Project" = \'%s\' '
+                                                 'GROUP BY "NetworkCode", "StationCode" '
+                                                 'ORDER BY "NetworkCode", "StationCode"' % project, as_dict=True)
+
+            for d in tqdm(self.dates, ncols=160, desc=project):
+                self.append(Polyhedron(self.gamit_vertices, project, d))
+
         else:
-            # if stations are included in the use list, then exclude the other
-            for stn in self.stnlist:
-                if stn.dictionary not in self.use and stn.dictionary not in self.exclude:
-                    self.exclude += [stn.dictionary]
+            print ' >> Preserving the existing stack'
+            print ' >> Determining differences between current stack and GAMIT solutions for project %s...' % project
 
-        # get the epochs
-        rs = cnn.query('SELECT "Year", "DOY" FROM gamit_soln '
-                       'WHERE "Project" = \'%s\' GROUP BY "Year", "DOY" ORDER BY "Year", "DOY"' % name)
+            # load the vertices that don't have differences wrt to the GAMIT solution
+            stack_vertices = self.cnn.query_float(
+                'SELECT "NetworkCode" || \'.\' || "StationCode", "X", "Y", "Z", "Year", "DOY", "FYear" FROM stacks '
+                'WHERE ("Year", "DOY") NOT IN ('
+                ' SELECT "Year", "DOY" FROM ('
+                ' SELECT "NetworkCode", "StationCode", "Year", "DOY", \'not in stack\' '
+                '  AS note FROM gamit_soln WHERE "Project" = \'%s\' EXCEPT '
+                ' SELECT "NetworkCode", "StationCode", "Year", "DOY", \'not in stack\' '
+                '  AS note FROM stacks WHERE "Project" = \'%s\''
+                ' ) AS missing_stack GROUP BY "Year", "DOY" ORDER BY "Year", "DOY") AND '
+                '"Project" = \'%s\' ORDER BY "NetworkCode", "StationCode"' % (project, project, project))
 
-        rs = rs.dictresult()
-        self.epochs = [Date(year=item['Year'], doy=item['DOY']) for item in rs]
+            print ' >> Loading pre-existing stack for project %s' % project
 
-        # load the polyhedrons
-        self.polyhedrons = []
+            # load the vertices that were different
+            gamit_vertices = self.cnn.query_float(
+                'SELECT "NetworkCode" || \'.\' || "StationCode", "X", "Y", "Z", "Year", "DOY", "FYear" FROM gamit_soln '
+                'WHERE ("Year", "DOY") IN ('
+                ' SELECT "Year", "DOY" FROM ('
+                ' SELECT "NetworkCode", "StationCode", "Year", "DOY", \'not in stack\' '
+                '  AS note FROM gamit_soln WHERE "Project" = \'%s\' EXCEPT '
+                ' SELECT "NetworkCode", "StationCode", "Year", "DOY", \'not in stack\' '
+                '  AS note FROM stacks WHERE "Project" = \'%s\''
+                ' ) AS missing_stack GROUP BY "Year", "DOY" ORDER BY "Year", "DOY") AND '
+                '"Project" = \'%s\' ORDER BY "NetworkCode", "StationCode"' % (project, project, project))
 
-        print ' >> Loading polyhedrons. Please wait...'
+            self.stack_vertices = np.array(stack_vertices, dtype=[('stn', 'S8'), ('x', 'float64'), ('y', 'float64'),
+                                                                  ('z', 'float64'), ('yr', 'i4'), ('dd', 'i4'),
+                                                                  ('fy', 'float64')])
 
-        self.polyhedrons = cnn.query_float('SELECT * FROM gamit_soln WHERE "Project" = \'%s\' '
-                                           'ORDER BY "Year", "DOY", "NetworkCode", "StationCode"' % name, as_dict=True)
+            self.gamit_vertices = np.array(gamit_vertices, dtype=[('stn', 'S8'), ('x', 'float64'), ('y', 'float64'),
+                                                                  ('z', 'float64'), ('yr', 'i4'), ('dd', 'i4'),
+                                                                  ('fy', 'float64')])
 
-        # load the transformations, if any
+            dates = self.cnn.query_float('SELECT "Year", "DOY" FROM stacks WHERE "Project" = \'%s\' UNION '
+                                         'SELECT "Year", "DOY" FROM gamit_soln WHERE "Project" = \'%s\' '
+                                         'ORDER BY "Year", "DOY"' % (project, project))
 
-        # load the metadata (stabilization sites)
+            self.dates = [Date(year=d[0], doy=d[1]) for d in dates]
 
-    def plot_etms(self):
+            self.stations = self.cnn.query_float('SELECT "NetworkCode", "StationCode" FROM gamit_soln '
+                                                 'WHERE "Project" = \'%s\' UNION '
+                                                 'SELECT "NetworkCode", "StationCode" FROM stacks '
+                                                 'WHERE "Project" = \'%s\' UNION '
+                                                 'ORDER BY "NetworkCode", "StationCode"'
+                                                 % (project, project), as_dict=True)
 
-        qbar = tqdm(total=len(self.stnlist), desc=' >> Plotting ETMs', ncols=160)
+            for d in tqdm(self.dates, ncols=160, desc=project):
+                try:
+                    self.append(Polyhedron(self.stack_vertices, project, d, aligned=True))
 
-        for station in self.stnlist:
+                except ValueError:
+                    self.append(Polyhedron(self.gamit_vertices, project, d, aligned=False))
 
-            qbar.set_postfix(station=str(station))
-            qbar.update()
+    def get_station(self, NetworkCode, StationCode):
+        """
+        Obtains the time series for a given station
+        :param NetworkCode:
+        :param StationCode:
+        :return: a numpy array with the time series [x, y, z, yr, doy, fyear]
+        """
 
+        stnstr = NetworkCode + '.' + StationCode
+
+        ts = []
+
+        for poly in self:
+            p = poly.vertices[poly.vertices['stn'] == stnstr]
+            if p.size:
+                ts.append([p['x'][0], p['y'][0], p['z'][0], p['yr'][0], p['dd'][0], p['fy'][0]])
+
+        return np.array(ts)
+
+    def calculate_etms(self):
+        """
+        Estimates the trajectory models for all stations in the stack
+        :return:
+        """
+        print ' >> Calculating ETMs for %s...' % self.project
+
+        for s in tqdm(self.stations, ncols=160, desc=self.project):
+
+            ts = self.get_station(s['NetworkCode'], s['StationCode'])
             try:
-                stn_ts = [[item['X'], item['Y'], item['Z'], item['Year'], item['DOY']] for item in self.polyhedrons
-                          if item['NetworkCode'] == station.NetworkCode and item['StationCode'] == station.StationCode]
+                tqdm.postfix = s['NetworkCode'] + '.' + s['StationCode']
 
-                # make sure it is sorted by date
-                stn_ts.sort(key=lambda k: (k[3], k[4]))
-
-                # save the time series
-                ts = pyETM.GamitSoln(self.cnn, stn_ts, station.NetworkCode, station.StationCode)
-
-                # create the ETM object
-                etm = pyETM.GamitETM(self.cnn, station.NetworkCode, station.StationCode, False, False, ts)
-
-                etm.plot(pngfile='%s/%s.%s_RR.png' % (self.name, etm.NetworkCode, etm.StationCode),
-                         residuals=True, plot_missing=False)
-
-                etm.plot(pngfile='%s/%s.%s_FF.png' % (self.name, etm.NetworkCode, etm.StationCode),
-                         residuals=False, plot_missing=False)
+                # ts = pyETM.GamitSoln(self.cnn, ts, s['NetworkCode'], s['StationCode'])
 
             except pyETM.pyETMException as e:
+                tqdm.write(' -- ' + str(e))
 
-                qbar.write(' -- %s %s' % (str(station), str(e)))
 
-        qbar.close()
+class Polyhedron(object):
+    def __init__(self, vertices, project, date, rot=True, scale=True, aligned=False):
 
-    def remove_common_modes(self, cnn):
+        self.project = project
+        self.date = date
+        self.aligned = aligned
+        self.helmert = None
+        self.wrms = None
 
-        tqdm.write(' >> Removing periodic common modes...')
+        # initialize the vertices of the polyhedron
+        # self.vertices = [v for v in vertices if v[5] == date.year and v[6] == date.doy]
 
-        # load all the periodic terms
-        etm_objects = cnn.query_float('SELECT etmsv2."NetworkCode", etmsv2."StationCode", stations.lat, stations.lon, '
-                                      'frequencies as freq, params FROM etmsv2 '
-                                      'LEFT JOIN stations ON '
-                                      'etmsv2."NetworkCode" = stations."NetworkCode" AND '
-                                      'etmsv2."StationCode" = stations."StationCode" '
-                                      'WHERE "object" = \'periodic\' AND soln = \'gamit\' '
-                                      'AND frequencies <> \'{}\' '
-                                      'ORDER BY etmsv2."NetworkCode", etmsv2."StationCode"', as_dict=True)
+        self.vertices = vertices[np.logical_and(vertices['yr'] == date.year, vertices['dd'] == date.doy)]
 
-        # load the frequencies to subtract
-        frequencies = cnn.query_float('SELECT frequencies FROM etmsv2 WHERE soln = \'gamit\' AND object = \'periodic\' '
-                                      'AND frequencies <> \'{}\' GROUP BY frequencies', as_dict=True)
+        if not self.vertices.size:
+            raise ValueError('No polyhedron data found for ' + str(date))
 
-        # get the unique list of frequencies
-        f_vector = []
+        self.rows = self.vertices.shape[0]
 
-        for freq in frequencies:
-            f_vector += [f for f in freq['frequencies']]
+        # create the design matrix for this day
+        rx = np.array([np.zeros(self.rows), -self.vertices['z'], self.vertices['y']]).transpose() * 1e-9
+        ry = np.array([self.vertices['z'], np.zeros(self.rows), -self.vertices['x']]).transpose() * 1e-9
+        rz = np.array([-self.vertices['y'], self.vertices['x'], np.zeros(self.rows)]).transpose() * 1e-9
 
-        f_vector = numpy.array(list(set(f_vector)))
+        tx = np.array([np.ones(self.rows), np.zeros(self.rows), np.zeros(self.rows)]).transpose()
+        ty = np.array([np.zeros(self.rows), np.ones(self.rows), np.zeros(self.rows)]).transpose()
+        tz = np.array([np.zeros(self.rows), np.zeros(self.rows), np.ones(self.rows)]).transpose()
 
-        ox = numpy.zeros((len(f_vector), len(etm_objects), 2))
-        oy = numpy.zeros((len(f_vector), len(etm_objects), 2))
-        oz = numpy.zeros((len(f_vector), len(etm_objects), 2))
-
-        for s, p in enumerate(etm_objects):
-            params = numpy.array(p['params'])
-            params = params.reshape((3, params.shape[0] / 3))
-            param_count = params.shape[1] / 2
-
-            # convert from NEU to XYZ
-            for j in range(params.shape[1]):
-                params[:, j] = numpy.array(lg2ct(params[0, j], params[1, j], params[2, j],
-                                                 p['lat'], p['lon'])).flatten()
-
-            for i, f in enumerate(p['freq']):
-                ox[f_vector == f, s] = params[0, i:i+param_count+1:param_count]
-                oy[f_vector == f, s] = params[1, i:i+param_count+1:param_count]
-                oz[f_vector == f, s] = params[2, i:i+param_count+1:param_count]
-
-        # build the design matrix
-        sql_where = ','.join(["'" + stn['NetworkCode'] + '.' + stn['StationCode'] + "'" for stn in etm_objects])
-
-        x = cnn.query_float('SELECT 0, -auto_z, auto_y, 1, 0, 0 FROM stations WHERE "NetworkCode" || \'.\' || '
-                            '"StationCode" IN (%s) ORDER BY "NetworkCode", "StationCode"' % sql_where)
-
-        y = cnn.query_float('SELECT auto_z, 0, -auto_x, 0, 1, 0 FROM stations WHERE "NetworkCode" || \'.\' || '
-                            '"StationCode" IN (%s) ORDER BY "NetworkCode", "StationCode"' % sql_where)
-
-        z = cnn.query_float('SELECT -auto_y, auto_x, 0, 0, 0, 1 FROM stations WHERE "NetworkCode" || \'.\' || '
-                            '"StationCode" IN (%s) ORDER BY "NetworkCode", "StationCode"' % sql_where)
-        Ax = numpy.array(x)
-        Ay = numpy.array(y)
-        Az = numpy.array(z)
-
-        A = numpy.row_stack((Ax, Ay, Az))
-
-        # select everybody (not just the stations with ETMs)
-        x = cnn.query_float('SELECT 0, -"Z", "Y", 1, 0, 0 FROM stacks WHERE "Project" = \'%s\' '
-                            'ORDER BY "NetworkCode", "StationCode", "FYear"' % self.name)
-
-        y = cnn.query_float('SELECT "Z", 0, -"X", 0, 1, 0 FROM stacks WHERE "Project" = \'%s\' '
-                            'ORDER BY "NetworkCode", "StationCode", "FYear"' % self.name)
-
-        z = cnn.query_float('SELECT -"Y", "X", 0, 0, 0, 1 FROM stacks WHERE "Project" = \'%s\' '
-                            'ORDER BY "NetworkCode", "StationCode", "FYear"' % self.name)
-
-        t = cnn.query_float('SELECT "FYear", "X", "Y", "Z" FROM stacks WHERE "Project" = \'%s\' '
-                            'ORDER BY "NetworkCode", "StationCode", "FYear"' % self.name)
-
-        metadata = cnn.query('SELECT "NetworkCode", "StationCode", "Year", "DOY" FROM stacks '
-                             'WHERE "Project" = \'%s\' ORDER BY "NetworkCode", "StationCode", "FYear"'
-                             % self.name)
-
-        metadata = metadata.dictresult()
-        AX = numpy.array(x)
-        AY = numpy.array(y)
-        AZ = numpy.array(z)
-
-        t = numpy.array(t)
-
-        for freq in f_vector:
-            for i, cs in enumerate((numpy.sin, numpy.cos)):
-                L = numpy.row_stack((ox[f_vector == freq, :, i].flatten(),
-                                     oy[f_vector == freq, :, i].flatten(),
-                                     oz[f_vector == freq, :, i].flatten())).flatten()
-
-                c = numpy.linalg.lstsq(A, L, rcond=-1)[0]
-
-                # subtract the inverted common modes
-                t[:, 1] = t[:, 1] - cs(2 * pi * freq * 365.25 * t[:, 0]) * numpy.dot(AX, c)
-                t[:, 2] = t[:, 2] - cs(2 * pi * freq * 365.25 * t[:, 0]) * numpy.dot(AY, c)
-                t[:, 3] = t[:, 3] - cs(2 * pi * freq * 365.25 * t[:, 0]) * numpy.dot(AZ, c)
-
-        polyhedron = []
-
-        for i, stn in enumerate(metadata):
-            polyhedron += [{'NetworkCode': stn['NetworkCode'],
-                            'StationCode': stn['StationCode'],
-                            'X': t[i][1], 'Y': t[i][2], 'Z': t[i][3],
-                            'Year': stn['Year'], 'DOY': stn['DOY'], 'FYear': t[i][0]}]
-
-        return polyhedron
-
-
-class Polyhedron:
-
-    def __init__(self, cnn, project, date):
-
-        self.epoch = date
-
-        fieldnames = ['NetworkCode', 'StationCode', 'X', 'Y', 'Z', 'Year', 'DOY', 'sigmax', 'sigmay', 'sigmaz',
-                      'sigmaxy', 'sigmaxz', 'sigmayz']
-
-        self.geometry = dict.fromkeys(fieldnames)
-
-        rs = cnn.query('SELECT * FROM gamit_soln WHERE "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i'
-                       % (project, date.year, date.doy))
-
-        for record in rs.dictresult():
-            for key in self.geometry.keys():
-                self.geometry[key] = record[key]
-
-
-def align_stack(cnn, project, JobServer):
-
-    for i in range(project.max_iters):
-
-        # add one to the iteration count
-        project.iter += 1
-
-        qbar = tqdm(total=len(project.epochs),
-                    desc=' >> Aligning polyhedrons (iteration: %i)' % project.iter, ncols=160)
-
-        # list for aligned polyhedron objects
-        AlignedList = []
-        # updated polyhedrons list
-        updated_poly = []
-
-        for date in project.epochs:
-
-            if JobServer is not None:
-
-                JobServer.SubmitJob(helmert_stack, (project.name, date, project.exclude), (adjust_lsq,),
-                                    ('numpy', 'pyDate', 'dbConnection', 'traceback'),
-                                    AlignedList, AlignClass(qbar), 'finalize')
-
-                if JobServer.process_callback:
-                    JobServer.job_server.wait()
-                    JobServer.process_callback = False
-            else:
-
-                x, poly, dd, stations_used, iterations, index, P, factor, v, msg = helmert_stack(
-                    project.name, date, project.exclude)
-
-                if msg is None:
-                    qbar.write(' -- %s (%3i) %2i it: translation (mm mm mm) scale: (%6.1f %6.1f %6.1f) %10.2e' %
-                               (date.yyyyddd(), stations_used, iterations, x[-3] * 1000,
-                                x[-2] * 1000, x[-1] * 1000, x[-4]))
-                else:
-                    qbar.write(' -- %s' % msg)
-
-                updated_poly += poly
-
-        # dictionary to save the stats of the alignment
-        stats_dict = dict()
-
-        if JobServer is not None:
-            qbar.write(' -- Waiting for alignments to finish...')
-            JobServer.job_server.wait()
-            qbar.write(' -- Done.')
-
-            for doy in AlignedList:
-                updated_poly += doy.polyhedron
-                stats_dict[doy.date.yyyyddd()] = {'residuals': doy.residuals,
-                                                  'iterations': doy.iterations,
-                                                  'stations': [p['NetworkCode'] + '.' +
-                                                               p['StationCode'] for p in doy.polyhedron],
-                                                  'index': doy.index,
-                                                  'weights': doy.weights,
-                                                  'used_stations': doy.stations_used,
-                                                  'wrms': doy.wrms,
-                                                  'date': doy.date.yyyyddd(),
-                                                  'helmert': doy.x.tolist()}
-
-        project.json['iter_' + str(project.iter)] = stats_dict
-
-        # sort the polyhedrons by date
-        updated_poly.sort(key=lambda k: k['FYear'])
-
-        # replace with new polyhedrons
-        project.polyhedrons = updated_poly
-
-        qbar.close()
-
-        calculate_etms(cnn, project, JobServer)
-
-    print ' >> Dumping alignment stats to json file...'
-    with open(os.path.join('./', project.name + '.json'), 'w') as f:
-        json.dump(project.json, f, indent=4, sort_keys=False)
-
-
-def calculate_etms(cnn, project, JobServer):
-
-    qbar = tqdm(total=len(project.stnlist), desc=' >> Calculating ETMs', ncols=160)
-
-    etm_list = []
-
-    # delete the stack residuals for this project
-    cnn.query('DELETE FROM stack_residuals WHERE "Project" = \'%s\'' % project.name)
-    cnn.query('DELETE FROM stacks WHERE "Project" = \'%s\'' % project.name)
-
-    # delete all the solutions from the ETMs table
-    cnn.query('DELETE FROM etmsv2 WHERE "soln" = \'gamit\'')
-
-    for station in project.stnlist:
-
-        if station.dictionary in project.exclude or station.dictionary not in project.use:
-            exclude = True
+        if rot:
+            self.Ax = np.concatenate((rx, tx), axis=1)
+            self.Ay = np.concatenate((ry, ty), axis=1)
+            self.Az = np.concatenate((rz, tz), axis=1)
         else:
-            exclude = False
+            self.Ax = tx
+            self.Ay = ty
+            self.Az = tz
 
-        # extract the time series from the polyhedron data
-        stn_ts = [[item['X'], item['Y'], item['Z'], item['Year'], item['DOY'],
-                   item['FYear']] for item in project.polyhedrons
-                  if item['NetworkCode'] == station.NetworkCode and item['StationCode'] == station.StationCode]
+        if scale:
+            self.Ax = np.concatenate((self.Ax, self.vertices['x'][np.newaxis].transpose() * 1e-9), axis=1)
+            self.Ay = np.concatenate((self.Ay, self.vertices['y'][np.newaxis].transpose() * 1e-9), axis=1)
+            self.Az = np.concatenate((self.Az, self.vertices['z'][np.newaxis].transpose() * 1e-9), axis=1)
 
-        if JobServer is not None:
+    def align(self, target):
+        """
+        Align to another polyhedron object using a Helmert transformation defined
+        during the initialization of the object
+        :param target: polyhedron object
+        :return: aligned polyhedron and residuals
+        """
 
-            JobServer.SubmitJob(station_etm, (project.name, station, stn_ts, exclude, project.iter), (),
-                                ('pyETM', 'pyDate', 'dbConnection', 'traceback'),
-                                etm_list, EtmClass(qbar), 'finalize')
+        # figure out common stations
+        intersect = np.intersect1d(target.vertices['stn'], self.vertices['stn'])
 
-            if JobServer.process_callback:
-                JobServer.process_callback = False
-        else:
+        # target filter
+        ft = np.isin(target.vertices['stn'], intersect)
+        # local filter
+        fl = np.isin(self.vertices['stn'], intersect)
+        # get vertices
+        st = target.vertices[ft]
+        sl = self.vertices[fl]
 
-            etm_list += [EtmClass(qbar)]
+        # obtain residuals
+        rx = st['x'] - sl['x']
+        ry = st['y'] - sl['y']
+        rz = st['z'] - sl['z']
 
-            etm_list[-1].finalize(station_etm(project.name, station, stn_ts, exclude, project.iter))
+        # get the design matrix portion
+        Ax = self.Ax[fl]
+        Ay = self.Ay[fl]
+        Az = self.Az[fl]
 
-    if JobServer is not None:
-        qbar.write(' -- Waiting for jobs to finish...')
-        JobServer.job_server.wait()
-        qbar.write(' -- Done.')
+        A = np.concatenate((Ax, Ay, Az), axis=0)
+        r = np.concatenate((rx, ry, rz), axis=0)
 
-    for etm in etm_list:
-        project.exclude += etm.exclude
+        # invert
+        c, _, index, v, wrms, P, it = adjust_lsq(A, r)
 
-    qbar.close()
+        # apply result to everyone
+        x = np.dot(np.concatenate((self.Ax, self.Ay, self.Az), axis=0), c).reshape((3, self.rows)).transpose()
+
+        self.vertices['x'] += x[:, 0]
+        self.vertices['y'] += x[:, 1]
+        self.vertices['z'] += x[:, 2]
+
+        self.aligned = True
+        self.helmert = c
+        self.wrms = wrms
 
 
 def main():
 
-    parser = argparse.ArgumentParser(description='GNSS time series stacker')
-
-    parser.add_argument('project', type=str, nargs=1, metavar='{project name}',
-                        help="Specify the project name used to process the GAMIT solutions in Parallel.GAMIT.")
-    parser.add_argument('-max', '--max_iters', nargs=1, type=int, metavar='{max_iter}',
-                        help="Specify maximum number of iterations. Default is 4.")
-    parser.add_argument('-exclude', '--exclude_stations', nargs='+', type=str, metavar='{net.stnm}',
-                        help="Manually specify stations to remove from the stacking process.")
-    parser.add_argument('-use', '--use_stations', nargs='+', type=str, metavar='{net.stnm}',
-                        help="Manually specify stations to use for the stacking process.")
-    parser.add_argument('-np', '--noparallel', action='store_true', help="Execute command without parallelization.")
-
-    args = parser.parse_args()
-
     cnn = dbConnection.Cnn("gnss_data.cfg")
-    Config = pyOptions.ReadOptions("gnss_data.cfg")  # type: pyOptions.ReadOptions
 
-    if not args.noparallel:
-        JobServer = pyJobServer.JobServer(Config, run_node_test=False)  # type: pyJobServer.JobServer
-    else:
-        JobServer = None
-        Config.run_parallel = False
+    stack = Stack(cnn, 'igs-sirgas', redo=True)
 
-    # create the execution log
-    # cnn.insert('executions', script='pyStack.py')
+    stack.calculate_etms()
 
-    if args.max_iters:
-        max_iters = int(args.max_iters[0])
-    else:
-        max_iters = 4
+    for i in tqdm(range(1, len(stack)), ncols=160):
+        stack[i].align(stack[i - 1])
 
-    if args.exclude_stations:
-        exclude_stn = args.exclude_stations
-    else:
-        exclude_stn = []
+    net = 'igs'
+    stn = 'braz'
 
-    if args.use_stations:
-        use_stn = args.use_stations
-    else:
-        use_stn = []
+    ts = stack.get_station(net, stn)
 
-    # create folder for plots
+    dts = np.append(np.diff(ts[:, 0:3], axis=0), ts[1:, -3:], axis=1)
 
-    if not os.path.isdir(args.project[0]):
-        os.makedirs(args.project[0])
+    ts = pyETM.GamitSoln(cnn, dts, net, stn)
 
-    ########################################
-    # load polyhedrons
-
-    project = Project(cnn, args.project[0], max_iters, use=use_stn, exclude=exclude_stn)
-
-    #project.remove_common_modes(cnn)
-    #exit()
-
-    calculate_etms(cnn, project, JobServer)
-
-    align_stack(cnn, project, JobServer)
-
-    # remove common modes
-    updated_poly = project.remove_common_modes(cnn)
-    updated_poly.sort(key=lambda k: k['FYear'])
-
-    # replace with new polyhedrons
-    project.polyhedrons = updated_poly
-    # last call to calculate ETMs
-    calculate_etms(cnn, project, JobServer)
-
-    tqdm.write(' -- Plotting final ETMs (aligned)...')
-
-    project.plot_etms()
+    pyETM.GamitETM(cnn, net, stn, True, gamit_soln=ts)
 
 
 if __name__ == '__main__':
+
     main()
