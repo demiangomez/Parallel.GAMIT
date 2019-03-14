@@ -6,12 +6,13 @@ Author: Demian D. Gomez
 This module handles the cluster nodes and checks all the necessary dependencies before sending jobs to each node
 """
 
-import pp
 import time
-import Utils
-import cPickle as pickle
-import inspect
-import types
+import dispy
+import dispy.httpd
+from tqdm import tqdm
+from functools import partial
+
+DELAY = 5
 
 
 def test_node(check_gamit_tables=None):
@@ -214,143 +215,210 @@ def test_node(check_gamit_tables=None):
     return ' -- %s: Test passed!' % (platform.node())
 
 
+def setup(modules):
+    """
+    function to import modules in the nodes
+    :return: nothing
+    """
+    for module in modules:
+        module_obj = __import__(module)
+        # create a global object containing our module
+        globals()[module] = module_obj
+
+    return 0
+
+
 class JobServer:
-    def __init__(self, Config, max_jobs=300, check_gamit_tables=None, run_node_test=True):
 
-        self.__sfuncHM = {}
-        self.__sourcesHM = {}
-        self.__pickle_proto = 2
+    def check_cluster(self, status, node, job):
 
-        self.process_callback = False
-        self.jobs = 0
-        self.MAX_JOBS = max_jobs
-        self.workers = 0
+        if status == dispy.DispyNode.Initialized:
+            print ' -- Checking node %s (%i CPUs)...' % (node.name, node.avail_cpus)
+            # test node to make sure everything works
+            self.cluster.send_file('gnss_data.cfg', node)
 
-        # test the local node
-        print " ==== Starting JobServer(pp) ===="
-        print " >> Checking requirements at the local node..."
+            j = self.cluster.submit_node(node, self.check_gamit_tables)
 
-        if run_node_test:
-            result = test_node(check_gamit_tables)
-        else:
-            result = ' -- local: Test passed!'
+            self.cluster.wait()
 
-        print result
+            self.result.append(j())
 
-        if 'Test passed!' not in result:
-            print ' >> The local node did not pass all the required tests. Check messages.'
-            exit()
+            self.nodes.append(node)
+
+    def __init__(self, Config, check_gamit_tables=None, run_parallel=True):
+        """
+        initialize the jobserver
+        :param Config: pyOptions.ReadOptions instance
+        :param check_gamit_tables: check or not the tables in GAMIT
+        :param run_parallel: override the configuration in gnss_data.cfg
+        """
+        self.check_gamit_tables = check_gamit_tables
+
+        self.nodes = []
+        self.result = []
+        self.jobs = []
+        self.run_parallel = Config.run_parallel if run_parallel else False
+        self.verbose = False
+        self.close = False
+
+        # vars to store the http_server and the progress bar (if needed)
+        self.progress_bar = None
+        self.http_server = None
+        self.callback = None
+        self.function = None
+        self.modules = []
+
+        print " ==== Starting JobServer(dispy) ===="
 
         # check that the run_parallel option is activated
-        if Config.run_parallel:
+        if self.run_parallel:
             if Config.options['node_list'] is None:
                 # no explicit list, find all
-                ppservers = ('*',)
+                servers = ['*']
             else:
                 # use the provided explicit list of nodes
                 if Config.options['node_list'].strip() == '':
-                    ppservers = tuple()
+                    servers = ['*']
                 else:
-                    ppservers = filter(None, tuple(Config.options['node_list'].split(',')))
+                    servers = filter(None, list(Config.options['node_list'].split(',')))
 
-            # limit execution on the local machine to 'cpus'
-            if Config.options['cpus'] is None:
-                self.job_server = pp.Server(ncpus=Utils.get_processor_count(), ppservers=ppservers,
-                                            socket_timeout=9000)  # type: pp.Server
-            else:
-                self.job_server = pp.Server(ncpus=int(Config.options['cpus']), ppservers=ppservers,
-                                            socket_timeout=9000)  # type: pp.Server
+            # initialize the cluster
+            self.cluster = dispy.JobCluster(test_node, servers, recover_file='pg.dat', pulse_interval=60,
+                                            cluster_status=self.check_cluster)
+            # discover the available nodes
+            self.cluster.discover_nodes(servers)
 
-            # sleep to allow the nodes to respond to the TCP request
-            time.sleep(2)
-
-            print " >> Checking requirements at the remote nodes..."
-
-            # pickle the test_node function and (empty) arguments
-            f = self.__dumpsfunc((test_node,), tuple())
-            sargs = pickle.dumps((check_gamit_tables,), self.__pickle_proto)
+            # wait for all nodes
+            time.sleep(DELAY)
 
             stop = False
-            for node in self.job_server.autopp_list.keys():
-                node_ip_port = node.split(':')
 
-                # open a worker for this node
-                rworker = pp._RWorker(node_ip_port[0], int(node_ip_port[1]), pp.Server.default_secret,
-                                      self.job_server, "EXEC", True, 10)
-
-                try:
-                    rworker.csend(f)
-                    rworker.send(sargs)
-                    result = rworker.receive()
-                    result, sout = pickle.loads(result)
-
-                    if 'Test passed!' not in result:
-                        stop = True
-                    # print the messages
-                    print result
-
-                except Exception as e:
-                    print ' >> Error during rworker test: ' + str(e)
-
-                rworker.close()
+            for r in self.result:
+                if 'Test passed!' not in r:
+                    print r
+                    stop = True
 
             if stop:
-                print ' >> Errors where encountered during the job server initialization. Check messages.'
+                print ' >> Errors were encountered during initialization. Check messages.'
                 # terminate execution if problems were found
+                self.cluster.close()
                 exit()
-            else:
-                print " >> Parallel Python started with the following nodes:"
-                nodes = self.job_server.get_active_nodes()
-                print " -- IP/Name               CPUs"
-                for node in nodes:
-                    print "    %-21s %i" % (node, nodes[node])
-                    self.workers += nodes[node]
-                print ""
 
+            self.cluster.close()
         else:
-            self.job_server = None
+            print ' >> Parallel processing deactivated by user'
+            r = test_node(check_gamit_tables)
+            if 'Test passed!' not in r:
+                print r
+                print ' >> Errors were encountered during initialization. Check messages.'
+                exit()
 
-    def SubmitJob(self, funcs, args, depfuncs, modules, callback_list, callback_obj, callback_func_name):
+    def create_cluster(self, function, dependencies=(), callback=None, progress_bar=None, verbose=False, modules=()):
 
-        self.jobs += 1
-        callback_list.append(callback_obj)
+        self.nodes = []
+        self.jobs = []
+        self.callback = callback
+        self.function = function
+        self.verbose = verbose
+        self.close = True
 
-        self.job_server.submit(funcs, args, depfuncs, modules, getattr(callback_list[-1], callback_func_name))
+        if self.run_parallel:
+            self.cluster = dispy.JobCluster(function, self.nodes, list(dependencies), callback, self.cluster_status,
+                                            pulse_interval=60, setup=partial(setup, modules),
+                                            loglevel=dispy.logger.CRITICAL)
 
-        if self.jobs >= self.MAX_JOBS:
-            self.jobs = 0
-            self.job_server.wait()
-            self.process_callback = True
+            self.http_server = dispy.httpd.DispyHTTPServer(self.cluster, poll_sec=2)
 
-    def __dumpsfunc(self, funcs, modules):
-        """Serializes functions and modules"""
-        hashs = hash(funcs + modules)
-        if hashs not in self.__sfuncHM:
-            sources = [self.__get_source(func) for func in funcs]
-            self.__sfuncHM[hashs] = pickle.dumps(
-                    (funcs[0].func_name, sources, modules),
-                    self.__pickle_proto)
-        return self.__sfuncHM[hashs]
+            # wait for all nodes to be created
+            time.sleep(DELAY)
 
-    def __get_source(self, func):
-        """Fetches source of the function"""
-        hashf = hash(func)
-        if hashf not in self.__sourcesHM:
-            #get lines of the source and adjust indent
-            sourcelines = inspect.getsourcelines(func)[0]
-            #remove indentation from the first line
-            sourcelines[0] = sourcelines[0].lstrip()
-            self.__sourcesHM[hashf] = "".join(sourcelines)
-        return self.__sourcesHM[hashf]
+        self.progress_bar = progress_bar
 
-    def __find_modules(self, prefix, dict):
-        """recursively finds all the modules in dict"""
-        modules = []
-        for name, object in dict.items():
-            if isinstance(object, types.ModuleType) \
-                    and name not in ("__builtins__", "pp"):
-                if object.__name__ == prefix+name or prefix == "":
-                    modules.append(object.__name__)
-                    modules.extend(self.__find_modules(
-                            object.__name__+".", object.__dict__))
-        return modules
+    def submit(self, *args):
+        """
+        function to submit jobs to dispy. If run_parallel == False, the jobs are executed
+        :param args:
+        :return:
+        """
+        if self.run_parallel:
+            self.jobs.append(self.cluster.submit(*args))
+        else:
+            # if no parallel was invoked, execute the procedure manually
+            if self.callback is not None:
+                job = dispy.DispyJob(args, ())
+                try:
+                    job.result = self.function(*args)
+                    if self.progress_bar is not None:
+                        self.progress_bar.update()
+                except Exception as e:
+                    job.exception = e
+                self.callback(job)
+            else:
+                self.function(*args)
+
+    def wait(self):
+        """
+        wrapped function to wait for cluster execution
+        :return: none
+        """
+        if self.run_parallel:
+            tqdm.write(' -- Waiting for jobs to finish...')
+            try:
+                self.cluster.wait()
+                # let the process trigger cluster_status before letting the calling proc close the progress bar
+                time.sleep(DELAY)
+            except KeyboardInterrupt:
+                for job in self.jobs:
+                    if job.status in (dispy.DispyJob.Running, dispy.DispyJob.Created):
+                        self.cluster.cancel(job)
+                self.cluster.shutdown()
+
+    def close_cluster(self):
+        if self.run_parallel and self.close:
+            tqdm.write('')
+            self.http_server.shutdown()
+            self.cleanup()
+
+    def cluster_status(self, status, node, job):
+
+        # update the status in the http_server
+        self.http_server.cluster_status(self.http_server._clusters[self.cluster.name], status, node, job)
+
+        if status == dispy.DispyNode.Initialized:
+            tqdm.write(' -- Node %s initialized with %i CPUs' % (node.name, node.avail_cpus))
+            # test node to make sure everything works
+            self.cluster.send_file('gnss_data.cfg', node)
+            self.nodes.append(node)
+            return
+
+        if job is not None:
+            if status == dispy.DispyJob.Finished and self.verbose:
+                tqdm.write(' -- Job %i finished successfully' % job.id)
+
+            elif status == dispy.DispyJob.Abandoned:
+                # always print abandoned jobs
+                tqdm.write(' -- Job %i was reported as abandoned -> resubmitting' % job.id)
+
+            elif status == dispy.DispyJob.Created and self.verbose:
+                tqdm.write(' -- Job %i has been created' % job.id)
+
+            elif status == dispy.DispyJob.Terminated and self.verbose:
+                tqdm.write(' -- Job %i has been terminated' % job.id)
+
+            if status in (dispy.DispyJob.Finished, dispy.DispyJob.Terminated) and self.progress_bar is not None:
+                self.progress_bar.update()
+
+    def cleanup(self):
+        if self.run_parallel and self.close:
+            self.cluster.print_status()
+            self.cluster.close()
+            self.close = False
+
+    def __del__(self):
+        self.cleanup()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.cleanup()
+
+    def __enter__(self):
+        return self

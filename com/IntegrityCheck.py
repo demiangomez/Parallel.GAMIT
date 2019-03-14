@@ -9,75 +9,6 @@ Integrity check utility of the database. Checks the following:
  - Searches for data gaps in the rinex table
  - Prints the station info records
  - renames or merges two stations into one
-
-usage: pyIntegrityCheck.py [-h] [-d date [date ...]] [-rinex] [-stnr] [-stns]
-                           [-stnp [ignore_days]] [-stnc] [-g [ignore_days]]
-                           [-sc {exclude,delete,noop}] [-print {long,short}]
-                           [-r net.stnm] [-np]
-                           all|net.stnm [all|net.stnm ...]
-
-Database integrity tools, metadata check and fixing tools program
-
-positional arguments:
-  all|net.stnm          List of networks/stations to process given in
-                        [net].[stnm] format or just [stnm] (separated by
-                        spaces; if [stnm] is not unique in the database, all
-                        stations with that name will be processed). Use
-                        keyword 'all' to process all stations in the database.
-                        If [net].all is given, all stations from network [net]
-                        will be processed. Alternatevily, a file with the
-                        station list can be provided.
-
-optional arguments:
-  -h, --help            show this help message and exit
-  -d date [date ...], --date_filter date [date ...]
-                        Date range filter for all operations. Can be specified
-                        in yyyy/mm/dd or yyyy.doy format
-  -rinex, --check_rinex
-                        Check the RINEX integrity of the archive-database by
-                        verifying that the RINEX files reported in the rinex
-                        table exist in the archive. If a RINEX file does not
-                        exist, remove the record. PPP records or gamit_soln
-                        are deleted.
-  -stnr, --station_info_rinex
-                        Check that the receiver serial number in the rinex
-                        headers agrees with the station info receiver serial
-                        number.
-  -stns, --station_info_solutions
-                        Check that the PPP hash values match the station info
-                        hash.
-  -stnp [ignore_days], --station_info_proposed [ignore_days]
-                        Output a proposed station.info using the RINEX
-                        metadata. Optional, specify [ignore_days] to ignore
-                        station.info records <= days.
-  -stnc, --station_info_check
-                        Check the consistency of the station information
-                        records in the database. Date range does not apply.
-                        Also, check that the RINEX files fall within a valid
-                        station information record.
-  -g [ignore_days], --data_gaps [ignore_days]
-                        Check the RINEX files in the database and look for
-                        gaps (missing days). Optional, [ignore_days] with the
-                        smallest gap to display.
-  -sc {exclude,delete,noop}, --spatial_coherence {exclude,delete,noop}
-                        Check that the RINEX files correspond to the stations
-                        they are linked to using their PPP coordinate. If
-                        keyword [exclude] or [delete], add the PPP solution to
-                        the excluded table or delete the PPP solution. If
-                        [noop], then only report but do not exlude or delete.
-  -print {long,short}, --print_stninfo {long,short}
-                        Output the station info to stdout. [long] outputs the
-                        full line of the station info. [short] outputs a short
-                        version (better for screen visualization).
-  -r net.stnm, --rename net.stnm
-                        Takes the data from the station list and renames
-                        (merges) it to net.stnm.It also changes the rinex
-                        filenames in the archive to match those of the new
-                        destiny station. Only a single station can be given as
-                        the origin and destiny. Limit the date range using the
-                        -d option.
-  -np, --noparallel     Execute command without parallelization.
-
 """
 
 import sys
@@ -94,7 +25,6 @@ import os
 import numpy
 import shutil
 import argparse
-from Utils import print_columns
 from Utils import process_date
 from Utils import ecef2lla
 from Utils import parse_atx_antennas
@@ -104,17 +34,18 @@ import platform
 import pyEvents
 from math import ceil
 
+differences = []
+rinex_css = []
 
-class stninfo_rinex():
 
-    def __init__(self,pbar):
-        self.error = None
-        self.pbar = pbar
+def stnrnx_callback(job):
 
-    def callbackfunc(self, result):
-        self.error = result[0]
-        self.diff = result[1]
-        self.pbar.update(1)
+    global differences
+
+    if job.result is not None:
+        differences.append(job.result)
+    else:
+        tqdm.write(job.exception)
 
 
 def compare_stninfo_rinex(NetworkCode, StationCode, STime, ETime, rinex_serial):
@@ -143,16 +74,22 @@ def compare_stninfo_rinex(NetworkCode, StationCode, STime, ETime, rinex_serial):
 
 def get_differences(differences):
 
-    err = [diff.error for diff in differences if diff.error]
+    def get_key(item):
+        return item[0]
+
+    err = [diff[0] for diff in differences if diff[0] is not None]
 
     # print out any error messages
     for error in err:
         sys.stdout.write(error + '\n')
 
-    return [diff.diff for diff in differences if not diff.diff is None]
+    dd = [diff[1] for diff in differences if diff[1] is not None]
+    dd.sort(key=get_key)
+
+    return dd
 
 
-def CheckRinexStn(NetworkCode, StationCode, start_date, end_date):
+def check_rinex_stn(NetworkCode, StationCode, start_date, end_date):
 
     # load the connection
     try:
@@ -205,46 +142,42 @@ def CheckRinexStn(NetworkCode, StationCode, start_date, end_date):
                StationCode + ' using node ' + platform.node(), None
 
 
-def CheckRinexIntegrity(stnlist, start_date, end_date, Config, JobServer):
+def CheckRinexIntegrity(stnlist, start_date, end_date, JobServer):
+
+    global rinex_css
 
     modules = ('os', 'pyArchiveStruct', 'dbConnection', 'pyOptions', 'traceback', 'platform', 'pyEvents')
 
-    pbar = tqdm(total=len(stnlist),ncols=80)
+    pbar = tqdm(total=len(stnlist), ncols=80)
     rinex_css = []
+
+    JobServer.create_cluster(check_rinex_stn, callback=stnrnx_callback, progress_bar=pbar, modules=modules)
 
     for stn in stnlist:
         StationCode = stn['StationCode']
         NetworkCode = stn['NetworkCode']
 
-        # distribute one station per job
-        if Config.run_parallel:
-            arguments = (NetworkCode, StationCode, start_date, end_date)
+        JobServer.submit(NetworkCode, StationCode, start_date, end_date)
 
-            JobServer.SubmitJob(CheckRinexStn, arguments, (), modules, rinex_css, stninfo_rinex(pbar), 'callbackfunc')
-
-            if JobServer.process_callback:
-                # collecting differences, nothing to be done!
-                JobServer.process_callback = False
-        else:
-            rinex_css.append(stninfo_rinex(pbar))
-            rinex_css[-1].callbackfunc(CheckRinexStn(NetworkCode, StationCode, start_date, end_date))
-
-    if Config.run_parallel:
-        JobServer.job_server.wait()
+    JobServer.wait()
 
     pbar.close()
 
     for rinex in rinex_css:
-        if rinex.diff:
-            for diff in rinex.diff:
+        if rinex[1]:
+            for diff in rinex[1]:
                 print('File ' + diff + ' was not found in the archive. See events for details.')
-        elif rinex.error:
-            print('Error encountered: ' + rinex.error)
+        elif rinex[0]:
+            print('Error encountered: ' + rinex[0])
 
 
-def StnInfoRinexIntegrity(cnn, stnlist, start_date, end_date, Config, JobServer):
+def StnInfoRinexIntegrity(cnn, stnlist, start_date, end_date, JobServer):
+
+    global differences
 
     modules = ('pyStationInfo', 'dbConnection', 'pyDate', 'traceback')
+
+    JobServer.create_cluster(compare_stninfo_rinex, callback=stnrnx_callback, modules=modules)
 
     for stn in stnlist:
 
@@ -261,42 +194,29 @@ def StnInfoRinexIntegrity(cnn, stnlist, start_date, end_date, Config, JobServer)
         tqdm.write('\nPerforming station info - rinex consistency '
                    'check for %s.%s...' % (NetworkCode, StationCode), file=sys.stderr)
         maxlen = 0
-
         pbar = tqdm(total=rs.ntuples())
+
+        JobServer.progress_bar = pbar
+
         differences = []
 
         for rnx in rnxtbl:
-
-            if Config.run_parallel:
-                arguments = (NetworkCode, StationCode, rnx['ObservationSTime'],
+            # for each rinex found in the table, submit a job
+            JobServer.submit(NetworkCode, StationCode, rnx['ObservationSTime'],
                              rnx['ObservationETime'], rnx['ReceiverSerial'].lower())
 
-                JobServer.SubmitJob(compare_stninfo_rinex, arguments, (), modules, differences,
-                                    stninfo_rinex(pbar), 'callbackfunc')
-
-                if JobServer.process_callback:
-                    # collecting differences, nothing to be done!
-                    JobServer.process_callback = False
-            else:
-                differences.append(stninfo_rinex(pbar))
-                differences[-1].callbackfunc(compare_stninfo_rinex(NetworkCode, StationCode,
-                                                                   rnx['ObservationSTime'],
-                                                                   rnx['ObservationETime'],
-                                                                   rnx['ReceiverSerial'].lower()))
-
-        if Config.run_parallel:
-            JobServer.job_server.wait()
-
-        diff_vect = get_differences(differences)
+        JobServer.wait()
 
         pbar.close()
+
+        diff_vect = get_differences(differences)
 
         sys.stdout.write("\nStation info - rinex consistency check for %s.%s follows:\n" % (NetworkCode, StationCode))
 
         year = ''
         doy = ''
         print_head = True
-        for i,diff in enumerate(diff_vect):
+        for i, diff in enumerate(diff_vect):
             year = Utils.get_norm_year_str(diff[0].year)
             doy = Utils.get_norm_doy_str(diff[0].doy)
 
@@ -463,17 +383,21 @@ def CheckSpatialCoherence(cnn, stnlist, start_date, end_date):
         StationCode = stn['StationCode']
 
         rs = cnn.query(
-            'SELECT * FROM ppp_soln WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "Year" || \' \' || "DOY" BETWEEN \'%s\' AND \'%s\'' % (NetworkCode, StationCode, start_date.yyyy() + ' ' + start_date.ddd(), end_date.yyyy() + ' ' + end_date.ddd()))
+            'SELECT * FROM ppp_soln WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND '
+            '"Year" || \' \' || "DOY" BETWEEN \'%s\' AND \'%s\''
+            % (NetworkCode, StationCode, start_date.yyyy() + ' ' + start_date.ddd(),
+               end_date.yyyy() + ' ' + end_date.ddd()))
 
         ppp = rs.dictresult()
 
         if rs.ntuples() > 0:
-            tqdm.write('\nChecking spatial coherence of PPP solutions for %s.%s...' % (NetworkCode,StationCode),sys.stderr)
+            tqdm.write('\nChecking spatial coherence of PPP solutions for %s.%s...'
+                       % (NetworkCode,StationCode), sys.stderr)
 
             for soln in tqdm(ppp):
                 year = soln['Year']
                 doy = soln['DOY']
-                date = pyDate.Date(year=year,doy=doy)
+                date = pyDate.Date(year=year, doy=doy)
 
                 # calculate lla of solution
                 lat, lon, h = ecef2lla([float(soln['X']), float(soln['Y']), float(soln['Z'])])
@@ -486,14 +410,19 @@ def CheckSpatialCoherence(cnn, stnlist, start_date, end_date):
                     if len(closest_stn) == 0:
                         if match[0]['NetworkCode'] != NetworkCode and match[0]['StationCode'] != StationCode:
                             # problem! we found a station but does not agree with the declared solution name
-                            tqdm.write('Warning! Solution for %s.%s %s is a match for %s.%s (only this candidate was found).\n' % (NetworkCode,StationCode,date.yyyyddd(),match[0]['NetworkCode'],match[0]['StationCode']))
+                            tqdm.write('Warning! Solution for %s.%s %s is a match for %s.%s '
+                                       '(only this candidate was found).\n'
+                                       % (NetworkCode, StationCode, date.yyyyddd(),
+                                          match[0]['NetworkCode'], match[0]['StationCode']))
                     else:
                         closest_stn = closest_stn[0]
                         tqdm.write(
-                            'Wanrning! Solution for %s.%s %s was found to be closer to %s.%s. Distance to %s.%s: %.3f m. Distance to %s.%s: %.3f m' % (
-                            NetworkCode, StationCode, date.yyyyddd(), closest_stn['NetworkCode'], closest_stn['StationCode'],
-                            closest_stn['NetworkCode'], closest_stn['StationCode'], closest_stn['distance'],
-                            match[0]['NetworkCode'], match[0]['StationCode'], match[0]['distance']))
+                            'Wanrning! Solution for %s.%s %s was found to be closer to %s.%s. '
+                            'Distance to %s.%s: %.3f m. Distance to %s.%s: %.3f m' % (
+                            NetworkCode, StationCode, date.yyyyddd(), closest_stn['NetworkCode'],
+                            closest_stn['StationCode'], closest_stn['NetworkCode'], closest_stn['StationCode'],
+                            closest_stn['distance'], match[0]['NetworkCode'], match[0]['StationCode'],
+                            match[0]['distance']))
 
                 else:
                     if len(match) == 1:
@@ -503,13 +432,18 @@ def CheckSpatialCoherence(cnn, stnlist, start_date, end_date):
 
                     elif len(match) > 1:
                         # No name match but there are candidates for the station
-                        matches = ', '.join(['%s.%s: %.3f m' % (m['NetworkCode'], m['StationCode'], m['distance']) for m in match])
-                        tqdm.write('Wanrning! Solution for %s.%s %s does not match its station code. Cantidates and distances found: %s' % (NetworkCode, StationCode, date.yyyyddd(),matches))
+                        matches = ', '.join(['%s.%s: %.3f m' % (m['NetworkCode'], m['StationCode'], m['distance'])
+                                             for m in match])
+                        tqdm.write('Wanrning! Solution for %s.%s %s does not match its station code. '
+                                   'Cantidates and distances found: %s'
+                                   % (NetworkCode, StationCode, date.yyyyddd(), matches))
                     else:
-                        tqdm.write(
-                            'Wanrning! PPP for %s.%s %s had no match within 100 m. Closest station is %s.%s (%3.f km, %s.%s %s PPP solution is: %.8f %.8f)' % (
-                            NetworkCode, StationCode, date.yyyyddd(), closest_stn[0]['NetworkCode'], closest_stn[0]['StationCode'],
-                            numpy.divide(float(closest_stn[0]['distance']), 1000), NetworkCode, StationCode, date.yyyyddd(),lat[0], lon[0]))
+                        tqdm.write('Wanrning! PPP for %s.%s %s had no match within 100 m. '
+                                   'Closest station is %s.%s (%3.f km, %s.%s %s PPP solution is: %.8f %.8f)'
+                                   % (NetworkCode, StationCode, date.yyyyddd(), closest_stn[0]['NetworkCode'],
+                                      closest_stn[0]['StationCode'],
+                                      numpy.divide(float(closest_stn[0]['distance']), 1000),
+                                      NetworkCode, StationCode, date.yyyyddd(), lat[0], lon[0]))
         else:
             tqdm.write('\nNo PPP solutions found for %s.%s...' % (NetworkCode, StationCode), sys.stderr)
 
@@ -773,22 +707,25 @@ def VisualizeGaps(cnn, stnlist, start_date, end_date):
 
 
 def ExcludeSolutions(cnn, stnlist, start_date, end_date):
+
     for stn in stnlist:
         NetworkCode = stn['NetworkCode']
         StationCode = stn['StationCode']
 
         rs = cnn.query(
             'SELECT * FROM ppp_soln WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' '
-            'AND "Year" || \' \' || to_char("DOY", \'fm000\') BETWEEN \'%s\' AND \'%s\'' %
-            (NetworkCode, StationCode, start_date.yyyyddd(), end_date.yyyyddd()))
+            'AND ("Year", "DOY") BETWEEN (%i, %i) AND (%i, %i)' %
+            (NetworkCode, StationCode, start_date.year, start_date.doy, end_date.year, end_date.doy))
 
         ppp = rs.dictresult()
         tqdm.write(' >> Inserting solutions in excluded table for station %s.%s' % (NetworkCode, StationCode))
         for soln in tqdm(ppp):
             try:
-                cnn.insert('ppp_soln_excl', NetworkCode=NetworkCode, StationCode=StationCode, Year=soln['Year'], DOY=soln['DOY'])
+                cnn.insert('ppp_soln_excl', NetworkCode=NetworkCode, StationCode=StationCode,
+                           Year=soln['Year'], DOY=soln['DOY'])
             except dbConnection.dbErrInsert:
-                tqdm.write('PPP solution for %i %i is already in the excluded solutions table\n' % (soln['Year'], soln['DOY']))
+                tqdm.write('PPP solution for %i %i is already in the excluded solutions table\n'
+                           % (soln['Year'], soln['DOY']))
 
 
 def DeleteRinex(cnn, stnlist, start_date, end_date, completion_limit=0.0):
@@ -902,11 +839,7 @@ def main():
 
     stnlist = Utils.process_stnlist(cnn, args.stnlist)
 
-    if not args.noparallel:
-        JobServer = pyJobServer.JobServer(Config) # type: pyJobServer.JobServer
-    else:
-        JobServer = None
-        Config.run_parallel = False
+    JobServer = pyJobServer.JobServer(Config, run_parallel=not args.noparallel)  # type: pyJobServer.JobServer
 
     #####################################
     # date filter
@@ -920,7 +853,7 @@ def main():
     #####################################
 
     if args.check_rinex:
-        CheckRinexIntegrity(stnlist, dates[0], dates[1], Config, JobServer)
+        CheckRinexIntegrity(stnlist, dates[0], dates[1], JobServer)
 
     #####################################
 
@@ -930,7 +863,7 @@ def main():
     #####################################
 
     if args.station_info_rinex:
-        StnInfoRinexIntegrity(cnn, stnlist, dates[0], dates[1], Config, JobServer)
+        StnInfoRinexIntegrity(cnn, stnlist, dates[0], dates[1], JobServer)
 
     #####################################
 
@@ -993,7 +926,7 @@ def main():
         if len(stnlist) > 1:
             parser.error('Only a single station should be given for the origin station')
 
-        if not '.' in args.rename[0]:
+        if '.' not in args.rename[0]:
             parser.error('Format for destiny station should be net.stnm')
         else:
             DestNetworkCode = args.rename[0].split('.')[0]
@@ -1001,6 +934,8 @@ def main():
 
             RenameStation(cnn, stnlist[0]['NetworkCode'], stnlist[0]['StationCode'], DestNetworkCode, DestStationCode,
                           dates[0], dates[1], Config.archive_path)
+
+    JobServer.close_cluster()
 
 
 if __name__ == '__main__':

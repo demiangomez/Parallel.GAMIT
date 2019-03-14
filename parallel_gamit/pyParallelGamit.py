@@ -31,6 +31,8 @@ import pyArchiveStruct
 import logging
 import simplekml
 
+cnn = None
+
 
 def print_summary(stations, sessions, dates):
     # output a summary of each network
@@ -206,6 +208,9 @@ def compare_aliases(Station, AllStations):
 
 
 def main():
+
+    global cnn
+
     parser = argparse.ArgumentParser(description='Parallel.GAMIT main execution program')
 
     parser.add_argument('session_cfg', type=str, nargs=1, metavar='session.cfg',
@@ -224,6 +229,8 @@ def main():
                              "Output is left in the production directory.")
     parser.add_argument('-kml', '--generate_kml', action='store_true',
                         help="Generate KML and exit without running GAMIT.")
+
+    parser.add_argument('-np', '--noparallel', action='store_true', help="Execute command without parallelization.")
 
     args = parser.parse_args()
 
@@ -262,8 +269,9 @@ def main():
     print(' >> Checing GAMIT tables for requested config and year, please wait...')
 
     JobServer = pyJobServer.JobServer(GamitConfig,
-                                      check_gamit_tables=(pyDate.Date(year=drange[1].year,doy=drange[1].doy),
-                                                          GamitConfig.gamitopt['eop_type']))
+                                      check_gamit_tables=(pyDate.Date(year=drange[1].year, doy=drange[1].doy),
+                                                          GamitConfig.gamitopt['eop_type']),
+                                      run_parallel=not args.noparallel)
 
     cnn = dbConnection.Cnn(GamitConfig.gamitopt['gnss_data'])  # type: dbConnection.Cnn
 
@@ -314,14 +322,14 @@ def main():
     # print_summary(stations, sessions, drange)
 
     # run the job server
-    ExecuteGamit(cnn, GamitConfig, sessions, JobServer, dry_run)
+    ExecuteGamit(sessions, JobServer, dry_run)
 
     # execute globk on doys that had to be divided into subnets
     if not args.dry_run:
-        ExecuteGlobk(cnn, GamitConfig, sessions, dates)
+        ExecuteGlobk(GamitConfig, sessions, dates)
 
         # parse the zenith delay outputs
-        ParseZTD(cnn, GamitConfig.NetworkConfig.network_id, sessions, GamitConfig)
+        ParseZTD(GamitConfig.NetworkConfig.network_id, sessions, GamitConfig)
 
     print(' >> Done processing and parsing information. Successful exit from Parallel.GAMIT')
 
@@ -380,7 +388,9 @@ def generate_kml(dates, sessions, GamitConfig):
     kml.savekmz('production/' + GamitConfig.NetworkConfig.network_id.lower() + '.kmz')
 
 
-def ParseZTD(cnn, project, Sessions, GamitConfig):
+def ParseZTD(project, Sessions, GamitConfig):
+
+    global cnn
 
     tqdm.write(' >> Parsing the zenith tropospheric delays...')
 
@@ -442,7 +452,9 @@ def ParseZTD(cnn, project, Sessions, GamitConfig):
             tqdm.write(' -- Error parsing zenith delays for session %s: %s' % (GamitSession.NetName, str(e)))
 
 
-def ExecuteGlobk(cnn, GamitConfig, sessions, dates):
+def ExecuteGlobk(GamitConfig, sessions, dates):
+
+    global cnn
 
     project = GamitConfig.NetworkConfig.network_id.lower()
 
@@ -518,46 +530,57 @@ def ExecuteGlobk(cnn, GamitConfig, sessions, dates):
     return
 
 
-def ExecuteGamit(cnn, Config, Sessions, JobServer, dry_run=False):
+def callback_handle(job):
 
-    def update_gamit_progress_bar(result):
+    global cnn
 
-        gamit_pbar.update(1)
+    tqdm.write('paso 0')
+    result = job.result
+    tqdm.write('paso 1')
+
+    if result is not None:
+        msg = []
 
         if 'error' not in result.keys():
             if result['nrms'] > 1:
-                msg_nrms = 'WARNING! NRMS > 1.0 (%.3f)' % (result['nrms'])
-            else:
-                msg_nrms = ''
+                msg.append('    NRMS > 1.0 (%.3f)\n' % (result['nrms']))
 
             if result['wl'] < 60:
-                if msg_nrms:
-                    msg_wl = ' AND WL fixed < 60%% (%.1f)' % (result['wl'])
-                else:
-                    msg_wl = 'WARNING! WL fixed %.1f' % (result['wl'])
-            else:
-                msg_wl = ''
+                msg.append('    WL fixed < 60 (%.1f)' % (result['wl']))
 
             if result['missing']:
-                msg_missing = '\n    Missing sites in solution: ' + ', '.join(result['missing'])
-            else:
-                msg_missing = ''
+                msg.append('    Missing sites in solution: ' + ', '.join(result['missing']))
 
             # DDG: only show sessions with problems to facilitate debugging.
             if result['success']:
-                if msg_nrms + msg_wl + msg_missing:
-                    tqdm.write(' -- Done processing: ' + result['session'] + ' -> ' + msg_nrms + msg_wl + msg_missing)
+                if len(msg) > 0:
+                    tqdm.write(' -- Done processing: %s -> WARNINGS:\n%s' % (result['session'], '\n'.join(msg)))
+
+                # insert information in gamit_stats
+                try:
+                    cnn.insert('gamit_stats', result)
+                except dbConnection.dbErrInsert as e:
+                    tqdm.write(' -- Error while inserting GAMIT stat for %s: ' % result['session'] + str(e))
 
             else:
-                tqdm.write(' -- Done processing: ' + result['session'] + ' -> Failed to complete. Check monitor.log')
+                tqdm.write(' -- Done processing: %s -> WARNINGS:\n%s' % (result['session'],
+                                                                         '    Failed to complete. Check monitor.log'))
         else:
-            tqdm.write(' -- Error in session ' + result['session'] + ' message from node follows -> \n%s'
-                       % result['error'])
+            tqdm.write(' -- Error in session %s message from node follows -> \n%s'
+                       % (result['session'], result['error']))
 
-        try:
-            cnn.insert('gamit_stats', result)
-        except dbConnection.dbErrInsert as e:
-            tqdm.write(' -- Error while inserting GAMIT stat: ' + str(e))
+    else:
+        tqdm.write(' -- Fatal error in %s message from node follows -> \n%s' % (result['session'], job.exception))
+
+    tqdm.write('paso 2')
+
+
+def run_session(gamit_task, dir_name, year, doy, dry_run):
+
+    gamit_task.start(dir_name, year, doy, dry_run)
+
+
+def ExecuteGamit(Sessions, JobServer, dry_run=False):
 
     gamit_pbar = tqdm(total=len([GamitSession for GamitSession in Sessions if not GamitSession.ready]),
                       desc=' >> GAMIT sessions completion', ncols=100)  # type: tqdm
@@ -572,38 +595,33 @@ def ExecuteGamit(cnn, Config, Sessions, JobServer, dry_run=False):
     # console.setFormatter(formatter)
     # JobServer.job_server.logger.addHandler(console)
 
+    modules = ('pyRinex', 'datetime', 'os', 'shutil', 'pyBrdc', 'pySp3', 'subprocess', 're', 'pyETM', 'glob',
+               'platform', 'traceback')
+
+    JobServer.create_cluster(run_session, (pyGamitTask.GamitTask,), callback_handle, gamit_pbar, modules=modules)
+
+    gtasks = []
+
     for GamitSession in Sessions:
+        if not GamitSession.ready:
+            # do not submit the task if the session is ready!
+            GamitSession.initialize()
+            task = pyGamitTask.GamitTask(GamitSession.remote_pwd, GamitSession.params, GamitSession.solution_pwd)
 
-        if Config.run_parallel:
-            if not GamitSession.ready:
-                # do not submit the task if the session is ready!
-                GamitSession.initialize()
+            JobServer.submit(task, task.params['DirName'], task.date.year, task.date.doy, dry_run)
 
-                task = pyGamitTask.GamitTask(GamitSession.remote_pwd, GamitSession.params, GamitSession.solution_pwd)
+            # save it just in case...
+            gtasks.append(task)
+        else:
+            tqdm.write(' -- Session already processed: ' + GamitSession.NetName + ' ' + GamitSession.date.yyyyddd())
 
-                JobServer.job_server.submit(task.start, args=(dry_run, ),
-                                            modules=(
-                                            'pyRinex', 'datetime', 'os', 'shutil', 'pyBrdc', 'pySp3', 'subprocess',
-                                            're', 'pyETM', 'glob', 'platform', 'traceback'),
-                                            callback=update_gamit_progress_bar)
+    tqdm.write(' -- Done initializing and submitting GAMIT sessions')
 
-            else:
-                tqdm.write(' -- Session already processed: ' + GamitSession.NetName + ' ' + GamitSession.date.yyyyddd())
+    JobServer.wait()
 
-    tqdm.write(' -- Done initializing GAMIT sessions')
-
-    # once we finnish walking the dir, wait and, handle the output messages
-    if Config.run_parallel:
-        tqdm.write(' -- Waiting for GAMIT sessions to finish...')
-        JobServer.job_server.wait()
-        tqdm.write(' -- Done.')
-
-    # handle any output messages during this batch
     gamit_pbar.close()
 
-    if Config.run_parallel:
-        print "\n"
-        JobServer.job_server.print_stats()
+    JobServer.close_cluster()
 
 
 if __name__ == '__main__':

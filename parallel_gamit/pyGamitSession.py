@@ -82,7 +82,7 @@ class GamitSession(object):
         # create working dirs for this session
         self.solution_pwd = self.solution_base + '/%s/%s/%s' % (date.yyyy(), date.ddd(), self.DirName)
         # the remote pwd is the directory where the processing will be performed
-        self.remote_pwd = 'production/gamit/' + '/%s/%s/%s' % (date.yyyy(), date.ddd(), self.DirName)
+        self.remote_pwd = 'production/gamit/%s/%s/%s' % (date.yyyy(), date.ddd(), self.DirName)
 
         try:
             # attempt to retrieve the session from the database. If error is raised, then the session has to be

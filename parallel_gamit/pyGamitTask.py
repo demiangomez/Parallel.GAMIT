@@ -39,9 +39,9 @@ class GamitTask(object):
 
         with open(os.path.join(self.solution_pwd, 'monitor.log'), 'w') as monitor:
             monitor.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') +
-                          ' -> GamitTask initialized for %s: %s\n' % (self.params['NetName'], self.date.yyyyddd()))
+                          ' -> GamitTask initialized for %s: %s\n' % (self.params['DirName'], self.date.yyyyddd()))
 
-    def start(self, dry_run=False):
+    def start(self, dirname, year, doy, dry_run=False):
 
         try:
             # copy the folder created by GamitSession in the solution_pwd to the remote_pwd (pwd)
@@ -61,8 +61,9 @@ class GamitTask(object):
             shutil.copytree(self.solution_pwd, self.pwd, symlinks=True)
 
             with open(os.path.join(self.pwd, 'monitor.log'), 'a') as monitor:
-                monitor.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' -> executing on %s\n'
-                              % platform.node())
+                monitor.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' -> %s %i %i executing on %s\n'
+                              % (dirname, year, doy, platform.node()))
+
                 monitor.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' -> fetching orbits\n')
 
                 try:
@@ -188,6 +189,9 @@ class GamitTask(object):
 
             # output statistics to the parent to display
             result = self.parse_monitor(self.success)
+
+            with open(os.path.join(self.pwd, 'monitor.log'), 'a') as monitor:
+                monitor.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' -> Return to ParallelGamit\n')
 
             # no matter the result of the processing, move folder to final destination
             if not dry_run:
