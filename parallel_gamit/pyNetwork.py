@@ -14,8 +14,9 @@ from scipy.spatial import distance
 from glob import glob
 from shutil import rmtree
 
-BACKBONE_NET = 50
+BACKBONE_NET = 40
 NET_LIMIT = 40
+SUBNET_LIMIT = 35
 MAX_DIST = 5000
 MIN_DIST = 20
 
@@ -140,12 +141,12 @@ class Network(object):
                 # if object exists, replace it's alias
                 stno[0].StationAlias = dba_alias[i]
 
-    def make_clusters(self, points, stations):
+    def make_clusters(self, points, stations, net_limit=NET_LIMIT):
 
         stn_count = points.shape[0]
-        subnet_count = int(np.ceil(float(float(stn_count) / float(NET_LIMIT))))
+        subnet_count = int(np.ceil(float(float(stn_count) / float(SUBNET_LIMIT))))
 
-        if subnet_count > 1:
+        if float(stn_count) > net_limit:
             centroids, labels, _ = cluster.k_means(points, subnet_count)
 
             # array for centroids
@@ -162,13 +163,13 @@ class Network(object):
 
             for i in range(len(centroids)):
 
-                if len([la for la in labels if la == i]) > NET_LIMIT:
+                if len([la for la in labels if la == i]) > SUBNET_LIMIT:
                     # rerun this cluster to make it smaller
                     tpoints = points[labels == i]
                     # make a selection of the stations
                     tstations = [st for la, st in zip(labels.tolist(), stations) if la == i]
                     # run make_clusters
-                    tclusters = self.make_clusters(tpoints, tstations)
+                    tclusters = self.make_clusters(tpoints, tstations, SUBNET_LIMIT)
                     # save the ouptput
                     tcentroids = tclusters['centroids']
                     tlabels = tclusters['labels']

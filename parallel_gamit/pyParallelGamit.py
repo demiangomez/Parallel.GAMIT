@@ -534,19 +534,16 @@ def callback_handle(job):
 
     global cnn
 
-    tqdm.write('paso 0')
     result = job.result
-    tqdm.write('paso 1')
 
     if result is not None:
         msg = []
-
         if 'error' not in result.keys():
             if result['nrms'] > 1:
-                msg.append('    NRMS > 1.0 (%.3f)\n' % (result['nrms']))
+                msg.append('    NRMS > 1.0 (%.3f)' % result['nrms'])
 
             if result['wl'] < 60:
-                msg.append('    WL fixed < 60 (%.1f)' % (result['wl']))
+                msg.append('    WL fixed < 60 (%.1f)' % result['wl'])
 
             if result['missing']:
                 msg.append('    Missing sites in solution: ' + ', '.join(result['missing']))
@@ -570,14 +567,12 @@ def callback_handle(job):
                        % (result['session'], result['error']))
 
     else:
-        tqdm.write(' -- Fatal error in %s message from node follows -> \n%s' % (result['session'], job.exception))
-
-    tqdm.write('paso 2')
+        tqdm.write(' -- Fatal error message from node follows -> \n%s' % job.exception)
 
 
-def run_session(gamit_task, dir_name, year, doy, dry_run):
+def run_gamit_session(gamit_task, dir_name, year, doy, dry_run):
 
-    gamit_task.start(dir_name, year, doy, dry_run)
+    return gamit_task.start(dir_name, year, doy, dry_run)
 
 
 def ExecuteGamit(Sessions, JobServer, dry_run=False):
@@ -598,7 +593,7 @@ def ExecuteGamit(Sessions, JobServer, dry_run=False):
     modules = ('pyRinex', 'datetime', 'os', 'shutil', 'pyBrdc', 'pySp3', 'subprocess', 're', 'pyETM', 'glob',
                'platform', 'traceback')
 
-    JobServer.create_cluster(run_session, (pyGamitTask.GamitTask,), callback_handle, gamit_pbar, modules=modules)
+    JobServer.create_cluster(run_gamit_session, (pyGamitTask.GamitTask,), callback_handle, gamit_pbar, modules=modules)
 
     gtasks = []
 

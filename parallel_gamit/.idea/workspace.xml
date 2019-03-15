@@ -2,34 +2,8 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="7a238ac9-ca54-4fb0-8f11-7c3d466db594" name="Default" comment="">
-      <change beforePath="$PROJECT_DIR$/../classes/pyJobServer.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/pyJobServer.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../com/ArchiveService.py" beforeDir="false" afterPath="$PROJECT_DIR$/../com/ArchiveService.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../com/IntegrityCheck.py" beforeDir="false" afterPath="$PROJECT_DIR$/../com/IntegrityCheck.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../com/ScanArchive.py" beforeDir="false" afterPath="$PROJECT_DIR$/../com/ScanArchive.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pyGamitSession.py" beforeDir="false" afterPath="$PROJECT_DIR$/pyGamitSession.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pyGamitTask.py" beforeDir="false" afterPath="$PROJECT_DIR$/pyGamitTask.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pyNetwork.py" beforeDir="false" afterPath="$PROJECT_DIR$/pyNetwork.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/pyParallelGamit.py" beforeDir="false" afterPath="$PROJECT_DIR$/pyParallelGamit.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_0/.idea/dictionaries/demian.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_0/.idea/misc.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_0/.idea/modules.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_0/.idea/parallel_gamit.iml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_0/.idea/workspace.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_0/StationList.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_0/link_tables.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_0/pyGamitConfig.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_0/pyGamitSession.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_0/pyGamitTask.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_0/pyGamitTask_bak.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_0/pyGlobkTask.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_0/pyNetwork.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_0/pyParallelGamit.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_0/pyStation.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_0/snxParse.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_0/uml/classes_gamit_queue.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_0/uml/classes_gamit_session.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_0/uml/classes_resources.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit_0/uml/classes_session.png" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../stacker/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../stacker/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
@@ -46,6 +20,18 @@
   </component>
   <component name="FileEditorManager">
     <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
+      <file pinned="false" current-in-tab="true">
+        <entry file="file://$PROJECT_DIR$/pyNetwork.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="163">
+              <caret line="189" lean-forward="true" selection-start-line="189" selection-end-line="189" />
+              <folding>
+                <element signature="e#75#114#0" expanded="true" />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/test_voronoi.py">
           <provider selected="true" editor-type-id="text-editor">
@@ -67,11 +53,11 @@
           </provider>
         </entry>
       </file>
-      <file pinned="false" current-in-tab="true">
+      <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/pyParallelGamit.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="253">
-              <caret line="536" column="22" selection-start-line="536" selection-start-column="22" selection-end-line="536" selection-end-column="22" />
+            <state relative-caret-position="576">
+              <caret line="540" column="40" lean-forward="true" selection-start-line="540" selection-start-column="40" selection-end-line="540" selection-end-column="40" />
               <folding>
                 <element signature="e#79#99#0" expanded="true" />
               </folding>
@@ -82,8 +68,8 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/pyGamitTask.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="442">
-              <caret line="222" column="33" lean-forward="true" selection-start-line="222" selection-start-column="33" selection-end-line="222" selection-end-column="33" />
+            <state relative-caret-position="374">
+              <caret line="237" lean-forward="true" selection-start-line="237" selection-end-line="237" />
               <folding>
                 <element signature="e#77#86#0" expanded="true" />
               </folding>
@@ -124,8 +110,8 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/../classes/pyJobServer.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="486">
-              <caret line="356" column="36" lean-forward="true" selection-start-line="356" selection-start-column="36" selection-end-line="356" selection-end-column="36" />
+            <state relative-caret-position="197">
+              <caret line="315" column="61" selection-start-line="315" selection-start-column="61" selection-end-line="315" selection-end-column="61" />
             </state>
           </provider>
         </entry>
@@ -141,7 +127,6 @@
   </component>
   <component name="FindInProjectRecents">
     <findStrings>
-      <find>links</find>
       <find>iter_ext</find>
       <find>atx</find>
       <find>parse</find>
@@ -171,6 +156,7 @@
       <find>Control</find>
       <find>rm</find>
       <find>error</find>
+      <find>NET_LIMIT</find>
     </findStrings>
     <replaceStrings>
       <replace>solutions_dir</replace>
@@ -214,13 +200,13 @@
         <option value="$PROJECT_DIR$/../classes/Utils.py" />
         <option value="$PROJECT_DIR$/test_voronoi.py" />
         <option value="$PROJECT_DIR$/pyStation.py" />
-        <option value="$PROJECT_DIR$/pyNetwork.py" />
         <option value="$PROJECT_DIR$/pyGlobkTask.py" />
         <option value="$PROJECT_DIR$/pyGamitSession.py" />
         <option value="$PROJECT_DIR$/../classes/gnss_data.cfg" />
         <option value="$PROJECT_DIR$/../classes/pyJobServer.py" />
         <option value="$PROJECT_DIR$/pyGamitTask.py" />
         <option value="$PROJECT_DIR$/pyParallelGamit.py" />
+        <option value="$PROJECT_DIR$/pyNetwork.py" />
       </list>
     </option>
   </component>
@@ -241,6 +227,11 @@
             <path>
               <item name="parallel_gamit" type="b2602c69:ProjectViewProjectNode" />
               <item name="parallel_gamit" type="47feb1d3:ProjectViewModuleNode" />
+            </path>
+            <path>
+              <item name="parallel_gamit" type="b2602c69:ProjectViewProjectNode" />
+              <item name="parallel_gamit" type="47feb1d3:ProjectViewModuleNode" />
+              <item name="parallel_gamit" type="462c0819:PsiDirectoryNode" />
             </path>
             <path>
               <item name="parallel_gamit" type="b2602c69:ProjectViewProjectNode" />
@@ -575,16 +566,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/pyNetwork.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state>
-          <caret line="518" column="35" selection-start-line="518" selection-start-column="35" selection-end-line="518" selection-end-column="35" />
-          <folding>
-            <element signature="e#75#114#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/GenerateKml.py">
       <provider selected="true" editor-type-id="text-editor">
         <state>
@@ -666,15 +647,15 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/../classes/pyJobServer.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="486">
-          <caret line="356" column="36" lean-forward="true" selection-start-line="356" selection-start-column="36" selection-end-line="356" selection-end-column="36" />
+        <state relative-caret-position="197">
+          <caret line="315" column="61" selection-start-line="315" selection-start-column="61" selection-end-line="315" selection-end-column="61" />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/pyGamitTask.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="442">
-          <caret line="222" column="33" lean-forward="true" selection-start-line="222" selection-start-column="33" selection-end-line="222" selection-end-column="33" />
+        <state relative-caret-position="374">
+          <caret line="237" lean-forward="true" selection-start-line="237" selection-end-line="237" />
           <folding>
             <element signature="e#77#86#0" expanded="true" />
           </folding>
@@ -683,10 +664,20 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/pyParallelGamit.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="253">
-          <caret line="536" column="22" selection-start-line="536" selection-start-column="22" selection-end-line="536" selection-end-column="22" />
+        <state relative-caret-position="576">
+          <caret line="540" column="40" lean-forward="true" selection-start-line="540" selection-start-column="40" selection-end-line="540" selection-end-column="40" />
           <folding>
             <element signature="e#79#99#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pyNetwork.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="163">
+          <caret line="189" lean-forward="true" selection-start-line="189" selection-end-line="189" />
+          <folding>
+            <element signature="e#75#114#0" expanded="true" />
           </folding>
         </state>
       </provider>
