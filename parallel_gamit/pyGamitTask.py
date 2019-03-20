@@ -43,6 +43,8 @@ class GamitTask(object):
 
     def start(self, dirname, year, doy, dry_run=False):
 
+        monitor_open = False
+
         try:
             # copy the folder created by GamitSession in the solution_pwd to the remote_pwd (pwd)
             try:
@@ -61,6 +63,9 @@ class GamitTask(object):
             shutil.copytree(self.solution_pwd, self.pwd, symlinks=True)
 
             with open(os.path.join(self.pwd, 'monitor.log'), 'a') as monitor:
+
+                monitor_open = True
+
                 monitor.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' -> %s %i %i executing on %s\n'
                               % (dirname, year, doy, platform.node()))
 
@@ -191,7 +196,7 @@ class GamitTask(object):
             result = self.parse_monitor(self.success)
 
             with open(os.path.join(self.pwd, 'monitor.log'), 'a') as monitor:
-                monitor.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' -> Return to ParallelGamit\n')
+                monitor.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' -> return to ParallelGamit\n')
 
             # no matter the result of the processing, move folder to final destination
             if not dry_run:
@@ -204,22 +209,33 @@ class GamitTask(object):
             msg = traceback.format_exc() + '\nProcessing %s date %s on node %s' \
                   % (self.params['NetName'], self.date.yyyyddd(), platform.node())
 
-            with open(os.path.join(self.pwd, 'monitor.log'), 'a') as monitor:
-                monitor.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') +
-                              ' -> ERROR in pyGamitTask.start()\n%s' % msg)
+            # DDG: do not attempt to write to monitor.log or do any file operations (maybe permission problem)
+            # problem might occur during copytree or rmtree or some other operation before opening monitor.log
+            if monitor_open:
+                with open(os.path.join(self.pwd, 'monitor.log'), 'a') as monitor:
+                    monitor.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') +
+                                  ' -> ERROR in pyGamitTask.start()\n%s' % msg)
 
-            # the solution folder exists because it was created by GamitSession to start the processing.
-            # erase it to upload the result
-            if os.path.exists(self.solution_pwd):
-                shutil.rmtree(self.solution_pwd)
+                # the solution folder exists because it was created by GamitSession to start the processing.
+                # erase it to upload the result
+                if os.path.exists(self.solution_pwd):
+                    shutil.rmtree(self.solution_pwd)
 
-            # execute final error step: copy to self.solution_pwd
-            shutil.copytree(self.pwd, self.solution_pwd, symlinks=True)
-            # remove the remote pwd
-            shutil.rmtree(self.pwd)
+                # execute final error step: copy to self.solution_pwd
+                shutil.copytree(self.pwd, self.solution_pwd, symlinks=True)
+                # remove the remote pwd
+                shutil.rmtree(self.pwd)
 
-            # output statistics to the parent to display
-            result = self.parse_monitor(False)
+                # output statistics to the parent to display
+                result = self.parse_monitor(False)
+            else:
+                result = {'session': '%s %s' % (self.date.yyyyddd(), self.params['DirName']),
+                          'Project': self.params['NetName'], 'subnet': self.params['subnet'],
+                          'Year': self.date.year, 'DOY': self.date.doy,
+                          'FYear': self.date.fyear, 'wl': 0, 'nl': 0, 'nrms': 0, 'relaxed_constrains': '',
+                          'max_overconstrained': '', 'node': platform.node(), 'execution_time': 0, 'execution_date': 0,
+                          'missing': '', 'success': False}
+
             result['error'] = msg
 
             # return useful information to the main node
@@ -349,7 +365,7 @@ class GamitTask(object):
             # maybe GAMIT didn't finish
             missing_sites = []
 
-        return {'session': '%s %s' % (self.params['DirName'], self.date.yyyyddd()),
+        return {'session': '%s %s' % (self.date.yyyyddd(), self.params['DirName']),
                 'Project': self.params['NetName'],
                 'subnet': self.params['subnet'],
                 'Year': self.date.year,

@@ -232,8 +232,8 @@ class PppSoln:
                                        'WHERE p1."NetworkCode" = \'%s\' AND p1."StationCode" = \'%s\''
                                        % (NetworkCode, StationCode))
 
-            self.hash = crc32(str(len(self.t) + len(self.blunders)) + ' ' +
-                              str(ts[0]) + ' ' + str(ts[-1]) + ' ' + str(ppp_hash[0][0]))
+            self.hash = crc32(str(len(self.t) + len(self.blunders)) + ' ' + str(self.auto_x) + str(self.auto_y) +
+                              str(self.auto_z) + str(ts[0]) + ' ' + str(ts[-1]) + ' ' + str(ppp_hash[0][0]))
 
         else:
             raise pyETMException('Station %s.%s has no valid metadata in the stations table.'
@@ -2136,6 +2136,17 @@ class ETM:
         traceback.print_stack(file=log)
         log.write(warnings.formatwarning(message, category, filename, lineno, line))
 
+    def get_outliers_list(self):
+        """
+        Function to obtain the outliers based on the ETMs sigma
+        :return: a list containing the network code, station code and dates of the outliers in the time series
+        """
+
+        filt = self.F[0] * self.F[1] * self.F[2]
+        dates = [pyDate.Date(mjd=mjd) for mjd in self.soln.mjd[~filt]]
+
+        return [(net, stn, date) for net, stn, date in zip(repeat(self.NetworkCode), repeat(self.StationCode), dates)]
+
 
 class PPPETM(ETM):
 
@@ -2193,7 +2204,7 @@ class GamitETM(ETM):
 
         self.run_adjustment(cnn, self.l, plotit)
 
-    def get_residuals_dict(self, use_ppp_model=False, cnn=None):
+    def get_etm_soln_list(self, use_ppp_model=False, cnn=None):
         # this function return the values of the ETM ONLY
 
         dict_o = []
@@ -2217,8 +2228,6 @@ class GamitETM(ETM):
                 del etm
 
             rxyz = self.rotate_2xyz(np.array(neu)) + np.array([self.soln.auto_x, self.soln.auto_y, self.soln.auto_z])
-
-            # rxyz = xyz - self.L
 
             dict_o += [(net_stn, x, y, z, year, doy, fyear)
                        for x, y, z, net_stn, year, doy, fyear in

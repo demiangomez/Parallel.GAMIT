@@ -37,7 +37,8 @@ class ReadOptions:
                         'frames': None,
                         'atx': None,
                         'height_codes': None,
-                        'ppp_exe': None}
+                        'ppp_exe': None,
+                        'ppp_remote_local': ()}
 
         config = ConfigParser.ConfigParser()
         config.readfp(open(configfile))
@@ -54,10 +55,6 @@ class ReadOptions:
         for iconfig, val in dict(config.items('ppp')).iteritems():
             self.options[iconfig] = val
 
-        # get the sigma floor config
-        # for iconfig, val in dict(config.items('sigmas')).iteritems():
-        #    self.options[iconfig] = val
-
         # frames and dates
         frames = [item.strip() for item in self.options['frames'].split(',')]
         atx = [item.strip() for item in self.options['atx'].split(',')]
@@ -68,7 +65,7 @@ class ReadOptions:
             date = process_date(self.options[frame.lower()].split(','))
             self.Frames += [{'name': frame, 'atx': atx, 'dates':
                                     (Date(year=date[0].year, doy=date[0].doy, hour=0, minute=0, second=0),
-                                    Date(year=date[1].year, doy=date[1].doy, hour=23, minute=59, second=59))}]
+                                     Date(year=date[1].year, doy=date[1].doy, hour=23, minute=59, second=59))}]
 
         self.options['frames'] = self.Frames
 
@@ -77,7 +74,7 @@ class ReadOptions:
         self.brdc_path    = self.options['brdc']
         self.repository   = self.options['repository']
 
-        self.repository_data_in = os.path.join(self.repository,'data_in')
+        self.repository_data_in = os.path.join(self.repository, 'data_in')
         self.repository_data_in_retry = os.path.join(self.repository, 'data_in_retry')
         self.repository_data_reject = os.path.join(self.repository, 'data_rejected')
 

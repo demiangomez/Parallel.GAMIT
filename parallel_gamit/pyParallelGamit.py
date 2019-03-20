@@ -17,7 +17,7 @@ from pyNetwork import Network
 from datetime import datetime
 import dbConnection
 from math import sqrt
-from shutil import rmtree
+import shutil
 from math import ceil
 import argparse
 import glob
@@ -106,38 +106,58 @@ def print_summary(stations, sessions, dates):
     return
 
 
-def purge_solutions(cnn, args, dates, GamitConfig):
+def purge_solution(pwd, project, date):
+
+    cnn = dbConnection.Cnn('gnss_data.cfg')
+
+    # delete the main solution dir (may be entire GAMIT run or combination directory)
+    if os.path.isdir(os.path.join(pwd, project)):
+        shutil.rmtree(os.path.join(pwd, project))
+
+    # possible subnetworks
+    for sub in glob.glob(os.path.join(pwd, project + '.*')):
+        shutil.rmtree(sub)
+
+    # now remove the database entries
+    cnn.query('DELETE FROM gamit_soln WHERE "Year" = %i AND "DOY" = %i '
+              'AND "Project" = \'%s\'' % (date.year, date.doy, project))
+
+    cnn.query('DELETE FROM gamit_stats WHERE "Year" = %i AND "DOY" = %i '
+              'AND "Project" = \'%s\'' % (date.year, date.doy, project))
+
+    cnn.query('DELETE FROM gamit_subnets WHERE "Year" = %i AND "DOY" = %i '
+              'AND "Project" = \'%s\'' % (date.year, date.doy, project))
+
+    cnn.query('DELETE FROM gamit_ztd WHERE "Year" = %i AND "DOY" = %i  '
+              'AND "Project" = \'%s\'' % (date.year, date.doy, project))
+
+    cnn.close()
+
+
+def purge_solutions(JobServer, args, dates, GamitConfig):
 
     if args.purge:
 
         print(' >> Purging selected year-doys before run:')
 
-        for date in tqdm(dates, ncols=80):
+        pbar = tqdm(total=len(dates), ncols=80, desc=' -- Purge progress')
+
+        modules = ('pyDate', 'dbConnection', 'os', 'glob')
+
+        JobServer.create_cluster(purge_solution, progress_bar=pbar, modules=modules)
+
+        for date in dates:
 
             # base dir for the GAMIT session directories
             pwd = GamitConfig.gamitopt['solutions_dir'].rstrip('/') + '/' + date.yyyy() + '/' + date.ddd()
 
-            # delete the main solution dir (may be entire GAMIT run or combination directory)
-            if os.path.isdir(os.path.join(pwd, GamitConfig.NetworkConfig.network_id.lower())):
-                rmtree(os.path.join(pwd, GamitConfig.NetworkConfig.network_id.lower()))
+            JobServer.submit(pwd, GamitConfig.NetworkConfig.network_id.lower(), date)
 
-            # possible subnetworks
-            for sub in glob.glob(os.path.join(pwd, GamitConfig.NetworkConfig.network_id.lower() + '.*')):
-                rmtree(sub)
+        JobServer.wait()
 
-            # now remove the database entries
-            cnn.query('DELETE FROM gamit_soln WHERE "Year" = %i AND "DOY" = %i '
-                      'AND "Project" = \'%s\'' % (date.year, date.doy, GamitConfig.NetworkConfig.network_id.lower()))
+        pbar.close()
 
-            cnn.query('DELETE FROM gamit_stats WHERE "Year" = %i AND "DOY" = %i '
-                      'AND "Project" = \'%s\'' % (date.year, date.doy, GamitConfig.NetworkConfig.network_id.lower()))
-
-            cnn.query('DELETE FROM gamit_subnets WHERE "Year" = %i AND "DOY" = %i '
-                      'AND "Project" = \'%s\'' % (date.year, date.doy, GamitConfig.NetworkConfig.network_id.lower()))
-
-            cnn.query('DELETE FROM gamit_ztd WHERE "Year" = %i AND "DOY" = %i  '
-                      'AND "Project" = \'%s\'' % (date.year, date.doy,
-                                                  GamitConfig.NetworkConfig.network_id.lower()))
+        JobServer.close_cluster()
 
 
 def station_list(cnn, NetworkConfig, dates):
@@ -271,7 +291,8 @@ def main():
     JobServer = pyJobServer.JobServer(GamitConfig,
                                       check_gamit_tables=(pyDate.Date(year=drange[1].year, doy=drange[1].doy),
                                                           GamitConfig.gamitopt['eop_type']),
-                                      run_parallel=not args.noparallel)
+                                      run_parallel=not args.noparallel,
+                                      software_sync=GamitConfig.gamitopt['gamit_remote_local'])
 
     cnn = dbConnection.Cnn(GamitConfig.gamitopt['gnss_data'])  # type: dbConnection.Cnn
 
@@ -290,7 +311,7 @@ def main():
     if not dry_run:
         # ignore if calling a dry run
         # purge solutions if requested
-        purge_solutions(cnn, args, dates, GamitConfig)
+        purge_solutions(JobServer, args, dates, GamitConfig)
 
     # initialize stations in the project
     stations = station_list(cnn, GamitConfig.NetworkConfig, drange)
@@ -489,7 +510,7 @@ def ExecuteGlobk(GamitConfig, sessions, dates):
                     os.makedirs(pwd_comb)
                 else:
                     # delete and recreate
-                    rmtree(pwd_comb)
+                    shutil.rmtree(pwd_comb)
                     os.makedirs(pwd_comb)
 
                 Globk = pyGlobkTask.Globk(pwd_comb, date, GlobkComb)
@@ -523,7 +544,7 @@ def ExecuteGlobk(GamitConfig, sessions, dates):
                                    sigmayz=value.sigYZ * sqrt(variance),
                                    VarianceFactor=variance)
                     except dbConnection.dbErrInsert as e:
-                        #tqdm.write('    --> Error inserting ' + key + ' -> ' + str(e))
+                        # tqdm.write('    --> Error inserting ' + key + ' -> ' + str(e))
                         pass
                 else:
                     tqdm.write(' >> Invalid key found in session %s -> %s' % (date.yyyyddd(), key))
@@ -540,13 +561,13 @@ def callback_handle(job):
         msg = []
         if 'error' not in result.keys():
             if result['nrms'] > 1:
-                msg.append('    NRMS > 1.0 (%.3f)' % result['nrms'])
+                msg.append('    > NRMS > 1.0 (%.3f)' % result['nrms'])
 
             if result['wl'] < 60:
-                msg.append('    WL fixed < 60 (%.1f)' % result['wl'])
+                msg.append('    > WL fixed < 60 (%.1f)' % result['wl'])
 
             if result['missing']:
-                msg.append('    Missing sites in solution: ' + ', '.join(result['missing']))
+                msg.append('    > Missing sites in solution: ' + ', '.join(result['missing']))
 
             # DDG: only show sessions with problems to facilitate debugging.
             if result['success']:
@@ -560,14 +581,14 @@ def callback_handle(job):
                     tqdm.write(' -- Error while inserting GAMIT stat for %s: ' % result['session'] + str(e))
 
             else:
-                tqdm.write(' -- Done processing: %s -> WARNINGS:\n%s' % (result['session'],
-                                                                         '    Failed to complete. Check monitor.log'))
+                tqdm.write(' -- Done processing: %s -> FATAL:\n%s' % (result['session'],
+                                                                      '    > Failed to complete. Check monitor.log'))
         else:
             tqdm.write(' -- Error in session %s message from node follows -> \n%s'
                        % (result['session'], result['error']))
 
     else:
-        tqdm.write(' -- Fatal error message from node follows -> \n%s' % job.exception)
+        tqdm.write(' -- Fatal error on node %s message from node follows -> \n%s' % (job.ip_addr, job.exception))
 
 
 def run_gamit_session(gamit_task, dir_name, year, doy, dry_run):

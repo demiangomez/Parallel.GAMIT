@@ -684,7 +684,8 @@ def main():
         print "the provided repository path in gnss_data.cfg is not a folder"
         exit()
 
-    JobServer = pyJobServer.JobServer(Config, run_parallel=not args.noparallel)  # type: pyJobServer.JobServer
+    JobServer = pyJobServer.JobServer(Config, run_parallel=not args.noparallel,
+                                      software_sync=[Config.options['ppp_remote_local']])  # type: pyJobServer.JobServer
 
     cnn = dbConnection.Cnn('gnss_data.cfg')
     # create the execution log

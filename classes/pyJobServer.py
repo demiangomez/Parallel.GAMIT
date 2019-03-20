@@ -15,7 +15,7 @@ from functools import partial
 DELAY = 5
 
 
-def test_node(check_gamit_tables=None):
+def test_node(check_gamit_tables=None, software_sync=()):
     # test node: function that makes sure that all required packages and tools are present in the nodes
     import traceback
     import platform
@@ -66,9 +66,30 @@ def test_node(check_gamit_tables=None):
         import pyRunWithRetry
         import pyDate
         import pg
+        import dirsync
 
     except Exception:
         return ' -- %s: Problem found while importing modules:\n%s' % (platform.node(), traceback.format_exc())
+
+    try:
+        if len(software_sync) > 0:
+            # synchronize directories listed in the src and dst arguments
+            from dirsync import sync
+
+            for source_dest in software_sync:
+                if isinstance(source_dest, str) and ',' in source_dest:
+                    s = source_dest.split(',')[0].strip()
+                    d = source_dest.split(',')[1].strip()
+
+                    print '    -- Synchronizing %s -> %s' % (s, d)
+
+                    updated = sync(s, d, 'sync', purge=True, create=True)
+
+                    for f in updated:
+                        print '    -- Updated %s' % f
+
+    except Exception:
+        return ' -- %s: Problem found while synchronizing software:\n%s ' % (platform.node(), traceback.format_exc())
 
     # continue with a test SQL connection
     # make sure that the gnss_data.cfg is present
@@ -218,12 +239,13 @@ def test_node(check_gamit_tables=None):
 def setup(modules):
     """
     function to import modules in the nodes
-    :return: nothing
+    :return: 0
     """
     for module in modules:
         module_obj = __import__(module)
         # create a global object containing our module
         globals()[module] = module_obj
+        print ' >> Importing module %s' % module
 
     return 0
 
@@ -237,7 +259,7 @@ class JobServer:
             # test node to make sure everything works
             self.cluster.send_file('gnss_data.cfg', node)
 
-            j = self.cluster.submit_node(node, self.check_gamit_tables)
+            j = self.cluster.submit_node(node, self.check_gamit_tables, self.software_sync)
 
             self.cluster.wait()
 
@@ -245,14 +267,16 @@ class JobServer:
 
             self.nodes.append(node)
 
-    def __init__(self, Config, check_gamit_tables=None, run_parallel=True):
+    def __init__(self, Config, check_gamit_tables=None, run_parallel=True, software_sync=()):
         """
         initialize the jobserver
         :param Config: pyOptions.ReadOptions instance
         :param check_gamit_tables: check or not the tables in GAMIT
         :param run_parallel: override the configuration in gnss_data.cfg
+        :param software_sync: list of strings with remote and local paths of software to be synchronized
         """
         self.check_gamit_tables = check_gamit_tables
+        self.software_sync = software_sync
 
         self.nodes = []
         self.result = []
@@ -313,7 +337,7 @@ class JobServer:
                 print ' >> Errors were encountered during initialization. Check messages.'
                 exit()
 
-    def create_cluster(self, function, dependencies=(), callback=None, progress_bar=None, verbose=False, modules=()):
+    def create_cluster(self, function, deps=(), callback=None, progress_bar=None, verbose=False, modules=()):
 
         self.nodes = []
         self.jobs = []
@@ -323,9 +347,9 @@ class JobServer:
         self.close = True
 
         if self.run_parallel:
-            self.cluster = dispy.JobCluster(function, self.nodes, list(dependencies), callback, self.cluster_status,
+            self.cluster = dispy.JobCluster(function, self.nodes, list(deps), callback, self.cluster_status,
                                             pulse_interval=60, setup=partial(setup, modules),
-                                            loglevel=dispy.logger.CRITICAL)
+                                            loglevel=dispy.logger.CRITICAL, reentrant=True)
 
             self.http_server = dispy.httpd.DispyHTTPServer(self.cluster, poll_sec=2)
 
@@ -397,12 +421,13 @@ class JobServer:
 
             elif status == dispy.DispyJob.Abandoned:
                 # always print abandoned jobs
-                tqdm.write(' -- Job %i was reported as abandoned -> resubmitting' % job.id)
+                tqdm.write(' -- Job %04i (%s) was reported as abandoned at node %s -> resubmitting'
+                           % (job.id, str(job.args), node.name))
 
             elif status == dispy.DispyJob.Created and self.verbose:
                 tqdm.write(' -- Job %i has been created' % job.id)
 
-            elif status == dispy.DispyJob.Terminated and self.verbose:
+            elif status == dispy.DispyJob.Terminated:
                 tqdm.write(' -- Job %i has been terminated' % job.id)
 
             if status in (dispy.DispyJob.Finished, dispy.DispyJob.Terminated) and self.progress_bar is not None:

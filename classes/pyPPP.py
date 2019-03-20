@@ -13,6 +13,7 @@ from Utils import lg2ct
 from Utils import ecef2lla
 from Utils import determine_frame
 from math import isnan
+from pyDate import Date
 import pyRinex
 import pyRunWithRetry
 import pySp3
@@ -176,7 +177,8 @@ class RunPPP(PPPSpatialCheck):
         self.observation_session = None
         self.coordinate_estimate = None
 
-        self.clock_interpolation = clock_interpolation
+        # DDG: do not allow clock interpolation before May 1 2001
+        self.clock_interpolation = clock_interpolation if rinexobj.date > Date(year=2001, month=5, day=1) else False
 
         self.frame     = None
         self.atx       = None

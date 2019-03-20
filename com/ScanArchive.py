@@ -902,7 +902,7 @@ def hash_check(cnn, master_list, sdate, edate, rehash=False, h_tolerant=0):
         print ' -- Done rehashing PPP records.'
 
 
-def process_ppp(cnn, pyArchive, archive_path, JobServer, master_list, sdate, edate, h_tolerance):
+def process_ppp(cnn, Config, pyArchive, archive_path, JobServer, master_list, sdate, edate, h_tolerance):
 
     print " >> Running PPP on the RINEX files in the archive..."
 
@@ -1295,7 +1295,7 @@ def main():
     if args.station_info is not None and (not len(args.station_info) in (0, 2)):
         parser.error('-stninfo requires 0 or 2 arguments. {} given.'.format(len(args.station_info)))
 
-    Config = pyOptions.ReadOptions("gnss_data.cfg") # type: pyOptions.ReadOptions
+    Config = pyOptions.ReadOptions("gnss_data.cfg")  # type: pyOptions.ReadOptions
 
     cnn = dbConnection.Cnn("gnss_data.cfg")
     # create the execution log
@@ -1306,7 +1306,8 @@ def main():
 
     pyArchive = pyArchiveStruct.RinexStruct(cnn)
 
-    JobServer = pyJobServer.JobServer(Config, run_parallel=not args.noparallel)  # type: pyJobServer.JobServer
+    JobServer = pyJobServer.JobServer(Config, run_parallel=not args.noparallel,
+                                      software_sync=[Config.options['ppp_remote_local']])  # type: pyJobServer.JobServer
 
     #########################################
 
@@ -1358,7 +1359,7 @@ def main():
         if do_hash:
             hash_check(cnn, stnlist, dates[0], dates[1], rehash=False, h_tolerant=args.stninfo_tolerant[0])
 
-        process_ppp(cnn, pyArchive, Config.archive_path, JobServer, stnlist, dates[0], dates[1],
+        process_ppp(cnn, Config, pyArchive, Config.archive_path, JobServer, stnlist, dates[0], dates[1],
                     args.stninfo_tolerant[0])
 
     #########################################

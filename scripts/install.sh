@@ -16,7 +16,7 @@ sudo apt install libpq-dev ncompress bc zip gzip gfortran gcc python-dev csh
 sudo cp /opt/gpstk/build/libgpstk.so /usr/lib/libgpstk.so
 
 # modules to install
-modules="pygresql tqdm==4.19.4 scandir simplekml numpy matplotlib scipy pysftp simplekml sklearn psutil dispy"
+modules="pygresql tqdm==4.19.4 scandir simplekml numpy matplotlib scipy pysftp simplekml sklearn psutil dispy dirsync"
 
 # sequence of packages to install
 if [ -z "$proxy" ]; then

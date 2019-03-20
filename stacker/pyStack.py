@@ -133,7 +133,7 @@ class Stack(list):
             try:
                 tqdm.postfix = s['NetworkCode'] + '.' + s['StationCode']
 
-                # ts = pyETM.GamitSoln(self.cnn, ts, s['NetworkCode'], s['StationCode'])
+                ts = pyETM.GamitSoln(self.cnn, ts, s['NetworkCode'], s['StationCode'])
 
             except pyETM.pyETMException as e:
                 tqdm.write(' -- ' + str(e))

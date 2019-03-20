@@ -17,6 +17,7 @@ import os
 from Utils import lg2ct
 
 pi = 3.141592653589793
+etm_vertices = []
 
 
 def station_etm(station, stn_ts, iteration=0):
@@ -35,26 +36,16 @@ def station_etm(station, stn_ts, iteration=0):
         if etm.A is not None:
             if iteration == 0:
                 # if iteration is == 0, then the target frame has to be the PPP ETMs
-                vertices = etm.get_residuals_dict(use_ppp_model=True, cnn=cnn)
+                vertices = etm.get_etm_soln_list(use_ppp_model=True, cnn=cnn)
             else:
                 # on next iters, the target frame is the inner geometry of the stack
-                vertices = etm.get_residuals_dict()
+                vertices = etm.get_etm_soln_list()
 
     except pyETM.pyETMException:
 
         vertices = None
 
     return vertices if vertices else None
-
-
-class EtmClass:
-    def __init__(self, qbar):
-        self.result = None
-        self.qbar = qbar
-
-    def finalize(self, args):
-        self.result = args
-        self.qbar.update()
 
 
 class Station:
@@ -306,6 +297,17 @@ class Project(object):
         return polyhedron
 
 
+def callback_handler(job):
+
+    global etm_vertices
+
+    if job.exception:
+        tqdm.write(' -- Fatal error on node %s message from node follows -> \n%s' % (job.ip_addr, job.exception))
+    else:
+        if job.result is not None:
+            etm_vertices += job.result
+
+
 def calculate_etms(cnn, stack, JobServer, iterations):
     """
     Parallelized calculation of ETMs to save some time
@@ -315,49 +317,35 @@ def calculate_etms(cnn, stack, JobServer, iterations):
     :param iterations: current iteration number
     :return: the target polyhedron list that will be used for alignment
     """
+    global etm_vertices
 
     qbar = tqdm(total=len(stack.stations), desc=' >> Calculating ETMs', ncols=160)
 
-    etm_list = []
+    modules = ('pyETM', 'pyDate', 'dbConnection', 'traceback')
+
+    JobServer.create_cluster(station_etm, callback_handler, qbar, modules=modules)
 
     # delete all the solutions from the ETMs table
     cnn.query('DELETE FROM etmsv2 WHERE "soln" = \'gamit\'')
+    # reset the etm_vertices list
+    etm_vertices = []
 
     for station in stack.stations:
 
         # extract the time series from the polyhedron data
         stn_ts = stack.get_station(station['NetworkCode'], station['StationCode'])
 
-        if JobServer is not None:
+        JobServer.submit(station, stn_ts, iterations)
 
-            JobServer.SubmitJob(station_etm, (station, stn_ts, iterations), (),
-                                ('pyETM', 'pyDate', 'dbConnection', 'traceback'),
-                                etm_list, EtmClass(qbar), 'finalize')
-
-            if JobServer.process_callback:
-                JobServer.process_callback = False
-        else:
-
-            etm_list += [EtmClass(qbar)]
-            etm_list[-1].finalize(station_etm(station, stn_ts, iterations))
-
-    if JobServer is not None:
-        qbar.write(' -- Waiting for jobs to finish...')
-        JobServer.job_server.wait()
-        qbar.write(' -- Done.')
+    JobServer.wait()
 
     qbar.close()
 
-    # build the target polyhedrons
-    vertices = []
+    JobServer.close_cluster()
 
-    for e in etm_list:
-        if e.result is not None:
-            vertices += e.result
-
-    vertices = numpy.array(vertices, dtype=[('stn', 'S8'), ('x', 'float64'), ('y', 'float64'),
-                                            ('z', 'float64'), ('yr', 'i4'), ('dd', 'i4'),
-                                            ('fy', 'float64')])
+    vertices = numpy.array(etm_vertices, dtype=[('stn', 'S8'), ('x', 'float64'), ('y', 'float64'),
+                                                ('z', 'float64'), ('yr', 'i4'), ('dd', 'i4'),
+                                                ('fy', 'float64')])
 
     target = []
     for dd in tqdm(stack.dates, ncols=160, desc=' >> Initializing the target polyhedrons'):
@@ -388,11 +376,7 @@ def main():
     cnn = dbConnection.Cnn("gnss_data.cfg")
     Config = pyOptions.ReadOptions("gnss_data.cfg")  # type: pyOptions.ReadOptions
 
-    if not args.noparallel:
-        JobServer = pyJobServer.JobServer(Config, run_node_test=False)  # type: pyJobServer.JobServer
-    else:
-        JobServer = None
-        Config.run_parallel = False
+    JobServer = pyJobServer.JobServer(Config, run_parallel=not args.noparallel)  # type: pyJobServer.JobServer
 
     if args.max_iters:
         max_iters = int(args.max_iters[0])
