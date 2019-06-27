@@ -267,7 +267,7 @@ def dra(cnn, project, dates):
         if ts.size:
             try:
                 # save the time series
-                gsoln = pyETM.GamitSoln(cnn, ts, NetworkCode, StationCode)
+                gsoln = pyETM.GamitSoln(cnn, ts, NetworkCode, StationCode, project)
 
                 # create the ETM object
                 etm = pyETM.GamitETM(cnn, NetworkCode, StationCode, False, False, gsoln)
@@ -277,7 +277,7 @@ def dra(cnn, project, dates):
 
                 if ts.shape[0] > 2:
                     dts = np.append(np.diff(ts[:,0:3], axis=0), ts[1:, -2:], axis=1)
-                    dra = pyETM.GamitSoln(cnn, dts, NetworkCode, StationCode)
+                    dra = pyETM.GamitSoln(cnn, dts, NetworkCode, StationCode, project)
 
                     etm = pyETM.DailyRep(cnn, NetworkCode, StationCode, False, False, dra)
 

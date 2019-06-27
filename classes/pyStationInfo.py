@@ -68,8 +68,11 @@ class StationInfoRecord(pyBunch.Bunch):
                                (self.AntennaNorth, self.AntennaEast, self.AntennaHeight, self.HeightCode,
                                 self.AntennaCode, self.RadomeCode, self.ReceiverCode))
 
-        self.record_format = ' %-4s  %-16s  %-19s%-19s%7.4f  %-5s  %7.4f  %7.4f  %-20s  ' \
-                             '%-20s  %5s  %-20s  %-15s  %-5s  %-20s'
+        # self.record_format = ' %-4s  %-16s  %-19s%-19s%7.4f  %-5s  %7.4f  %7.4f  %-20s  ' \
+        #                      '%-20s  %5s  %-20s  %-15s  %-5s  %-20s'
+
+        self.record_format = ' {:4.4}  {:16.16}  {:19.19}{:19.19}{:7.4f}  {:5.5}  {:7.4f}  {:7.4f}  {:20.20}  ' \
+                             '{:20.20}  {:>5.5}  {:20.20}  {:15.15}  {:5.5}  {:20.20}'
 
     def database(self):
 
@@ -143,13 +146,13 @@ class StationInfoRecord(pyBunch.Bunch):
 
     def __str__(self):
 
-        return self.record_format % (self.StationCode.upper(), '', str(self.DateStart), str(self.DateEnd),
-                                     self.AntennaHeight, self.HeightCode,
-                                     self.AntennaNorth, self.AntennaEast,
-                                     self.ReceiverCode, self.ReceiverVers,
-                                     self.ReceiverFirmware, self.ReceiverSerial,
-                                     self.AntennaCode, self.RadomeCode,
-                                     self.AntennaSerial)
+        return self.record_format.format(self.StationCode.upper(), '', str(self.DateStart), str(self.DateEnd),
+                                         self.AntennaHeight, self.HeightCode,
+                                         self.AntennaNorth, self.AntennaEast,
+                                         self.ReceiverCode, self.ReceiverVers,
+                                         self.ReceiverFirmware, self.ReceiverSerial,
+                                         self.AntennaCode, self.RadomeCode,
+                                         self.AntennaSerial)
 
 
 class StationInfo(object):

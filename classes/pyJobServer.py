@@ -12,7 +12,7 @@ import dispy.httpd
 from tqdm import tqdm
 from functools import partial
 
-DELAY = 5
+DELAY = 10
 
 
 def test_node(check_gamit_tables=None, software_sync=()):
@@ -241,6 +241,7 @@ def setup(modules):
     function to import modules in the nodes
     :return: 0
     """
+    print ' >> Initializing node...'
     for module in modules:
         module_obj = __import__(module)
         # create a global object containing our module
@@ -284,6 +285,8 @@ class JobServer:
         self.run_parallel = Config.run_parallel if run_parallel else False
         self.verbose = False
         self.close = False
+        # variable with ip address for multi-homed systems
+        self.ip_address = Config.options['ip_address']
 
         # vars to store the http_server and the progress bar (if needed)
         self.progress_bar = None
@@ -307,13 +310,23 @@ class JobServer:
                     servers = filter(None, list(Config.options['node_list'].split(',')))
 
             # initialize the cluster
+            # if explicitly declared, then we might have a multi-homed computer system
             self.cluster = dispy.JobCluster(test_node, servers, recover_file='pg.dat', pulse_interval=60,
-                                            cluster_status=self.check_cluster)
+                                            cluster_status=self.check_cluster, ip_addr=self.ip_address)
+
             # discover the available nodes
             self.cluster.discover_nodes(servers)
 
             # wait for all nodes
             time.sleep(DELAY)
+
+            # if no nodes were found, stop
+            if not len(self.nodes):
+                print ' >> No nodes could be found. Check ip_address in gnss_data.cfg if cluster has more than one ' \
+                      'Ethernet card and check the node_list to make sure you have the correct IP addresses.'
+                # terminate execution if problems were found
+                self.cluster.close()
+                exit()
 
             stop = False
 
@@ -339,7 +352,6 @@ class JobServer:
 
     def create_cluster(self, function, deps=(), callback=None, progress_bar=None, verbose=False, modules=()):
 
-        self.nodes = []
         self.jobs = []
         self.callback = callback
         self.function = function
@@ -347,9 +359,12 @@ class JobServer:
         self.close = True
 
         if self.run_parallel:
-            self.cluster = dispy.JobCluster(function, self.nodes, list(deps), callback, self.cluster_status,
-                                            pulse_interval=60, setup=partial(setup, modules),
-                                            loglevel=dispy.logger.CRITICAL, reentrant=True)
+
+            # DDG: NodeAllocate is used to pass the arguments to setup during node initialization
+            self.cluster = dispy.JobCluster(function, [dispy.NodeAllocate(node.ip_addr, setup_args=(modules,))
+                                                       for node in self.nodes], list(deps),
+                                            callback, self.cluster_status, pulse_interval=60, setup=setup,
+                                            loglevel=dispy.logger.CRITICAL, reentrant=True, ip_addr=self.ip_address)
 
             self.http_server = dispy.httpd.DispyHTTPServer(self.cluster, poll_sec=2)
 

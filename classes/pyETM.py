@@ -243,10 +243,11 @@ class PppSoln:
 class GamitSoln:
     """"class to extract the GAMIT polyhedrons from the database"""
 
-    def __init__(self, cnn, polyhedrons, NetworkCode, StationCode):
+    def __init__(self, cnn, polyhedrons, NetworkCode, StationCode, project):
 
         self.NetworkCode = NetworkCode
         self.StationCode = StationCode
+        self.project = project
         self.hash = 0
 
         self.type = 'gamit'
@@ -317,9 +318,10 @@ class GamitSoln:
                 'r."NetworkCode" = p."NetworkCode" AND '
                 'r."StationCode" = p."StationCode" AND '
                 'r."ObservationYear" = p."Year"    AND '
-                'r."ObservationDOY"  = p."DOY"'
+                'r."ObservationDOY"  = p."DOY"     AND '
+                'p."Project" = \'%s\''
                 'WHERE r."NetworkCode" = \'%s\' AND r."StationCode" = \'%s\' AND '
-                'p."NetworkCode" IS NULL' % (NetworkCode, StationCode))
+                'p."NetworkCode" IS NULL' % (project, NetworkCode, StationCode))
 
             self.rnx_no_ppp = rnx.dictresult()
             self.ts_ns = np.array([float(item['ObservationFYear']) for item in self.rnx_no_ppp])
@@ -778,7 +780,7 @@ class Earthquakes:
                                                             hour=int(eqs[6]), minute=int(eqs[7]), second=int(eqs[8])))
                                 for eqs in eq[m > 0, :]))
 
-            eq_jumps.sort(key=lambda x: (x[1], x[0]))
+            eq_jumps.sort(key=lambda x: (x[1], -x[0]))
 
             # open the jumps table
             jp = cnn.query_float('SELECT * FROM etm_params WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' '
@@ -1359,6 +1361,11 @@ class ETM:
                           '"StationCode" = \'%s\' AND soln = \'%s\''
                           % (self.NetworkCode, self.StationCode, self.soln.type))
 
+                if self.soln.type == 'gamit':
+                    # if the solution is of type 'gamit', delete the excluded solutions
+                    cnn.query('DELETE FROM gamit_soln_excl WHERE "NetworkCode" = \'%s\' AND '
+                              '"StationCode" = \'%s\'' % (self.NetworkCode, self.StationCode))
+
                 # use the default parameters from the objects
                 t_ref = self.Linear.p.t_ref
 
@@ -1387,6 +1394,9 @@ class ETM:
 
                 # save the parameters in each object to the db
                 self.save_parameters(cnn)
+
+                if self.soln.type == 'gamit':
+                    self.save_excluded_soln(cnn)
 
             # load the covariances using the correlations
             self.process_covariance()
@@ -1418,6 +1428,19 @@ class ETM:
 
         if not self.isPD(self.covar):
             self.covar = self.nearestPD(self.covar)
+
+    def save_excluded_soln(self, cnn):
+
+        for date, f in zip(self.soln.date, np.logical_and(np.logical_and(self.F[0], self.F[1]), self.F[2])):
+
+            if not cnn.query_float('SELECT * FROM gamit_soln_excl WHERE "NetworkCode" = \'%s\' AND '
+                                   '"StationCode" = \'%s\' AND "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i'
+                                   % (self.NetworkCode, self.StationCode, self.soln.project, date.year, date.doy)) \
+                    and not f:
+
+                cnn.query('INSERT INTO gamit_soln_excl ("NetworkCode", "StationCode", "Project", "Year", "DOY") VALUES '
+                          '(\'%s\', \'%s\', \'%s\', %i ,%i)'
+                          % (self.NetworkCode, self.StationCode, self.soln.project, date.year, date.doy))
 
     def save_parameters(self, cnn):
 
@@ -1494,11 +1517,11 @@ class ETM:
 
             # ################# FILTERED PLOT #################
 
-            f.suptitle('Station: %s.%s lat: %.5f lon: %.5f\n'
-                       '%s completion: %.2f%%\n%s\n%s\n'
+            f.suptitle('Station %s.%s (%s %.2f%%) lat: %.5f lon: %.5f\n'
+                       '%s\n%s\n'
                        'NEU wrms [mm]: %5.2f %5.2f %5.2f' %
-                       (self.NetworkCode, self.StationCode, self.soln.lat, self.soln.lon, self.soln.type.upper(),
-                        self.soln.completion,
+                       (self.NetworkCode, self.StationCode, self.soln.type.upper(), self.soln.completion,
+                        self.soln.lat, self.soln.lon,
                         self.Linear.print_parameters(np.array([self.soln.auto_x, self.soln.auto_y, self.soln.auto_z]),
                                                      self.soln.lat, self.soln.lon),
                         self.Periodic.print_parameters(),
@@ -1565,8 +1588,9 @@ class ETM:
 
             f, axis = plt.subplots(nrows=3, ncols=1, sharex=True, figsize=(15, 10))  # type: plt.subplots
 
-            f.suptitle('Station: %s.%s lat: %.5f lon: %.5f'
-                       % (self.NetworkCode, self.StationCode, self.soln.lat, self.soln.lon) +
+            f.suptitle('Station: %s.%s (%s %.2f%%) lat: %.5f lon: %.5f'
+                       % (self.NetworkCode, self.StationCode, self.soln.type.upper(), self.soln.completion,
+                          self.soln.lat, self.soln.lon) +
                        '\nNot enough solutions to fit an ETM.', fontsize=9, family='monospace')
 
             for i, ax in enumerate((axis[0], axis[1], axis[2])):
@@ -2184,7 +2208,7 @@ class GamitETM(ETM):
                                                'ORDER BY "Year", "DOY", "NetworkCode", "StationCode"'
                                                % (project, NetworkCode, StationCode))
 
-            self.gamit_soln = GamitSoln(cnn, self.polyhedrons, NetworkCode, StationCode)
+            self.gamit_soln = GamitSoln(cnn, self.polyhedrons, NetworkCode, StationCode, project)
 
         else:
             # load the GAMIT polyhedrons
@@ -2255,7 +2279,7 @@ class DailyRep(ETM):
                                                'ORDER BY "Year", "DOY", "NetworkCode", "StationCode"'
                                                % (project, NetworkCode, StationCode))
 
-            self.gamit_soln = GamitSoln(cnn, self.polyhedrons, NetworkCode, StationCode)
+            self.gamit_soln = GamitSoln(cnn, self.polyhedrons, NetworkCode, StationCode, project)
 
         else:
             # load the GAMIT polyhedrons

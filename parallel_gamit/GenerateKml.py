@@ -16,11 +16,18 @@ import simplekml
 import pyStationInfo
 
 import datetime as dt
-import matplotlib.pyplot as plt
+import matplotlib
 import matplotlib.dates as mdates
 from matplotlib.collections import PolyCollection
 from io import BytesIO
 import base64
+
+
+if 'DISPLAY' in os.environ.keys():
+    if not os.environ['DISPLAY']:
+        matplotlib.use('Agg')
+else:
+    matplotlib.use('Agg')
 
 
 def main():
@@ -142,6 +149,8 @@ def generate_kml(cnn, project, stations):
 
 
 def plot_station_info_rinex(cnn, NetworkCode, StationCode, stninfo):
+
+    import matplotlib.pyplot as plt
 
     cats = {"rinex": 1, "stninfo": 2}
     colormapping = {"rinex": "C0", "stninfo": "C1"}

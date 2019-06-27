@@ -583,6 +583,11 @@ def callback_handle(job):
             else:
                 tqdm.write(' -- Done processing: %s -> FATAL:\n%s' % (result['session'],
                                                                       '    > Failed to complete. Check monitor.log'))
+                # write FATAL to file
+                f = open('FATAL.log', 'a')
+                f.write('ON %s session %s -> FATAL: Failed to complete. Check monitor.log\n'
+                        % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), result['session']))
+                f.close()
         else:
             tqdm.write(' -- Error in session %s message from node follows -> \n%s'
                        % (result['session'], result['error']))

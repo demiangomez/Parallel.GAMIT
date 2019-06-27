@@ -3,9 +3,14 @@
   <component name="NewModuleRootManager">
     <content url="file://$MODULE_DIR$/../classes" />
     <content url="file://$MODULE_DIR$/../com" />
+    <content url="file://$MODULE_DIR$/../parallel_gamit" />
     <content url="file://$MODULE_DIR$" />
     <orderEntry type="jdk" jdkName="Python 2.7" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
+  </component>
+  <component name="ReSTService">
+    <option name="workdir" value="$MODULE_DIR$/.." />
+    <option name="DOC_DIR" value="$MODULE_DIR$/.." />
   </component>
   <component name="TestRunnerService">
     <option name="PROJECT_TEST_RUNNER" value="Unittests" />

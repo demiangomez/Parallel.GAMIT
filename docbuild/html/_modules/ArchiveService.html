@@ -1,0 +1,916 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>ArchiveService &#8212; Parallel.GAMIT 1 documentation</title>
+    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for ArchiveService</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Project: Parallel.Archive</span>
+<span class="sd">Date: 3/19/17 11:41 AM</span>
+<span class="sd">Author: Demian D. Gomez</span>
+
+<span class="sd">Main script that scans the repository for new rinex files.</span>
+<span class="sd">It PPPs the rinex files and searches the database for stations (within 100 m) with the same station 4 letter code.</span>
+<span class="sd">If the station exists in the db, it moves the file to the archive and adds the new file to the &quot;rinex&quot; table.</span>
+<span class="sd">if the station doesn&#39;t exist, then it incorporates the station with a special NetworkCode (???) and leaves the</span>
+<span class="sd">file in the repo until you assign the correct NetworkCode and add the station information.</span>
+
+<span class="sd">It is invoked just by calling python ArchiveService.py</span>
+<span class="sd">Requires the config file gnss_data.cfg (in the running folder)</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">pyRinex</span>
+<span class="kn">import</span> <span class="nn">dbConnection</span>
+<span class="kn">import</span> <span class="nn">pyStationInfo</span>
+<span class="kn">import</span> <span class="nn">pyArchiveStruct</span>
+<span class="kn">import</span> <span class="nn">pyPPP</span>
+<span class="kn">import</span> <span class="nn">pyBrdc</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">pyOptions</span>
+<span class="kn">import</span> <span class="nn">Utils</span>
+<span class="kn">import</span> <span class="nn">pyOTL</span>
+<span class="kn">import</span> <span class="nn">datetime</span>
+<span class="kn">import</span> <span class="nn">time</span>
+<span class="kn">import</span> <span class="nn">uuid</span>
+<span class="kn">from</span> <span class="nn">tqdm</span> <span class="k">import</span> <span class="n">tqdm</span>
+<span class="kn">import</span> <span class="nn">traceback</span>
+<span class="kn">import</span> <span class="nn">platform</span>
+<span class="kn">import</span> <span class="nn">pyJobServer</span>
+<span class="kn">import</span> <span class="nn">pyEvents</span>
+<span class="kn">import</span> <span class="nn">pyProducts</span>
+<span class="kn">import</span> <span class="nn">argparse</span>
+
+<span class="n">repository_data_in</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+<span class="n">cnn</span> <span class="o">=</span> <span class="kc">None</span>
+
+
+<span class="k">def</span> <span class="nf">insert_station_w_lock</span><span class="p">(</span><span class="n">cnn</span><span class="p">,</span> <span class="n">StationCode</span><span class="p">,</span> <span class="n">filename</span><span class="p">,</span> <span class="n">lat</span><span class="p">,</span> <span class="n">lon</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">otl</span><span class="p">):</span>
+
+    <span class="n">rs</span> <span class="o">=</span> <span class="n">cnn</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">SELECT * FROM</span>
+<span class="s2">    (SELECT *, 2*asin(sqrt(sin((radians(</span><span class="si">%.8f</span><span class="s2">)-radians(lat))/2)^2 + </span>
+<span class="s2">    cos(radians(lat)) * cos(radians(</span><span class="si">%.8f</span><span class="s2">)) * sin((radians(</span><span class="si">%.8f</span><span class="s2">)-radians(lon))/2)^2))*6371000 AS distance</span>
+<span class="s2">        FROM stations WHERE &quot;NetworkCode&quot; like </span><span class="se">\&#39;</span><span class="s2">?</span><span class="si">%%</span><span class="se">\&#39;</span><span class="s2"> AND &quot;StationCode&quot; = </span><span class="se">\&#39;</span><span class="si">%s</span><span class="se">\&#39;</span><span class="s2">) as DD</span>
+<span class="s2">    WHERE distance &lt;= 100</span>
+<span class="s2">                    &quot;&quot;&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">lat</span><span class="p">,</span> <span class="n">lat</span><span class="p">,</span> <span class="n">lon</span><span class="p">,</span> <span class="n">StationCode</span><span class="p">))</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">rs</span><span class="o">.</span><span class="n">ntuples</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">NetworkCode</span> <span class="o">=</span> <span class="n">rs</span><span class="o">.</span><span class="n">dictresult</span><span class="p">()[</span><span class="mi">0</span><span class="p">][</span><span class="s1">&#39;NetworkCode&#39;</span><span class="p">]</span>
+        <span class="c1"># if it&#39;s a record that was found, update the locks with the station code</span>
+        <span class="n">cnn</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="s1">&#39;locks&#39;</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;filename&#39;</span><span class="p">:</span> <span class="n">filename</span><span class="p">},</span> <span class="n">NetworkCode</span><span class="o">=</span><span class="n">NetworkCode</span><span class="p">,</span> <span class="n">StationCode</span><span class="o">=</span><span class="n">StationCode</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># insert this new record in the stations table using a default network name (???)</span>
+        <span class="c1"># this network name is a flag that tells ArchiveService that no data should be added to this station</span>
+        <span class="c1"># until a NetworkCode is assigned.</span>
+
+        <span class="c1"># check if network code exists</span>
+        <span class="n">NetworkCode</span> <span class="o">=</span> <span class="s1">&#39;???&#39;</span>
+        <span class="n">index</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">while</span> <span class="n">cnn</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="s1">&#39;SELECT * FROM stations &#39;</span>
+                        <span class="s1">&#39;WHERE &quot;NetworkCode&quot; = </span><span class="se">\&#39;</span><span class="si">%s</span><span class="se">\&#39;</span><span class="s1"> AND &quot;StationCode&quot; = </span><span class="se">\&#39;</span><span class="si">%s</span><span class="se">\&#39;</span><span class="s1">&#39;</span>
+                        <span class="o">%</span> <span class="p">(</span><span class="n">NetworkCode</span><span class="p">,</span> <span class="n">StationCode</span><span class="p">))</span><span class="o">.</span><span class="n">ntuples</span><span class="p">()</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+
+            <span class="n">NetworkCode</span> <span class="o">=</span> <span class="nb">hex</span><span class="p">(</span><span class="n">index</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;0x&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">rjust</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="s1">&#39;?&#39;</span><span class="p">)</span>
+            <span class="n">index</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="n">index</span> <span class="o">&gt;</span> <span class="mi">255</span><span class="p">:</span>
+                <span class="c1"># FATAL ERROR! the networkCode exceed FF</span>
+                <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s1">&#39;While looking for a temporary network code, ?ff was reached! &#39;</span>
+                                <span class="s1">&#39;Cannot continue executing pyArchiveService. Please free some temporary network codes.&#39;</span><span class="p">)</span>
+
+        <span class="n">rs</span> <span class="o">=</span> <span class="n">cnn</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="s1">&#39;SELECT * FROM networks WHERE &quot;NetworkCode&quot; = </span><span class="se">\&#39;</span><span class="si">%s</span><span class="se">\&#39;</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">NetworkCode</span><span class="p">)</span>
+
+        <span class="n">cnn</span><span class="o">.</span><span class="n">begin_transac</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">rs</span><span class="o">.</span><span class="n">ntuples</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># create network code</span>
+            <span class="n">cnn</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="s1">&#39;networks&#39;</span><span class="p">,</span> <span class="n">NetworkCode</span><span class="o">=</span><span class="n">NetworkCode</span><span class="p">,</span> <span class="n">NetworkName</span><span class="o">=</span><span class="s1">&#39;Temporary network for new stations&#39;</span><span class="p">)</span>
+
+        <span class="c1"># insert record in stations with temporary NetworkCode</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">cnn</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="s1">&#39;stations&#39;</span><span class="p">,</span> <span class="n">NetworkCode</span><span class="o">=</span><span class="n">NetworkCode</span><span class="p">,</span>
+                       <span class="n">StationCode</span><span class="o">=</span><span class="n">StationCode</span><span class="p">,</span>
+                       <span class="n">auto_x</span><span class="o">=</span><span class="n">x</span><span class="p">,</span>
+                       <span class="n">auto_y</span><span class="o">=</span><span class="n">y</span><span class="p">,</span>
+                       <span class="n">auto_z</span><span class="o">=</span><span class="n">z</span><span class="p">,</span>
+                       <span class="n">Harpos_coeff_otl</span><span class="o">=</span><span class="n">otl</span><span class="p">,</span>
+                       <span class="n">lat</span><span class="o">=</span><span class="nb">round</span><span class="p">(</span><span class="n">lat</span><span class="p">,</span> <span class="mi">8</span><span class="p">),</span>
+                       <span class="n">lon</span><span class="o">=</span><span class="nb">round</span><span class="p">(</span><span class="n">lon</span><span class="p">,</span> <span class="mi">8</span><span class="p">),</span>
+                       <span class="n">height</span><span class="o">=</span><span class="nb">round</span><span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+        <span class="k">except</span> <span class="n">dbConnection</span><span class="o">.</span><span class="n">dbErrInsert</span><span class="p">:</span>
+            <span class="c1"># another process did the insert before, ignore the error</span>
+            <span class="k">pass</span>
+
+        <span class="c1"># update the lock information for this station</span>
+        <span class="n">cnn</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="s1">&#39;locks&#39;</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;filename&#39;</span><span class="p">:</span> <span class="n">filename</span><span class="p">},</span> <span class="n">NetworkCode</span><span class="o">=</span><span class="n">NetworkCode</span><span class="p">,</span> <span class="n">StationCode</span><span class="o">=</span><span class="n">StationCode</span><span class="p">)</span>
+        <span class="n">cnn</span><span class="o">.</span><span class="n">commit_transac</span><span class="p">()</span>
+
+
+<span class="k">def</span> <span class="nf">callback_handle</span><span class="p">(</span><span class="n">job</span><span class="p">):</span>
+
+    <span class="k">global</span> <span class="n">cnn</span>
+    <span class="k">global</span> <span class="n">repository_data_in</span>
+
+    <span class="k">if</span> <span class="n">job</span><span class="o">.</span><span class="n">result</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">out_message</span> <span class="o">=</span> <span class="n">job</span><span class="o">.</span><span class="n">result</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">new_station</span> <span class="o">=</span> <span class="n">job</span><span class="o">.</span><span class="n">result</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">out_message</span><span class="p">:</span>
+            <span class="n">tqdm</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s1">&#39; -- There were unhandled errors during this batch. &#39;</span>
+                       <span class="s1">&#39;Please check errors_pyArchiveService.log for details&#39;</span><span class="p">)</span>
+
+            <span class="c1"># function to print any error that are encountered during parallel execution</span>
+            <span class="n">f</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="s1">&#39;errors_pyArchiveService.log&#39;</span><span class="p">,</span> <span class="s1">&#39;a&#39;</span><span class="p">)</span>
+            <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s1">&#39;ON &#39;</span> <span class="o">+</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s1">&#39;%Y-%m-</span><span class="si">%d</span><span class="s1"> %H:%M:%S&#39;</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39; an unhandled error occurred:</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">out_message</span> <span class="o">+</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s1">&#39;END OF ERROR =================== </span><span class="se">\n\n</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="n">f</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">new_station</span><span class="p">:</span>
+            <span class="n">tqdm</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s1">&#39; -- New stations were found in the repository. Please assign a network to each new station &#39;</span>
+                       <span class="s1">&#39;and remove the locks from the files before running again ArchiveService&#39;</span><span class="p">)</span>
+
+            <span class="c1"># check the distance w.r.t the current new stations</span>
+
+            <span class="n">StationCode</span> <span class="o">=</span> <span class="n">new_station</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">x</span> <span class="o">=</span> <span class="n">new_station</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">y</span> <span class="o">=</span> <span class="n">new_station</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">z</span> <span class="o">=</span> <span class="n">new_station</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">2</span><span class="p">]</span>
+            <span class="n">otl</span> <span class="o">=</span> <span class="n">new_station</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+            <span class="n">lat</span> <span class="o">=</span> <span class="n">new_station</span><span class="p">[</span><span class="mi">3</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">lon</span> <span class="o">=</span> <span class="n">new_station</span><span class="p">[</span><span class="mi">3</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">h</span> <span class="o">=</span> <span class="n">new_station</span><span class="p">[</span><span class="mi">3</span><span class="p">][</span><span class="mi">2</span><span class="p">]</span>
+
+            <span class="n">filename</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span><span class="n">new_station</span><span class="p">[</span><span class="mi">4</span><span class="p">],</span> <span class="n">repository_data_in</span><span class="p">)</span>
+
+            <span class="c1"># logic behind this sql sentence:</span>
+            <span class="c1"># we are searching for a station within 100 meters that has been recently added, so NetworkCode = ???</span>
+            <span class="c1"># we also force the StationName to be equal to that of the incoming RINEX to avoid having problems with</span>
+            <span class="c1"># stations that are within 100 m (misidentifying IGM1 for IGM0, for example).</span>
+            <span class="c1"># This logic assumes that stations within 100 m do not have the same name!</span>
+            <span class="n">insert_station_w_lock</span><span class="p">(</span><span class="n">cnn</span><span class="p">,</span> <span class="n">StationCode</span><span class="p">,</span> <span class="n">filename</span><span class="p">,</span> <span class="n">lat</span><span class="p">,</span> <span class="n">lon</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">otl</span><span class="p">)</span>
+
+    <span class="k">elif</span> <span class="n">job</span><span class="o">.</span><span class="n">exception</span><span class="p">:</span>
+        <span class="n">tqdm</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s1">&#39; -- There were unhandled errors during this batch. &#39;</span>
+                   <span class="s1">&#39;Please check errors_pyArchiveService.log for details&#39;</span><span class="p">)</span>
+
+        <span class="c1"># function to print any error that are encountered during parallel execution</span>
+        <span class="n">f</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="s1">&#39;errors_pyArchiveService.log&#39;</span><span class="p">,</span> <span class="s1">&#39;a&#39;</span><span class="p">)</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s1">&#39;ON &#39;</span> <span class="o">+</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s1">&#39;%Y-%m-</span><span class="si">%d</span><span class="s1"> %H:%M:%S&#39;</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39; an unhandled error occurred:</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">job</span><span class="o">.</span><span class="n">exception</span> <span class="o">+</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s1">&#39;END OF ERROR =================== </span><span class="se">\n\n</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+
+<span class="k">def</span> <span class="nf">check_rinex_timespan_int</span><span class="p">(</span><span class="n">rinex</span><span class="p">,</span> <span class="n">stn</span><span class="p">):</span>
+
+    <span class="c1"># how many seconds difference between the rinex file and the record in the db</span>
+    <span class="n">stime_diff</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">((</span><span class="n">stn</span><span class="p">[</span><span class="s1">&#39;ObservationSTime&#39;</span><span class="p">]</span> <span class="o">-</span> <span class="n">rinex</span><span class="o">.</span><span class="n">datetime_firstObs</span><span class="p">)</span><span class="o">.</span><span class="n">total_seconds</span><span class="p">())</span>
+    <span class="n">etime_diff</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">((</span><span class="n">stn</span><span class="p">[</span><span class="s1">&#39;ObservationETime&#39;</span><span class="p">]</span> <span class="o">-</span> <span class="n">rinex</span><span class="o">.</span><span class="n">datetime_lastObs</span><span class="p">)</span><span class="o">.</span><span class="n">total_seconds</span><span class="p">())</span>
+
+    <span class="c1"># at least four minutes different on each side</span>
+    <span class="k">if</span> <span class="n">stime_diff</span> <span class="o">&lt;=</span> <span class="mi">240</span> <span class="ow">and</span> <span class="n">etime_diff</span> <span class="o">&lt;=</span> <span class="mi">240</span> <span class="ow">and</span> <span class="n">stn</span><span class="p">[</span><span class="s1">&#39;Interval&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="n">rinex</span><span class="o">.</span><span class="n">interval</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">True</span>
+
+
+<span class="k">def</span> <span class="nf">write_error</span><span class="p">(</span><span class="n">folder</span><span class="p">,</span> <span class="n">filename</span><span class="p">,</span> <span class="n">msg</span><span class="p">):</span>
+
+    <span class="c1"># do append just in case...</span>
+    <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">file</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">folder</span><span class="p">,</span> <span class="n">filename</span><span class="p">),</span> <span class="s1">&#39;a&#39;</span><span class="p">)</span>
+            <span class="n">file</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+            <span class="n">file</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+            <span class="k">break</span>
+        <span class="k">except</span> <span class="ne">IOError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">count</span> <span class="o">&lt;</span> <span class="mi">3</span><span class="p">:</span>
+                <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">IOError</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39; after 3 retries&#39;</span><span class="p">)</span>
+            <span class="k">continue</span>
+
+    <span class="k">return</span>
+
+
+<span class="k">def</span> <span class="nf">error_handle</span><span class="p">(</span><span class="n">cnn</span><span class="p">,</span> <span class="n">event</span><span class="p">,</span> <span class="n">crinez</span><span class="p">,</span> <span class="n">folder</span><span class="p">,</span> <span class="n">filename</span><span class="p">,</span> <span class="n">no_db_log</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+
+    <span class="c1"># rollback any active transactions</span>
+    <span class="k">if</span> <span class="n">cnn</span><span class="o">.</span><span class="n">active_transaction</span><span class="p">:</span>
+        <span class="n">cnn</span><span class="o">.</span><span class="n">rollback_transac</span><span class="p">()</span>
+
+    <span class="c1"># move to the folder indicated</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">folder</span><span class="p">):</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">folder</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
+        <span class="c1"># racing condition of two processes trying to create the same folder</span>
+        <span class="k">pass</span>
+
+    <span class="n">message</span> <span class="o">=</span> <span class="n">event</span><span class="p">[</span><span class="s1">&#39;Description&#39;</span><span class="p">]</span>
+
+    <span class="n">mfile</span> <span class="o">=</span> <span class="n">filename</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">mfile</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">Utils</span><span class="o">.</span><span class="n">move</span><span class="p">(</span><span class="n">crinez</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">folder</span><span class="p">,</span> <span class="n">filename</span><span class="p">)))</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">OSError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">)</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="n">message</span> <span class="o">=</span> <span class="s1">&#39;could not move file into this folder!&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">. Original error: &#39;</span> <span class="o">+</span> <span class="n">event</span><span class="p">[</span><span class="s1">&#39;Description&#39;</span><span class="p">]</span>
+
+    <span class="n">error_file</span> <span class="o">=</span> <span class="n">mfile</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;d.Z&#39;</span><span class="p">,</span> <span class="s1">&#39;.log&#39;</span><span class="p">)</span>
+    <span class="n">write_error</span><span class="p">(</span><span class="n">folder</span><span class="p">,</span> <span class="n">error_file</span><span class="p">,</span> <span class="n">message</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">no_db_log</span><span class="p">:</span>
+        <span class="n">cnn</span><span class="o">.</span><span class="n">insert_event</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>
+
+    <span class="k">return</span>
+
+
+<span class="k">def</span> <span class="nf">insert_data</span><span class="p">(</span><span class="n">cnn</span><span class="p">,</span> <span class="n">archive</span><span class="p">,</span> <span class="n">rinexinfo</span><span class="p">):</span>
+
+    <span class="n">inserted</span> <span class="o">=</span> <span class="n">archive</span><span class="o">.</span><span class="n">insert_rinex</span><span class="p">(</span><span class="n">rinexobj</span><span class="o">=</span><span class="n">rinexinfo</span><span class="p">)</span>
+    <span class="c1"># if archive.insert_rinex has a dbInserErr, it will be catched by the calling function</span>
+    <span class="c1"># always remove original file</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">rinexinfo</span><span class="o">.</span><span class="n">origin_file</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">inserted</span><span class="p">:</span>
+        <span class="c1"># insert an event to account for the file (otherwise is weird to have a missing rinex in the events table</span>
+        <span class="n">event</span> <span class="o">=</span> <span class="n">pyEvents</span><span class="o">.</span><span class="n">Event</span><span class="p">(</span>
+            <span class="n">Description</span><span class="o">=</span><span class="n">rinexinfo</span><span class="o">.</span><span class="n">crinez</span> <span class="o">+</span> <span class="s1">&#39; had the same interval and completion as an existing file. &#39;</span>
+                                           <span class="s1">&#39;CRINEZ deleted from data_in.&#39;</span><span class="p">,</span>
+            <span class="n">NetworkCode</span><span class="o">=</span><span class="n">rinexinfo</span><span class="o">.</span><span class="n">NetworkCode</span><span class="p">,</span>
+            <span class="n">StationCode</span><span class="o">=</span><span class="n">rinexinfo</span><span class="o">.</span><span class="n">StationCode</span><span class="p">,</span>
+            <span class="n">Year</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">rinexinfo</span><span class="o">.</span><span class="n">date</span><span class="o">.</span><span class="n">year</span><span class="p">),</span>
+            <span class="n">DOY</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">rinexinfo</span><span class="o">.</span><span class="n">date</span><span class="o">.</span><span class="n">doy</span><span class="p">))</span>
+
+        <span class="n">cnn</span><span class="o">.</span><span class="n">insert_event</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">verify_rinex_multiday</span><span class="p">(</span><span class="n">cnn</span><span class="p">,</span> <span class="n">rinexinfo</span><span class="p">,</span> <span class="n">Config</span><span class="p">):</span>
+    <span class="c1"># function to verify if rinex is multiday</span>
+    <span class="c1"># returns true if parent process can continue with insert</span>
+    <span class="c1"># returns false if file had to be moved to the retry</span>
+
+    <span class="c1"># check if rinex is a multiday file (rinex with more than one day of observations)</span>
+    <span class="k">if</span> <span class="n">rinexinfo</span><span class="o">.</span><span class="n">multiday</span><span class="p">:</span>
+
+        <span class="c1"># move all the files to the repository</span>
+        <span class="n">rnxlist</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">rnx</span> <span class="ow">in</span> <span class="n">rinexinfo</span><span class="o">.</span><span class="n">multiday_rnx_list</span><span class="p">:</span>
+            <span class="n">rnxlist</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">rnx</span><span class="o">.</span><span class="n">rinex</span><span class="p">)</span>
+            <span class="c1"># some other file, move it to the repository</span>
+            <span class="n">retry_folder</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">Config</span><span class="o">.</span><span class="n">repository_data_in_retry</span><span class="p">,</span>
+                                        <span class="s1">&#39;multidays_found/&#39;</span> <span class="o">+</span> <span class="n">rnx</span><span class="o">.</span><span class="n">date</span><span class="o">.</span><span class="n">yyyy</span><span class="p">()</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span> <span class="o">+</span> <span class="n">rnx</span><span class="o">.</span><span class="n">date</span><span class="o">.</span><span class="n">ddd</span><span class="p">())</span>
+            <span class="n">rnx</span><span class="o">.</span><span class="n">compress_local_copyto</span><span class="p">(</span><span class="n">retry_folder</span><span class="p">)</span>
+
+        <span class="c1"># if the file corresponding to this session is found, assign its object to rinexinfo</span>
+        <span class="n">event</span> <span class="o">=</span> <span class="n">pyEvents</span><span class="o">.</span><span class="n">Event</span><span class="p">(</span><span class="n">Description</span><span class="o">=</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1"> was a multi-day rinex file. The following rinex files where generated &#39;</span>
+                                           <span class="s1">&#39;and moved to the repository/data_in_retry: </span><span class="si">%s</span><span class="s1">. The file </span><span class="si">%s</span><span class="s1"> did not enter &#39;</span>
+                                           <span class="s1">&#39;the database at this time.&#39;</span> <span class="o">%</span>
+                                           <span class="p">(</span><span class="n">rinexinfo</span><span class="o">.</span><span class="n">origin_file</span><span class="p">,</span> <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">rnxlist</span><span class="p">),</span> <span class="n">rinexinfo</span><span class="o">.</span><span class="n">crinez</span><span class="p">),</span>
+                               <span class="n">NetworkCode</span><span class="o">=</span><span class="n">rinexinfo</span><span class="o">.</span><span class="n">NetworkCode</span><span class="p">,</span>
+                               <span class="n">StationCode</span><span class="o">=</span><span class="n">rinexinfo</span><span class="o">.</span><span class="n">StationCode</span><span class="p">,</span>
+                               <span class="n">Year</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">rinexinfo</span><span class="o">.</span><span class="n">date</span><span class="o">.</span><span class="n">year</span><span class="p">),</span>
+                               <span class="n">DOY</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">rinexinfo</span><span class="o">.</span><span class="n">date</span><span class="o">.</span><span class="n">doy</span><span class="p">))</span>
+
+        <span class="n">cnn</span><span class="o">.</span><span class="n">insert_event</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>
+
+        <span class="c1"># remove crinez from the repository (origin_file points to the repository, not to the archive in this case)</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">rinexinfo</span><span class="o">.</span><span class="n">origin_file</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="k">return</span> <span class="kc">True</span>
+
+
+<span class="k">def</span> <span class="nf">process_crinex_file</span><span class="p">(</span><span class="n">crinez</span><span class="p">,</span> <span class="n">filename</span><span class="p">,</span> <span class="n">data_rejected</span><span class="p">,</span> <span class="n">data_retry</span><span class="p">):</span>
+
+    <span class="c1"># create a uuid temporary folder in case we cannot read the year and doy from the file (and gets rejected)</span>
+    <span class="n">reject_folder</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">data_rejected</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">()))</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">cnn</span> <span class="o">=</span> <span class="n">dbConnection</span><span class="o">.</span><span class="n">Cnn</span><span class="p">(</span><span class="s2">&quot;gnss_data.cfg&quot;</span><span class="p">)</span>
+        <span class="n">Config</span> <span class="o">=</span> <span class="n">pyOptions</span><span class="o">.</span><span class="n">ReadOptions</span><span class="p">(</span><span class="s2">&quot;gnss_data.cfg&quot;</span><span class="p">)</span>
+        <span class="n">archive</span> <span class="o">=</span> <span class="n">pyArchiveStruct</span><span class="o">.</span><span class="n">RinexStruct</span><span class="p">(</span><span class="n">cnn</span><span class="p">)</span>
+        <span class="c1"># apply local configuration (path to repo) in the executing node</span>
+        <span class="n">crinez</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">Config</span><span class="o">.</span><span class="n">repository_data_in</span><span class="p">,</span> <span class="n">crinez</span><span class="p">)</span>
+
+    <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+
+        <span class="k">return</span> <span class="n">traceback</span><span class="o">.</span><span class="n">format_exc</span><span class="p">()</span> <span class="o">+</span> <span class="s1">&#39; while opening the database to process file &#39;</span> <span class="o">+</span> \
+               <span class="n">crinez</span> <span class="o">+</span> <span class="s1">&#39; node &#39;</span> <span class="o">+</span> <span class="n">platform</span><span class="o">.</span><span class="n">node</span><span class="p">(),</span> <span class="kc">None</span>
+
+    <span class="c1"># assume a default networkcode</span>
+    <span class="n">NetworkCode</span> <span class="o">=</span> <span class="s1">&#39;rnx&#39;</span>
+    <span class="c1"># get the station code year and doy from the filename</span>
+    <span class="n">fileparts</span> <span class="o">=</span> <span class="n">archive</span><span class="o">.</span><span class="n">parse_crinex_filename</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">fileparts</span><span class="p">:</span>
+        <span class="n">StationCode</span> <span class="o">=</span> <span class="n">fileparts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+        <span class="n">doy</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">fileparts</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="n">year</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">Utils</span><span class="o">.</span><span class="n">get_norm_year_str</span><span class="p">(</span><span class="n">fileparts</span><span class="p">[</span><span class="mi">3</span><span class="p">]))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">event</span> <span class="o">=</span> <span class="n">pyEvents</span><span class="o">.</span><span class="n">Event</span><span class="p">(</span>
+            <span class="n">Description</span><span class="o">=</span><span class="s1">&#39;Could not read the station code, year or doy for file &#39;</span> <span class="o">+</span> <span class="n">crinez</span><span class="p">,</span>
+            <span class="n">EventType</span><span class="o">=</span><span class="s1">&#39;error&#39;</span><span class="p">)</span>
+        <span class="n">error_handle</span><span class="p">(</span><span class="n">cnn</span><span class="p">,</span> <span class="n">event</span><span class="p">,</span> <span class="n">crinez</span><span class="p">,</span> <span class="n">reject_folder</span><span class="p">,</span> <span class="n">filename</span><span class="p">,</span> <span class="n">no_db_log</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">event</span><span class="p">[</span><span class="s1">&#39;Description&#39;</span><span class="p">],</span> <span class="kc">None</span>
+
+    <span class="c1"># we can now make better reject and retry folders</span>
+    <span class="n">reject_folder</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">data_rejected</span><span class="p">,</span>
+                                 <span class="s1">&#39;</span><span class="si">%r</span><span class="s1">eason%/&#39;</span> <span class="o">+</span> <span class="n">Utils</span><span class="o">.</span><span class="n">get_norm_year_str</span><span class="p">(</span><span class="n">year</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span> <span class="o">+</span> <span class="n">Utils</span><span class="o">.</span><span class="n">get_norm_doy_str</span><span class="p">(</span><span class="n">doy</span><span class="p">))</span>
+
+    <span class="n">retry_folder</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">data_retry</span><span class="p">,</span>
+                                <span class="s1">&#39;</span><span class="si">%r</span><span class="s1">eason%/&#39;</span> <span class="o">+</span> <span class="n">Utils</span><span class="o">.</span><span class="n">get_norm_year_str</span><span class="p">(</span><span class="n">year</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span> <span class="o">+</span> <span class="n">Utils</span><span class="o">.</span><span class="n">get_norm_doy_str</span><span class="p">(</span><span class="n">doy</span><span class="p">))</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="c1"># main try except block</span>
+        <span class="k">with</span> <span class="n">pyRinex</span><span class="o">.</span><span class="n">ReadRinex</span><span class="p">(</span><span class="n">NetworkCode</span><span class="p">,</span> <span class="n">StationCode</span><span class="p">,</span> <span class="n">crinez</span><span class="p">)</span> <span class="k">as</span> <span class="n">rinexinfo</span><span class="p">:</span>  <span class="c1"># type: pyRinex.ReadRinex</span>
+
+            <span class="c1"># STOP! see if rinexinfo is a multiday rinex file</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">verify_rinex_multiday</span><span class="p">(</span><span class="n">cnn</span><span class="p">,</span> <span class="n">rinexinfo</span><span class="p">,</span> <span class="n">Config</span><span class="p">):</span>
+                <span class="c1"># was a multiday rinex. verify_rinex_date_multiday took care of it</span>
+                <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
+
+            <span class="c1"># DDG: we don&#39;t use otl coefficients because we need an approximated coordinate</span>
+            <span class="c1"># we therefore just calculate the first coordinate without otl</span>
+            <span class="c1"># NOTICE that we have to trust the information coming in the RINEX header (receiver type, antenna type, etc)</span>
+            <span class="c1"># we don&#39;t have station info data! Still, good enough</span>
+            <span class="c1"># the final PPP coordinate will be calculated by pyScanArchive on a different process</span>
+
+            <span class="c1"># make sure that the file has the appropriate coordinates in the header for PPP.</span>
+            <span class="c1"># put the correct APR coordinates in the header.</span>
+            <span class="c1"># ppp didn&#39;t work, try using sh_rx2apr</span>
+            <span class="n">brdc</span> <span class="o">=</span> <span class="n">pyBrdc</span><span class="o">.</span><span class="n">GetBrdcOrbits</span><span class="p">(</span><span class="n">Config</span><span class="o">.</span><span class="n">brdc_path</span><span class="p">,</span> <span class="n">rinexinfo</span><span class="o">.</span><span class="n">date</span><span class="p">,</span> <span class="n">rinexinfo</span><span class="o">.</span><span class="n">rootdir</span><span class="p">)</span>
+
+            <span class="c1"># inflate the chi**2 limit to make sure it will pass (even if we get a crappy coordinate)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">rinexinfo</span><span class="o">.</span><span class="n">auto_coord</span><span class="p">(</span><span class="n">brdc</span><span class="p">,</span> <span class="n">chi_limit</span><span class="o">=</span><span class="mi">1000</span><span class="p">)</span>
+
+                <span class="c1"># normalize header to add the APR coordinate</span>
+                <span class="c1"># empty dict since nothing extra to change (other than the APR coordinate)</span>
+                <span class="n">rinexinfo</span><span class="o">.</span><span class="n">normalize_header</span><span class="p">(</span><span class="nb">dict</span><span class="p">())</span>
+            <span class="k">except</span> <span class="n">pyRinex</span><span class="o">.</span><span class="n">pyRinexExceptionNoAutoCoord</span><span class="p">:</span>
+                <span class="c1"># could not determine an autonomous coordinate, try PPP anyways. 50% chance it will work</span>
+                <span class="k">pass</span>
+
+            <span class="k">with</span> <span class="n">pyPPP</span><span class="o">.</span><span class="n">RunPPP</span><span class="p">(</span><span class="n">rinexinfo</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">Config</span><span class="o">.</span><span class="n">options</span><span class="p">,</span> <span class="n">Config</span><span class="o">.</span><span class="n">sp3types</span><span class="p">,</span> <span class="n">Config</span><span class="o">.</span><span class="n">sp3altrn</span><span class="p">,</span> <span class="n">rinexinfo</span><span class="o">.</span><span class="n">antOffset</span><span class="p">,</span>
+                              <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">apply_met</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">clock_interpolation</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="k">as</span> <span class="n">ppp</span><span class="p">:</span>  <span class="c1"># type: pyPPP.RunPPP</span>
+
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">ppp</span><span class="o">.</span><span class="n">exec_ppp</span><span class="p">()</span>
+
+                <span class="k">except</span> <span class="n">pyPPP</span><span class="o">.</span><span class="n">pyRunPPPException</span> <span class="k">as</span> <span class="n">ePPP</span><span class="p">:</span>
+
+                    <span class="c1"># inflate the chi**2 limit to make sure it will pass (even if we get a crappy coordinate)</span>
+                    <span class="c1"># if coordinate is TOO bad it will get kicked off by the unreasonable geodetic height</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">auto_coords_xyz</span><span class="p">,</span> <span class="n">auto_coords_lla</span> <span class="o">=</span> <span class="n">rinexinfo</span><span class="o">.</span><span class="n">auto_coord</span><span class="p">(</span><span class="n">brdc</span><span class="p">,</span> <span class="n">chi_limit</span><span class="o">=</span><span class="mi">1000</span><span class="p">)</span>
+
+                    <span class="k">except</span> <span class="n">pyRinex</span><span class="o">.</span><span class="n">pyRinexExceptionNoAutoCoord</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                        <span class="c1"># catch pyRinexExceptionNoAutoCoord and convert it into a pyRunPPPException</span>
+
+                        <span class="k">raise</span> <span class="n">pyPPP</span><span class="o">.</span><span class="n">pyRunPPPException</span><span class="p">(</span><span class="s1">&#39;Both PPP and sh_rx2apr failed to obtain a coordinate for </span><span class="si">%s</span><span class="s1">.</span><span class="se">\n</span><span class="s1">&#39;</span>
+                                                      <span class="s1">&#39;The file has been moved into the rejection folder. &#39;</span>
+                                                      <span class="s1">&#39;Summary PPP file and error (if exists) follows:</span><span class="se">\n</span><span class="si">%s</span><span class="se">\n\n</span><span class="s1">&#39;</span>
+                                                      <span class="s1">&#39;ERROR section:</span><span class="se">\n</span><span class="si">%s</span><span class="se">\n</span><span class="s1">pyRinex.auto_coord error follows:</span><span class="se">\n</span><span class="si">%s</span><span class="s1">&#39;</span>
+                                                      <span class="o">%</span> <span class="p">(</span><span class="n">crinez</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">Config</span><span class="o">.</span><span class="n">repository_data_in</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">),</span>
+                                                         <span class="n">ppp</span><span class="o">.</span><span class="n">summary</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">ePPP</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">(),</span> <span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()))</span>
+
+                    <span class="c1"># DDG: this is correct - auto_coord returns a numpy array (calculated in ecef2lla),</span>
+                    <span class="c1"># so ppp.lat = auto_coords_lla is consistent.</span>
+                    <span class="n">ppp</span><span class="o">.</span><span class="n">lat</span> <span class="o">=</span> <span class="n">auto_coords_lla</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                    <span class="n">ppp</span><span class="o">.</span><span class="n">lon</span> <span class="o">=</span> <span class="n">auto_coords_lla</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+                    <span class="n">ppp</span><span class="o">.</span><span class="n">h</span> <span class="o">=</span> <span class="n">auto_coords_lla</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+                    <span class="n">ppp</span><span class="o">.</span><span class="n">x</span> <span class="o">=</span> <span class="n">auto_coords_xyz</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                    <span class="n">ppp</span><span class="o">.</span><span class="n">y</span> <span class="o">=</span> <span class="n">auto_coords_xyz</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+                    <span class="n">ppp</span><span class="o">.</span><span class="n">z</span> <span class="o">=</span> <span class="n">auto_coords_xyz</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+
+                <span class="c1"># check for unreasonable heights</span>
+                <span class="k">if</span> <span class="n">ppp</span><span class="o">.</span><span class="n">h</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">9000</span> <span class="ow">or</span> <span class="n">ppp</span><span class="o">.</span><span class="n">h</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;</span> <span class="o">-</span><span class="mi">400</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="n">pyRinex</span><span class="o">.</span><span class="n">pyRinexException</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span><span class="n">crinez</span><span class="p">,</span> <span class="n">Config</span><span class="o">.</span><span class="n">repository_data_in</span><span class="p">)</span> <span class="o">+</span>
+                                                   <span class="s1">&#39; : unreasonable geodetic height (</span><span class="si">%.3f</span><span class="s1">). &#39;</span>
+                                                   <span class="s1">&#39;RINEX file will not enter the archive.&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">ppp</span><span class="o">.</span><span class="n">h</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+
+                <span class="n">Result</span><span class="p">,</span> <span class="n">match</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">ppp</span><span class="o">.</span><span class="n">verify_spatial_coherence</span><span class="p">(</span><span class="n">cnn</span><span class="p">,</span> <span class="n">StationCode</span><span class="p">)</span>
+
+                <span class="k">if</span> <span class="n">Result</span><span class="p">:</span>
+                    <span class="c1"># insert: there is only 1 match with the same StationCode.</span>
+                    <span class="n">rinexinfo</span><span class="o">.</span><span class="n">rename</span><span class="p">(</span><span class="n">NetworkCode</span><span class="o">=</span><span class="n">match</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="s1">&#39;NetworkCode&#39;</span><span class="p">])</span>
+                    <span class="n">insert_data</span><span class="p">(</span><span class="n">cnn</span><span class="p">,</span> <span class="n">archive</span><span class="p">,</span> <span class="n">rinexinfo</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+
+                    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">match</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                        <span class="n">error</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2"> matches the coordinate of </span><span class="si">%s</span><span class="s2">.</span><span class="si">%s</span><span class="s2"> (distance = </span><span class="si">%8.3f</span><span class="s2"> m) but the filename &quot;</span> \
+                                <span class="s2">&quot;indicates it is </span><span class="si">%s</span><span class="s2">. Please verify that this file belongs to </span><span class="si">%s</span><span class="s2">.</span><span class="si">%s</span><span class="s2">, rename it and &quot;</span> \
+                                <span class="s2">&quot;try again. The file was moved to the retry folder. &quot;</span> \
+                                <span class="s2">&quot;Rename script and pSQL sentence follows:</span><span class="se">\n</span><span class="s2">&quot;</span> \
+                                <span class="s2">&quot;BASH# mv </span><span class="si">%s</span><span class="s2"> </span><span class="si">%s</span><span class="se">\n</span><span class="s2">&quot;</span> \
+                                <span class="s2">&quot;PSQL# INSERT INTO stations (</span><span class="se">\&quot;</span><span class="s2">NetworkCode</span><span class="se">\&quot;</span><span class="s2">, </span><span class="se">\&quot;</span><span class="s2">StationCode</span><span class="se">\&quot;</span><span class="s2">, </span><span class="se">\&quot;</span><span class="s2">auto_x</span><span class="se">\&quot;</span><span class="s2">, &quot;</span> \
+                                <span class="s2">&quot;</span><span class="se">\&quot;</span><span class="s2">auto_y</span><span class="se">\&quot;</span><span class="s2">, </span><span class="se">\&quot;</span><span class="s2">auto_z</span><span class="se">\&quot;</span><span class="s2">, </span><span class="se">\&quot;</span><span class="s2">lat</span><span class="se">\&quot;</span><span class="s2">, </span><span class="se">\&quot;</span><span class="s2">lon</span><span class="se">\&quot;</span><span class="s2">, </span><span class="se">\&quot;</span><span class="s2">height</span><span class="se">\&quot;</span><span class="s2">) VALUES &quot;</span> \
+                                <span class="s2">&quot;(&#39;???&#39;,&#39;</span><span class="si">%s</span><span class="s2">&#39;, </span><span class="si">%12.3f</span><span class="s2">, </span><span class="si">%12.3f</span><span class="s2">, </span><span class="si">%12.3f</span><span class="s2">, &quot;</span> \
+                                <span class="s2">&quot;</span><span class="si">%10.6f</span><span class="s2">, </span><span class="si">%10.6f</span><span class="s2">, </span><span class="si">%8.3f</span><span class="s2">)</span><span class="se">\n</span><span class="s2">&quot;</span> \
+                                <span class="o">%</span> <span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span><span class="n">crinez</span><span class="p">,</span> <span class="n">Config</span><span class="o">.</span><span class="n">repository_data_in</span><span class="p">),</span> <span class="n">match</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="s1">&#39;NetworkCode&#39;</span><span class="p">],</span>
+                                   <span class="n">match</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="s1">&#39;StationCode&#39;</span><span class="p">],</span> <span class="nb">float</span><span class="p">(</span><span class="n">match</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="s1">&#39;distance&#39;</span><span class="p">]),</span> <span class="n">StationCode</span><span class="p">,</span>
+                                   <span class="n">match</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="s1">&#39;NetworkCode&#39;</span><span class="p">],</span> <span class="n">match</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="s1">&#39;StationCode&#39;</span><span class="p">],</span>
+                                   <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">retry_folder</span><span class="p">,</span> <span class="n">filename</span><span class="p">),</span>
+                                   <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">retry_folder</span><span class="p">,</span> <span class="n">filename</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">StationCode</span><span class="p">,</span> <span class="n">match</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="s1">&#39;StationCode&#39;</span><span class="p">])),</span>
+                                   <span class="n">StationCode</span><span class="p">,</span> <span class="n">ppp</span><span class="o">.</span><span class="n">x</span><span class="p">,</span> <span class="n">ppp</span><span class="o">.</span><span class="n">y</span><span class="p">,</span> <span class="n">ppp</span><span class="o">.</span><span class="n">z</span><span class="p">,</span> <span class="n">ppp</span><span class="o">.</span><span class="n">lat</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">ppp</span><span class="o">.</span><span class="n">lon</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">ppp</span><span class="o">.</span><span class="n">h</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+                        <span class="k">raise</span> <span class="n">pyPPP</span><span class="o">.</span><span class="n">pyRunPPPExceptionCoordConflict</span><span class="p">(</span><span class="n">error</span><span class="p">)</span>
+
+                    <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">match</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                        <span class="c1"># a number of things could have happened:</span>
+                        <span class="c1"># 1) wrong station code, and more than one matching stations</span>
+                        <span class="c1">#    (that do not match the station code, of course)</span>
+                        <span class="c1">#    see rms.lhcl 2007 113 -&gt; matches rms.igm0: 34.293 m, rms.igm1: 40.604 m, rms.byns: 4.819 m</span>
+                        <span class="c1"># 2) no entry in the database for this solution -&gt; add a lock and populate the exit args</span>
+
+                        <span class="c1"># no match, but we have some candidates</span>
+
+                        <span class="n">error</span> <span class="o">=</span> <span class="s2">&quot;Solution for RINEX in repository (</span><span class="si">%s</span><span class="s2"> </span><span class="si">%s</span><span class="s2">) did not match a unique station location &quot;</span> \
+                                <span class="s2">&quot;(and station code) within 5 km. Possible cantidate(s): </span><span class="si">%s</span><span class="s2">. This file has been moved &quot;</span> \
+                                <span class="s2">&quot;to data_in_retry. pSQL sentence follows:</span><span class="se">\n</span><span class="s2">&quot;</span> \
+                                <span class="s2">&quot;PSQL# INSERT INTO stations (</span><span class="se">\&quot;</span><span class="s2">NetworkCode</span><span class="se">\&quot;</span><span class="s2">, </span><span class="se">\&quot;</span><span class="s2">StationCode</span><span class="se">\&quot;</span><span class="s2">, </span><span class="se">\&quot;</span><span class="s2">auto_x</span><span class="se">\&quot;</span><span class="s2">, &quot;</span> \
+                                <span class="s2">&quot;</span><span class="se">\&quot;</span><span class="s2">auto_y</span><span class="se">\&quot;</span><span class="s2">, </span><span class="se">\&quot;</span><span class="s2">auto_z</span><span class="se">\&quot;</span><span class="s2">, </span><span class="se">\&quot;</span><span class="s2">lat</span><span class="se">\&quot;</span><span class="s2">, </span><span class="se">\&quot;</span><span class="s2">lon</span><span class="se">\&quot;</span><span class="s2">, </span><span class="se">\&quot;</span><span class="s2">height</span><span class="se">\&quot;</span><span class="s2">) VALUES &quot;</span> \
+                                <span class="s2">&quot;(&#39;???&#39;,&#39;</span><span class="si">%s</span><span class="s2">&#39;, </span><span class="si">%12.3f</span><span class="s2">, </span><span class="si">%12.3f</span><span class="s2">, </span><span class="si">%12.3f</span><span class="s2">, </span><span class="si">%10.6f</span><span class="s2">, </span><span class="si">%10.6f</span><span class="s2">, </span><span class="si">%8.3f</span><span class="s2">)</span><span class="se">\n</span><span class="s2">&quot;</span> \
+                                <span class="o">%</span> <span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span><span class="n">crinez</span><span class="p">,</span> <span class="n">Config</span><span class="o">.</span><span class="n">repository_data_in</span><span class="p">),</span> <span class="n">rinexinfo</span><span class="o">.</span><span class="n">date</span><span class="o">.</span><span class="n">yyyyddd</span><span class="p">(),</span>
+                                   <span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">.</span><span class="si">%s</span><span class="s1">: </span><span class="si">%.3f</span><span class="s1"> m&#39;</span> <span class="o">%</span>
+                                              <span class="p">(</span><span class="n">m</span><span class="p">[</span><span class="s1">&#39;NetworkCode&#39;</span><span class="p">],</span> <span class="n">m</span><span class="p">[</span><span class="s1">&#39;StationCode&#39;</span><span class="p">],</span> <span class="n">m</span><span class="p">[</span><span class="s1">&#39;distance&#39;</span><span class="p">])</span> <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">match</span><span class="p">]),</span>
+                                   <span class="n">StationCode</span><span class="p">,</span> <span class="n">ppp</span><span class="o">.</span><span class="n">x</span><span class="p">,</span> <span class="n">ppp</span><span class="o">.</span><span class="n">y</span><span class="p">,</span> <span class="n">ppp</span><span class="o">.</span><span class="n">z</span><span class="p">,</span> <span class="n">ppp</span><span class="o">.</span><span class="n">lat</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">ppp</span><span class="o">.</span><span class="n">lon</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">ppp</span><span class="o">.</span><span class="n">h</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+                        <span class="k">raise</span> <span class="n">pyPPP</span><span class="o">.</span><span class="n">pyRunPPPExceptionCoordConflict</span><span class="p">(</span><span class="n">error</span><span class="p">)</span>
+
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="c1"># only found a station removing the distance limit (could be thousands of km away!)</span>
+
+                        <span class="c1"># The user will have to add the metadata to the database before the file can be added,</span>
+                        <span class="c1"># but in principle no problem was detected by the process. This file will stay in this folder</span>
+                        <span class="c1"># so that it gets analyzed again but a &quot;lock&quot; will be added to the file that will have to be</span>
+                        <span class="c1"># removed before the service analyzes again.</span>
+                        <span class="c1"># if the user inserted the station by then, it will get moved to the appropriate place.</span>
+                        <span class="c1"># we return all the relevant metadata to ease the insert of the station in the database</span>
+
+                        <span class="n">otl</span> <span class="o">=</span> <span class="n">pyOTL</span><span class="o">.</span><span class="n">OceanLoading</span><span class="p">(</span><span class="n">StationCode</span><span class="p">,</span> <span class="n">Config</span><span class="o">.</span><span class="n">options</span><span class="p">[</span><span class="s1">&#39;grdtab&#39;</span><span class="p">],</span> <span class="n">Config</span><span class="o">.</span><span class="n">options</span><span class="p">[</span><span class="s1">&#39;otlgrid&#39;</span><span class="p">])</span>
+                        <span class="c1"># use the ppp coordinates to calculate the otl</span>
+                        <span class="n">coeff</span> <span class="o">=</span> <span class="n">otl</span><span class="o">.</span><span class="n">calculate_otl_coeff</span><span class="p">(</span><span class="n">x</span><span class="o">=</span><span class="n">ppp</span><span class="o">.</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="n">ppp</span><span class="o">.</span><span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="o">=</span><span class="n">ppp</span><span class="o">.</span><span class="n">z</span><span class="p">)</span>
+
+                        <span class="c1"># add the file to the locks table so that it doesn&#39;t get processed over and over</span>
+                        <span class="c1"># this will be removed by user so that the file gets reprocessed once all the metadata is ready</span>
+                        <span class="n">cnn</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="s1">&#39;locks&#39;</span><span class="p">,</span> <span class="n">filename</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span><span class="n">crinez</span><span class="p">,</span> <span class="n">Config</span><span class="o">.</span><span class="n">repository_data_in</span><span class="p">))</span>
+
+                        <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="p">[</span><span class="n">StationCode</span><span class="p">,</span> <span class="p">(</span><span class="n">ppp</span><span class="o">.</span><span class="n">x</span><span class="p">,</span> <span class="n">ppp</span><span class="o">.</span><span class="n">y</span><span class="p">,</span> <span class="n">ppp</span><span class="o">.</span><span class="n">z</span><span class="p">),</span> <span class="n">coeff</span><span class="p">,</span> <span class="p">(</span><span class="n">ppp</span><span class="o">.</span><span class="n">lat</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">ppp</span><span class="o">.</span><span class="n">lon</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                                                                                  <span class="n">ppp</span><span class="o">.</span><span class="n">h</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">crinez</span><span class="p">]</span>
+
+    <span class="k">except</span> <span class="p">(</span><span class="n">pyRinex</span><span class="o">.</span><span class="n">pyRinexExceptionBadFile</span><span class="p">,</span> <span class="n">pyRinex</span><span class="o">.</span><span class="n">pyRinexExceptionSingleEpoch</span><span class="p">,</span> <span class="n">pyRinex</span><span class="o">.</span><span class="n">pyRinexExceptionNoAutoCoord</span><span class="p">)</span> \
+            <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+
+        <span class="n">reject_folder</span> <span class="o">=</span> <span class="n">reject_folder</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%r</span><span class="s1">eason%&#39;</span><span class="p">,</span><span class="s1">&#39;bad_rinex&#39;</span><span class="p">)</span>
+
+        <span class="c1"># add more verbose output</span>
+        <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;Description&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;Description&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">+</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span><span class="n">crinez</span><span class="p">,</span> <span class="n">Config</span><span class="o">.</span><span class="n">repository_data_in</span><span class="p">)</span> <span class="o">+</span> \
+                                 <span class="s1">&#39;: (file moved to &#39;</span> <span class="o">+</span> <span class="n">reject_folder</span> <span class="o">+</span> <span class="s1">&#39;)&#39;</span>
+        <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;StationCode&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">StationCode</span>
+        <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;NetworkCode&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;???&#39;</span>
+        <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;Year&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">year</span>
+        <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;DOY&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">doy</span>
+        <span class="c1"># error, move the file to rejected folder</span>
+        <span class="n">error_handle</span><span class="p">(</span><span class="n">cnn</span><span class="p">,</span> <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">,</span> <span class="n">crinez</span><span class="p">,</span> <span class="n">reject_folder</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
+
+    <span class="k">except</span> <span class="n">pyRinex</span><span class="o">.</span><span class="n">pyRinexException</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+
+        <span class="n">retry_folder</span> <span class="o">=</span> <span class="n">retry_folder</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%r</span><span class="s1">eason%&#39;</span><span class="p">,</span> <span class="s1">&#39;rinex_issues&#39;</span><span class="p">)</span>
+
+        <span class="c1"># add more verbose output</span>
+        <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;Description&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;Description&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">+</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span><span class="n">crinez</span><span class="p">,</span> <span class="n">Config</span><span class="o">.</span><span class="n">repository_data_in</span><span class="p">)</span> <span class="o">+</span> \
+                                 <span class="s1">&#39;: (file moved to &#39;</span> <span class="o">+</span> <span class="n">retry_folder</span> <span class="o">+</span> <span class="s1">&#39;)&#39;</span>
+        <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;StationCode&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">StationCode</span>
+        <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;NetworkCode&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;???&#39;</span>
+        <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;Year&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">year</span>
+        <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;DOY&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">doy</span>
+        <span class="c1"># error, move the file to rejected folder</span>
+        <span class="n">error_handle</span><span class="p">(</span><span class="n">cnn</span><span class="p">,</span> <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">,</span> <span class="n">crinez</span><span class="p">,</span> <span class="n">retry_folder</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
+
+    <span class="k">except</span> <span class="n">pyPPP</span><span class="o">.</span><span class="n">pyRunPPPExceptionCoordConflict</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+
+        <span class="n">retry_folder</span> <span class="o">=</span> <span class="n">retry_folder</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%r</span><span class="s1">eason%&#39;</span><span class="p">,</span> <span class="s1">&#39;coord_conflicts&#39;</span><span class="p">)</span>
+
+        <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;Description&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;Description&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%r</span><span class="s1">eason%&#39;</span><span class="p">,</span> <span class="s1">&#39;coord_conflicts&#39;</span><span class="p">)</span>
+
+        <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;StationCode&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">StationCode</span>
+        <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;NetworkCode&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;???&#39;</span>
+        <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;Year&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">year</span>
+        <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;DOY&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">doy</span>
+
+        <span class="n">error_handle</span><span class="p">(</span><span class="n">cnn</span><span class="p">,</span> <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">,</span> <span class="n">crinez</span><span class="p">,</span> <span class="n">retry_folder</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
+
+    <span class="k">except</span> <span class="n">pyPPP</span><span class="o">.</span><span class="n">pyRunPPPException</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+
+        <span class="n">reject_folder</span> <span class="o">=</span> <span class="n">reject_folder</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%r</span><span class="s1">eason%&#39;</span><span class="p">,</span><span class="s1">&#39;no_ppp_solution&#39;</span><span class="p">)</span>
+
+        <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;StationCode&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">StationCode</span>
+        <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;NetworkCode&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;???&#39;</span>
+        <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;Year&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">year</span>
+        <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;DOY&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">doy</span>
+
+        <span class="n">error_handle</span><span class="p">(</span><span class="n">cnn</span><span class="p">,</span> <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">,</span> <span class="n">crinez</span><span class="p">,</span> <span class="n">reject_folder</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
+
+    <span class="k">except</span> <span class="n">pyStationInfo</span><span class="o">.</span><span class="n">pyStationInfoException</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+
+        <span class="n">retry_folder</span> <span class="o">=</span> <span class="n">retry_folder</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%r</span><span class="s1">eason%&#39;</span><span class="p">,</span><span class="s1">&#39;station_info_exception&#39;</span><span class="p">)</span>
+
+        <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;Description&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;Description&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;. The file will stay in the repository and will be &#39;</span> \
+                                                          <span class="s1">&#39;processed during the next cycle of pyArchiveService.&#39;</span>
+        <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;StationCode&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">StationCode</span>
+        <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;NetworkCode&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;???&#39;</span>
+        <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;Year&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">year</span>
+        <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;DOY&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">doy</span>
+
+        <span class="n">error_handle</span><span class="p">(</span><span class="n">cnn</span><span class="p">,</span> <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">,</span> <span class="n">crinez</span><span class="p">,</span> <span class="n">retry_folder</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
+
+    <span class="k">except</span> <span class="n">pyOTL</span><span class="o">.</span><span class="n">pyOTLException</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+
+        <span class="n">retry_folder</span> <span class="o">=</span> <span class="n">retry_folder</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%r</span><span class="s1">eason%&#39;</span><span class="p">,</span> <span class="s1">&#39;otl_exception&#39;</span><span class="p">)</span>
+
+        <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;Description&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;Description&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39; while calculating OTL for </span><span class="si">%s</span><span class="s1">. &#39;</span> \
+                                                          <span class="s1">&#39;The file has been moved into the retry folder.&#39;</span> \
+                                                          <span class="o">%</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span><span class="n">crinez</span><span class="p">,</span> <span class="n">Config</span><span class="o">.</span><span class="n">repository_data_in</span><span class="p">)</span>
+        <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;StationCode&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">StationCode</span>
+        <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;NetworkCode&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;???&#39;</span>
+        <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;Year&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">year</span>
+        <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;DOY&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">doy</span>
+
+        <span class="n">error_handle</span><span class="p">(</span><span class="n">cnn</span><span class="p">,</span> <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">,</span> <span class="n">crinez</span><span class="p">,</span> <span class="n">retry_folder</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
+
+    <span class="k">except</span> <span class="n">pyProducts</span><span class="o">.</span><span class="n">pyProductsExceptionUnreasonableDate</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="c1"># a bad RINEX file requested an orbit for a date &lt; 0 or &gt; now()</span>
+        <span class="n">reject_folder</span> <span class="o">=</span> <span class="n">reject_folder</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%r</span><span class="s1">eason%&#39;</span><span class="p">,</span> <span class="s1">&#39;bad_rinex&#39;</span><span class="p">)</span>
+
+        <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;Description&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;Description&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39; during </span><span class="si">%s</span><span class="s1">. The file has been moved to the rejected &#39;</span> \
+                                                          <span class="s1">&#39;folder. Most likely bad RINEX header/data.&#39;</span> \
+                                                          <span class="o">%</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span><span class="n">crinez</span><span class="p">,</span> <span class="n">Config</span><span class="o">.</span><span class="n">repository_data_in</span><span class="p">)</span>
+        <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;StationCode&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">StationCode</span>
+        <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;NetworkCode&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;???&#39;</span>
+        <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;Year&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">year</span>
+        <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;DOY&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">doy</span>
+
+        <span class="n">error_handle</span><span class="p">(</span><span class="n">cnn</span><span class="p">,</span> <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">,</span> <span class="n">crinez</span><span class="p">,</span> <span class="n">reject_folder</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
+
+    <span class="k">except</span> <span class="n">pyProducts</span><span class="o">.</span><span class="n">pyProductsException</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+
+        <span class="c1"># if PPP fails and ArchiveService tries to run sh_rnx2apr and it doesn&#39;t find the orbits, send to retry</span>
+        <span class="n">retry_folder</span> <span class="o">=</span> <span class="n">retry_folder</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%r</span><span class="s1">eason%&#39;</span><span class="p">,</span> <span class="s1">&#39;sp3_exception&#39;</span><span class="p">)</span>
+
+        <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;Description&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;Description&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;: </span><span class="si">%s</span><span class="s1">. Check the brdc/sp3/clk files and also check that &#39;</span> \
+                                                          <span class="s1">&#39;the RINEX data is not corrupt.&#39;</span> \
+                                                          <span class="o">%</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span><span class="n">crinez</span><span class="p">,</span> <span class="n">Config</span><span class="o">.</span><span class="n">repository_data_in</span><span class="p">)</span>
+        <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;StationCode&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">StationCode</span>
+        <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;NetworkCode&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;???&#39;</span>
+        <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;Year&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">year</span>
+        <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">[</span><span class="s1">&#39;DOY&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">doy</span>
+
+        <span class="n">error_handle</span><span class="p">(</span><span class="n">cnn</span><span class="p">,</span> <span class="n">e</span><span class="o">.</span><span class="n">event</span><span class="p">,</span> <span class="n">crinez</span><span class="p">,</span> <span class="n">retry_folder</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
+
+    <span class="k">except</span> <span class="n">dbConnection</span><span class="o">.</span><span class="n">dbErrInsert</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+
+        <span class="n">reject_folder</span> <span class="o">=</span> <span class="n">reject_folder</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%r</span><span class="s1">eason%&#39;</span><span class="p">,</span> <span class="s1">&#39;duplicate_insert&#39;</span><span class="p">)</span>
+
+        <span class="c1"># insert duplicate values: two parallel processes tried to insert different filenames</span>
+        <span class="c1"># (or the same) of the same station to the db: move it to the rejected folder.</span>
+        <span class="c1"># The user might want to retry later. Log it in events</span>
+        <span class="c1"># this case should be very rare</span>
+        <span class="n">event</span> <span class="o">=</span> <span class="n">pyEvents</span><span class="o">.</span><span class="n">Event</span><span class="p">(</span><span class="n">Description</span><span class="o">=</span><span class="s1">&#39;Duplicate rinex insertion attempted while processing &#39;</span> <span class="o">+</span>
+                                           <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span><span class="n">crinez</span><span class="p">,</span> <span class="n">Config</span><span class="o">.</span><span class="n">repository_data_in</span><span class="p">)</span> <span class="o">+</span>
+                                           <span class="s1">&#39; : (file moved to rejected folder)</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">),</span>
+                               <span class="n">EventType</span><span class="o">=</span><span class="s1">&#39;warn&#39;</span><span class="p">,</span>
+                               <span class="n">StationCode</span><span class="o">=</span><span class="n">StationCode</span><span class="p">,</span>
+                               <span class="n">NetworkCode</span><span class="o">=</span><span class="s1">&#39;???&#39;</span><span class="p">,</span>
+                               <span class="n">Year</span><span class="o">=</span><span class="n">year</span><span class="p">,</span>
+                               <span class="n">DOY</span><span class="o">=</span><span class="n">doy</span><span class="p">)</span>
+
+        <span class="n">error_handle</span><span class="p">(</span><span class="n">cnn</span><span class="p">,</span> <span class="n">event</span><span class="p">,</span> <span class="n">crinez</span><span class="p">,</span> <span class="n">reject_folder</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
+
+    <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+
+        <span class="n">retry_folder</span> <span class="o">=</span> <span class="n">retry_folder</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%r</span><span class="s1">eason%&#39;</span><span class="p">,</span> <span class="s1">&#39;general_exception&#39;</span><span class="p">)</span>
+
+        <span class="n">event</span> <span class="o">=</span> <span class="n">pyEvents</span><span class="o">.</span><span class="n">Event</span><span class="p">(</span><span class="n">Description</span><span class="o">=</span><span class="n">traceback</span><span class="o">.</span><span class="n">format_exc</span><span class="p">()</span> <span class="o">+</span> <span class="s1">&#39; processing: &#39;</span> <span class="o">+</span>
+                                           <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span><span class="n">crinez</span><span class="p">,</span> <span class="n">Config</span><span class="o">.</span><span class="n">repository_data_in</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39; in node &#39;</span> <span class="o">+</span>
+                                           <span class="n">platform</span><span class="o">.</span><span class="n">node</span><span class="p">()</span> <span class="o">+</span> <span class="s1">&#39; (file moved to retry folder)&#39;</span><span class="p">,</span> <span class="n">EventType</span><span class="o">=</span><span class="s1">&#39;error&#39;</span><span class="p">)</span>
+
+        <span class="n">error_handle</span><span class="p">(</span><span class="n">cnn</span><span class="p">,</span> <span class="n">event</span><span class="p">,</span> <span class="n">crinez</span><span class="p">,</span> <span class="n">retry_folder</span><span class="p">,</span> <span class="n">filename</span><span class="p">,</span> <span class="n">no_db_log</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">event</span><span class="p">[</span><span class="s1">&#39;Description&#39;</span><span class="p">],</span> <span class="kc">None</span>
+
+    <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
+
+
+<span class="k">def</span> <span class="nf">remove_empty_folders</span><span class="p">(</span><span class="n">folder</span><span class="p">):</span>
+
+    <span class="k">for</span> <span class="n">dirpath</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">files</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">walk</span><span class="p">(</span><span class="n">folder</span><span class="p">,</span> <span class="n">topdown</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>  <span class="c1"># Listing the files</span>
+        <span class="k">for</span> <span class="n">file</span> <span class="ow">in</span> <span class="n">files</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">file</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;DS_Store&#39;</span><span class="p">):</span>
+                <span class="c1"># delete the stupid mac files</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">dirpath</span><span class="p">,</span> <span class="n">file</span><span class="p">))</span>
+                <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                    <span class="n">sys</span><span class="o">.</span><span class="n">exc_clear</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">dirpath</span> <span class="o">==</span> <span class="n">folder</span><span class="p">:</span>
+            <span class="k">break</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">rmdir</span><span class="p">(</span><span class="n">dirpath</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">exc_clear</span><span class="p">()</span>
+
+    <span class="k">return</span>
+
+
+<span class="k">def</span> <span class="nf">print_archive_service_summary</span><span class="p">():</span>
+
+    <span class="k">global</span> <span class="n">cnn</span>
+
+    <span class="c1"># find the last event in the executions table</span>
+    <span class="n">exec_date</span> <span class="o">=</span> <span class="n">cnn</span><span class="o">.</span><span class="n">query_float</span><span class="p">(</span><span class="s1">&#39;SELECT max(exec_date) as mx FROM executions WHERE script = </span><span class="se">\&#39;</span><span class="s1">ArchiveService.py</span><span class="se">\&#39;</span><span class="s1">&#39;</span><span class="p">)</span>
+
+    <span class="n">info</span> <span class="o">=</span> <span class="n">cnn</span><span class="o">.</span><span class="n">query_float</span><span class="p">(</span><span class="s1">&#39;SELECT count(*) as cc FROM events WHERE &quot;EventDate&quot; &gt;= </span><span class="se">\&#39;</span><span class="si">%s</span><span class="se">\&#39;</span><span class="s1"> AND &quot;EventType&quot; = </span><span class="se">\&#39;</span><span class="s1">info</span><span class="se">\&#39;</span><span class="s1">&#39;</span>
+                           <span class="o">%</span> <span class="n">exec_date</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span>
+
+    <span class="n">erro</span> <span class="o">=</span> <span class="n">cnn</span><span class="o">.</span><span class="n">query_float</span><span class="p">(</span><span class="s1">&#39;SELECT count(*) as cc FROM events WHERE &quot;EventDate&quot; &gt;= </span><span class="se">\&#39;</span><span class="si">%s</span><span class="se">\&#39;</span><span class="s1"> AND &quot;EventType&quot; = </span><span class="se">\&#39;</span><span class="s1">error</span><span class="se">\&#39;</span><span class="s1">&#39;</span>
+                           <span class="o">%</span> <span class="n">exec_date</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span>
+
+    <span class="n">warn</span> <span class="o">=</span> <span class="n">cnn</span><span class="o">.</span><span class="n">query_float</span><span class="p">(</span><span class="s1">&#39;SELECT count(*) as cc FROM events WHERE &quot;EventDate&quot; &gt;= </span><span class="se">\&#39;</span><span class="si">%s</span><span class="se">\&#39;</span><span class="s1"> AND &quot;EventType&quot; = </span><span class="se">\&#39;</span><span class="s1">warn</span><span class="se">\&#39;</span><span class="s1">&#39;</span>
+                           <span class="o">%</span> <span class="n">exec_date</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span>
+
+    <span class="nb">print</span> <span class="s1">&#39; &gt;&gt; Summary of events for this run:&#39;</span>
+    <span class="nb">print</span> <span class="s1">&#39; -- info    : </span><span class="si">%i</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">info</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+    <span class="nb">print</span> <span class="s1">&#39; -- errors  : </span><span class="si">%i</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">erro</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+    <span class="nb">print</span> <span class="s1">&#39; -- warnings: </span><span class="si">%i</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">warn</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="main"><a class="viewcode-back" href="../index.html#ArchiveService.main">[docs]</a><span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Main script that scans the repository for new RINEX files.</span>
+<span class="sd">    It PPPs the RINEX files and searches the database for stations (within configured range in stations table)</span>
+<span class="sd">    with the same station 4 letter code.</span>
+<span class="sd">    If the station exists in the db, it moves the file to the archive and adds the new file to the &quot;rinex&quot; table.</span>
+<span class="sd">    if the station doesn&#39;t exist, then it incorporates the station with a special NetworkCode (???) and leaves the</span>
+<span class="sd">    file in the repository until you assign the correct NetworkCode and add the station information.</span>
+
+<span class="sd">    It is invoked just by calling python ArchiveService.py</span>
+<span class="sd">    Requires the config file gnss_data.cfg (in the running folder)</span>
+<span class="sd">    :return:</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># put connection and config in global variable to use inside callback_handle</span>
+    <span class="k">global</span> <span class="n">cnn</span>
+    <span class="k">global</span> <span class="n">repository_data_in</span>
+
+    <span class="c1"># bind to the repository directory</span>
+    <span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s1">&#39;Archive operations Main Program&#39;</span><span class="p">)</span>
+
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;-purge&#39;</span><span class="p">,</span> <span class="s1">&#39;--purge_locks&#39;</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s1">&#39;store_true&#39;</span><span class="p">,</span>
+                        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Delete any network starting with &#39;?&#39; from the stations table and purge the contents of &quot;</span>
+                             <span class="s2">&quot;the locks table, deleting the associated files from data_in.&quot;</span><span class="p">)</span>
+
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;-np&#39;</span><span class="p">,</span> <span class="s1">&#39;--noparallel&#39;</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s1">&#39;store_true&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Execute command without parallelization.&quot;</span><span class="p">)</span>
+
+    <span class="n">args</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
+
+    <span class="n">Config</span> <span class="o">=</span> <span class="n">pyOptions</span><span class="o">.</span><span class="n">ReadOptions</span><span class="p">(</span><span class="s1">&#39;gnss_data.cfg&#39;</span><span class="p">)</span>
+
+    <span class="n">repository_data_in</span> <span class="o">=</span> <span class="n">Config</span><span class="o">.</span><span class="n">repository_data_in</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">Config</span><span class="o">.</span><span class="n">repository</span><span class="p">):</span>
+        <span class="nb">print</span> <span class="s2">&quot;the provided repository path in gnss_data.cfg is not a folder&quot;</span>
+        <span class="n">exit</span><span class="p">()</span>
+
+    <span class="n">JobServer</span> <span class="o">=</span> <span class="n">pyJobServer</span><span class="o">.</span><span class="n">JobServer</span><span class="p">(</span><span class="n">Config</span><span class="p">,</span> <span class="n">run_parallel</span><span class="o">=</span><span class="ow">not</span> <span class="n">args</span><span class="o">.</span><span class="n">noparallel</span><span class="p">,</span>
+                                      <span class="n">software_sync</span><span class="o">=</span><span class="p">[</span><span class="n">Config</span><span class="o">.</span><span class="n">options</span><span class="p">[</span><span class="s1">&#39;ppp_remote_local&#39;</span><span class="p">]])</span>  <span class="c1"># type: pyJobServer.JobServer</span>
+
+    <span class="n">cnn</span> <span class="o">=</span> <span class="n">dbConnection</span><span class="o">.</span><span class="n">Cnn</span><span class="p">(</span><span class="s1">&#39;gnss_data.cfg&#39;</span><span class="p">)</span>
+    <span class="c1"># create the execution log</span>
+    <span class="n">cnn</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="s1">&#39;executions&#39;</span><span class="p">,</span> <span class="n">script</span><span class="o">=</span><span class="s1">&#39;ArchiveService.py&#39;</span><span class="p">)</span>
+
+    <span class="c1"># set the data_xx directories</span>
+    <span class="n">data_in</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">Config</span><span class="o">.</span><span class="n">repository</span><span class="p">,</span> <span class="s1">&#39;data_in&#39;</span><span class="p">)</span>
+    <span class="n">data_in_retry</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">Config</span><span class="o">.</span><span class="n">repository</span><span class="p">,</span> <span class="s1">&#39;data_in_retry&#39;</span><span class="p">)</span>
+    <span class="n">data_reject</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">Config</span><span class="o">.</span><span class="n">repository</span><span class="p">,</span> <span class="s1">&#39;data_rejected&#39;</span><span class="p">)</span>
+
+    <span class="c1"># if if the subdirs exist</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">data_in</span><span class="p">):</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">data_in</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">data_in_retry</span><span class="p">):</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">data_in_retry</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">data_reject</span><span class="p">):</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">data_reject</span><span class="p">)</span>
+
+    <span class="c1"># delete any locks with a NetworkCode != &#39;?%&#39;</span>
+    <span class="n">cnn</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="s1">&#39;delete from locks where &quot;NetworkCode&quot; not like </span><span class="se">\&#39;</span><span class="s1">?%</span><span class="se">\&#39;</span><span class="s1">&#39;</span><span class="p">)</span>
+    <span class="c1"># get the locks to avoid reprocessing files that had no metadata in the database</span>
+    <span class="n">locks</span> <span class="o">=</span> <span class="n">cnn</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="s1">&#39;SELECT * FROM locks&#39;</span><span class="p">)</span>
+    <span class="n">locks</span> <span class="o">=</span> <span class="n">locks</span><span class="o">.</span><span class="n">dictresult</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">purge_locks</span><span class="p">:</span>
+        <span class="c1"># first, delete all associated files</span>
+        <span class="k">for</span> <span class="n">lock</span> <span class="ow">in</span> <span class="n">tqdm</span><span class="p">(</span><span class="n">locks</span><span class="p">,</span> <span class="n">ncols</span><span class="o">=</span><span class="mi">160</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="s1">&#39;crz&#39;</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="s1">&#39;</span><span class="si">%-30s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="s1">&#39; &gt;&gt; Purging locks&#39;</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">Config</span><span class="o">.</span><span class="n">repository_data_in</span><span class="p">,</span> <span class="n">lock</span><span class="p">[</span><span class="s1">&#39;filename&#39;</span><span class="p">]))</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                <span class="n">sys</span><span class="o">.</span><span class="n">exc_clear</span><span class="p">()</span>
+
+        <span class="c1"># purge the contents of stations. This will automatically purge the locks table</span>
+        <span class="n">cnn</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="s1">&#39;delete from stations where &quot;NetworkCode&quot; like </span><span class="se">\&#39;</span><span class="s1">?%</span><span class="se">\&#39;</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="c1"># purge the networks</span>
+        <span class="n">cnn</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="s1">&#39;delete from networks where &quot;NetworkCode&quot; like </span><span class="se">\&#39;</span><span class="s1">?%</span><span class="se">\&#39;</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="c1"># purge the locks already taken care of (just in case)</span>
+        <span class="n">cnn</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="s1">&#39;delete from locks where &quot;NetworkCode&quot; not like </span><span class="se">\&#39;</span><span class="s1">?%</span><span class="se">\&#39;</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="c1"># get the locks to avoid reprocessing files that had no metadata in the database</span>
+        <span class="n">locks</span> <span class="o">=</span> <span class="n">cnn</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="s1">&#39;SELECT * FROM locks&#39;</span><span class="p">)</span>
+        <span class="n">locks</span> <span class="o">=</span> <span class="n">locks</span><span class="o">.</span><span class="n">dictresult</span><span class="p">()</span>
+
+    <span class="c1"># look for data in the data_in_retry and move it to data_in</span>
+
+    <span class="n">archive</span> <span class="o">=</span> <span class="n">pyArchiveStruct</span><span class="o">.</span><span class="n">RinexStruct</span><span class="p">(</span><span class="n">cnn</span><span class="p">)</span>
+
+    <span class="n">pbar</span> <span class="o">=</span> <span class="n">tqdm</span><span class="p">(</span><span class="n">desc</span><span class="o">=</span><span class="s1">&#39;</span><span class="si">%-30s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="s1">&#39; &gt;&gt; Scanning data_in_retry&#39;</span><span class="p">,</span> <span class="n">ncols</span><span class="o">=</span><span class="mi">160</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="s1">&#39;crz&#39;</span><span class="p">)</span>
+
+    <span class="n">rfiles</span><span class="p">,</span> <span class="n">paths</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">archive</span><span class="o">.</span><span class="n">scan_archive_struct</span><span class="p">(</span><span class="n">data_in_retry</span><span class="p">,</span> <span class="n">pbar</span><span class="p">)</span>
+
+    <span class="n">pbar</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+    <span class="n">pbar</span> <span class="o">=</span> <span class="n">tqdm</span><span class="p">(</span><span class="n">desc</span><span class="o">=</span><span class="s1">&#39;</span><span class="si">%-30s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="s1">&#39; -- Moving files to data_in&#39;</span><span class="p">,</span> <span class="n">total</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">rfiles</span><span class="p">),</span> <span class="n">ncols</span><span class="o">=</span><span class="mi">160</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="s1">&#39;crz&#39;</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">rfile</span><span class="p">,</span> <span class="n">path</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">rfiles</span><span class="p">,</span> <span class="n">paths</span><span class="p">):</span>
+
+        <span class="n">dest_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">data_in</span><span class="p">,</span> <span class="n">rfile</span><span class="p">)</span>
+
+        <span class="c1"># move the file into the folder</span>
+        <span class="n">Utils</span><span class="o">.</span><span class="n">move</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">dest_file</span><span class="p">)</span>
+
+        <span class="n">pbar</span><span class="o">.</span><span class="n">set_postfix</span><span class="p">(</span><span class="n">crinez</span><span class="o">=</span><span class="n">rfile</span><span class="p">)</span>
+        <span class="n">pbar</span><span class="o">.</span><span class="n">update</span><span class="p">()</span>
+
+        <span class="c1"># remove folder from data_in_retry (also removes the log file)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="c1"># remove the log file that accompanies this Z file</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">path</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;d.Z&#39;</span><span class="p">,</span> <span class="s1">&#39;.log&#39;</span><span class="p">))</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">exc_clear</span><span class="p">()</span>
+
+    <span class="n">pbar</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+    <span class="n">tqdm</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s1">&#39; -- Cleaning data_in_retry&#39;</span><span class="p">)</span>
+    <span class="n">remove_empty_folders</span><span class="p">(</span><span class="n">data_in_retry</span><span class="p">)</span>
+
+    <span class="c1"># take a break to allow the FS to finish the task</span>
+    <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+
+    <span class="n">files_path</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">files_list</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="n">pbar</span> <span class="o">=</span> <span class="n">tqdm</span><span class="p">(</span><span class="n">desc</span><span class="o">=</span><span class="s1">&#39;</span><span class="si">%-30s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="s1">&#39; &gt;&gt; Repository crinez scan&#39;</span><span class="p">,</span> <span class="n">ncols</span><span class="o">=</span><span class="mi">160</span><span class="p">)</span>
+
+    <span class="n">rpaths</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">files</span> <span class="o">=</span> <span class="n">archive</span><span class="o">.</span><span class="n">scan_archive_struct</span><span class="p">(</span><span class="n">data_in</span><span class="p">,</span> <span class="n">pbar</span><span class="p">)</span>
+
+    <span class="n">pbar</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+    <span class="n">pbar</span> <span class="o">=</span> <span class="n">tqdm</span><span class="p">(</span><span class="n">desc</span><span class="o">=</span><span class="s1">&#39;</span><span class="si">%-30s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="s1">&#39; -- Checking the locks table&#39;</span><span class="p">,</span> <span class="n">total</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">files</span><span class="p">),</span> <span class="n">ncols</span><span class="o">=</span><span class="mi">130</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="s1">&#39;crz&#39;</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">file</span><span class="p">,</span> <span class="n">path</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">files</span><span class="p">,</span> <span class="n">rpaths</span><span class="p">):</span>
+        <span class="n">pbar</span><span class="o">.</span><span class="n">set_postfix</span><span class="p">(</span><span class="n">crinez</span><span class="o">=</span><span class="n">file</span><span class="p">)</span>
+        <span class="n">pbar</span><span class="o">.</span><span class="n">update</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">path</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="n">lock</span><span class="p">[</span><span class="s1">&#39;filename&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">lock</span> <span class="ow">in</span> <span class="n">locks</span><span class="p">]:</span>
+            <span class="n">files_path</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+            <span class="n">files_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
+
+    <span class="n">pbar</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+    <span class="n">tqdm</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot; -- Found </span><span class="si">%i</span><span class="s2"> files in the lock list...&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">locks</span><span class="p">)))</span>
+    <span class="n">tqdm</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot; -- Found </span><span class="si">%i</span><span class="s2"> files (matching format [stnm][doy][s].[yy]d.Z) to process...&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">files_list</span><span class="p">)))</span>
+
+    <span class="n">pbar</span> <span class="o">=</span> <span class="n">tqdm</span><span class="p">(</span><span class="n">desc</span><span class="o">=</span><span class="s1">&#39;</span><span class="si">%-30s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="s1">&#39; &gt;&gt; Processing repository&#39;</span><span class="p">,</span> <span class="n">total</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">files_path</span><span class="p">),</span> <span class="n">ncols</span><span class="o">=</span><span class="mi">160</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="s1">&#39;crz&#39;</span><span class="p">)</span>
+
+    <span class="c1"># dependency functions</span>
+    <span class="n">depfuncs</span> <span class="o">=</span> <span class="p">(</span><span class="n">check_rinex_timespan_int</span><span class="p">,</span> <span class="n">write_error</span><span class="p">,</span> <span class="n">error_handle</span><span class="p">,</span> <span class="n">insert_data</span><span class="p">,</span> <span class="n">verify_rinex_multiday</span><span class="p">)</span>
+    <span class="c1"># import modules</span>
+    <span class="n">modules</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;pyRinex&#39;</span><span class="p">,</span> <span class="s1">&#39;pyArchiveStruct&#39;</span><span class="p">,</span> <span class="s1">&#39;pyOTL&#39;</span><span class="p">,</span> <span class="s1">&#39;pyPPP&#39;</span><span class="p">,</span> <span class="s1">&#39;pyStationInfo&#39;</span><span class="p">,</span> <span class="s1">&#39;dbConnection&#39;</span><span class="p">,</span> <span class="s1">&#39;Utils&#39;</span><span class="p">,</span> <span class="s1">&#39;os&#39;</span><span class="p">,</span>
+               <span class="s1">&#39;uuid&#39;</span><span class="p">,</span> <span class="s1">&#39;datetime&#39;</span><span class="p">,</span> <span class="s1">&#39;pyDate&#39;</span><span class="p">,</span> <span class="s1">&#39;numpy&#39;</span><span class="p">,</span> <span class="s1">&#39;traceback&#39;</span><span class="p">,</span> <span class="s1">&#39;platform&#39;</span><span class="p">,</span> <span class="s1">&#39;pyBrdc&#39;</span><span class="p">,</span> <span class="s1">&#39;pyProducts&#39;</span><span class="p">,</span>
+               <span class="s1">&#39;pyOptions&#39;</span><span class="p">,</span> <span class="s1">&#39;pyEvents&#39;</span><span class="p">)</span>
+
+    <span class="n">JobServer</span><span class="o">.</span><span class="n">create_cluster</span><span class="p">(</span><span class="n">process_crinex_file</span><span class="p">,</span> <span class="n">depfuncs</span><span class="p">,</span> <span class="n">callback_handle</span><span class="p">,</span> <span class="n">pbar</span><span class="p">,</span> <span class="n">modules</span><span class="o">=</span><span class="n">modules</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">file_to_process</span><span class="p">,</span> <span class="n">sfile</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">files_path</span><span class="p">,</span> <span class="n">files_list</span><span class="p">):</span>
+
+        <span class="n">JobServer</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="n">file_to_process</span><span class="p">,</span> <span class="n">sfile</span><span class="p">,</span> <span class="n">data_reject</span><span class="p">,</span> <span class="n">data_in_retry</span><span class="p">)</span>
+
+    <span class="n">JobServer</span><span class="o">.</span><span class="n">wait</span><span class="p">()</span>
+
+    <span class="n">pbar</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+    <span class="n">JobServer</span><span class="o">.</span><span class="n">close_cluster</span><span class="p">()</span>
+
+    <span class="n">print_archive_service_summary</span><span class="p">()</span>
+
+    <span class="c1"># iterate to delete empty folders</span>
+    <span class="n">remove_empty_folders</span><span class="p">(</span><span class="n">data_in</span><span class="p">)</span></div>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+
+    <span class="n">main</span><span class="p">()</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2019, Demian D. Gomez.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.6.7</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.8</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

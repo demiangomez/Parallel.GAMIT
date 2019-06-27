@@ -467,8 +467,7 @@ class Date(object):
         return str(self.year)+'/'+str(self.month)+'/'+str(self.day)
 
     def yyyyddd(self):
-        doystr = str(self.doy)
-        return str(self.year) + ' ' + doystr.rjust(3, '0')
+        return '%4i %03i' % (int(self.year), int(self.doy))
 
     def datetime(self):
         if self.year is None:

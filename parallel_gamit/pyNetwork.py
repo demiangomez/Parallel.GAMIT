@@ -13,6 +13,7 @@ import sklearn.cluster as cluster
 from scipy.spatial import distance
 from glob import glob
 from shutil import rmtree
+from tqdm import tqdm
 
 BACKBONE_NET = 40
 NET_LIMIT = 40
@@ -51,6 +52,8 @@ class Network(object):
                                      '"DOY" = %i' % (self.name, date.year, date.doy), as_dict=True)
 
         if len(db_subnets) > 0:
+            tqdm.write(' >> Processing for %s already exists, attempting to recover it...' % date.yyyyddd())
+
             # subnetworks already exist. Check that the station set is the same
             cfg_stations = [stn.NetworkCode + '.' + stn.StationCode for stn in active_stations]
             dba_stations = [s for stn in db_subnets for s in stn['stations']]
@@ -73,6 +76,8 @@ class Network(object):
                 self.check_stn_diff_aliases(stn_diff, cfg_stations, active_stations)
 
             elif len(stn_diff) > len(clusters['centroids']) * 4 or len(stations) < len(dba_stations) - 5:
+
+                tqdm.write(' -- Too many new stations to add. Redoing the whole thing')
 
                 # is condition not satisfied, redo eveything
                 cnn.query('DELETE FROM gamit_subnets WHERE "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i'
@@ -99,6 +104,8 @@ class Network(object):
                     ties = []
                     backbone = []
         else:
+            tqdm.write(' >> Creating network clusters for %s...' % date.yyyyddd())
+
             # create station clusters
             # cluster centroids will be used later to tie the networks
             clusters = self.make_clusters(points, active_stations)
@@ -476,6 +483,8 @@ class Network(object):
 
         # find the station objects for the elements listed in stn_diff
         stnobj_diff = [s for s in stations if s.NetworkCode + '.' + s.StationCode in stn_diff]
+
+        tqdm.write(' -- Adding missing stations %s' % ' '.join(stn_diff))
 
         if len(clusters['centroids']) == 1:
             # single station network, just add the missing station

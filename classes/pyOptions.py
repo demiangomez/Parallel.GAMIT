@@ -20,6 +20,7 @@ class ReadOptions:
                         'parallel': False,
                         'cups': None,
                         'node_list': None,
+                        'ip_address': None,
                         'brdc': None,
                         'sp3_type_1': None,
                         'sp3_type_2': None,

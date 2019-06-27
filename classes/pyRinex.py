@@ -1088,8 +1088,11 @@ class ReadRinex(RinexRecord):
             # raise pyRinexExceptionBadFile('During decimation or remove_systems (to run auto_coord),
             # teqc returned: %s' + str(e))
 
-        # copy brdc orbit
-        copyfile(brdc.brdc_path, os.path.join(rnx.rootdir, brdc.brdc_filename))
+        # copy brdc orbit if we have a decimated rinex file
+        # DDG 26 Jun 19: BUT CHECK THAT PATHS ARE DIFFERENT! If ReadRinex in line 1073 fails, then rnx = self
+        # and was trying to copy BRDC file over itself!
+        if brdc.brdc_path != os.path.join(rnx.rootdir, brdc.brdc_filename):
+            copyfile(brdc.brdc_path, os.path.join(rnx.rootdir, brdc.brdc_filename))
 
         # check if the apr coordinate is zero and iterate more than once if true
         if self.x == 0 and self.y == 0 and self.z == 0:
@@ -1097,10 +1100,12 @@ class ReadRinex(RinexRecord):
         else:
             max_it = 1
 
+        out = ''
+
         for i in range(max_it):
 
             cmd = pyRunWithRetry.RunCommand(
-                'sh_rx2apr -site ' + rnx.rinex + ' -nav ' + brdc.brdc_filename + ' -chi ' + str(chi_limit), 40,
+                'sh_rx2apr -site ' + rnx.rinex + ' -nav ' + brdc.brdc_filename + ' -chi ' + str(chi_limit), 60,
                 rnx.rootdir)
             # leave errors un-trapped on purpose (will raise an error to the parent)
             out, err = cmd.run_shell()

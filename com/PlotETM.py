@@ -18,6 +18,7 @@ from Utils import process_date
 import numpy as np
 import pyDate
 
+
 def main():
 
     parser = argparse.ArgumentParser(description='Plot ETM for stations in the database')
@@ -97,7 +98,7 @@ def main():
                                                       'ORDER BY "Year", "DOY", "NetworkCode", "StationCode"'
                                                       % (args.gamit[0], stn['NetworkCode'], stn['StationCode']))
 
-                        soln = pyETM.GamitSoln(cnn, polyhedrons, stn['NetworkCode'], stn['StationCode'])
+                        soln = pyETM.GamitSoln(cnn, polyhedrons, stn['NetworkCode'], stn['StationCode'], args.gamit[0])
 
                         etm = pyETM.GamitETM(cnn, stn['NetworkCode'], stn['StationCode'], False,
                                              args.no_model, gamit_soln=soln)
@@ -127,16 +128,20 @@ def main():
                         etm = None
 
                 if args.interactive:
-                    pngfile = None
+                    xfile = None
                 else:
-                    pngfile = os.path.join(args.directory, etm.NetworkCode + '.' + etm.StationCode + '.png')
+                    if args.gamit is None:
+                        xfile = os.path.join(args.directory, '%s.%s_ppp' % (etm.NetworkCode, etm.StationCode))
+                    else:
+                        xfile = os.path.join(args.directory, '%s.%s_gamit' % (etm.NetworkCode, etm.StationCode))
 
                 # leave pngfile empty to enter interactive mode (GUI)
                 if not args.no_plots:
-                    etm.plot(pngfile, t_win=dates, residuals=args.residuals, plot_missing=not args.no_missing_data)
+                    etm.plot(xfile + '.png', t_win=dates, residuals=args.residuals,
+                             plot_missing=not args.no_missing_data)
 
                 if args.json is not None:
-                    with open(os.path.join(args.directory, etm.NetworkCode + '.' + etm.StationCode + '.json'), 'w') as f:
+                    with open(xfile + '.json', 'w') as f:
                         if args.json != 0:
                             json.dump(etm.todictionary(True), f, indent=4, sort_keys=False)
                         else:

@@ -2,19 +2,23 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="7a238ac9-ca54-4fb0-8f11-7c3d466db594" name="Default" comment="">
+      <change afterPath="$PROJECT_DIR$/WeeklyCombination.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classes/pyDate.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/pyDate.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../classes/pyETM.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/pyETM.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../classes/pyJobServer.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/pyJobServer.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../classes/pyOptions.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/pyOptions.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../classes/pyPPP.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/pyPPP.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../com/ArchiveService.py" beforeDir="false" afterPath="$PROJECT_DIR$/../com/ArchiveService.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../com/ScanArchive.py" beforeDir="false" afterPath="$PROJECT_DIR$/../com/ScanArchive.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classes/pyRinex.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/pyRinex.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classes/pyStationInfo.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/pyStationInfo.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../com/PlotETM.py" beforeDir="false" afterPath="$PROJECT_DIR$/../com/PlotETM.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pyGamitConfig.py" beforeDir="false" afterPath="$PROJECT_DIR$/pyGamitConfig.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pyGamitTask.py" beforeDir="false" afterPath="$PROJECT_DIR$/pyGamitTask.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/GenerateKml.py" beforeDir="false" afterPath="$PROJECT_DIR$/GenerateKml.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pyNetwork.py" beforeDir="false" afterPath="$PROJECT_DIR$/pyNetwork.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/pyParallelGamit.py" beforeDir="false" afterPath="$PROJECT_DIR$/pyParallelGamit.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../scripts/install.sh" beforeDir="false" afterPath="$PROJECT_DIR$/../scripts/install.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../stacker/.idea/stacker.iml" beforeDir="false" afterPath="$PROJECT_DIR$/../stacker/.idea/stacker.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../stacker/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../stacker/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../stacker/Stacker.py" beforeDir="false" afterPath="$PROJECT_DIR$/../stacker/Stacker.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../stacker/pyDRA.py" beforeDir="false" afterPath="$PROJECT_DIR$/../stacker/pyDRA.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../stacker/pyStack.py" beforeDir="false" afterPath="$PROJECT_DIR$/../stacker/pyStack.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
@@ -32,43 +36,10 @@
   <component name="FileEditorManager">
     <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
       <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/pyNetwork.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="8687">
-              <caret line="519" column="38" selection-start-line="519" selection-start-column="38" selection-end-line="519" selection-end-column="38" />
-              <folding>
-                <element signature="e#75#114#0" expanded="true" />
-              </folding>
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/test_voronoi.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="1768">
-              <caret line="126" column="86" selection-start-line="126" selection-start-column="86" selection-end-line="126" selection-end-column="86" />
-              <folding>
-                <element signature="e#172#187#0" expanded="true" />
-              </folding>
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/pyGamitConfig.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="1003">
-              <caret line="62" selection-start-line="62" selection-end-line="62" />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/pyParallelGamit.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="2223">
-              <caret line="598" column="53" selection-start-line="598" selection-start-column="53" selection-end-line="598" selection-end-column="53" />
+            <state relative-caret-position="4947">
+              <caret line="360" selection-start-line="360" selection-end-line="360" />
               <folding>
                 <element signature="e#79#99#0" expanded="true" />
                 <element signature="e#680#3303#0" />
@@ -78,10 +49,34 @@
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/../classes/pyOptions.py">
+        <entry file="file://$PROJECT_DIR$/pyStation.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="833">
-              <caret line="52" selection-start-line="52" selection-end-line="52" />
+            <state relative-caret-position="204">
+              <caret line="12" selection-start-line="12" selection-end-line="12" selection-end-column="13" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/pyNetwork.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="8891">
+              <caret line="532" column="34" selection-start-line="532" selection-start-column="34" selection-end-line="532" selection-end-column="34" />
+              <folding>
+                <element signature="e#75#114#0" expanded="true" />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/GenerateKml.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="2091">
+              <caret line="137" column="46" selection-start-line="137" selection-start-column="46" selection-end-line="137" selection-end-column="46" />
+              <folding>
+                <element signature="e#172#187#0" expanded="true" />
+              </folding>
             </state>
           </provider>
         </entry>
@@ -89,8 +84,8 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/pyGamitTask.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="4539">
-              <caret line="277" selection-start-line="277" selection-end-line="277" />
+            <state relative-caret-position="680">
+              <caret line="50" column="16" selection-start-line="50" selection-start-column="16" selection-end-line="50" selection-end-column="64" />
               <folding>
                 <element signature="e#77#86#0" expanded="true" />
               </folding>
@@ -99,10 +94,43 @@
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/../classes/Utils.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="7174">
+              <caret line="430" selection-start-line="430" selection-end-line="430" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/pyGlobkTask.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="2006">
-              <caret line="122" column="16" selection-start-line="122" selection-start-column="16" selection-end-line="122" selection-end-column="16" />
+            <state relative-caret-position="2040">
+              <caret line="124" column="44" selection-start-line="124" selection-start-column="44" selection-end-line="124" selection-end-column="44" />
+              <folding>
+                <element signature="e#74#83#0" expanded="true" />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="true">
+        <entry file="file://$PROJECT_DIR$/WeeklyCombination.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="1641">
+              <caret line="364" selection-start-line="364" selection-end-line="364" />
+              <folding>
+                <element signature="e#81#96#0" expanded="true" />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/../classes/pyPPP.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="8772">
+              <caret line="532" column="74" selection-start-line="532" selection-start-column="74" selection-end-line="532" selection-end-column="74" />
             </state>
           </provider>
         </entry>
@@ -110,8 +138,8 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/pyGamitSession.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="1632">
-              <caret line="103" column="30" selection-start-line="103" selection-start-column="30" selection-end-line="103" selection-end-column="30" />
+            <state relative-caret-position="1904">
+              <caret line="119" column="66" selection-start-line="119" selection-start-column="66" selection-end-line="119" selection-end-column="66" />
               <folding>
                 <element signature="e#78#87#0" expanded="true" />
               </folding>
@@ -130,10 +158,6 @@
   </component>
   <component name="FindInProjectRecents">
     <findStrings>
-      <find>parse</find>
-      <find>dates</find>
-      <find>good_rinex</find>
-      <find>ExecuteGamit</find>
       <find>cnn</find>
       <find>purge</find>
       <find>__hash__</find>
@@ -160,6 +184,10 @@
       <find>DispyNode</find>
       <find>error</find>
       <find>rmtree</find>
+      <find>plt</find>
+      <find>parse</find>
+      <find>OUT_FILE</find>
+      <find>self.out</find>
     </findStrings>
     <replaceStrings>
       <replace>solutions_dir</replace>
@@ -188,7 +216,6 @@
         <option value="$PROJECT_DIR$/../classes/pyScanArchive.py" />
         <option value="$PROJECT_DIR$/../classes/pyLeastSquares.py" />
         <option value="$PROJECT_DIR$/../classes/aws-sync.py" />
-        <option value="$PROJECT_DIR$/../classes/pyDate.py" />
         <option value="$PROJECT_DIR$/../classes/pyDownloadSources.py" />
         <option value="$PROJECT_DIR$/snxParse.py" />
         <option value="$PROJECT_DIR$/../classes/pyETM2.py" />
@@ -197,26 +224,29 @@
         <option value="$PROJECT_DIR$/../classes/pyETM.py" />
         <option value="$PROJECT_DIR$/../classes/pyRinex.py" />
         <option value="$PROJECT_DIR$/../classes/pyVoronoi.py" />
-        <option value="$PROJECT_DIR$/GenerateKml.py" />
         <option value="$PROJECT_DIR$/../classes/Utils.py" />
         <option value="$PROJECT_DIR$/test_voronoi.py" />
         <option value="$PROJECT_DIR$/pyStation.py" />
         <option value="$PROJECT_DIR$/pyGlobkTask.py" />
-        <option value="$PROJECT_DIR$/pyNetwork.py" />
         <option value="$PROJECT_DIR$/pyGamitTask.py" />
         <option value="$PROJECT_DIR$/pyGamitSession.py" />
         <option value="$PROJECT_DIR$/../classes/gnss_data.cfg" />
         <option value="$PROJECT_DIR$/../classes/pyOptions.py" />
         <option value="$PROJECT_DIR$/pyGamitConfig.py" />
+        <option value="$PROJECT_DIR$/GenerateKml.py" />
+        <option value="$PROJECT_DIR$/../classes/pyDate.py" />
         <option value="$PROJECT_DIR$/../classes/pyJobServer.py" />
+        <option value="$PROJECT_DIR$/pyNetwork.py" />
         <option value="$PROJECT_DIR$/pyParallelGamit.py" />
+        <option value="$PROJECT_DIR$/WeeklyCombination.py" />
       </list>
     </option>
   </component>
   <component name="ProjectFrameBounds" extendedState="6">
-    <option name="y" value="110" />
-    <option name="width" value="1910" />
-    <option name="height" value="753" />
+    <option name="x" value="240" />
+    <option name="y" value="152" />
+    <option name="width" value="1440" />
+    <option name="height" value="754" />
   </component>
   <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
   <component name="ProjectView">
@@ -230,6 +260,16 @@
             <path>
               <item name="parallel_gamit" type="b2602c69:ProjectViewProjectNode" />
               <item name="parallel_gamit" type="47feb1d3:ProjectViewModuleNode" />
+            </path>
+            <path>
+              <item name="parallel_gamit" type="b2602c69:ProjectViewProjectNode" />
+              <item name="parallel_gamit" type="47feb1d3:ProjectViewModuleNode" />
+              <item name="parallel_gamit" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="parallel_gamit" type="b2602c69:ProjectViewProjectNode" />
+              <item name="parallel_gamit" type="47feb1d3:ProjectViewModuleNode" />
+              <item name="classes" type="462c0819:PsiDirectoryNode" />
             </path>
           </expand>
           <select />
@@ -302,6 +342,7 @@
     </panes>
   </component>
   <component name="PropertiesComponent">
+    <property name="SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$" />
     <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PythonContentEntriesConfigurable" />
   </component>
@@ -361,8 +402,8 @@
     <frame x="0" y="25" width="1920" height="1006" extended-state="6" />
     <editor active="true" />
     <layout>
-      <window_info content_ui="combo" id="Project" order="0" sideWeight="0.5335413" visible="true" weight="0.12177122" />
-      <window_info id="Structure" order="1" sideWeight="0.46645865" side_tool="true" visible="true" weight="0.12177122" />
+      <window_info content_ui="combo" id="Project" order="0" sideWeight="0.5107034" visible="true" weight="0.12177122" />
+      <window_info id="Structure" order="1" sideWeight="0.48929664" side_tool="true" visible="true" weight="0.12177122" />
       <window_info id="Favorites" order="2" sideWeight="0.50152904" side_tool="true" weight="0.09225092" />
       <window_info anchor="bottom" id="Message" order="0" />
       <window_info anchor="bottom" id="Find" order="1" sideWeight="0.49920928" weight="0.328" />
@@ -372,7 +413,7 @@
       <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
       <window_info anchor="bottom" id="TODO" order="6" />
       <window_info anchor="bottom" id="Event Log" order="7" sideWeight="0.3384291" side_tool="true" weight="0.24971494" />
-      <window_info active="true" anchor="bottom" id="Python Console" order="8" sideWeight="0.6615709" visible="true" weight="0.2690992" />
+      <window_info active="true" anchor="bottom" id="Python Console" order="8" sideWeight="0.6615709" visible="true" weight="0.25427595" />
       <window_info anchor="bottom" id="Terminal" order="9" sideWeight="0.49973643" weight="0.32990867" />
       <window_info anchor="bottom" id="Version Control" order="10" weight="0.3295325" />
       <window_info anchor="right" id="Commander" order="0" weight="0.4" />
@@ -392,14 +433,6 @@
     </breakpoint-manager>
   </component>
   <component name="editorHistoryManager">
-    <entry file="file://$PROJECT_DIR$/../classes/pyStationInfo.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="361">
-          <caret line="261" column="88" selection-start-line="261" selection-start-column="88" selection-end-line="261" selection-end-column="88" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/../classes/pyLocateRinex.py" />
     <entry file="file://$PROJECT_DIR$/../classes/pyLeastSquares.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="75">
@@ -458,13 +491,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/../classes/pyDate.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="193">
-          <caret line="381" selection-start-line="381" selection-end-line="383" selection-end-column="31" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/../classes/pyETM.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="163">
@@ -503,34 +529,10 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/../classes/Utils.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="408">
-          <caret line="32" column="4" lean-forward="true" selection-start-line="32" selection-start-column="4" selection-end-line="32" selection-end-column="4" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/pyStation.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1003">
-          <caret line="65" column="72" selection-start-line="65" selection-start-column="72" selection-end-line="65" selection-end-column="72" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/../classes/pySp3.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="103">
           <caret line="16" column="8" selection-start-line="16" selection-start-column="8" selection-end-line="16" selection-end-column="8" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/GenerateKml.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state>
-          <caret line="103" column="40" selection-start-line="103" selection-start-column="40" selection-end-line="103" selection-end-column="40" />
-          <folding>
-            <element signature="e#172#187#0" expanded="true" />
-          </folding>
         </state>
       </provider>
     </entry>
@@ -548,24 +550,10 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/../classes/pyPPP.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="83">
-          <caret line="688" column="50" lean-forward="true" selection-start-line="688" selection-start-column="50" selection-end-line="688" selection-end-column="50" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file:///usr/local/lib/python2.7/dist-packages/tqdm/_tqdm.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="206">
           <caret line="636" column="8" selection-start-line="636" selection-start-column="8" selection-end-line="636" selection-end-column="8" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file:///usr/local/lib/python2.7/dist-packages/dispy/__init__.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="104">
-          <caret line="173" column="18" lean-forward="true" selection-start-line="173" selection-start-column="18" selection-end-line="173" selection-end-column="18" />
         </state>
       </provider>
     </entry>
@@ -597,26 +585,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/../classes/pyJobServer.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="561">
-          <caret line="261" column="34" selection-start-line="261" selection-start-column="34" selection-end-line="261" selection-end-column="34" />
-          <folding>
-            <element signature="e#344#7627#0" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/pyNetwork.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="8687">
-          <caret line="519" column="38" selection-start-line="519" selection-start-column="38" selection-end-line="519" selection-end-column="38" />
-          <folding>
-            <element signature="e#75#114#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/test_voronoi.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="1768">
@@ -627,10 +595,17 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/pyGamitConfig.py">
+    <entry file="file:///usr/local/lib/python2.7/dist-packages/dispy/__init__.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1003">
-          <caret line="62" selection-start-line="62" selection-end-line="62" />
+        <state relative-caret-position="-544">
+          <caret line="2314" column="66" selection-start-line="2314" selection-start-column="66" selection-end-line="2314" selection-end-column="66" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/../classes/pyDate.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="7922">
+          <caret line="468" column="22" selection-start-line="468" selection-start-column="22" selection-end-line="468" selection-end-column="22" />
         </state>
       </provider>
     </entry>
@@ -641,40 +616,115 @@
         </state>
       </provider>
     </entry>
+    <entry file="file:///usr/lib/python2.7/ntpath.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="219">
+          <caret line="173" column="4" selection-start-line="173" selection-start-column="4" selection-end-line="173" selection-end-column="4" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pyGamitConfig.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="1054">
+          <caret line="65" column="26" selection-start-line="65" selection-start-column="26" selection-end-line="65" selection-end-column="26" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/../classes/pyJobServer.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="5797">
+          <caret line="345" column="30" selection-start-line="345" selection-start-column="30" selection-end-line="345" selection-end-column="30" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pyParallelGamit.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="4947">
+          <caret line="360" selection-start-line="360" selection-end-line="360" />
+          <folding>
+            <element signature="e#79#99#0" expanded="true" />
+            <element signature="e#680#3303#0" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pyStation.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="204">
+          <caret line="12" selection-start-line="12" selection-end-line="12" selection-end-column="13" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pyNetwork.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="8891">
+          <caret line="532" column="34" selection-start-line="532" selection-start-column="34" selection-end-line="532" selection-end-column="34" />
+          <folding>
+            <element signature="e#75#114#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/GenerateKml.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="2091">
+          <caret line="137" column="46" selection-start-line="137" selection-start-column="46" selection-end-line="137" selection-end-column="46" />
+          <folding>
+            <element signature="e#172#187#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
     <entry file="file://$PROJECT_DIR$/pyGamitTask.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="4539">
-          <caret line="277" selection-start-line="277" selection-end-line="277" />
+        <state relative-caret-position="680">
+          <caret line="50" column="16" selection-start-line="50" selection-start-column="16" selection-end-line="50" selection-end-column="64" />
           <folding>
             <element signature="e#77#86#0" expanded="true" />
           </folding>
         </state>
       </provider>
     </entry>
+    <entry file="file://$PROJECT_DIR$/../classes/Utils.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="7174">
+          <caret line="430" selection-start-line="430" selection-end-line="430" />
+        </state>
+      </provider>
+    </entry>
     <entry file="file://$PROJECT_DIR$/pyGlobkTask.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="2006">
-          <caret line="122" column="16" selection-start-line="122" selection-start-column="16" selection-end-line="122" selection-end-column="16" />
+        <state relative-caret-position="2040">
+          <caret line="124" column="44" selection-start-line="124" selection-start-column="44" selection-end-line="124" selection-end-column="44" />
+          <folding>
+            <element signature="e#74#83#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/../classes/pyPPP.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="8772">
+          <caret line="532" column="74" selection-start-line="532" selection-start-column="74" selection-end-line="532" selection-end-column="74" />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/pyGamitSession.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1632">
-          <caret line="103" column="30" selection-start-line="103" selection-start-column="30" selection-end-line="103" selection-end-column="30" />
+        <state relative-caret-position="1904">
+          <caret line="119" column="66" selection-start-line="119" selection-start-column="66" selection-end-line="119" selection-end-column="66" />
           <folding>
             <element signature="e#78#87#0" expanded="true" />
           </folding>
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/pyParallelGamit.py">
+    <entry file="file://$PROJECT_DIR$/WeeklyCombination.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="2223">
-          <caret line="598" column="53" selection-start-line="598" selection-start-column="53" selection-end-line="598" selection-end-column="53" />
+        <state relative-caret-position="1641">
+          <caret line="364" selection-start-line="364" selection-end-line="364" />
           <folding>
-            <element signature="e#79#99#0" expanded="true" />
-            <element signature="e#680#3303#0" />
+            <element signature="e#81#96#0" expanded="true" />
           </folding>
         </state>
       </provider>

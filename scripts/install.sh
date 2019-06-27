@@ -10,7 +10,7 @@ fi
 curl https://bootstrap.pypa.io/get-pip.py | python
 
 # install dependencies of pygresql, compress
-sudo apt install libpq-dev ncompress bc zip gzip gfortran gcc python-dev csh
+sudo apt install libpq-dev ncompress bc zip gzip gfortran gcc python-dev csh python-tk
 
 # copy libgpstk.so
 sudo cp /opt/gpstk/build/libgpstk.so /usr/lib/libgpstk.so
