@@ -55,7 +55,7 @@ class callback_class():
         self.pbar.update(1)
 
 
-def rinex_task(NetworkCode, StationCode, date, ObservationFYear):
+def rinex_task(NetworkCode, StationCode, date, ObservationFYear, metafile):
 
     from pyRunWithRetry import RunCommandWithRetryExeception
 
@@ -78,7 +78,8 @@ def rinex_task(NetworkCode, StationCode, date, ObservationFYear):
     ArchiveFile = os.path.join(Config.archive_path, ArchiveFile)
 
     # check for a station alias in the alias table
-    alias = cnn.query('SELECT * FROM stationalias WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\'' % (NetworkCode, StationCode))
+    alias = cnn.query('SELECT * FROM stationalias WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\''
+                      % (NetworkCode, StationCode))
 
     sa = alias.dictresult()
 
@@ -108,7 +109,8 @@ def rinex_task(NetworkCode, StationCode, date, ObservationFYear):
 
     except Exception:
 
-        return (None, None, traceback.format_exc() + ' processing ' + NetworkCode + '.' + StationCode + ' using node ' + platform.node() + '\n')
+        return (None, None, traceback.format_exc() + ' processing ' + NetworkCode + '.' + StationCode +
+                ' using node ' + platform.node() + '\n', metafile)
 
     # find this station-day in the lastest global run APRs
     apr_tbl = cnn.query('SELECT * FROM apr_coords WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' '
@@ -127,7 +129,7 @@ def rinex_task(NetworkCode, StationCode, date, ObservationFYear):
 
         return (None, None, '%s.%s has no PPP solutions and no APRs from last global run for %s! '
                             'Specific error from pyETM.PPPETM (if available) was: %s'
-                % (NetworkCode, StationCode, date.yyyyddd(), etm_err))
+                % (NetworkCode, StationCode, date.yyyyddd(), etm_err), metafile)
 
     # convert sigmas to XYZ
     stn = cnn.query('SELECT * FROM stations WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\'' % (NetworkCode, StationCode))
@@ -144,13 +146,13 @@ def rinex_task(NetworkCode, StationCode, date, ObservationFYear):
 
     except pyStationInfo.pyStationInfoException:
         # if no metadata, warn user and continue
-        return (None, None, '%s.%s has no metadata available for this date, but a RINEX exists!' % (NetworkCode, StationCode))
+        return (None, None, '%s.%s has no metadata available for this date, but a RINEX exists!'
+                % (NetworkCode, StationCode), metafile)
 
     # check if RINEX file needs to be synced or not.
     aws_sync = cnn.query('SELECT * FROM aws_sync WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' '
                         'AND "Year" = %i AND "DOY" = %i' %
                         (NetworkCode, StationCode, date.year, date.doy)).dictresult()
-    cnn.close()
 
     if len(aws_sync) == 0:
 
@@ -169,7 +171,8 @@ def rinex_task(NetworkCode, StationCode, date, ObservationFYear):
                             break
 
                     if Rnx is None:
-                        return (None, None, '%s.%s was a multiday file and date %8.3f could not be found!' % (NetworkCode, StationCode, date.fyear))
+                        return (None, None, '%s.%s was a multiday file and date %8.3f could not be found!'
+                                % (NetworkCode, StationCode, date.fyear), metafile)
                 else:
                     # if Rinex is not multiday
                     Rnx = Rinex
@@ -192,17 +195,19 @@ def rinex_task(NetworkCode, StationCode, date, ObservationFYear):
 
             except Exception:
                 return (None, None,
-                        traceback.format_exc() + ' processing ' + NetworkCode + '.' + StationCode + ' using node ' + platform.node() + '\n')
+                        traceback.format_exc() + ' processing ' + NetworkCode + '.' + StationCode +
+                        ' using node ' + platform.node() + '\n', metafile)
 
         except Exception:
-            return (None, None, traceback.format_exc() + ' processing ' + NetworkCode + '.' + StationCode + ' using node ' + platform.node() + '\n')
+            return (None, None, traceback.format_exc() + ' processing ' + NetworkCode + '.' + StationCode +
+                    ' using node ' + platform.node() + '\n', metafile)
 
     # everything ok, return information
     APR = '%s.%s %s %12.3f %12.3f %12.3f %5.3f %5.3f %5.3f %5.3f %5.3f %5.3f %s' % (NetworkCode, StationCode, StationAlias,
              Apr[0,0], Apr[1,0], Apr[2,0], sigmas_xyz[0,0], sigmas_xyz[1,0], sigmas_xyz[2,0],
              sigmas[1,0], sigmas[0,0], sigmas[2,0], source.replace(' ', '_'))
 
-    return (APR, stninfo.return_stninfo().replace(StationCode.upper(), StationAlias.upper()), None)
+    return APR, stninfo.return_stninfo().replace(StationCode.upper(), StationAlias.upper()), None, metafile
 
 
 def sigmas_neu2xyz(lat, lon, sigmas):
@@ -235,11 +240,7 @@ def main():
     check_aliases(cnn)
 
     # initialize the PP job server
-    if not args.noparallel:
-        JobServer = pyJobServer.JobServer(Config, 1500)  # type: pyJobServer.JobServer
-    else:
-        JobServer = None
-        Config.run_parallel = False
+    JobServer = pyJobServer.JobServer(Config, run_parallel=not args.noparallel)  # type: pyJobServer.JobServer
 
     dd = args.date[0]
 
@@ -383,7 +384,6 @@ def pull_rinex(cnn, date, Config, JobServer):
 
     rinex = rs.dictresult()
 
-    callback = []
     pbar = tqdm(total=len(rinex), ncols=80)
 
     metafile = date.yyyy() + '/' + date.ddd() + '/' + date.yyyyddd().replace(' ', '-')
@@ -401,31 +401,22 @@ def pull_rinex(cnn, date, Config, JobServer):
                   'Receiver Type         Vers                  SwVer  Receiver SN           Antenna Type     Dome   '
                   'Antenna SN          \n')
 
+    modules = ('dbConnection', 'pyETM', 'pyDate', 'pyRinex', 'pyStationInfo', 'pyOptions', 'pyArchiveStruct', 'os',
+               'numpy', 'traceback', 'platform', 'Utils', 'shutil')
+
+    depfuncs = (window_rinex, sigmas_neu2xyz)
+
+    JobServer.create_cluster(rinex_task, depfuncs, output_handle, pbar, modules=modules)
+
     for rnx in rinex:
-        if Config.run_parallel:
-            JobServer.SubmitJob(rinex_task, (rnx['NetworkCode'], rnx['StationCode'], date, rnx['ObservationFYear']),
-                                (window_rinex, sigmas_neu2xyz),
-                                ('dbConnection', 'pyETM', 'pyDate', 'pyRinex', 'pyStationInfo',
-                                                  'pyOptions', 'pyArchiveStruct', 'os', 'numpy',
-                                                  'traceback', 'platform', 'Utils', 'shutil'), callback,
-                                callback_class(pbar), 'process_callback')
+        JobServer.submit(rnx['NetworkCode'], rnx['StationCode'], date, rnx['ObservationFYear'], metafile)
 
-            if JobServer.process_callback:
-                # handle any output messages during this batch
-                callback = output_handle(callback, metafile)
-                JobServer.process_callback = False
-        else:
-            callback.append(callback_class(pbar))
-            callback[0].process_callback(rinex_task(rnx['NetworkCode'], rnx['StationCode'], date, rnx['ObservationFYear']))
-            callback = output_handle(callback, metafile)
+    JobServer.wait()
 
-    if Config.run_parallel:
-        tqdm.write(' >> waiting for jobs to finish...')
-        JobServer.job_server.wait()
-
-    # handle any output messages during this batch
-    output_handle(callback, metafile)
     pbar.close()
+
+    JobServer.close_cluster()
+
     print 'Done, chau!'
 
 
@@ -477,25 +468,31 @@ def check_aliases(cnn):
                         break
 
 
-def output_handle(callback, metafile):
+def output_handle(job):
 
-    for obj in callback:
+    if job.result is not None:
+        apr = job.result[0]
+        stninfo = job.result[1]
+        log = job.result[2]
+        metafile = job.result[3]
+
         # write the APR and sigmas
         # writen in ENU not NEU, as specified by Abel
-        if obj.apr is not None:
+        if apr is not None:
             with open('./' + metafile + '.apr', mode='a') as fid:
-                fid.write(obj.apr + '\n')
+                fid.write(apr + '\n')
 
-        if obj.stninfo is not None:
+        if stninfo is not None:
             with open('./' + metafile + '.info', mode='a') as fid:
-                fid.write(obj.stninfo + '\n')
+                fid.write(stninfo + '\n')
 
         # write a log line for debugging
-        if obj.log is not None:
+        if log is not None:
             with open('./' + metafile + '.log', mode='a') as fid:
-                fid.write(obj.log + '\n')
+                fid.write(log + '\n')
 
-    return []
+    elif job.exception:
+        tqdm.write(' -- There were unhandled errors during this batch: ' + job.exception)
 
 
 def window_rinex(Rinex, window):

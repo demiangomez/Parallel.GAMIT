@@ -119,6 +119,12 @@ def purge_solution(pwd, project, date):
         shutil.rmtree(sub)
 
     # now remove the database entries
+    cnn.query('DELETE FROM gamit_soln_excl WHERE "Year" = %i AND "DOY" = %i '
+              'AND "Project" = \'%s\'' % (date.year, date.doy, project))
+
+    cnn.query('DELETE FROM stacks WHERE "Year" = %i AND "DOY" = %i '
+              'AND "Project" = \'%s\'' % (date.year, date.doy, project))
+
     cnn.query('DELETE FROM gamit_soln WHERE "Year" = %i AND "DOY" = %i '
               'AND "Project" = \'%s\'' % (date.year, date.doy, project))
 

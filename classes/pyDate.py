@@ -245,9 +245,9 @@ class Date(object):
                 if int(arg) < 1900:
                     # the date is in 2 digit format
                     if int(arg) > 80:
-                        self.year = int(arg)+ 1900
+                        self.year = int(arg) + 1900
                     else:
-                        self.year = int(arg)+ 2000
+                        self.year = int(arg) + 2000
                 else:
                     self.year = arg
             elif key == 'doy':
@@ -454,7 +454,7 @@ class Date(object):
         return "0"*(3-len(doystr))+doystr
 
     def yyyy(self):
-        return str(self.year)
+        return '%04i' % self.year
 
     def wwww(self):
         weekstr = str(self.gpsWeek)

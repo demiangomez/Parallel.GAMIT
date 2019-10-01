@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Project: Parallel.Archive
 Date: 3/3/17 11:27 AM
@@ -35,6 +36,54 @@ if 'DISPLAY' in os.environ.keys():
         matplotlib.use('Agg')
 else:
     matplotlib.use('Agg')
+
+language = {
+    'eng': {
+        "station": "Station",
+        "north": "North",
+        "east": "East",
+        "up": "Up",
+        "table_title": "Year Day Relx    [mm] Mag",
+        "periodic": "Periodic amp",
+        "velocity": "Velocity",
+        "acceleration": "Acceleration",
+        "position": "Ref. Position",
+        "completion": "Completion",
+        "other": "other polynomial terms",
+        "not_enough": "Not enough solutions to fit an ETM.",
+        "table_too_long": "Table too long to print!",
+        "frequency": "Frequency",
+        "N residuals": "N Residuals",
+        "E residuals": "E Residuals",
+        "U residuals": "U Residuals",
+        "histogram plot": "Histogram",
+        "residual plot": "Residual Plot"
+    },
+    'spa': {
+        "station": u"Estación",
+        "north": u"Norte",
+        "east": u"Este",
+        "up": u"Arriba",
+        "table_title": u"Año  Día Relx    [mm] Mag",
+        "periodic": u"Amp. Periódica",
+        "velocity": u"Velocidad",
+        "acceleration": u"Aceleración",
+        "position": u"Posición de ref.",
+        "completion": u"Completitud",
+        "other": u"otros términos polinómicos",
+        "not_enough": u"No hay suficientes soluciones para ajustar trayectorias.",
+        "table_too_long": u"Tabla demasiado larga!",
+        "frequency": u"Frecuencia",
+        "N residuals": u"Residuos N",
+        "E residuals": u"Residuos E",
+        "U residuals": u"Residuos U",
+        "histogram plot": u"Histograma",
+        "residual plot": u"Gráfico de Residuos"
+    }}
+
+defined = 'LANG' in globals()
+if not defined:
+    LANG = 'eng'
 
 
 def tic():
@@ -424,9 +473,9 @@ class JumpTable:
 
     def print_parameters(self):
 
-        output_n = ['Year     Relx    [mm] Mag']
-        output_e = ['Year     Relx    [mm] Mag']
-        output_u = ['Year     Relx    [mm] Mag']
+        output_n = [language[LANG]['table_title']]
+        output_e = [language[LANG]['table_title']]
+        output_u = [language[LANG]['table_title']]
 
         for jump in self.table:
 
@@ -457,9 +506,9 @@ class JumpTable:
                         rx += 1
 
         if len(output_n) > 22:
-            output_n = output_n[0:22] + ['Table too long to print!']
-            output_e = output_e[0:22] + ['Table too long to print!']
-            output_u = output_u[0:22] + ['Table too long to print!']
+            output_n = output_n[0:22] + [language[LANG]['table_too_long']]
+            output_e = output_e[0:22] + [language[LANG]['table_too_long']]
+            output_u = output_u[0:22] + [language[LANG]['table_too_long']]
 
         return '\n'.join(output_n), '\n'.join(output_e), '\n'.join(output_u)
 
@@ -730,7 +779,8 @@ class CoSeisJump(Jump):
             return hl
 
     def __str__(self):
-        return '(' + str(self.date)+'), ' + str(self.p.jump_type) + ', ' + str(self.p.relaxation) + ', "' + str(self.p.metadata) + '"'
+        return '(' + str(self.date)+'), ' + str(self.p.jump_type) + ', ' + str(self.p.relaxation) + ', "' + \
+               str(self.p.metadata) + '"'
 
     def __repr__(self):
         return 'pyPPPETM.CoSeisJump(' + str(self) + ')'
@@ -1033,7 +1083,7 @@ class Periodic(EtmFunction):
         # declare the location of the answer (to be filled by Design object)
         self.column_index = np.array([])
 
-        self.format_str = 'Periodic amp (' + \
+        self.format_str = language[LANG]['periodic'] + ' (' + \
                           ', '.join(['%.1f yr' % i for i in (1 / (self.p.frequencies * 365.25)).tolist()]) + \
                           ') N: %s E: %s U: %s [mm]'
 
@@ -1115,25 +1165,28 @@ class Polynomial(EtmFunction):
             self.terms = DEFAULT_POL_TERMS
 
         if self.terms == 1:
-            self.format_str = 'Ref Position (' + '%.3f' % t_ref + ') X: {:.3f} Y: {:.3f} Z: {:.3f} [m]'
+            self.format_str = language[LANG]['position'] + ' (' + '%.3f' % t_ref + ') X: {:.3f} Y: {:.3f} Z: {:.3f} [m]'
             self.p.metadata = '[[n:pos],[e:pos],[u:pos]]'
 
         elif self.terms == 2:
-            self.format_str = 'Ref Position (' + '%.3f' % t_ref + ') X: {:.3f} Y: {:.3f} Z: {:.3f} [m]\n' \
-                              'Velocity N: {:.2f} E: {:.2f} U: {:.2f} [mm/yr]'
+            self.format_str = language[LANG]['position'] + ' (' + '%.3f' % t_ref + \
+                              ') X: {:.3f} Y: {:.3f} Z: {:.3f} [m]\n' \
+                              + language[LANG]['velocity'] + ' N: {:.2f} E: {:.2f} U: {:.2f} [mm/yr]'
             self.p.metadata = '[[n:pos, n:vel],[e:pos, e:vel],[u:pos, u:vel]]'
 
         elif self.terms == 3:
-            self.format_str = 'Ref Position (' + '%.3f' % t_ref + ') X: {:.3f} Y: {:.3f} Z: {:.3f} [m]\n' \
-                              'Velocity N: {:.3f} E: {:.3f} U: {:.3f} [mm/yr]\n' \
-                              'Acceleration N: {:.2f} E: {:.2f} U: {:.2f} [mm/yr^2]'
+            self.format_str = language[LANG]['position'] + ' (' + '%.3f' % t_ref + \
+                              ') X: {:.3f} Y: {:.3f} Z: {:.3f} [m]\n' \
+                              + language[LANG]['velocity'] + ' N: {:.3f} E: {:.3f} U: {:.3f} [mm/yr]\n' \
+                              + language[LANG]['acceleration'] + ' N: {:.2f} E: {:.2f} U: {:.2f} [mm/yr**2]'
             self.p.metadata = '[[n:pos, n:vel, n:acc],[e:pos, e:vel, e:acc],[u:pos, u:vel, u:acc]]'
 
         elif self.terms > 3:
-            self.format_str = 'Ref Position (' + '%.3f' % t_ref + ') X: {:.3f} Y: {:.3f} Z: {:.3f} [m]\n' \
-                              'Velocity N: {:.3f} E: {:.3f} U: {:.3f} [mm/yr]\n' \
-                              'Acceleration N: {:.2f} E: {:.2f} U: {:.2f} [mm/yr^2] + ' + '%i' % (self.terms - 3) + \
-                              ' other polynomial terms'
+            self.format_str = language[LANG]['position'] + ' (' + '%.3f' % t_ref + \
+                              ') X: {:.3f} Y: {:.3f} Z: {:.3f} [m]\n' \
+                              + language[LANG]['velocity'] + ' N: {:.3f} E: {:.3f} U: {:.3f} [mm/yr]\n' \
+                              + language[LANG]['acceleration'] + ' N: {:.2f} E: {:.2f} U: {:.2f} [mm/yr**2] + ' \
+                              + '%i ' % (self.terms - 3) + language[LANG]['other']
             self.p.metadata = '[[n:pos, n:vel, n:acc, n:tx...],' \
                               '[e:pos, e:vel, e:acc, e:tx...],' \
                               '[u:pos, u:vel, u:acc, u:tx...]]'
@@ -1361,8 +1414,8 @@ class ETM:
                           '"StationCode" = \'%s\' AND soln = \'%s\''
                           % (self.NetworkCode, self.StationCode, self.soln.type))
 
-                if self.soln.type == 'gamit':
-                    # if the solution is of type 'gamit', delete the excluded solutions
+                if self.soln.type == 'dra':
+                    # if the solution is of type 'dra', delete the excluded solutions
                     cnn.query('DELETE FROM gamit_soln_excl WHERE "NetworkCode" = \'%s\' AND '
                               '"StationCode" = \'%s\'' % (self.NetworkCode, self.StationCode))
 
@@ -1393,9 +1446,11 @@ class ETM:
                 self.Periodic.load_parameters(params=self.C, sigmas=self.S)
 
                 # save the parameters in each object to the db
-                self.save_parameters(cnn)
+                # do not save parameters if we are doing DRA
+                if self.soln.type != 'dra':
+                    self.save_parameters(cnn)
 
-                if self.soln.type == 'gamit':
+                if self.soln.type == 'dra':
                     self.save_excluded_soln(cnn)
 
             # load the covariances using the correlations
@@ -1431,16 +1486,17 @@ class ETM:
 
     def save_excluded_soln(self, cnn):
 
-        for date, f in zip(self.soln.date, np.logical_and(np.logical_and(self.F[0], self.F[1]), self.F[2])):
+        for date, f, r in zip(self.soln.date, np.logical_and(np.logical_and(self.F[0], self.F[1]), self.F[2]),
+                              np.sqrt(np.sum(np.square(self.R), axis=0))):
 
             if not cnn.query_float('SELECT * FROM gamit_soln_excl WHERE "NetworkCode" = \'%s\' AND '
                                    '"StationCode" = \'%s\' AND "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i'
                                    % (self.NetworkCode, self.StationCode, self.soln.project, date.year, date.doy)) \
                     and not f:
 
-                cnn.query('INSERT INTO gamit_soln_excl ("NetworkCode", "StationCode", "Project", "Year", "DOY") VALUES '
-                          '(\'%s\', \'%s\', \'%s\', %i ,%i)'
-                          % (self.NetworkCode, self.StationCode, self.soln.project, date.year, date.doy))
+                cnn.query('INSERT INTO gamit_soln_excl ("NetworkCode", "StationCode", "Project", "Year", "DOY", '
+                          'residual) VALUES (\'%s\', \'%s\', \'%s\', %i ,%i, %.4f)'
+                          % (self.NetworkCode, self.StationCode, self.soln.project, date.year, date.doy, r))
 
     def save_parameters(self, cnn):
 
@@ -1458,7 +1514,7 @@ class ETM:
                   '(\'%s\', \'%s\', \'ppp\', \'var_factor\', \'%s\', %i)'
                   % (self.NetworkCode, self.StationCode, to_postgres(self.factor), self.hash))
 
-    def plot(self, pngfile=None, t_win=None, residuals=False, plot_missing=True, ecef=False):
+    def plot(self, pngfile=None, t_win=None, residuals=False, plot_missing=True, ecef=False, plot_outliers=True):
 
         import matplotlib.pyplot as plt
 
@@ -1469,7 +1525,9 @@ class ETM:
         if ecef:
             labels = ('X [mm]', 'Y [mm]', 'Z [mm]')
         else:
-            labels = ('North [mm]', 'East [mm]', 'Up [mm]')
+            labels = (language[LANG]['north'] + ' [mm]',
+                      language[LANG]['east'] + ' [mm]',
+                      language[LANG]['up'] + ' [mm]')
 
         # get filtered observations
         if self.A is not None:
@@ -1502,7 +1560,12 @@ class ETM:
         if self.A is not None:
 
             # create the axis
-            f, axis = plt.subplots(nrows=3, ncols=2, sharex=True, figsize=(15, 10))  # type: plt.subplots
+            if plot_outliers:
+                f, axis = plt.subplots(nrows=3, ncols=2, sharex=True, figsize=(15, 10))  # type: plt.subplots
+                axis_vect = (axis[0][0], axis[1][0], axis[2][0])
+            else:
+                f, axis = plt.subplots(nrows=3, ncols=1, sharex=True, figsize=(15, 10))  # type: plt.subplots
+                axis_vect = (axis[0], axis[1], axis[2])
 
             # rotate modeled ts
             if not ecef:
@@ -1517,7 +1580,7 @@ class ETM:
 
             # ################# FILTERED PLOT #################
 
-            f.suptitle('Station %s.%s (%s %.2f%%) lat: %.5f lon: %.5f\n'
+            f.suptitle(language[LANG]['station'] + ' %s.%s (%s %.2f%%) lat: %.5f lon: %.5f\n'
                        '%s\n%s\n'
                        'NEU wrms [mm]: %5.2f %5.2f %5.2f' %
                        (self.NetworkCode, self.StationCode, self.soln.type.upper(), self.soln.completion,
@@ -1530,7 +1593,7 @@ class ETM:
             table_n, table_e, table_u = self.Jumps.print_parameters()
             tables = (table_n, table_e, table_u)
 
-            for i, ax in enumerate((axis[0][0], axis[1][0], axis[2][0])):
+            for i, ax in enumerate(axis_vect):
 
                 # plot filtered time series
                 if not residuals:
@@ -1562,25 +1625,25 @@ class ETM:
                 self.plot_jumps(ax)
 
             # ################# OUTLIERS PLOT #################
+            if plot_outliers:
+                for i, ax in enumerate((axis[0][1], axis[1][1], axis[2][1])):
+                    ax.plot(self.soln.t, lneu[i], 'oc', markersize=2)
+                    ax.plot(self.soln.t[filt], lneu[i][filt], 'ob', markersize=2)
+                    ax.plot(self.soln.ts, mneu[i], 'r')
+                    # error bars
+                    ax.plot(self.soln.ts, mneu[i] - fneu[i] * LIMIT, 'b', alpha=0.1)
+                    ax.plot(self.soln.ts, mneu[i] + fneu[i] * LIMIT, 'b', alpha=0.1)
+                    ax.fill_between(self.soln.ts, mneu[i] - fneu[i]*LIMIT, mneu[i] + fneu[i]*LIMIT,
+                                    antialiased=True, alpha=0.2)
 
-            for i, ax in enumerate((axis[0][1],axis[1][1], axis[2][1])):
-                ax.plot(self.soln.t, lneu[i], 'oc', markersize=2)
-                ax.plot(self.soln.t[filt], lneu[i][filt], 'ob', markersize=2)
-                ax.plot(self.soln.ts, mneu[i], 'r')
-                # error bars
-                ax.plot(self.soln.ts, mneu[i] - fneu[i] * LIMIT, 'b', alpha=0.1)
-                ax.plot(self.soln.ts, mneu[i] + fneu[i] * LIMIT, 'b', alpha=0.1)
-                ax.fill_between(self.soln.ts, mneu[i] - fneu[i]*LIMIT, mneu[i] + fneu[i]*LIMIT,
-                                antialiased=True, alpha=0.2)
+                    self.set_lims(t_win, plt, ax)
 
-                self.set_lims(t_win, plt, ax)
+                    ax.set_ylabel(labels[i])
 
-                ax.set_ylabel(labels[i])
+                    ax.grid(True)
 
-                ax.grid(True)
-
-                if plot_missing:
-                    self.plot_missing_soln(ax)
+                    if plot_missing:
+                        self.plot_missing_soln(ax)
 
             f.subplots_adjust(left=0.17)
 
@@ -1588,10 +1651,10 @@ class ETM:
 
             f, axis = plt.subplots(nrows=3, ncols=1, sharex=True, figsize=(15, 10))  # type: plt.subplots
 
-            f.suptitle('Station: %s.%s (%s %.2f%%) lat: %.5f lon: %.5f'
+            f.suptitle(language[LANG]['station'] + ' %s.%s (%s %.2f%%) lat: %.5f lon: %.5f'
                        % (self.NetworkCode, self.StationCode, self.soln.type.upper(), self.soln.completion,
                           self.soln.lat, self.soln.lon) +
-                       '\nNot enough solutions to fit an ETM.', fontsize=9, family='monospace')
+                       '\n' + language[LANG]['not_enough'], fontsize=9, family='monospace')
 
             for i, ax in enumerate((axis[0], axis[1], axis[2])):
                 ax.plot(self.soln.t, lneu[i], 'ob', markersize=2)
@@ -1652,30 +1715,122 @@ class ETM:
             self.picking = False
             self.f.canvas.mpl_disconnect(self.cid)
 
-    def plot_hist(self):
+    def plot_hist(self, pngfile=None):
 
         import matplotlib.pyplot as plt
         import matplotlib.mlab as mlab
         from scipy.stats import norm
+        from matplotlib.patches import Ellipse
 
-        L = self.l * 1000
+        labels = (language[LANG]['north'] + ' [mm]',
+                  language[LANG]['east'] + ' [mm]',
+                  language[LANG]['up'] + ' [mm]')
 
         if self.A is not None:
 
-            residuals = np.sqrt(np.square(L[0]) + np.square(L[1]) + np.square(L[2])) - \
-                        np.sqrt(np.square(np.dot(self.A, self.C[0])) + np.square(np.dot(self.A, self.C[1])) +
-                                np.square(np.dot(self.A, self.C[2])))
+            filt = self.F[0] * self.F[1] * self.F[2]
 
-            (mu, sigma) = norm.fit(residuals)
+            f, axis = plt.subplots(nrows=2, ncols=2, figsize=(15, 10))  # type: plt.subplots
 
-            n, bins, patches = plt.hist(residuals, 200, normed=1, alpha=0.75, facecolor='blue')
+            f.suptitle(language[LANG]['station'] + ' %s.%s (%s %.2f%%) lat: %.5f lon: %.5f\n'
+                                                   'VAR (N E U)      : %s\n'
+                                                   'COV (N-E N-U E-U): %s'
+                       % (self.NetworkCode, self.StationCode, self.soln.type.upper(), self.soln.completion,
+                          self.soln.lat, self.soln.lon, ' '.join(['%10.3e' % i for i in np.diag(self.covar)]),
+                          ' '.join(['%10.3e' % i for i in [self.covar[0, 1], self.covar[0, 2], self.covar[1, 2]]])),
+                       fontsize=9, family='monospace')
 
-            y = mlab.normpdf(bins, mu, sigma)
-            plt.plot(bins, y, 'r--', linewidth=2)
-            plt.title(r'$\mathrm{Histogram\ of\ residuals (mm):}\ \mu=%.3f,\ \sigma=%.3f$' % (mu*1000, sigma*1000))
-            plt.grid(True)
+            n = np.sqrt(np.sum(self.R ** 2, axis=0))
+            N = self.R[0][n <= 0.05] * 1000
+            E = self.R[1][n <= 0.05] * 1000
+            U = self.R[2][n <= 0.05] * 1000
 
-            plt.show()
+            # N-E residuals and error ellipse
+            ax = axis[0][0]
+            ax.plot(E, N, 'ob', markersize=2)
+            # ax.plot(E[filt], N[filt], 'ob', markersize=2)
+            # ax.plot(E[np.logical_not(filt)], N[np.logical_not(filt)], 'oc', markersize=2)
+
+            # process the covariance matrix
+            c = self.covar[0:2, 0:2]
+            c[1, 1], c[0, 0] = c[0, 0], c[1, 1]
+            w, v = np.linalg.eigh(self.covar[0:2, 0:2])
+            order = w.argsort()[::-1]
+            w, v = w[order], v[:, order]
+            theta = np.degrees(np.arctan2(*v[:, 0][::-1]))
+
+            ellipse = Ellipse((np.mean(self.R[1][filt]), np.mean(self.R[1][filt])),
+                              width=2. * np.sqrt(w[0]) * 2.5 * 1000,
+                              height=2. * np.sqrt(w[1]) * 2.5 * 1000,
+                              angle=theta,
+                              facecolor='none',
+                              edgecolor='red',
+                              zorder=3,
+                              label=r'$2.5\sigma$')
+            ax.add_patch(ellipse)
+            ax.grid(True)
+            ax.set_ylabel(labels[0])
+            ax.set_xlabel(labels[1])
+            ax.set_title(language[LANG]['residual plot'] + ' ' + language[LANG]['north'] + '-' + language[LANG]['east'])
+            ax.axis('equal')
+            f.canvas.draw()
+            ax.legend()
+            nn = ax.get_ylim()
+            ee = ax.get_xlim()
+
+            # N histogram
+            ax = axis[0][1]
+            # (mu, sigma) = norm.fit(N)
+            n, bins, patches = ax.hist(N, 200, alpha=0.75, facecolor='blue', orientation='horizontal')
+            # y = mlab.normpdf(bins, mu, sigma)
+            # ax.plot(y, bins, 'r--', linewidth=2)
+            ax.grid(True)
+            ax.set_xlabel(language[LANG]['frequency'])
+            ax.set_ylabel(language[LANG]['N residuals'] + ' [mm]')
+            ax.set_title(language[LANG]['histogram plot'] + ' ' + language[LANG]['north'])
+            ax.set_ylim(nn)
+
+            # E histogram
+            ax = axis[1][0]
+            # (mu, sigma) = norm.fit(E)
+            n, bins, patches = ax.hist(E, 200, alpha=0.75, facecolor='blue')
+            # y = mlab.normpdf(bins, mu, sigma)
+            # ax.plot(bins, y, 'r--', linewidth=2)
+            ax.grid(True)
+            ax.set_ylabel(language[LANG]['frequency'])
+            ax.set_xlabel(language[LANG]['E residuals'] + ' [mm]')
+            ax.set_title(language[LANG]['histogram plot'] + ' ' + language[LANG]['east'])
+            ax.set_xlim(ee)
+            # Up histogram
+            ax = axis[1][1]
+            # (mu, sigma) = norm.fit(U)
+            n, bins, patches = ax.hist(U, 200, alpha=0.75, facecolor='blue')
+            # y = mlab.normpdf(bins, mu, sigma)
+            # ax.plot(bins, y, 'r--', linewidth=2)
+            ax.grid(True)
+            ax.set_ylabel(language[LANG]['frequency'])
+            ax.set_xlabel(language[LANG]['U residuals'] + ' [mm]')
+            ax.set_title(language[LANG]['histogram plot'] + ' ' + language[LANG]['up'])
+
+            #residuals = np.sqrt(np.square(L[0]) + np.square(L[1]) + np.square(L[2])) - \
+            #            np.sqrt(np.square(np.dot(self.A, self.C[0])) + np.square(np.dot(self.A, self.C[1])) +
+            #                    np.square(np.dot(self.A, self.C[2])))
+
+            #(mu, sigma) = norm.fit(residuals)
+
+            #n, bins, patches = plt.hist(residuals, 200, normed=1, alpha=0.75, facecolor='blue')
+
+            #y = mlab.normpdf(bins, mu, sigma)
+            #plt.plot(bins, y, 'r--', linewidth=2)
+            #plt.title(r'$\mathrm{Histogram\ of\ residuals (mm):}\ \mu=%.3f,\ \sigma=%.3f$' % (mu*1000, sigma*1000))
+            #plt.grid(True)
+
+            if not pngfile:
+                plt.show()
+                plt.close()
+            else:
+                plt.savefig(pngfile)
+                plt.close()
 
     @staticmethod
     def autoscale_y( ax, margin=0.1):
@@ -1750,7 +1905,7 @@ class ETM:
             elif jump.p.jump_type == NO_EFFECT:
                 ax.plot((jump.date.fyear, jump.date.fyear), ax.get_ylim(), ':', color='tab:gray')
 
-    def todictionary(self, time_series=False):
+    def todictionary(self, time_series=False, model=False):
         # convert the ETM adjustment into a dictionary
         # optionally, output the whole time series as well
 
@@ -1791,6 +1946,11 @@ class ETM:
             ts['u'] = L[2].tolist()
             ts['residuals'] = self.R.tolist()
             ts['weights'] = self.P.transpose().tolist()
+            ts['model_neu'] = []
+            if model:
+                if self.A is not None:
+                    for i in range(3):
+                        ts['model_neu'].append((np.dot(self.As, self.C[i]).tolist()))
 
             if self.A is not None:
                 ts['filter'] = np.logical_and(np.logical_and(self.F[0], self.F[1]), self.F[2]).tolist()
@@ -2286,6 +2446,9 @@ class DailyRep(ETM):
             self.gamit_soln = gamit_soln
 
         ETM.__init__(self, cnn, self.gamit_soln, no_model, False, False, False)
+
+        # the the solution type to dra
+        self.soln.type = 'dra'
 
         # for repetitivities, vector with difference
         self.l = self.rotate_2neu(np.array([self.gamit_soln.x,

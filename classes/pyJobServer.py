@@ -10,7 +10,7 @@ import time
 import dispy
 import dispy.httpd
 from tqdm import tqdm
-from functools import partial
+import traceback
 
 DELAY = 10
 
@@ -384,7 +384,7 @@ class JobServer:
         else:
             # if no parallel was invoked, execute the procedure manually
             if self.callback is not None:
-                job = dispy.DispyJob(args, ())
+                job = dispy.DispyJob(None, args, ())
                 try:
                     job.result = self.function(*args)
                     if self.progress_bar is not None:
@@ -443,7 +443,8 @@ class JobServer:
                 tqdm.write(' -- Job %i has been created' % job.id)
 
             elif status == dispy.DispyJob.Terminated:
-                tqdm.write(' -- Job %i has been terminated' % job.id)
+                tqdm.write(' -- Job %04i has been terminated with the following exception: ' % job.id)
+                tqdm.write(str(job.exception))
 
             if status in (dispy.DispyJob.Finished, dispy.DispyJob.Terminated) and self.progress_bar is not None:
                 self.progress_bar.update()

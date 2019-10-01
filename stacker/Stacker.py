@@ -15,7 +15,8 @@ from tqdm import tqdm
 import pyStack
 import os
 import re
-from Utils import lg2ct
+from Utils import process_date
+from datetime import datetime
 import numpy as np
 import json
 
@@ -31,8 +32,8 @@ def plot_etm(cnn, stack, station, directory):
 
         etm = pyETM.GamitETM(cnn, station['NetworkCode'], station['StationCode'], gamit_soln=ts)
 
-        pngfile = os.path.join(directory, etm.NetworkCode + '.' + etm.StationCode + '.png')
-        jsonfile = os.path.join(directory, etm.NetworkCode + '.' + etm.StationCode + '.json')
+        pngfile = os.path.join(directory, etm.NetworkCode + '.' + etm.StationCode + '_gamit.png')
+        jsonfile = os.path.join(directory, etm.NetworkCode + '.' + etm.StationCode + '_gamit.json')
 
         etm.plot(pngfile, plot_missing=False)
         with open(os.path.join(jsonfile), 'w') as f:
@@ -81,14 +82,15 @@ def callback_handler(job):
             etm_vertices += job.result
 
 
-def calculate_etms(cnn, stack, JobServer, iterations):
+def calculate_etms(cnn, stack, JobServer, iterations, create_target=True):
     """
-    Parallelized calculation of ETMs to save some time
+    Parallel calculation of ETMs to save some time
     :param cnn: connection to the db
     :param stack: object with the list of polyhedrons
     :param JobServer: parallel.python object
     :param iterations: current iteration number
-    :return: the target polyhedron list that will be used for alignment
+    :param create_target: indicate if function should create and return target polyhedrons
+    :return: the target polyhedron list that will be used for alignment (if create_target = True)
     """
     global etm_vertices
 
@@ -120,11 +122,18 @@ def calculate_etms(cnn, stack, JobServer, iterations):
                                                 ('z', 'float64'), ('yr', 'i4'), ('dd', 'i4'),
                                                 ('fy', 'float64')])
 
-    target = []
-    for dd in tqdm(stack.dates, ncols=160, desc=' >> Initializing the target polyhedrons'):
-        target.append(pyStack.Polyhedron(vertices, 'etm', dd))
+    if create_target:
+        target = []
+        for i in tqdm(range(len(stack.dates)), ncols=160, desc=' >> Initializing the target polyhedrons'):
+            dd = stack.dates[i]
+            if not stack[i].aligned:
+                # not aligned, put in a target polyhedron
+                target.append(pyStack.Polyhedron(vertices, 'etm', dd))
+            else:
+                # already aligned, no need for a target polyhedron
+                target.append([])
 
-    return target
+        return target
 
 
 def load_periodic_space(periodic_file):
@@ -170,6 +179,48 @@ def load_periodic_space(periodic_file):
         return periods
 
 
+def load_frame_params(itrf_file):
+    """
+    Load the frame parameters
+    :param itrf_file:
+    :return: dictionary with the parameters for the given frame
+    """
+    params = dict()
+
+    with open(itrf_file, 'r') as f:
+        lines = f.read()
+
+        stn = re.findall(r'^\s(\w+.\w+)\s*(-?\d*\.\d+|NaN)\s*(-?\d*\.\d+|NaN)\s*(-?\d*\.\d+|NaN)\s*(-?\d*\.\d+|NaN)'
+                         r'\s*(-?\d*\.\d+|NaN)\s*(-?\d*\.\d+|NaN)\s*(-?\d*\.\d+|NaN)\s*(-?\d*\.\d+|NaN)'
+                         r'\s*(-?\d*\.\d+|NaN)\s*(-?\d*\.\d+|NaN)\s*(-?\d*\.\d+|NaN)\s*(-?\d*\.\d+|NaN)'
+                         r'\s*(-?\d*\.\d+|NaN)\s*(-?\d*\.\d+|NaN)\s*(-?\d*\.\d+|NaN)\s*(-?\d*\.\d+|NaN)'
+                         r'\s*(-?\d*\.\d+|NaN)\s*(-?\d*\.\d+|NaN)\s*(-?\d*\.\d+|NaN)', lines, re.MULTILINE)
+
+        for s in stn:
+
+            params[s[0]] = dict()
+            params[s[0]]['x'] = float(s[1])
+            params[s[0]]['y'] = float(s[2])
+            params[s[0]]['z'] = float(s[3])
+            params[s[0]]['epoch'] = float(s[4])
+            params[s[0]]['vx'] = float(s[5])
+            params[s[0]]['vy'] = float(s[6])
+            params[s[0]]['vz'] = float(s[7])
+            params[s[0]]['365.250'] = dict()
+            params[s[0]]['182.625'] = dict()
+
+            # sin and cos to arranged as [n:sin, n:cos] ... it as we have it in the database
+            params[s[0]]['365.250']['n'] = [np.divide(float(s[8]), 1000.), np.divide(float(s[10]), 1000.)]
+            params[s[0]]['365.250']['e'] = [np.divide(float(s[12]), 1000.), np.divide(float(s[14]), 1000.)]
+            params[s[0]]['365.250']['u'] = [np.divide(float(s[16]), 1000.), np.divide(float(s[18]), 1000.)]
+
+            params[s[0]]['182.625']['n'] = [np.divide(float(s[9]), 1000.), np.divide(float(s[11]), 1000.)]
+            params[s[0]]['182.625']['e'] = [np.divide(float(s[13]), 1000.), np.divide(float(s[15]), 1000.)]
+            params[s[0]]['182.625']['u'] = [np.divide(float(s[17]), 1000.), np.divide(float(s[19]), 1000.)]
+
+    return params
+
+
 def main():
 
     parser = argparse.ArgumentParser(description='GNSS time series stacker')
@@ -188,9 +239,13 @@ def main():
     parser.add_argument('-redo', '--redo_stack', action='store_true',
                         help="Delete the stack and redo it from scratch")
     parser.add_argument('-itrf', '--itrf', nargs='+',
-                        help="File with the ITRF periodic space parameters as given by Zuheir Altamimi and the list "
-                             "of stations to inherit the periodic terms from. Example: -itrf periodic.dat igs.braz "
-                             "rms.autf rms.igm1 rms.sant ...")
+                        help="File with the ITRF parameters (position, velocity and periodic). Inheritance will occur "
+                             "with stations on the list whenever a parameter exists. Example: -itrf itrf14.txt "
+                             "Format is: net.stn x y z epoch vx vy vz sn_1y sn_6m cn_1y cn_6m se_1y se_6m ce_1y ce_6m "
+                             "su_1y su_6m cu_1y cu_6m ")
+    parser.add_argument('-d', '--date_end', nargs=1, metavar='date',
+                        help='Limit the polyhedrons to the specified date. Can be in wwww-d, yyyy_ddd, yyyy/mm/dd '
+                             'or fyear format')
     parser.add_argument('-np', '--noparallel', action='store_true', help="Execute command without parallelization.")
 
     args = parser.parse_args()
@@ -217,6 +272,13 @@ def main():
     else:
         use_stn = []
 
+    dates = [Date(year=1980, doy=1), Date(datetime=datetime.now())]
+    if args.date_end is not None:
+        try:
+            dates = process_date([str(Date(year=1980, doy=1).fyear), args.date_end[0]])
+        except ValueError as e:
+            parser.error(str(e))
+
     # create folder for plots
 
     if args.directory:
@@ -229,12 +291,16 @@ def main():
 
     # load the ITRF dat file with the periodic space components
     if args.itrf:
-        periodic = load_periodic_space(args.itrf[0])
+        frame_params = load_frame_params(args.itrf[0])
     else:
-        periodic = None
+        frame_params = None
 
     # create the stack object
-    stack = pyStack.Stack(cnn, args.project[0], args.redo_stack)
+    stack = pyStack.Stack(cnn, args.project[0], args.redo_stack, end_date=dates[1])
+
+    # stack.align_spaces(frame_params)
+    # stack.to_json('alignment.json')
+    # exit()
 
     for i in range(max_iters):
         # create the target polyhedrons based on iteration number (i == 0: PPP)
@@ -248,12 +314,14 @@ def main():
 
             qbar.update()
 
-            if stack[j].date != target[j].date:
-                # raise an error if dates don't agree!
-                raise StandardError('Error processing %s: dates don\'t agree (target date %s)'
-                                    % (stack[j].date.yyyyddd(), target[j].date.yyyyddd()))
-            else:
-                if not stack[j].aligned:
+            if not stack[j].aligned:
+                # do not move this if up one level: to speed up the target polyhedron loading process, the target is
+                # set to an empty list when the polyhedron is already aligned
+                if stack[j].date != target[j].date:
+                    # raise an error if dates don't agree!
+                    raise StandardError('Error processing %s: dates don\'t agree (target date %s)'
+                                        % (stack[j].date.yyyyddd(), target[j].date.yyyyddd()))
+                else:
                     # should only attempt to align a polyhedron that is unaligned
                     # do not set the polyhedron as aligned unless we are in the max iteration step
                     stack[j].align(target[j], True if i == max_iters - 1 else False)
@@ -265,27 +333,27 @@ def main():
                                 stack[j].helmert[-1] * 1000, stack[j].helmert[-6], stack[j].helmert[-5],
                                 stack[j].helmert[-4]))
 
+        stack.transformations.append([poly.info() for poly in stack])
         qbar.close()
 
-    # before removing common modes (or inheriting periodic terms), calculate ETMs with final aligned solutions
-    calculate_etms(cnn, stack, JobServer, iterations=None)
-
     if args.redo_stack:
+        # before removing common modes (or inheriting periodic terms), calculate ETMs with final aligned solutions
+        calculate_etms(cnn, stack, JobServer, iterations=None, create_target=False)
         # only apply common mode removal if redoing the stack
         if args.itrf:
-            stack.remove_common_modes(periodic, args.itrf[1:])
+            stack.remove_common_modes(frame_params)
         else:
             stack.remove_common_modes()
 
         # here, we also align the stack in velocity and coordinate space
-        # TODO: include alignment to velocity and coordinate space
+        stack.align_spaces(frame_params)
 
     # calculate the etms again, after removing or inheriting parameters
-    calculate_etms(cnn, stack, JobServer, iterations=None)
+    calculate_etms(cnn, stack, JobServer, iterations=None, create_target=False)
 
     # save polyhedrons to the database
     stack.save()
-
+    stack.to_json(args.project[0] + '_alignment.json')
     qbar = tqdm(total=len(stack.stations), ncols=160)
 
     for stn in stack.stations:

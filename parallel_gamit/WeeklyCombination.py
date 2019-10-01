@@ -10,7 +10,9 @@ import Utils
 import pyDate
 import os
 from shutil import copyfile
+from shutil import move
 from shutil import rmtree
+from Utils import split_string
 import glob
 import subprocess
 import snxParse
@@ -101,7 +103,7 @@ class GlobkException(Exception):
 
 class Globk(object):
 
-    def __init__(self, pwd_comb, org, glx_list, gpsweek, sites):
+    def __init__(self, pwd_comb, org, glx_list, gpsweek, gpsweekday, sites):
 
         self.pwd_comb = pwd_comb
         self.stdout = None
@@ -117,9 +119,9 @@ class Globk(object):
             if glx['file'].endswith('gz'):
                 os.system('gunzip -k -c ' + glx['file'] + ' > ' + pwd_comb + '/' + org + glx['gpsweek'] + '.GLX')
             else:
-                copyfile(glx['file'], pwd_comb + '/' + org + glx['gpsweek'] + ' .GLX')
+                copyfile(glx['file'], pwd_comb + '/' + org + glx['gpsweek'] + '.GLX')
 
-        self.create_combination_script(org, gpsweek, sites)
+        self.create_combination_script(org, gpsweek, gpsweekday, sites)
         self.execute()
 
     def execute(self):
@@ -138,42 +140,51 @@ class Globk(object):
         error = re.findall(r'.*will not be used', ''.join(out))
         if error:
             print ' >> WARNING!'
-            print error[0]
+            print '\n'.join(error)
 
-    def create_combination_script(self, org, gpsweek, sites):
+    def create_combination_script(self, org, gpsweek, gpsweekday, sites):
 
         # set the path and name for the run script
         run_file_path = os.path.join(self.pwd_comb, 'globk.sh')
 
         try:
-            run_file = open(run_file_path,'w')
+            run_file = open(run_file_path, 'w')
         except Exception:
             raise GlobkException('could not open file '+run_file_path)
+
+        sites = split_string(sites, 80)
+        site_list_string = []
+        for s in sites:
+            site_list_string.append('echo " use_site %s"                                     >> globk.cmd' % s)
+
+        site_string = '\n'.join(site_list_string)
 
         contents = \
         """#!/bin/bash
 
         export INSTITUTE=%s
         export GPSWEEK=%s
+        export GPSWEEKDAY=%i
         
         # data product file names
-        OUT_FILE=${INSTITUTE}${GPSWEEK}7;
+        OUT_FILE=${INSTITUTE}${GPSWEEK}${GPSWEEKDAY};
 
         # create global directory listing for globk
-        for file in $(find . -name "*.GLX" -print);do echo $file;done | grep    "\/n0\/"  > globk.gdl
-        for file in $(find . -name "*.GLX" -print);do echo $file;done | grep -v "\/n0\/" >> globk.gdl
+        for file in $(find . -name "*.GLX" -print | sort);do echo "$file";done | grep    "\/n0\/"  > globk.gdl
+        for file in $(find . -name "*.GLX" -print | sort);do echo "$file";done | grep -v "\/n0\/" >> globk.gdl
 
         # create the globk cmd file
-        echo " eq_file  eq_rename.txt"                           > globk.cmd
+        echo " eq_file eq_rename.txt"                            >  globk.cmd
         echo " use_site clear"                                   >> globk.cmd
-        echo " use_sites %s"                                     >> globk.cmd
+        %s
         echo " prt_opt GDLF MIDP CMDS PLST "                     >> globk.cmd
         echo " out_glb $OUT_FILE.GLX"                            >> globk.cmd
         echo " in_pmu /opt/gamit_globk/tables/pmu.usno"          >> globk.cmd
         echo " descript Weekly combined solution at $INSTITUTE"  >> globk.cmd
-        echo " max_chii  1. 0.6"                                 >> globk.cmd
+        echo " max_chii  3. 0.6"                                 >> globk.cmd
         echo " apr_site  all 1 1 1 0 0 0"                        >> globk.cmd
-        echo " apr_atm   all 1 1 1"                              >> globk.cmd
+        # DO NOT ACTIVATE ATM COMBINATION BECAUSE IT WILL NOT WORK!
+        echo "#apr_atm   all 1 1 1"                              >> globk.cmd
 
         # create the sinex header file
         echo "+FILE/REFERENCE                               " >  head.snx
@@ -209,7 +220,7 @@ class Globk(object):
         # extract the solution estimate
         head -$lineNumber ${OUT_FILE}.snx > ${OUT_FILE}.fsnx;
 
-        """ % (org, gpsweek, sites)
+        """ % (org, gpsweek, gpsweekday, site_string)
 
         run_file.write(contents)
 
@@ -275,93 +286,129 @@ def main():
     project = GamitConfig.NetworkConfig.network_id.lower()
     org = GamitConfig.gamitopt['org']
 
-    # start making sure that the solutions were already incorporated into the stack
-    cc = cnn.query_float('SELECT count(*) FROM stacks WHERE ("Year", "DOY") BETWEEN (%i, %i) AND (%i, %i) '
-                         'AND "Project" = \'%s\'' % (date_s.year, date_s.doy, date_e.year, date_e.doy, project))
+    print ' >> REMINDER: To automatically remove outliers during the weekly combination, first run DRA.py to analyze ' \
+          'the daily repetitivities'
 
-    if cc[0] == 0:
-        print ' >> No solutions could be found in the stack for the specified gps week. Did you run the stacker ' \
-              'before attempting to combine the solutions?'
-        exit()
-    else:
-        soln_pwd = GamitConfig.gamitopt['solutions_dir']
+    soln_pwd = GamitConfig.gamitopt['solutions_dir']
 
-        # create a globk directory in production
-        if not os.path.exists('production/globk'):
-            os.makedirs('production/globk')
+    # create a globk directory in production
+    if not os.path.exists('production/globk'):
+        os.makedirs('production/globk')
 
-        # check if week folder exists
-        if os.path.exists('production/globk/' + args.gpsweek[0]):
-            rmtree('production/globk/' + args.gpsweek[0])
+    # check if week folder exists
+    if os.path.exists('production/globk/' + args.gpsweek[0]):
+        rmtree('production/globk/' + args.gpsweek[0])
 
-        # create the directory
-        os.makedirs('production/globk/' + args.gpsweek[0])
+    # create the directory
+    os.makedirs('production/globk/' + args.gpsweek[0])
 
-        globk_pwd = 'production/globk/' + args.gpsweek[0]
+    globk_pwd = 'production/globk/' + args.gpsweek[0]
 
-        glx_list = []
+    glx_list = []
 
-        # make a list of the h files that need to be combined
-        for day in range(0, 7):
-            date = pyDate.Date(gpsWeek=int(args.gpsweek[0]), gpsWeekDay=day)
+    # make a list of the h files that need to be combined
+    for day in range(0, 7):
+        date = pyDate.Date(gpsWeek=int(args.gpsweek[0]), gpsWeekDay=day)
 
-            soln_dir = os.path.join(soln_pwd, date.yyyy() + '/' + date.ddd() + '/' + project + '/glbf')
+        soln_dir = os.path.join(soln_pwd, date.yyyy() + '/' + date.ddd() + '/' + project + '/glbf')
 
-            if os.path.exists(soln_dir):
-                glx = glob.glob(os.path.join(soln_dir, '*.GLX.*'))
-                if len(glx) > 0:
-                    glx_list.append({'file': glx[0], 'gpsweek': date.wwwwd()})
-                else:
-                    glx = glob.glob(os.path.join(soln_dir, '*.glx'))
-                    glx_list.append({'file': glx[0], 'gpsweek': date.wwwwd()})
+        if os.path.exists(soln_dir):
+            glx = glob.glob(os.path.join(soln_dir, '*.GLX.*'))
+            if len(glx) > 0:
+                glx_list.append({'file': glx[0], 'gpsweek': date.wwwwd()})
+            else:
+                glx = glob.glob(os.path.join(soln_dir, '*.glx'))
+                glx_list.append({'file': glx[0], 'gpsweek': date.wwwwd()})
 
-        # create the earthquakes.txt file to remove outliers
-        with open(globk_pwd + '/eq_rename.txt', 'w') as fd:
-            for stn in stnlist:
-                rm = cnn.query_float('SELECT * FROM gamit_soln_excl WHERE "Project" = \'%s\' AND "NetworkCode" = \'%s\''
-                                     ' AND "StationCode" = \'%s\' AND ("Year", "DOY") BETWEEN (%i, %i) AND (%i, %i)' %
-                                     (project, stn['NetworkCode'], stn['StationCode'], date_s.year, date_s.doy,
-                                      date_e.year, date_e.doy), as_dict=True)
-                for r in rm:
-                    date = pyDate.Date(year=r['Year'], doy=r['DOY'])
+    # create the earthquakes.txt file to remove outliers
+    with open(globk_pwd + '/eq_rename.txt', 'w') as fd:
+        rename = []
+        remove = []
+        use_site = []
+        fd.write('# LIST OF OUTLIERS DETECTED BY DRA\n')
+        for stn in stnlist:
+            # obtain the filtered solutions
+            rm = cnn.query_float('SELECT * FROM gamit_soln_excl WHERE "Project" = \'%s\' AND "NetworkCode" = \'%s\''
+                                 ' AND "StationCode" = \'%s\' AND ("Year", "DOY") BETWEEN (%i, %i) AND (%i, %i) '
+                                 'ORDER BY residual' %
+                                 (project, stn['NetworkCode'], stn['StationCode'], date_s.year, date_s.doy,
+                                  date_e.year, date_e.doy), as_dict=True)
 
+            # obtain the total number of solutions
+            sl = cnn.query_float('SELECT * FROM gamit_soln WHERE "Project" = \'%s\' AND "NetworkCode" = \'%s\''
+                                 ' AND "StationCode" = \'%s\' AND ("Year", "DOY") BETWEEN (%i, %i) AND (%i, %i) ' %
+                                 (project, stn['NetworkCode'], stn['StationCode'], date_s.year, date_s.doy,
+                                  date_e.year, date_e.doy), as_dict=True)
+            for i, r in enumerate(rm):
+                date = pyDate.Date(year=r['Year'], doy=r['DOY'])
+                # if the number of rejected solutions is equal to the number of total solutions,
+                # leave out the first one (i == 0) which is the one with the lowest residual (see ORDER BY in rm)
+                if len(rm) < len(sl) or (len(rm) == len(sl) and i != 0):
                     fd.write(' rename %s_gps %s_xcl %-20s %s %02i %02i 0 0 %s %02i %02i 24 0\n' %
                              (stn['StationCode'], stn['StationCode'], org + date.wwwwd() + '.GLX', date.yyyy()[2:],
                               date.month, date.day, date.yyyy()[2:], date.month, date.day))
 
-                # check for renames that might not agree between days
-                mv = cnn.query_float('SELECT * FROM gamit_subnets WHERE "Project" = \'%s\' AND ("Year", "DOY") '
-                                     'BETWEEN (%i, %i) AND (%i, %i) AND \'%s.%s\' = ANY(stations)' %
-                                     (project, date_s.year, date_s.doy, date_e.year, date_e.doy,
-                                      stn['NetworkCode'], stn['StationCode']), as_dict=True)
+            # check for renames that might not agree between days
+            mv = cnn.query_float('SELECT * FROM gamit_subnets WHERE "Project" = \'%s\' AND ("Year", "DOY") '
+                                 'BETWEEN (%i, %i) AND (%i, %i) AND \'%s.%s\' = ANY(stations)' %
+                                 (project, date_s.year, date_s.doy, date_e.year, date_e.doy,
+                                  stn['NetworkCode'], stn['StationCode']), as_dict=True)
 
-                for m in mv:
-                    date = pyDate.Date(year=m['Year'], doy=m['DOY'])
-                    # check on each day to see if alias agrees with station code
-                    for i, s in enumerate(m['stations']):
-                        if s.split('.')[1] != m['alias'][i] and \
-                                s == stn['NetworkCode'] + '.' + stn['StationCode']:
+            for m in mv:
+                date = pyDate.Date(year=m['Year'], doy=m['DOY'])
+                # check on each day to see if alias agrees with station code
+                for i, s in enumerate(m['stations']):
+                    if s.split('.')[1] != m['alias'][i] and \
+                            s == stn['NetworkCode'] + '.' + stn['StationCode']:
 
-                            print ' -- Alias for %s.%s = %s: renaming' \
-                                  % (stn['NetworkCode'], stn['StationCode'], m['alias'][i])
+                        print ' -- %s alias for %s.%s = %s: renaming' \
+                              % (date.yyyyddd(), stn['NetworkCode'], stn['StationCode'], m['alias'][i])
 
-                            # change the name of the station to the original name
-                            fd.write(' rename %s_gps %s_gps %-20s %s %02i %02i 0 0 %s %02i %02i 24 0\n' %
-                                     (m['alias'], stn['StationCode'], org + date.wwwwd() + '.GLX', date.yyyy()[2:],
-                                      date.month, date.day, date.yyyy()[2:], date.month, date.day))
+                        # change the name of the station to the original name
+                        rename.append(' rename %s_gps %s_dup %-20s %s %02i %02i 0 0 %s %02i %02i 24 0\n' %
+                                      (m['alias'][i], stn['StationCode'], org + date.wwwwd() + '.GLX', date.yyyy()[2:],
+                                       date.month, date.day, date.yyyy()[2:], date.month, date.day))
+                        use_site.append('%s_dup' % stn['StationCode'])
 
-                        elif s not in [st['NetworkCode'] + '.' + st['StationCode'] for st in stnlist]:
-                            print ' -- Removing %s: not selected' % s
-                            # just in case, remove any other occurrences of this station code
-                            fd.write(' rename %s_gps %s_xcl %-20s %s %02i %02i 0 0 %s %02i %02i 24 0\n' %
-                                     (m['alias'][i], id_generator(), org + date.wwwwd() + '.GLX', date.yyyy()[2:],
-                                      date.month, date.day, date.yyyy()[2:], date.month, date.day))
+                    elif s not in [st['NetworkCode'] + '.' + st['StationCode'] for st in stnlist]:
+                        # print ' -- Removing %s: not selected' % s
+                        # just in case, remove any other occurrences of this station code
+                        remove.append(' rename %s_gps %s_xcl %-20s %s %02i %02i 0 0 %s %02i %02i 24 0\n' %
+                                      (m['alias'][i], m['alias'][i], org + date.wwwwd() + '.GLX', date.yyyy()[2:],
+                                       date.month, date.day, date.yyyy()[2:], date.month, date.day))
+                    else:
+                        use_site.append('%s_gps' % stn['StationCode'])
 
-        # ready to pass list to globk object
-        Globk(globk_pwd, org, glx_list, date_s.wwww(), ' '.join([stn['StationCode'].upper() for stn in stnlist]))
+        fd.write('# LIST OF STATIONS TO BE REMOVED\n')
+        fd.write(''.join(remove))
+        fd.write('# LIST OF STATIONS TO BE RENAMED\n')
+        fd.write(''.join(rename))
 
-        process_sinex(cnn, project, [date_s, date_e], globk_pwd + '/' + org + date_s.wwww() + '7.snx')
+    print ' >> Converting to SINEX the daily solutions'
 
+    for day, glx in enumerate(glx_list):
+        date = pyDate.Date(gpsWeek=int(args.gpsweek[0]), gpsWeekDay=day)
+
+        print ' -- Working on %s' % date.wwwwd()
+        # delete the existing GLX files
+        for ff in glob.glob(globk_pwd + '/*.GLX'):
+            os.remove(ff)
+
+        Globk(globk_pwd, org, [glx], date.wwww(), date.gpsWeekDay + 8, ' '.join(set(use_site)))
+        # convert the file to a valid gpsweek day
+        move(globk_pwd + '/' + org + date.wwww() + '%i.snx' % (date.gpsWeekDay + 8),
+             globk_pwd + '/' + org + date.wwww() + '%i.snx' % date.gpsWeekDay)
+
+        process_sinex(cnn, project, [date, date], globk_pwd + '/' + org + date.wwww() + '%i.snx' % date.gpsWeekDay)
+
+    # delete the existing GLX files: get ready for weekly combination
+    for ff in glob.glob(globk_pwd + '/*.GLX'):
+        os.remove(ff)
+    # ready to pass list to globk object
+    Globk(globk_pwd, org, glx_list, date_s.wwww(), 7, ' '.join(set(use_site)))
+    print ' >> Formatting the SINEX file'
+
+    process_sinex(cnn, project, [date_s, date_e], globk_pwd + '/' + org + date_s.wwww() + '7.snx')
 
 if __name__ == '__main__':
 
