@@ -1,0 +1,144 @@
+#!/bin/csh -f
+#
+#         C-shell script : RNX2CRZ
+#             (frontend of RNX2CRX)
+#                 1996.12.19  created by Y. Hatanaka.
+#                 2007.06.10  updated by Y. Hatanaka.
+#                      - file name extension may be lower and upper case
+#                 2009.07.07  modified extensively by Y. Hatanaka.
+#                      - Ambiguities/bugs in following items are resolved:
+#                         * setting of output directory
+#                         * case of deletion of input files
+#                         * case of overwriting an output file
+#                        Options to control them are added.
+#                      - Handling of more RINEX file types are added.
+#                      - 'gzipped' OBS files can be processed.
+#                      - Optionnaly, gzip is applicable instead of
+#                        UNIX compress.
+#                 2009.09.08  The following bug is fixed  (Y.H.)
+#                      - Output file names were incorrectly set for
+#                        *.yy[oO] files
+#                 2012.02.10  Command RNX2CRX is given by $PROGRAM.
+#
+#--------------------------------------------------------------------
+set help = 0
+foreach var ($argv[*])
+   if ( "$var" == '-h' ) set help = 1
+end
+
+if($#argv < 1 || $help) then
+more << EOF
+
+RNX2CRZ: C-shell script to compress multiple RINEX files.
+
+Usage : RNX2CRZ [-c] [-d] [-g] [-f] [-v] [-h] file ...
+
+       -c : output to the current directory
+       -d : delete the input file if the compressed successfully
+       -g : apply "gzip" (default: UNIX compress)
+       -f : force overwriting output files without inquiring
+       -v : verbose mode
+       -h : show this message and stop
+       file ... : input RINEX (or uncompressed CRINEX) files.
+                  Wildcards can be used.
+
+          RINEX           -->    CRINEX      --> compressed RINEX/CRINEX
+                               ????????.??d  -->    ????????.??d.Z
+       ????????.??o       --> (????????.??d) -->    ????????.??d.Z
+       ????????.??o.Z(gz) --> (????????.??d) -->    ????????.??d.Z
+       ????????.??n                          -->    ????????.??n.Z
+       ????????.??g                          -->    ????????.??g.Z
+       ????????.??l                          -->    ????????.??l.Z
+       ????????.??p                          -->    ????????.??p.Z
+       ????????.??h                          -->    ????????.??h.Z
+       ????????.??b                          -->    ????????.??b.Z
+       ????????.??m                          -->    ????????.??m.Z
+       ????????.??c                          -->    ????????.??C.Z
+
+Remarks:
+  - Installation of RNX2CRX is necessary to use this tool.
+  - The extensions of the input files must conform to the RINEX convention.
+  - A compressed file is saved in the same directory as the input file
+    unless the option '-c' is specified.
+  - An input file is deleted only when the option "-d" is specified and 
+    the compression is successful.
+
+   [20090908]
+
+EOF
+
+exit
+endif
+#--------------------------------------------------------------------
+
+# set default mode
+set out_current = 0
+set del_input = 0
+unset verbose
+set ovrewrite = 0
+set COMPRESS = compress
+set EXT = 'Z'
+set PROGRAM = RNX2CRX
+
+unset noclobber
+
+# check options
+foreach var ($argv[*])
+   switch ($var)
+     case '-c':
+       set out_current = 1
+       shift; breaksw
+     case '-d':
+       set del_input = 1
+       shift; breaksw
+     case '-g':
+       set COMPRESS = gzip
+       set EXT = 'gz'
+       shift; breaksw
+     case '-f':
+       set ovrewrite = 1
+       shift; breaksw
+     case '-v':
+       set verbose = 1
+       shift; breaksw
+     default:
+       break
+   endsw
+end 
+
+# process files
+foreach file ($argv[*])
+
+    # make command to be issued and name of output file
+    set file2 = $file
+    if ( $out_current ) set file2 = $file2:t 
+    # the following three lines are added. Sep. 8, 2009
+    if( $file =~ *.??[oO] ) then
+        set file2 = `echo $file2   | sed -e 's/o$/d/' -e 's/O$/D/' `
+    endif
+    if( $file =~ *.??[oO].Z || file =~ *.??[oO].gz ) then
+        set file2 = `echo $file2:r | sed -e 's/o$/d/' -e 's/O$/D/' `
+    endif
+    set file_save = $file2.$EXT
+    # Skip if it is not RINEX/CRINEX
+    if( $file2 !~ *.??[oOdDnNgGlLpPhHbBmMcC] ) continue
+
+    # check if the output file is preexisting
+    if ( -e "$file_save" && ! $ovrewrite ) then
+        echo "The file $file_save already exists. Overwrite?(y/n,default:n)"
+        if ( $< !~ [yY] ) continue
+    endif
+
+    # issue the command
+    if( $file =~ *.??[oO] ) then
+        cat  $file | $PROGRAM - | $COMPRESS -c > $file_save
+    else if( $file =~ *.??[oO].Z || file =~ *.??[oO].gz ) then
+        zcat $file | $PROGRAM - | $COMPRESS -c > $file_save
+    else
+        $COMPRESS -c $file > $file_save
+    endif
+
+    # remove the input file
+    if ( $status == 0 && $del_input ) rm $file
+
+end

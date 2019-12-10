@@ -99,7 +99,12 @@ def generate_kml(cnn, project, stations):
                                 'AND "StationCode" = \'%s\''
                                 % (stn['NetworkCode'], stn['StationCode']))
 
-        stninfo = pyStationInfo.StationInfo(cnn, stn['NetworkCode'], stn['StationCode'], allow_empty=True)
+        try:
+            stninfo = pyStationInfo.StationInfo(cnn, stn['NetworkCode'], stn['StationCode'], allow_empty=True)
+            _ = stninfo.return_stninfo_short()
+        except pyStationInfo.pyStationInfoHeightCodeNotFound as e:
+            tqdm.write('Error: %s. Station will be skipped.' % str(e))
+            continue
 
         if count[0][0]:
             completion = '%.1f' % (float(ppp_s[0][0]) / float(count[0][0]) * 100)

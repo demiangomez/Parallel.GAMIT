@@ -59,7 +59,10 @@ class Cnn(pg.DB):
         tries = 0
         while True:
             try:
-                pg.DB.__init__(self, host=options['hostname'], user=options['username'], passwd=options['password'], dbname=options['database'])
+                pg.DB.__init__(self, host=options['hostname'],
+                               user=options['username'],
+                               passwd=options['password'],
+                               dbname=options['database'])
                 # set casting of numeric to floats
                 pg.set_typecast('Numeric', float)
                 if use_float:
@@ -78,6 +81,14 @@ class Cnn(pg.DB):
                     raise e
             except Exception as e:
                 raise e
+
+        # open a conenction to a cursor
+        self.cursor_conn = pgdb.connect(host=self.options['hostname'],
+                                        user=self.options['username'],
+                                        password=self.options['password'],
+                                        database=self.options['database'])
+
+        self.cursor = self.cursor_conn.cursor()
 
     def query_float(self, command, as_dict=False):
 
@@ -131,14 +142,13 @@ class Cnn(pg.DB):
 
     def executemany(self, sql, parameters):
 
-        con = pgdb.connect(host=self.options['hostname'],
-                           user=self.options['username'],
-                           password=self.options['password'],
-                           database=self.options['database'])
-
-        cur = con.cursor()
-        cur.executemany(sql, parameters)
-        con.commit()
+        try:
+            self.begin_transac()
+            self.cursor_conn.executemany(sql, parameters)
+            self.cursor_conn.commit()
+        except pg.Error:
+            self.rollback_transac()
+            raise
 
     def update(self, table, row=None, **kw):
 
@@ -170,9 +180,9 @@ class Cnn(pg.DB):
         desc = re.sub(r'BASH.*', '', desc)
         desc = re.sub(r'PSQL.*', '', desc)
 
-        #warn = self.query('SELECT * FROM events WHERE "EventDescription" = \'%s\'' % (desc))
+        # warn = self.query('SELECT * FROM events WHERE "EventDescription" = \'%s\'' % (desc))
 
-        #if warn.ntuples() == 0:
+        # if warn.ntuples() == 0:
         self.insert('events', EventType=type, EventDescription=desc)
 
         return

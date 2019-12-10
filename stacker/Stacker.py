@@ -43,7 +43,7 @@ def plot_etm(cnn, stack, station, directory):
         tqdm.write(str(e))
 
 
-def station_etm(station, stn_ts, project, iteration=0):
+def station_etm(station, stn_ts, stack_name, iteration=0):
 
     cnn = dbConnection.Cnn("gnss_data.cfg")
 
@@ -51,7 +51,7 @@ def station_etm(station, stn_ts, project, iteration=0):
 
     try:
         # save the time series
-        ts = pyETM.GamitSoln(cnn, stn_ts, station['NetworkCode'], station['StationCode'], project)
+        ts = pyETM.GamitSoln(cnn, stn_ts, station['NetworkCode'], station['StationCode'], stack_name)
 
         # create the ETM object
         etm = pyETM.GamitETM(cnn, station['NetworkCode'], station['StationCode'], False, False, ts)
@@ -101,7 +101,7 @@ def calculate_etms(cnn, stack, JobServer, iterations, create_target=True):
     JobServer.create_cluster(station_etm, progress_bar=qbar, callback=callback_handler, modules=modules)
 
     # delete all the solutions from the ETMs table
-    cnn.query('DELETE FROM etmsv2 WHERE "soln" = \'gamit\'')
+    cnn.query('DELETE FROM etms WHERE "soln" = \'gamit\' AND "stack" = \'%s\'' % stack.name)
     # reset the etm_vertices list
     etm_vertices = []
 
@@ -110,7 +110,7 @@ def calculate_etms(cnn, stack, JobServer, iterations, create_target=True):
         # extract the time series from the polyhedron data
         stn_ts = stack.get_station(station['NetworkCode'], station['StationCode'])
 
-        JobServer.submit(station, stn_ts, stack.project, iterations)
+        JobServer.submit(station, stn_ts, stack.name, iterations)
 
     JobServer.wait()
 
@@ -179,15 +179,15 @@ def load_periodic_space(periodic_file):
         return periods
 
 
-def load_frame_params(itrf_file):
+def load_constrains(constrains_file):
     """
     Load the frame parameters
-    :param itrf_file:
+    :param constrains_file:
     :return: dictionary with the parameters for the given frame
     """
     params = dict()
 
-    with open(itrf_file, 'r') as f:
+    with open(constrains_file, 'r') as f:
         lines = f.read()
 
         stn = re.findall(r'^\s(\w+.\w+)\s*(-?\d*\.\d+|NaN)\s*(-?\d*\.\d+|NaN)\s*(-?\d*\.\d+|NaN)\s*(-?\d*\.\d+|NaN)'
@@ -227,6 +227,9 @@ def main():
 
     parser.add_argument('project', type=str, nargs=1, metavar='{project name}',
                         help="Specify the project name used to process the GAMIT solutions in Parallel.GAMIT.")
+    parser.add_argument('stack_name', type=str, nargs=1, metavar='{stack name}',
+                        help="Specify a name for the stack: eg. itrf2014 or posgar07b. This name should be unique "
+                             "and cannot be repeated for any other solution project")
     parser.add_argument('-max', '--max_iters', nargs=1, type=int, metavar='{max_iter}',
                         help="Specify maximum number of iterations. Default is 4.")
     parser.add_argument('-exclude', '--exclude_stations', nargs='+', type=str, metavar='{net.stnm}',
@@ -238,9 +241,13 @@ def main():
                              "production directory")
     parser.add_argument('-redo', '--redo_stack', action='store_true',
                         help="Delete the stack and redo it from scratch")
-    parser.add_argument('-itrf', '--itrf', nargs='+',
-                        help="File with the ITRF parameters (position, velocity and periodic). Inheritance will occur "
-                             "with stations on the list whenever a parameter exists. Example: -itrf itrf14.txt "
+    parser.add_argument('-plot', '--plot_stack_etms', action='store_true', default=False,
+                        help="Plot the stack ETMs after computation is done")
+    parser.add_argument('-constrains', '--external_constrains', nargs='+',
+                        help="File with external constrains parameters (position, velocity and periodic). These may be "
+                             "from a parent frame such as ITRF. "
+                             "Inheritance will occur with stations on the list whenever a parameter exists. "
+                             "Example: -constrains itrf14.txt "
                              "Format is: net.stn x y z epoch vx vy vz sn_1y sn_6m cn_1y cn_6m se_1y se_6m ce_1y ce_6m "
                              "su_1y su_6m cu_1y cu_6m ")
     parser.add_argument('-d', '--date_end', nargs=1, metavar='date',
@@ -290,13 +297,13 @@ def main():
         args.directory = 'production'
 
     # load the ITRF dat file with the periodic space components
-    if args.itrf:
-        frame_params = load_frame_params(args.itrf[0])
+    if args.external_constrains:
+        constrains = load_constrains(args.external_constrains[0])
     else:
-        frame_params = None
+        constrains = None
 
     # create the stack object
-    stack = pyStack.Stack(cnn, args.project[0], args.redo_stack, end_date=dates[1])
+    stack = pyStack.Stack(cnn, args.project[0], args.stack_name[0], args.redo_stack, end_date=dates[1])
 
     # stack.align_spaces(frame_params)
     # stack.to_json('alignment.json')
@@ -340,29 +347,31 @@ def main():
         # before removing common modes (or inheriting periodic terms), calculate ETMs with final aligned solutions
         calculate_etms(cnn, stack, JobServer, iterations=None, create_target=False)
         # only apply common mode removal if redoing the stack
-        if args.itrf:
-            stack.remove_common_modes(frame_params)
+        if args.external_constrains:
+            stack.remove_common_modes(constrains)
         else:
             stack.remove_common_modes()
 
         # here, we also align the stack in velocity and coordinate space
-        stack.align_spaces(frame_params)
+        stack.align_spaces(constrains)
 
     # calculate the etms again, after removing or inheriting parameters
     calculate_etms(cnn, stack, JobServer, iterations=None, create_target=False)
 
+    # save the json with the information about the alignment
+    stack.to_json(args.stack_name[0] + '_alignment.json')
     # save polyhedrons to the database
     stack.save()
-    stack.to_json(args.project[0] + '_alignment.json')
-    qbar = tqdm(total=len(stack.stations), ncols=160)
 
-    for stn in stack.stations:
-        # plot the ETMs
-        qbar.update()
-        qbar.postfix = '%s.%s' % (stn['NetworkCode'], stn['StationCode'])
-        plot_etm(cnn, stack, stn, args.directory)
+    if args.plot_stack_etms:
+        qbar = tqdm(total=len(stack.stations), ncols=160)
+        for stn in stack.stations:
+            # plot the ETMs
+            qbar.update()
+            qbar.postfix = '%s.%s' % (stn['NetworkCode'], stn['StationCode'])
+            plot_etm(cnn, stack, stn, args.directory)
 
-    qbar.close()
+        qbar.close()
 
 
 if __name__ == '__main__':

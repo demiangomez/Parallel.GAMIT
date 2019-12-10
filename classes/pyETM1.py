@@ -1247,7 +1247,7 @@ class ETM:
         if self.A is not None:
             # try to load the last ETM solution from the database
 
-            etm_objects = cnn.query_float('SELECT * FROM etmsv2 WHERE "NetworkCode" = \'%s\' '
+            etm_objects = cnn.query_float('SELECT * FROM etms WHERE "NetworkCode" = \'%s\' '
                                           'AND "StationCode" = \'%s\' AND soln = \'%s\''
                                           % (self.NetworkCode, self.StationCode, self.soln.type), as_dict=True)
 
@@ -1261,7 +1261,7 @@ class ETM:
                 self.load_parameters(etm_objects, l)
             else:
                 # purge table and recompute
-                cnn.query('DELETE FROM etmsv2 WHERE "NetworkCode" = \'%s\' AND '
+                cnn.query('DELETE FROM etms WHERE "NetworkCode" = \'%s\' AND '
                           '"StationCode" = \'%s\' AND soln = \'%s\''
                           % (self.NetworkCode, self.StationCode, self.soln.type))
 
@@ -1331,16 +1331,16 @@ class ETM:
     def save_parameters(self, cnn):
 
         # insert linear parameters
-        cnn.insert('etmsv2', row=to_postgres(self.Linear.p.toDict()))
+        cnn.insert('etms', row=to_postgres(self.Linear.p.toDict()))
 
         # insert jumps
         for jump in self.Jumps.table:
-            cnn.insert('etmsv2', row=to_postgres(jump.p.toDict()))
+            cnn.insert('etms', row=to_postgres(jump.p.toDict()))
 
         # insert periodic params
-        cnn.insert('etmsv2', row=to_postgres(self.Periodic.p.toDict()))
+        cnn.insert('etms', row=to_postgres(self.Periodic.p.toDict()))
 
-        cnn.query('INSERT INTO etmsv2 ("NetworkCode", "StationCode", soln, object, params, hash) VALUES '
+        cnn.query('INSERT INTO etms ("NetworkCode", "StationCode", soln, object, params, hash) VALUES '
                   '(\'%s\', \'%s\', \'ppp\', \'var_factor\', \'%s\', %i)'
                   % (self.NetworkCode, self.StationCode, to_postgres(self.factor), self.hash))
 

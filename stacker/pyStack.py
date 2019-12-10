@@ -104,11 +104,12 @@ def print_residuals(NetworkCode, StationCode, residuals, lat, lon, components=('
 
 class Stack(list):
 
-    def __init__(self, cnn, project, redo=False, end_date=None):
+    def __init__(self, cnn, project, name, redo=False, end_date=None):
 
         super(Stack, self).__init__()
 
         self.project = project
+        self.name = name
         self.cnn = cnn
         self.position_space = None
         self.velocity_space = None
@@ -122,7 +123,7 @@ class Stack(list):
             # if redoing the stack, ignore the contents of the stacks table
             print ' >> Redoing stack'
 
-            self.cnn.query('DELETE FROM stacks WHERE "Project" = \'%s\'' % self.project)
+            self.cnn.query('DELETE FROM stacks WHERE "name" = \'%s\'' % self.name)
 
             print ' >> Loading GAMIT solutions for project %s...' % project
 
@@ -152,8 +153,8 @@ class Stack(list):
                 self.append(Polyhedron(self.gamit_vertices, project, d))
 
         else:
-            print ' >> Preserving the existing stack'
-            print ' >> Determining differences between current stack and GAMIT solutions for project %s...' % project
+            print ' >> Preserving the existing stack ' + name
+            print ' >> Determining differences between stack %s and GAMIT solutions for project %s...' % (name, project)
 
             # load the vertices that don't have differences wrt to the GAMIT solution
             stack_vertices = self.cnn.query_float(
@@ -163,12 +164,13 @@ class Stack(list):
                 ' SELECT "NetworkCode", "StationCode", "Year", "DOY", \'not in stack\' '
                 '  AS note FROM gamit_soln WHERE "Project" = \'%s\' EXCEPT '
                 ' SELECT "NetworkCode", "StationCode", "Year", "DOY", \'not in stack\' '
-                '  AS note FROM stacks WHERE "Project" = \'%s\''
+                '  AS note FROM stacks WHERE "Project" = \'%s\' AND "name" = \'%s\''
                 ' ) AS missing_stack GROUP BY "Year", "DOY" ORDER BY "Year", "DOY") AND '
-                '"Project" = \'%s\' AND ("Year", "DOY") <= (%i, %i) '
-                'ORDER BY "NetworkCode", "StationCode"' % (project, project, project, end_date.year, end_date.doy))
+                '"Project" = \'%s\' AND "name" = \'%s\' AND ("Year", "DOY") <= (%i, %i) '
+                'ORDER BY "NetworkCode", "StationCode"'
+                % (project, project, name, project, name, end_date.year, end_date.doy))
 
-            print ' >> Loading pre-existing stack for project %s' % project
+            print ' >> Loading pre-existing stack %s' % name
 
             # load the vertices that were different
             gamit_vertices = self.cnn.query_float(
@@ -178,10 +180,11 @@ class Stack(list):
                 ' SELECT "NetworkCode", "StationCode", "Year", "DOY", \'not in stack\' '
                 '  AS note FROM gamit_soln WHERE "Project" = \'%s\' EXCEPT '
                 ' SELECT "NetworkCode", "StationCode", "Year", "DOY", \'not in stack\' '
-                '  AS note FROM stacks WHERE "Project" = \'%s\''
+                '  AS note FROM stacks WHERE "Project" = \'%s\' AND "name" = \'%s\''
                 ' ) AS missing_stack GROUP BY "Year", "DOY" ORDER BY "Year", "DOY") AND '
                 '"Project" = \'%s\' AND ("Year", "DOY") <= (%i, %i) '
-                'ORDER BY "NetworkCode", "StationCode"' % (project, project, project, end_date.year, end_date.doy))
+                'ORDER BY "NetworkCode", "StationCode"'
+                % (project, project, name, project, end_date.year, end_date.doy))
 
             self.stack_vertices = np.array(stack_vertices, dtype=[('stn', 'S8'), ('x', 'float64'), ('y', 'float64'),
                                                                   ('z', 'float64'), ('yr', 'i4'), ('dd', 'i4'),
@@ -191,23 +194,23 @@ class Stack(list):
                                                                   ('z', 'float64'), ('yr', 'i4'), ('dd', 'i4'),
                                                                   ('fy', 'float64')])
 
-            dates = self.cnn.query_float('SELECT "Year", "DOY" FROM stacks WHERE "Project" = \'%s\' '
+            dates = self.cnn.query_float('SELECT "Year", "DOY" FROM stacks WHERE "name" = \'%s\' '
                                          'AND ("Year", "DOY") <= (%i, %i) '
                                          'UNION '
                                          'SELECT "Year", "DOY" FROM gamit_soln WHERE "Project" = \'%s\' '
                                          'AND ("Year", "DOY") <= (%i, %i) '
                                          'ORDER BY "Year", "DOY"'
-                                         % (project, end_date.year, end_date.doy, project, end_date.year, end_date.doy))
+                                         % (name, end_date.year, end_date.doy, project, end_date.year, end_date.doy))
 
             self.dates = [Date(year=d[0], doy=d[1]) for d in dates]
 
-            self.stations = self.cnn.query_float('SELECT "NetworkCode", "StationCode" FROM gamit_soln '
-                                                 'WHERE "Project" = \'%s\' AND ("Year", "DOY") <= (%i, %i) '
+            self.stations = self.cnn.query_float('SELECT "NetworkCode", "StationCode" FROM stacks '
+                                                 'WHERE "name" = \'%s\' AND ("Year", "DOY") <= (%i, %i) '
                                                  'UNION '
-                                                 'SELECT "NetworkCode", "StationCode" FROM stacks '
+                                                 'SELECT "NetworkCode", "StationCode" FROM gamit_soln '
                                                  'WHERE "Project" = \'%s\' AND ("Year", "DOY") <= (%i, %i) '
                                                  'ORDER BY "NetworkCode", "StationCode"'
-                                                 % (project, end_date.year, end_date.doy,
+                                                 % (name, end_date.year, end_date.doy,
                                                     project, end_date.year, end_date.doy), as_dict=True)
 
             for d in tqdm(self.dates, ncols=160, desc=' >> Initializing the stack polyhedrons'):
@@ -244,9 +247,9 @@ class Stack(list):
         Estimates the trajectory models for all stations in the stack
         :return:
         """
-        print ' >> Calculating ETMs for %s...' % self.project
+        print ' >> Calculating ETMs for %s...' % self.name
 
-        for s in tqdm(self.stations, ncols=160, desc=self.project):
+        for s in tqdm(self.stations, ncols=160, desc=self.name):
 
             ts = self.get_station(s['NetworkCode'], s['StationCode'])
             try:
@@ -263,15 +266,16 @@ class Stack(list):
             tqdm.write(' >> Removing periodic common modes...')
 
             # load all the periodic terms
-            etm_objects = self.cnn.query_float('SELECT etmsv2."NetworkCode", etmsv2."StationCode", stations.lat, '
+            etm_objects = self.cnn.query_float('SELECT etms."NetworkCode", etms."StationCode", stations.lat, '
                                                'stations.lon, '
-                                               'frequencies as freq, params FROM etmsv2 '
+                                               'frequencies as freq, params FROM etms '
                                                'LEFT JOIN stations ON '
-                                               'etmsv2."NetworkCode" = stations."NetworkCode" AND '
-                                               'etmsv2."StationCode" = stations."StationCode" '
-                                               'WHERE "object" = \'periodic\' AND soln = \'gamit\' '
+                                               'etms."NetworkCode" = stations."NetworkCode" AND '
+                                               'etms."StationCode" = stations."StationCode" '
+                                               'WHERE "object" = \'periodic\' AND soln = \'gamit\' AND stack = \'%s\' '
                                                'AND frequencies <> \'{}\' '
-                                               'ORDER BY etmsv2."NetworkCode", etmsv2."StationCode"', as_dict=True)
+                                               'ORDER BY etms."NetworkCode", etms."StationCode"'
+                                               % self.name, as_dict=True)
         else:
             use_stations = []
             for s in target_periods.keys():
@@ -283,22 +287,22 @@ class Stack(list):
             tqdm.write(' >> Inheriting periodic components...')
 
             # load the periodic terms of the stations that will produce the inheritance
-            etm_objects = self.cnn.query_float('SELECT etmsv2."NetworkCode", etmsv2."StationCode", stations.lat, '
+            etm_objects = self.cnn.query_float('SELECT etms."NetworkCode", etms."StationCode", stations.lat, '
                                                'stations.lon, '
-                                               'frequencies as freq, params FROM etmsv2 '
+                                               'frequencies as freq, params FROM etms '
                                                'LEFT JOIN stations ON '
-                                               'etmsv2."NetworkCode" = stations."NetworkCode" AND '
-                                               'etmsv2."StationCode" = stations."StationCode" '
-                                               'WHERE "object" = \'periodic\' AND soln = \'gamit\' '
-                                               'AND frequencies <> \'{}\' AND etmsv2."NetworkCode" || \'.\' || '
-                                               'etmsv2."StationCode" IN (\'%s\') '
-                                               'ORDER BY etmsv2."NetworkCode", etmsv2."StationCode"'
-                                               % '\', \''.join(use_stations), as_dict=True)
+                                               'etms."NetworkCode" = stations."NetworkCode" AND '
+                                               'etms."StationCode" = stations."StationCode" '
+                                               'WHERE "object" = \'periodic\' AND soln = \'gamit\' AND stack = \'%s\' '
+                                               'AND frequencies <> \'{}\' AND etms."NetworkCode" || \'.\' || '
+                                               'etms."StationCode" IN (\'%s\') '
+                                               'ORDER BY etms."NetworkCode", etms."StationCode"'
+                                               % (self.name, '\', \''.join(use_stations)), as_dict=True)
 
         # load the frequencies to subtract
-        frequencies = self.cnn.query_float('SELECT frequencies FROM etmsv2 WHERE soln = \'gamit\' AND '
-                                           'object = \'periodic\' '
-                                           'AND frequencies <> \'{}\' GROUP BY frequencies', as_dict=True)
+        frequencies = self.cnn.query_float('SELECT frequencies FROM etms WHERE soln = \'gamit\' AND '
+                                           'object = \'periodic\' AND frequencies <> \'{}\' AND stack = \'%s\' '
+                                           'GROUP BY frequencies' % self.name, as_dict=True)
 
         # get the unique list of frequencies
         f_vector = []
@@ -313,25 +317,32 @@ class Stack(list):
         oy = np.zeros((len(f_vector), len(etm_objects), 2))
         oz = np.zeros((len(f_vector), len(etm_objects), 2))
 
+        # vector for residuals after alignment
+        rx = np.zeros((len(f_vector), len(etm_objects), 2))
+        ry = np.zeros((len(f_vector), len(etm_objects), 2))
+        rz = np.zeros((len(f_vector), len(etm_objects), 2))
+
         tqdm.write(' -- Reporting periodic residuals (in mm) before %s'
                    % ('inheritance' if target_periods else 'common mode removal'))
 
         for s, p in enumerate(etm_objects):
 
-            stn_ts = self.get_station(p['NetworkCode'], p['StationCode'])
+            # DDG: should only activate this portion of the code if for any reason ETMs stored in database made with
+            # a stack different to what is being used here
+            # stn_ts = self.get_station(p['NetworkCode'], p['StationCode'])
 
-            self.cnn.query('DELETE FROM etmsv2 WHERE "soln" = \'gamit\' AND "NetworkCode" = \'%s\' AND '
-                           '"StationCode" = \'%s\'' % (p['NetworkCode'], p['StationCode']))
+            # self.cnn.query('DELETE FROM etms WHERE "soln" = \'gamit\' AND "NetworkCode" = \'%s\' AND '
+            #                '"StationCode" = \'%s\'' % (p['NetworkCode'], p['StationCode']))
             # save the time series
-            ts = pyETM.GamitSoln(self.cnn, stn_ts, p['NetworkCode'], p['StationCode'], self.project)
+            # ts = pyETM.GamitSoln(self.cnn, stn_ts, p['NetworkCode'], p['StationCode'], self.project)
             # create the ETM object
-            pyETM.GamitETM(self.cnn, p['NetworkCode'], p['StationCode'], False, False, ts)
-
-            q = self.cnn.query_float('SELECT frequencies as freq, * FROM etmsv2 '
+            # pyETM.GamitETM(self.cnn, p['NetworkCode'], p['StationCode'], False, False, ts)
+            # REDUNDANT CALL, but leave anyways
+            q = self.cnn.query_float('SELECT frequencies as freq, * FROM etms '
                                      'WHERE "object" = \'periodic\' AND soln = \'gamit\' '
                                      'AND "NetworkCode" = \'%s\' AND '
-                                     '"StationCode" = \'%s\' '
-                                     % (p['NetworkCode'], p['StationCode']), as_dict=True)[0]
+                                     '"StationCode" = \'%s\' AND stack = \'%s\''
+                                     % (p['NetworkCode'], p['StationCode'], self.name), as_dict=True)[0]
 
             if target_periods:
                 n = []
@@ -386,6 +397,14 @@ class Stack(list):
 
         A = np.row_stack((Ax, Ay, Az))
 
+        solution_vector = []
+
+        # vector to display down-weighted stations
+        st = dict()
+        st['stn'] = [s['NetworkCode'] + '.' + s['StationCode'] for s in etm_objects]
+        xyzstn = ['X-%s' % ss for ss in st['stn']] + ['Y-%s' % ss for ss in st['stn']] + \
+                 ['Z-%s' % ss for ss in st['stn']]
+
         # loop through the frequencies
         for freq in f_vector:
             for i, cs in enumerate((np.sin, np.cos)):
@@ -393,10 +412,17 @@ class Stack(list):
                                   oy[f_vector == freq, :, i].flatten(),
                                   oz[f_vector == freq, :, i].flatten())).flatten()
 
-                c = np.linalg.lstsq(A, L, rcond=-1)[0]
+                c, _, index, _, wrms, _, it = adjust_lsq(A, L)
+                # c = np.linalg.lstsq(A, L, rcond=-1)[0]
 
-                tqdm.write(' -- Transformation for %s(2 * pi * 1/%.2f) : %s' % (cs.__name__, np.divide(1., freq),
-                                                                                ' '.join(['%7.4f' % cc for cc in c])))
+                tqdm.write(' -- Transformation for %s(2 * pi * 1/%.2f) : %s'
+                           % (cs.__name__, np.divide(1., freq), ' '.join(['%7.4f' % cc for cc in c])) +
+                           ' wrms: %.3f it: %i\n' % (wrms * 1000, it) +
+                           '    Down-weighted station components: %s'
+                           % ' '.join(['%s' % ss for ss in np.array(xyzstn)[np.logical_not(index)]]))
+
+                # save the transformation parameters to output to json file
+                solution_vector.append(['%s(2 * pi * 1/%.2f)' % (cs.__name__, np.divide(1., freq)), c.tolist()])
 
                 # loop through all the polyhedrons
                 for poly in tqdm(self, ncols=160, desc=' -- Applying transformation -> %s(2 * pi * 1/%.2f)' %
@@ -410,31 +436,33 @@ class Stack(list):
                     poly.vertices['z'] = poly.vertices['z'] - cs(2 * pi * freq * 365.25 * poly.date.fyear) * \
                                          np.dot(poly.az(scale=True), c)
 
-        if target_periods:
+        tqdm.write(' -- Reporting periodic residuals (in mm) after %s\n'
+                   '       365.25  182.62  365.25  182.62  \n'
+                   '       sin     sin     cos     cos       '
+                   % ('inheritance' if target_periods else 'common mode removal'))
 
-            tqdm.write(' -- Reporting periodic residuals (in mm) after inheritance\n'
-                       '       365.25  182.62  365.25  182.62  \n'
-                       '       sin     sin     cos     cos       ')
+        for s, p in enumerate(etm_objects):
+            # redo the etm for this station
+            # DDG: etms need to be redone because we changed the stack!
+            stn_ts = self.get_station(p['NetworkCode'], p['StationCode'])
 
-            for s, p in enumerate(etm_objects):
-                # redo the etm for this station
-                stn_ts = self.get_station(p['NetworkCode'], p['StationCode'])
+            self.cnn.query('DELETE FROM etms WHERE "soln" = \'gamit\' AND "NetworkCode" = \'%s\' AND '
+                           '"StationCode" = \'%s\' AND stack = \'%s\''
+                           % (p['NetworkCode'], p['StationCode'], self.name))
+            # save the time series
+            ts = pyETM.GamitSoln(self.cnn, stn_ts, p['NetworkCode'], p['StationCode'], self.name)
+            # create the ETM object
+            pyETM.GamitETM(self.cnn, p['NetworkCode'], p['StationCode'], False, False, ts)
 
-                self.cnn.query('DELETE FROM etmsv2 WHERE "soln" = \'gamit\' AND "NetworkCode" = \'%s\' AND '
-                               '"StationCode" = \'%s\'' % (p['NetworkCode'], p['StationCode']))
-                # save the time series
-                ts = pyETM.GamitSoln(self.cnn, stn_ts, p['NetworkCode'], p['StationCode'], self.project)
-                # create the ETM object
-                pyETM.GamitETM(self.cnn, p['NetworkCode'], p['StationCode'], False, False, ts)
+            # obtain the updated parameters
+            # they should exist for sure!
+            q = self.cnn.query_float('SELECT frequencies as freq, * FROM etms '
+                                     'WHERE "object" = \'periodic\' AND soln = \'gamit\' '
+                                     'AND "NetworkCode" = \'%s\' AND '
+                                     '"StationCode" = \'%s\' AND stack = \'%s\''
+                                     % (p['NetworkCode'], p['StationCode'], self.name), as_dict=True)[0]
 
-                # obtain the updated parameters
-                # they should exist for sure!
-                q = self.cnn.query_float('SELECT frequencies as freq, * FROM etmsv2 '
-                                         'WHERE "object" = \'periodic\' AND soln = \'gamit\' '
-                                         'AND "NetworkCode" = \'%s\' AND '
-                                         '"StationCode" = \'%s\' '
-                                         % (p['NetworkCode'], p['StationCode']), as_dict=True)[0]
-
+            if target_periods:
                 n = []
                 e = []
                 u = []
@@ -448,10 +476,37 @@ class Stack(list):
                         u += [t['u'][k]]
 
                 residuals = (np.array(q['params']) - np.array([n, e, u]).flatten())
-                # reshape the array to NEU
-                residuals = residuals.reshape((3, residuals.shape[0] / 3))
+            else:
+                # residuals are the minimized frequencies
+                residuals = np.array(q['params'])
 
-                print_residuals(p['NetworkCode'], p['StationCode'], residuals, p['lat'], p['lon'])
+            # reshape the array to NEU
+            residuals = residuals.reshape((3, residuals.shape[0] / 3))
+            param_count = residuals.shape[1] / 2
+
+            print_residuals(p['NetworkCode'], p['StationCode'], residuals, p['lat'], p['lon'])
+
+            # convert from NEU to XYZ
+            for j in range(residuals.shape[1]):
+                residuals[:, j] = np.array(lg2ct(residuals[0, j], residuals[1, j], residuals[2, j],
+                                           p['lat'], p['lon'])).flatten()
+
+            for i, f in enumerate(p['freq']):
+                rx[f_vector == f, s] = residuals[0, i:i + param_count + 1:param_count]
+                ry[f_vector == f, s] = residuals[1, i:i + param_count + 1:param_count]
+                rz[f_vector == f, s] = residuals[2, i:i + param_count + 1:param_count]
+
+        # save the position space residuals
+        self.periodic_space = {'stations': {'codes': [p['NetworkCode'] + '.' + p['StationCode'] for p in etm_objects],
+                                            'latlon': [[p['lat'], p['lon']] for p in etm_objects]},
+                               'frequencies': f_vector.tolist(),
+                               'components': ['sin', 'cos'],
+                               'residuals_before_alignment': np.array([ox, oy, oz]).tolist(),
+                               'residuals_after_alignment': np.array([rx, ry, rz]).tolist(),
+                               'helmert_transformations': solution_vector,
+                               'comments': 'Periodic space transformation. Each residual component (X, Y, Z) '
+                                           'stored as X[freq, station, component]. Frequencies, stations, and '
+                                           'components ordered as in respective elements.'}
 
         tqdm.write(' -- Done!')
 
@@ -466,12 +521,25 @@ class Stack(list):
 
         # convert the target dict to a list
         target_list = []
+        stack_list = []
 
         tqdm.write(' >> Aligning coordinate space...')
         for stn in use_stations:
             if not np.isnan(target_dict[stn]['x']):
                 target_list.append((stn, target_dict[stn]['x'], target_dict[stn]['y'], target_dict[stn]['z'],
                                     ref_date.year, ref_date.doy, ref_date.fyear))
+                # get the ETM coordinate for this station
+                net = stn.split('.')[0]
+                ssn = stn.split('.')[1]
+
+                ts = pyETM.GamitSoln(self.cnn, self.get_station(net, ssn), net, ssn, self.name)
+                etm = pyETM.GamitETM(self.cnn, net, ssn, gamit_soln=ts)
+                stack_list += etm.get_etm_soln_list()
+
+        c_array = np.array(stack_list, dtype=[('stn', 'S8'), ('x', 'float64'), ('y', 'float64'),
+                                              ('z', 'float64'), ('yr', 'i4'), ('dd', 'i4'),
+                                              ('fy', 'float64')])
+        comb = Polyhedron(c_array, 'etm', ref_date)
 
         # build a target polyhedron from the target_list
         vertices = np.array(target_list, dtype=[('stn', 'S8'), ('x', 'float64'), ('y', 'float64'),
@@ -483,18 +551,7 @@ class Stack(list):
         # start aligning the coordinates
         tqdm.write(' -- Aligning polyhedron at %.3f (%s)' % (ref_date.fyear, ref_date.yyyyddd()))
 
-        wkpol = []
-        for poly in self:
-            if poly.date.gpsWeek == ref_date.gpsWeek:
-                # get the polyhedrons of the week we are working on
-                wkpol.append(poly)
-
-        if not wkpol:
-            raise Exception('Could not find polyhedrons for reference epoch week that includes %.3f (%s)'
-                            % (ref_date.fyear, ref_date.yyyyddd()))
-
         scale = False
-        comb = Combination(wkpol)
         # align the polyhedron to the target
         r_before, r_after, a_stn = comb.align(target, scale=scale, verbose=True)
         # extract the Helmert parameters to apply to the rest of the polyhedrons
@@ -541,15 +598,15 @@ class Stack(list):
                 use_stn.append(stn)
 
         # load the polynomial terms of the stations
-        etm_objects = self.cnn.query_float('SELECT etmsv2."NetworkCode", etmsv2."StationCode", stations.lat, '
-                                           'stations.lon, params FROM etmsv2 '
+        etm_objects = self.cnn.query_float('SELECT etms."NetworkCode", etms."StationCode", stations.lat, '
+                                           'stations.lon, params FROM etms '
                                            'LEFT JOIN stations ON '
-                                           'etmsv2."NetworkCode" = stations."NetworkCode" AND '
-                                           'etmsv2."StationCode" = stations."StationCode" '
-                                           'WHERE "object" = \'polynomial\' AND soln = \'gamit\' '
-                                           'AND etmsv2."NetworkCode" || \'.\' || etmsv2."StationCode" IN (\'%s\') '
-                                           'ORDER BY etmsv2."NetworkCode", etmsv2."StationCode"'
-                                           % '\', \''.join(use_stn), as_dict=True)
+                                           'etms."NetworkCode" = stations."NetworkCode" AND '
+                                           'etms."StationCode" = stations."StationCode" '
+                                           'WHERE "object" = \'polynomial\' AND soln = \'gamit\' AND stack = \'%s\' '
+                                           'AND etms."NetworkCode" || \'.\' || etms."StationCode" IN (\'%s\') '
+                                           'ORDER BY etms."NetworkCode", etms."StationCode"'
+                                           % (self.name, '\', \''.join(use_stn)), as_dict=True)
 
         # first, align the velocity space by finding a Helmert transformation that takes vx, vy, and vz of the stack at
         # each station and makes it equal to vx, vy, and vz of the ITRF structure
@@ -561,17 +618,18 @@ class Stack(list):
         for s, p in enumerate(etm_objects):
             stn_ts = self.get_station(p['NetworkCode'], p['StationCode'])
 
-            self.cnn.query('DELETE FROM etmsv2 WHERE "soln" = \'gamit\' AND "NetworkCode" = \'%s\' AND '
-                           '"StationCode" = \'%s\'' % (p['NetworkCode'], p['StationCode']))
+            self.cnn.query('DELETE FROM etms WHERE "soln" = \'gamit\' AND "NetworkCode" = \'%s\' AND '
+                           '"StationCode" = \'%s\' AND stack = \'%s\' '
+                           % (p['NetworkCode'], p['StationCode'], self.name))
             # save the time series
-            ts = pyETM.GamitSoln(self.cnn, stn_ts, p['NetworkCode'], p['StationCode'], self.project)
+            ts = pyETM.GamitSoln(self.cnn, stn_ts, p['NetworkCode'], p['StationCode'], self.name)
             # create the ETM object
             pyETM.GamitETM(self.cnn, p['NetworkCode'], p['StationCode'], False, False, ts)
 
-            q = self.cnn.query_float('SELECT params FROM etmsv2 '
+            q = self.cnn.query_float('SELECT params FROM etms '
                                      'WHERE "object" = \'polynomial\' AND soln = \'gamit\' '
-                                     'AND "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' '
-                                     % (p['NetworkCode'], p['StationCode']), as_dict=True)[0]
+                                     'AND "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND stack = \'%s\' '
+                                     % (p['NetworkCode'], p['StationCode'], self.name), as_dict=True)[0]
 
             params = np.array(q['params'])
             params = params.reshape((3, params.shape[0] / 3))
@@ -591,7 +649,6 @@ class Stack(list):
         L = np.row_stack((dvx.flatten(), dvy.flatten(), dvz.flatten())).flatten()
 
         c, _, _, _, wrms, _, it = adjust_lsq(A, L)
-        # c = np.linalg.lstsq(A, L, rcond=-1)[0]
 
         tqdm.write(' -- Velocity space transformation:   ' + ' '.join(['%7.4f' % cc for cc in c]) +
                    ' wrms: %.3f it: %i' % (wrms * 1000, it))
@@ -614,17 +671,18 @@ class Stack(list):
             # redo the etm for this station
             stn_ts = self.get_station(p['NetworkCode'], p['StationCode'])
 
-            self.cnn.query('DELETE FROM etmsv2 WHERE "soln" = \'gamit\' AND "NetworkCode" = \'%s\' AND '
-                           '"StationCode" = \'%s\'' % (p['NetworkCode'], p['StationCode']))
+            self.cnn.query('DELETE FROM etms WHERE "soln" = \'gamit\' AND "NetworkCode" = \'%s\' AND '
+                           '"StationCode" = \'%s\' AND stack = \'%s\''
+                           % (p['NetworkCode'], p['StationCode'], self.name))
             # save the time series
-            ts = pyETM.GamitSoln(self.cnn, stn_ts, p['NetworkCode'], p['StationCode'], self.project)
+            ts = pyETM.GamitSoln(self.cnn, stn_ts, p['NetworkCode'], p['StationCode'], self.name)
             # create the ETM object
             pyETM.GamitETM(self.cnn, p['NetworkCode'], p['StationCode'], False, False, ts)
 
-            q = self.cnn.query_float('SELECT params FROM etmsv2 '
+            q = self.cnn.query_float('SELECT params FROM etms '
                                      'WHERE "object" = \'polynomial\' AND soln = \'gamit\' '
-                                     'AND "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' '
-                                     % (p['NetworkCode'], p['StationCode']), as_dict=True)[0]
+                                     'AND "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND stack = \'%s\''
+                                     % (p['NetworkCode'], p['StationCode'], self.name), as_dict=True)[0]
 
             params = np.array(q['params'])
             params = params.reshape((3, params.shape[0] / 3))
@@ -648,9 +706,9 @@ class Stack(list):
         self.velocity_space = {'stations': {'codes': [p['NetworkCode'] + '.' + p['StationCode'] for p in etm_objects],
                                             'latlon': [[p['lat'], p['lon']] for p in etm_objects]},
                                'residuals_before_alignment':
-                                   np.row_stack((dvx.flatten(), dvy.flatten(), dvz.flatten())).tolist(),
+                                   np.column_stack((dvx.flatten(), dvy.flatten(), dvz.flatten())).tolist(),
                                'residuals_after_alignment':
-                                   np.row_stack((dvxa.flatten(), dvya.flatten(), dvza.flatten())).tolist(),
+                                   np.column_stack((dvxa.flatten(), dvya.flatten(), dvza.flatten())).tolist(),
                                'reference_date': ref_date,
                                'helmert_transformation': c.tolist(),
                                'comments': 'Velocity space transformation.'}
@@ -698,29 +756,25 @@ class Stack(list):
         save the polyhedrons to the database
         :return: nothing
         """
-        for poly in tqdm(self, ncols=160, desc='Saving ' + self.project):
-            for vert in poly.vertices:
-                try:
-                    self.cnn.insert('stacks', {'Project': self.project,
-                                               'NetworkCode': vert['stn'].split('.')[0],
-                                               'StationCode': vert['stn'].split('.')[1],
-                                               'X': vert['x'],
-                                               'Y': vert['y'],
-                                               'Z': vert['z'],
-                                               'FYear': vert['fy'],
-                                               'Year': vert['yr'],
-                                               'DOY': vert['dd'],
-                                               'sigmax': 0.000,
-                                               'sigmay': 0.000,
-                                               'sigmaz': 0.000})
-                except dbConnection.dbErrInsert:
-                    # the element already exists in the database (polyhedron already aligned)
-                    pass
+        for poly in tqdm(self, ncols=160, desc='Saving ' + self.name):
+
+            try:
+                self.cnn.executemany('INSERT INTO stacks ("Project", "NetworkCode", "StationCode", "X", "Y", "Z", '
+                                     '"FYear", "Year", "DOY", sigmax, sigmay, sigmaz, name) VALUES '
+                                     '(%s, %s, %s, %f, %f, %f, %f, %i, %i, 0.000, 0.000, 0.000, %s)',
+                                     [(self.project, vert['stn'].split('.')[0], vert['stn'].split('.')[1],
+                                       float(vert['x']), float(vert['y']), float(vert['z']), float(vert['fy']),
+                                       int(vert['yr']), int(vert['dd']), self.name)
+                                      for vert in poly.vertices])
+            except dbConnection.dbErrInsert:
+                # the element already exists in the database (polyhedron already aligned)
+                pass
 
     def to_json(self, json_file):
         json_dump = dict()
         json_dump['position_space'] = self.position_space
         json_dump['velocity_space'] = self.velocity_space
+        json_dump['periodic_space'] = self.periodic_space
         json_dump['transformations'] = self.transformations
 
         with open(json_file, 'w') as f:
@@ -933,8 +987,6 @@ def main():
     cnn = dbConnection.Cnn("gnss_data.cfg")
 
     stack = Stack(cnn, 'igs-sirgas', redo=True)
-
-    stack.calculate_etms()
 
     for i in tqdm(range(1, len(stack)), ncols=160):
         stack[i].align(stack[i - 1])

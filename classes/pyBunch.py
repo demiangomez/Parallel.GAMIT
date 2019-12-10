@@ -356,11 +356,11 @@ try:
             >>> yaml.dump(b, default_flow_style=True)
             '!bunch.Bunch {foo: [bar, !bunch.Bunch {lol: true}], hello: 42}\\n'
         """
-        return dumper.represent_mapping(u('!bunch.Bunch'), data)
+        return dumper.represent_mapping(u'!bunch.Bunch', data)
 
 
-    yaml.add_constructor(u('!bunch'), from_yaml)
-    yaml.add_constructor(u('!bunch.Bunch'), from_yaml)
+    yaml.add_constructor(u'!bunch', from_yaml)
+    yaml.add_constructor(u'!bunch.Bunch', from_yaml)
 
     SafeRepresenter.add_representer(Bunch, to_yaml_safe)
     SafeRepresenter.add_multi_representer(Bunch, to_yaml_safe)

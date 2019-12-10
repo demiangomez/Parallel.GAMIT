@@ -30,6 +30,8 @@ from pyETM import pyETMException
 import pyArchiveStruct
 import logging
 import simplekml
+import numpy as np
+from itertools import repeat
 
 cnn = None
 
@@ -421,8 +423,12 @@ def ParseZTD(project, Sessions, GamitConfig):
 
     tqdm.write(' >> Parsing the zenith tropospheric delays...')
 
-    for GamitSession in tqdm(Sessions, ncols=80):
+    # atmospheric zenith delay list
+    atmzen = []
+    # a dictionary for the station aliases lookup table
+    alias = dict()
 
+    for GamitSession in tqdm(Sessions, ncols=80):
         try:
             znd = os.path.join(GamitSession.pwd_glbf, GamitConfig.gamitopt['org'] + GamitSession.date.wwwwd() + '.znd')
 
@@ -431,52 +437,69 @@ def ParseZTD(project, Sessions, GamitConfig):
                 f = open(znd, 'r')
                 output = f.readlines()
                 f.close()
+                v = re.findall(r'ATM_ZEN X (\w+) .. (\d+)\s*(\d*)\s*(\d*)\s*(\d*)\s*(\d*)\s*\d*\s*([- ]?'
+                               r'\d*.\d+)\s*[+-]*\s*(\d*.\d*)\s*(\d*.\d*)', ''.join(output), re.MULTILINE)
+                # add the year doy tuple to the result
+                atmzen += [i + (GamitSession.date.year, GamitSession.date.doy) for i in v]
+            else:
+                v = []
 
-                atmzen = re.findall(r'ATM_ZEN X (\w+) .. (\d+)\s*(\d*)\s*(\d*)\s*(\d*)\s*(\d*)\s*\d*\s*[- ]?'
-                                    r'\d*.\d+\s*[+-]*\s*\d*.\d*\s*(\d*.\d*)', ''.join(output), re.MULTILINE)
-
-                for zd in atmzen:
-
-                    date = datetime(int(zd[1]), int(zd[2]), int(zd[3]), int(zd[4]), int(zd[5]))
-
-                    # translate alias to network.station
-                    stn = [{'NetworkCode': StnIns.NetworkCode, 'StationCode': StnIns.StationCode}
-                           for StnIns in GamitSession.StationInstances if StnIns.StationAlias.upper() == zd[0]]
-
-                    if len(stn) > 0:
-                        stn = stn[0]
-                        # see if ZND exists
-                        rs = cnn.query('SELECT * FROM gamit_ztd WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\''
-                                       ' AND "Date" = \'%s\' AND "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i'
-                                       % (stn['NetworkCode'], stn['StationCode'],
-                                          date.strftime('%Y-%m-%d %H:%M:%S'), project.lower(),
-                                          GamitSession.date.year, GamitSession.date.doy))
-
-                        if rs.ntuples() == 0:
-                            cnn.query('INSERT INTO gamit_ztd ("NetworkCode", "StationCode", "Date", "ZTD", '
-                                      '                       "Project", "Year", "DOY") VALUES '
-                                      '(\'%s\', \'%s\', \'%s\', %f, \'%s\', %i, %i)'
-                                      % (stn['NetworkCode'], stn['StationCode'], date.strftime('%Y-%m-%d %H:%M:%S'),
-                                         float(zd[6]), project.lower(), GamitSession.date.year, GamitSession.date.doy))
-                        else:
-                            # already a zenith delay in place! take average as suggested by Bob King (see email from
-                            # 10/31/2018)
-                            rs = rs.dictresult()
-                            ztd_val = float(rs[0]['ZTD'])
-
-                            cnn.query('UPDATE gamit_ztd SET "ZTD" = %f WHERE '
-                                      ' ("NetworkCode", "StationCode", "Date", "Project", "Year", "DOY") = '
-                                      ' (\'%s\', \'%s\', \'%s\', \'%s\', %i, %i)'
-                                      % ((float(zd[6]) + ztd_val)/2., stn['NetworkCode'], stn['StationCode'],
-                                         date.strftime('%Y-%m-%d %H:%M:%S'), project.lower(), GamitSession.date.year,
-                                         GamitSession.date.doy))
-
-                    else:
-                        tqdm.write(' -- Could not find station %s in the GamitSession (%s) station instances!'
-                                   % (zd[0], GamitSession.NetName))
+            # create a lookup table for station aliases
+            for zd in v:
+                for StnIns in GamitSession.StationInstances:
+                    if StnIns.StationAlias.upper() == zd[0]:
+                        alias[zd[0]] = [StnIns.NetworkCode, StnIns.StationCode]
 
         except Exception as e:
             tqdm.write(' -- Error parsing zenith delays for session %s: %s' % (GamitSession.NetName, str(e)))
+
+    # all station days are in the atmzen
+    # convert to numpy to sort and average
+
+    atmzen = np.array(atmzen, dtype=[('stn', 'S4'), ('y', 'i4'), ('m', 'i4'), ('d', 'i4'), ('h', 'i4'), ('mm', 'i4'),
+                                     ('mo', 'float64'), ('s', 'float64'), ('z', 'float64'),
+                                     ('yr', 'i4'), ('doy', 'i4')])
+
+    atmzen.sort(order=['stn', 'y', 'm', 'd', 'h', 'mm'])
+
+    # get the stations in the processing
+    stations = np.unique(atmzen['stn'])
+    # get the unique dates for this process
+    date_vec = np.unique(np.array([atmzen['yr'], atmzen['doy']]).transpose(), axis=0)
+    # unique ztd
+    uztd = []
+    for stn in stations:
+        for date in date_vec:
+            # select the station and date
+            zd = atmzen[np.logical_and.reduce((atmzen['stn'] == stn,
+                                               atmzen['yr'] == date[0], atmzen['doy'] == date[1]))]
+            # find the unique days
+            days = np.unique(np.array([zd['y'], zd['m'], zd['d'], zd['h'], zd['mm']]).transpose(), axis=0)
+            # average over the existing records
+            for d in days:
+                rows = zd[np.logical_and.reduce((zd['y'] == d[0], zd['m'] == d[1],
+                                                 zd['d'] == d[2], zd['h'] == d[3], zd['mm'] == d[4]))]
+
+                uztd.append(alias[stn] + [datetime(d[0], d[1], d[2], d[3], d[4]).strftime('%Y-%m-%d %H:%M:%S')] +
+                            [project.lower()] +
+                            [np.mean(rows['z']) - np.mean(rows['mo']), np.mean(rows['s']), np.mean(rows['z'])] +
+                            date.tolist())
+
+    # drop all records from the database to make sure there will be no problems with massive insert
+    tqdm.write(' -- Deleting previous zenith tropospheric delays from the database...')
+    for date in date_vec:
+        cnn.query('DELETE FROM gamit_ztd WHERE "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i'
+                  % (project.lower(), date[0], date[1]))
+
+    # now do a bulk insert
+    try:
+        tqdm.write(' -- Inserting zenith tropospheric delays into the database...')
+
+        cnn.executemany('INSERT INTO gamit_ztd ("NetworkCode", "StationCode", "Date", "Project", "model", "sigma", '
+                        '                       "ZTD", "Year", "DOY") VALUES (%s, %s, %s, %s, %f, %f, %f, %i, %i)',
+                        uztd)
+    except Exception as e:
+        tqdm.write(' -- Error inserting parsed zenith delays: %s' % str(e))
 
 
 def ExecuteGlobk(GamitConfig, sessions, dates):
