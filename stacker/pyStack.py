@@ -108,8 +108,8 @@ class Stack(list):
 
         super(Stack, self).__init__()
 
-        self.project = project
-        self.name = name
+        self.project = project.lower()
+        self.name = name.lower()
         self.cnn = cnn
         self.position_space = None
         self.velocity_space = None

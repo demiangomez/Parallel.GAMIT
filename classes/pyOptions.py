@@ -54,7 +54,7 @@ class ReadOptions:
 
         # get the ppp config
         for iconfig, val in dict(config.items('ppp')).iteritems():
-            self.options[iconfig] = val
+            self.options[iconfig] = os.path.expandvars(val).replace('//', '/')
 
         # frames and dates
         frames = [item.strip() for item in self.options['frames'].split(',')]
