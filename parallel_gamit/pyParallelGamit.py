@@ -462,6 +462,7 @@ def ParseZTD(project, Sessions, GamitConfig):
 
     atmzen.sort(order=['stn', 'y', 'm', 'd', 'h', 'mm'])
 
+    tqdm.write(' -- Averaging zenith delays from stations in multiple sessions...')
     # get the stations in the processing
     stations = np.unique(atmzen['stn'])
     # get the unique dates for this process
@@ -473,17 +474,19 @@ def ParseZTD(project, Sessions, GamitConfig):
             # select the station and date
             zd = atmzen[np.logical_and.reduce((atmzen['stn'] == stn,
                                                atmzen['yr'] == date[0], atmzen['doy'] == date[1]))]
-            # find the unique days
-            days = np.unique(np.array([zd['y'], zd['m'], zd['d'], zd['h'], zd['mm']]).transpose(), axis=0)
-            # average over the existing records
-            for d in days:
-                rows = zd[np.logical_and.reduce((zd['y'] == d[0], zd['m'] == d[1],
-                                                 zd['d'] == d[2], zd['h'] == d[3], zd['mm'] == d[4]))]
+            # careful, not do anything if there is not data for this station-day
+            if zd.size > 0:
+                # find the unique days
+                days = np.unique(np.array([zd['y'], zd['m'], zd['d'], zd['h'], zd['mm']]).transpose(), axis=0)
+                # average over the existing records
+                for d in days:
+                    rows = zd[np.logical_and.reduce((zd['y'] == d[0], zd['m'] == d[1],
+                                                     zd['d'] == d[2], zd['h'] == d[3], zd['mm'] == d[4]))]
 
-                uztd.append(alias[stn] + [datetime(d[0], d[1], d[2], d[3], d[4]).strftime('%Y-%m-%d %H:%M:%S')] +
-                            [project.lower()] +
-                            [np.mean(rows['z']) - np.mean(rows['mo']), np.mean(rows['s']), np.mean(rows['z'])] +
-                            date.tolist())
+                    uztd.append(alias[stn] + [datetime(d[0], d[1], d[2], d[3], d[4]).strftime('%Y-%m-%d %H:%M:%S')] +
+                                [project.lower()] +
+                                [np.mean(rows['z']) - np.mean(rows['mo']), np.mean(rows['s']), np.mean(rows['z'])] +
+                                date.tolist())
 
     # drop all records from the database to make sure there will be no problems with massive insert
     tqdm.write(' -- Deleting previous zenith tropospheric delays from the database...')
