@@ -2,7 +2,11 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="a64c3a05-b10f-4d88-bc8d-bee6a190e9d3" name="Default" comment="">
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit/pyParallelGamit.py" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/pyParallelGamit.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classes/pyJobServer.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/pyJobServer.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classes/pyPPP.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/pyPPP.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classes/pyRinex.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/pyRinex.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../com/LocateRinex.py" beforeDir="false" afterPath="$PROJECT_DIR$/../com/LocateRinex.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../com/ScanArchive.py" beforeDir="false" afterPath="$PROJECT_DIR$/../com/ScanArchive.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -182,10 +186,10 @@
     </option>
   </component>
   <component name="WindowStateProjectService">
-    <state x="616" y="355" key="com.intellij.ide.util.TipDialog" timestamp="1576506948518">
+    <state x="616" y="355" key="com.intellij.ide.util.TipDialog" timestamp="1579814054293">
       <screen x="0" y="27" width="1920" height="1004" />
     </state>
-    <state x="616" y="355" key="com.intellij.ide.util.TipDialog/0.27.1920.1004/1920.0.1920.1080@0.27.1920.1004" timestamp="1576506948518" />
+    <state x="616" y="355" key="com.intellij.ide.util.TipDialog/0.27.1920.1004/1920.0.1920.1080@0.27.1920.1004" timestamp="1579814054293" />
     <state x="616" y="355" key="com.intellij.ide.util.TipDialog/0.27.1920.1004@0.27.1920.1004" timestamp="1576267787567" />
   </component>
   <component name="XDebuggerManager">

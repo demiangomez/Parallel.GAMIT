@@ -40,8 +40,8 @@ def test_node(check_gamit_tables=None, software_sync=()):
 
     # BEFORE ANYTHING! check the python version
     version = sys.version_info
-    if version.major > 2 or version.minor < 7 or (version.micro < 13 and version.minor <= 7):
-        return ' -- %s: Incorrect Python version: %i.%i.%i. Recommended version > 2.7.13' \
+    if version.major > 2 or version.minor < 7 or (version.micro < 12 and version.minor <= 7):
+        return ' -- %s: Incorrect Python version: %i.%i.%i. Recommended version >= 2.7.12' \
                % (platform.node(), version.major, version.minor, version.micro)
 
     # start importing the modeles needed
@@ -444,6 +444,10 @@ class JobServer:
 
             elif status == dispy.DispyJob.Terminated:
                 tqdm.write(' -- Job %04i has been terminated with the following exception: ' % job.id)
+                tqdm.write(str(job.exception))
+
+            elif status == dispy.DispyJob.Cancelled:
+                tqdm.write(' -- Job %04i has been cancelled with the following exception: ' % job.id)
                 tqdm.write(str(job.exception))
 
             if status in (dispy.DispyJob.Finished, dispy.DispyJob.Terminated) and self.progress_bar is not None:

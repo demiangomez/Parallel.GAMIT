@@ -19,6 +19,7 @@ import Utils
 import uuid
 import re
 import struct
+import unicodedata
 
 TYPE_CRINEZ = 0
 TYPE_RINEX = 1
@@ -492,7 +493,9 @@ class ReadRinex(RinexRecord):
         self.system = ''
 
         for line in self.header:
-
+            # DDG: to avoid problems with accents, and non-UTF-8 chars, remove them
+            line = line.decode('utf-8', 'ignore').encode('utf-8')
+            line = unicodedata.normalize('NFD', unicode(line, 'utf-8')).encode('ascii', 'ignore').decode('utf-8')
             if any(line.strip().endswith(key) for key in self.required_records.keys()):
                 # get the first occurrence only!
                 record = [key for key in self.required_records.keys() if key in line][0]
@@ -581,7 +584,7 @@ class ReadRinex(RinexRecord):
                 new_header += [self.format_record(self.required_records, 'COMMENT', 'pyRinex: WARN! default value to fix file!') + '\n']
                 self.log_event('Missing required RINEX record added: ' + record)
 
-        new_header += [''.ljust(60,' ') + 'END OF HEADER\n']
+        new_header += [''.ljust(60, ' ') + 'END OF HEADER\n']
 
         self.write_rinex(new_header)
 
@@ -931,8 +934,8 @@ class ReadRinex(RinexRecord):
             raise pyRinexExceptionBadFile('RINEX sampling interval > 120s. The output from RinSum was:\n' + output)
 
         elif self.epochs * self.interval < 3600:
-                raise pyRinexExceptionBadFile('RINEX file with < 1 hr of observation time. '
-                                              'The output from RinSum was:\n' + output)
+            raise pyRinexExceptionBadFile('RINEX file with < 1 hr of observation time. '
+                                          'The output from RinSum was:\n' + output)
 
         try:
             yy, mm, dd, hh, MM, ss = [int(x) for x in re.findall(r'^Computed first epoch:\s*(\d+)\/(\d+)\/(\d+)'
@@ -1163,13 +1166,15 @@ class ReadRinex(RinexRecord):
             end = self.datetime_lastObs
             self.log_event('Setting end = last obs in window_data')
 
-        cmd = pyRunWithRetry.RunCommand('teqc -n_GLONASS 64 -n_GPS 64 -n_SBAS 64 -n_Galileo 64 -st %i%02i%02i%02i%02i%02i -e %i%02i%02i%02i%02i%02i +obs %s.t %s' % (
-                start.year, start.month, start.day, start.hour, start.minute, start.second,
-                end.year, end.month, end.day, end.hour, end.minute, end.second, self.rinex_path, self.rinex_path), 5)
+        cmd = pyRunWithRetry.RunCommand('teqc -n_GLONASS 64 -n_GPS 64 -n_SBAS 64 -n_Galileo 64 '
+                                        '-st %i%02i%02i%02i%02i%02i -e %i%02i%02i%02i%02i%02i +obs %s.t %s'
+                                        % (start.year, start.month, start.day, start.hour, start.minute, start.second,
+                                           end.year, end.month, end.day, end.hour, end.minute, end.second,
+                                           self.rinex_path, self.rinex_path), 5)
 
         out, err = cmd.run_shell()
 
-        if not 'teqc: failure to read' in str(err):
+        if 'teqc: failure to read' not in str(err):
             # delete the original file and replace with .t
             if copyto is None:
                 os.remove(self.rinex_path)
@@ -1631,9 +1636,11 @@ class ReadRinex(RinexRecord):
     def __repr__(self):
         return 'pyRinex.ReadRinex(' + self.NetworkCode + ', ' + self.StationCode + ', ' + str(self.date.year) + ', ' + str(self.date.doy) + ')'
 
+
 def main():
     # for testing purposes
     rnx = ReadRinex('RNX','chac','chac0010.17o')
+
 
 if __name__ == '__main__':
     main()

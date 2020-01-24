@@ -129,6 +129,8 @@ def callback_handle(job):
         else:
             msg = job.exception
 
+        tqdm.write(' -- There were unhandled errors during this batch. '
+                   'Please check errors_pyArchiveService.log for details')
         f = open('errors_pyScanArchive.log', 'a')
         f.write('ON ' + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' an unhandled error occurred:\n')
         f.write(msg + '\n')

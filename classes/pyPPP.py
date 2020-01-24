@@ -176,6 +176,7 @@ class RunPPP(PPPSpatialCheck):
         self.proc_parameters = None
         self.observation_session = None
         self.coordinate_estimate = None
+        self.clock_estimates = None
 
         # DDG: do not allow clock interpolation before May 1 2001
         self.clock_interpolation = clock_interpolation if rinexobj.date > Date(year=2001, month=5, day=1) else False
@@ -194,6 +195,12 @@ class RunPPP(PPPSpatialCheck):
         self.sigmaxy   = None
         self.sigmaxz   = None
         self.sigmayz   = None
+        self.clock_phase = None
+        self.clock_phase_sigma = None
+        self.phase_drift = None
+        self.phase_drift_sigma = None
+        self.clock_rms = None
+        self.clock_rms_number = None
         self.hash      = hash
 
         self.processed_obs = None
@@ -430,6 +437,17 @@ class RunPPP(PPPSpatialCheck):
         return x, y, z
 
     @staticmethod
+    def get_clock(section, kinematic):
+        # DDG: TODO -> read if ms or ns and scale output accordingly
+        clock_phase = re.findall(r'Clock Phase\s*\([nm]s\)\s*:\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)', section)[0]
+        phase_drift = re.findall(r'Phase Drift\s*\([nm]s/day\)\s*:\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)', section)[0]
+        clock_resid = re.findall(r'RMS residuals\s*\([nm]s\)\s*:\s*(-?\d+\.\d+)\s*(\d+)', section)[0]
+
+        return float(clock_phase[0]), float(clock_phase[1]), \
+            float(phase_drift[0]), float(phase_drift[1]), \
+            float(clock_resid[0]), int(clock_resid[1])
+
+    @staticmethod
     def get_sigmas(section, kinematic):
 
         if kinematic:
@@ -543,6 +561,8 @@ class RunPPP(PPPSpatialCheck):
                                                  '3.2 Observation Session', '3.3 Coordinate estimates')
         self.coordinate_estimate = self.get_text(self.summary,
                                                  '3.3 Coordinate estimates', '3.4 Coordinate differences ITRF')
+        self.clock_estimates = self.get_text(self.summary,
+                                             '3.5 Receiver clock estimates', '3.6 Observation rejection table')
 
         if self.strict and not self.check_phase_center(self.proc_parameters):
             raise pyRunPPPException(
@@ -578,7 +598,11 @@ class RunPPP(PPPSpatialCheck):
         self.lat, self.lon, self.h = ecef2lla([self.x, self.y, self.z])
 
         self.sigmax, self.sigmay, self.sigmaz, \
-        self.sigmaxy, self.sigmaxz, self.sigmayz = self.get_sigmas(self.coordinate_estimate, self.kinematic)
+            self.sigmaxy, self.sigmaxz, self.sigmayz = self.get_sigmas(self.coordinate_estimate, self.kinematic)
+
+        self.clock_phase, self.clock_phase_sigma, \
+            self.phase_drift, self.phase_drift_sigma, \
+            self.clock_rms, self.clock_rms_number = self.get_clock(self.clock_estimates, self.kinematic)
 
         # not implemented in PPP: apply NE offset if is NOT zero
         if self.rinex.antOffsetN != 0.0 or self.rinex.antOffsetE != 0.0:

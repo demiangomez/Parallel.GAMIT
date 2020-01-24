@@ -163,8 +163,9 @@ def execute_ppp(rinexinfo, args, stnm, options, sp3types, sp3altrn, brdc_path, e
             print 'WARNING: phase center parameters not found for declared antenna!'
 
         if not args.insert_sql:
-            print '%s %10.5f %13.4f %13.4f %13.4f %14.9f %14.9f %8.3f' % (
-            stnm, rinexinfo.date.fyear, ppp.x, ppp.y, ppp.z, ppp.lat[0], ppp.lon[0], ppp.h[0])
+            print '%s %10.5f %13.4f %13.4f %13.4f %14.9f %14.9f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f' % (
+                stnm, rinexinfo.date.fyear, ppp.x, ppp.y, ppp.z, ppp.lat[0], ppp.lon[0], ppp.h[0], ppp.clock_phase,
+                ppp.clock_phase_sigma, ppp.phase_drift, ppp.phase_drift_sigma, ppp.clock_rms)
         else:
             print 'INSERT INTO stations ("NetworkCode", "StationCode", "auto_x", "auto_y", "auto_z", ' \
                   '"Harpos_coeff_otl", lat, lon, height) VALUES ' \
