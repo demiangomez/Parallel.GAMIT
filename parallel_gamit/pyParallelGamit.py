@@ -453,6 +453,10 @@ def ParseZTD(project, Sessions, GamitConfig):
         except Exception as e:
             tqdm.write(' -- Error parsing zenith delays for session %s: %s' % (GamitSession.NetName, str(e)))
 
+    if not len(atmzen):
+        tqdm.write(' -- No sessions with usable atmospheric zenith delays were found!')
+        return
+
     # all station days are in the atmzen
     # convert to numpy to sort and average
 
