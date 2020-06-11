@@ -33,6 +33,10 @@ class dbErrDelete(Exception):
     pass
 
 
+class IntegrityError(pg.IntegrityError):
+    pass
+
+
 class Cnn(pg.DB):
 
     def __init__(self, configfile, use_float=False):
@@ -90,12 +94,27 @@ class Cnn(pg.DB):
 
         self.cursor = self.cursor_conn.cursor()
 
+    def query(self, command, *args):
+        try:
+            rs = pg.DB.query(self, command, *args)
+        except ValueError:
+            # connection lost, attempt to reconnect
+            self.reopen()
+            rs = pg.DB.query(self, command, *args)
+
+        return rs
+
     def query_float(self, command, as_dict=False):
 
         pg.set_typecast('Numeric', float)
         pg.set_decimal(float)
 
-        rs = self.query(command)
+        try:
+            rs = self.query(command)
+        except ValueError:
+            # connection lost, attempt to reconnect
+            self.reopen()
+            rs = self.query(command)
 
         if as_dict:
             recordset = rs.dictresult()
@@ -137,6 +156,10 @@ class Cnn(pg.DB):
 
         try:
             pg.DB.insert(self, table, row, **kw)
+        except ValueError:
+            # connection lost, attempt to reconnect
+            self.reopen()
+            pg.DB.insert(self, table, row, **kw)
         except Exception as e:
             raise dbErrInsert(e)
 
@@ -154,12 +177,20 @@ class Cnn(pg.DB):
 
         try:
             pg.DB.update(self, table, row, **kw)
+        except ValueError:
+            # connection lost, attempt to reconnect
+            self.reopen()
+            pg.DB.update(self, table, row, **kw)
         except Exception as e:
             raise dbErrUpdate(e)
 
     def delete(self, table, row=None, **kw):
 
         try:
+            pg.DB.delete(self, table, row, **kw)
+        except ValueError:
+            # connection lost, attempt to reconnect
+            self.reopen()
             pg.DB.delete(self, table, row, **kw)
         except Exception as e:
             raise dbErrDelete(e)

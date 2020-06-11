@@ -439,9 +439,15 @@ class RunPPP(PPPSpatialCheck):
     @staticmethod
     def get_clock(section, kinematic):
         # DDG: TODO -> read if ms or ns and scale output accordingly
-        clock_phase = re.findall(r'Clock Phase\s*\([nm]s\)\s*:\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)', section)[0]
-        phase_drift = re.findall(r'Phase Drift\s*\([nm]s/day\)\s*:\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)', section)[0]
-        clock_resid = re.findall(r'RMS residuals\s*\([nm]s\)\s*:\s*(-?\d+\.\d+)\s*(\d+)', section)[0]
+        try:
+            clock_phase = re.findall(r'Clock Phase\s*\([nm]s\)\s*:\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)', section)[0]
+            phase_drift = re.findall(r'Phase Drift\s*\([nm]s/day\)\s*:\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)', section)[0]
+            clock_resid = re.findall(r'RMS residuals\s*\([nm]s\)\s*:\s*(-?\d+\.\d+)\s*(\d+)', section)[0]
+
+        except IndexError:
+            clock_phase = [0, 0]
+            phase_drift = [0, 0]
+            clock_resid = [0, 0]
 
         return float(clock_phase[0]), float(clock_phase[1]), \
             float(phase_drift[0]), float(phase_drift[1]), \

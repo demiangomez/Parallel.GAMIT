@@ -101,6 +101,8 @@ def main():
     parser.add_argument('-vel', '--velocity', action='store_true', help="During query, output the velocity in XYZ.")
     parser.add_argument('-seasonal', '--seasonal_terms', action='store_true',
                         help="During query, output the seasonal terms in NEU.")
+    parser.add_argument('-quiet', '--suppress_messages', action='store_true',
+                        help="Quiet mode: suppress information messages")
 
     args = parser.parse_args()
 
@@ -115,7 +117,9 @@ def main():
 
     # define the language
     pyETM.LANG = args.language.lower()
-
+    # set the logging level
+    if not args.suppress_messages:
+        pyETM.logger.setLevel(pyETM.INFO)
     #####################################
     # date filter
 

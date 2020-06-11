@@ -12,6 +12,7 @@ import pyDate
 import random
 import string
 import os
+from tqdm import tqdm
 
 COMPLETION = 0.5
 INTERVAL = 120
@@ -77,6 +78,18 @@ class Station(object):
 
             self.etm = pyETM.PPPETM(cnn, NetworkCode, StationCode)  # type: pyETM.PPPETM
             self.StationInfo = pyStationInfo.StationInfo(cnn, NetworkCode, StationCode)
+
+            # DDG: report RINEX files with Completion < 0.5
+            rs = cnn.query_float(
+                'SELECT "ObservationYear" as y, "ObservationDOY" as d FROM rinex_proc '
+                'WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND '
+                '"ObservationSTime" >= \'%s\' AND "ObservationETime" <= \'%s\' AND '
+                '"Completion" < %.3f AND "Interval" <= %i'
+                % (NetworkCode, StationCode, (dates[0] - 1).first_epoch(),
+                   (dates[1] + 1).last_epoch(), COMPLETION, INTERVAL))
+            if len(rs):
+                tqdm.write('    WARNING: The requested date interval has %i days with < 50%% of observations. '
+                           'These days will not be processed.' % len(rs))
         else:
             raise ValueError('Specified station %s.%s could not be found' % (NetworkCode, StationCode))
 
@@ -90,7 +103,7 @@ class Station(object):
     def __eq__(self, station):
 
         if not isinstance(station, Station):
-            raise pyStationException('type: '+str(type(station))+' invalid.  Can only compare pyStation.Station')
+            raise pyStationException('type: '+str(type(station))+' invalid. Can only compare pyStation.Station')
 
         return self.NetworkCode == station.NetworkCode and self.StationCode == station.StationCode
 
@@ -121,8 +134,16 @@ class StationInstance(object):
         self.otl_H = station.otl_H
 
         # save the station information as text
-        self.StationInfo = pyStationInfo.StationInfo(cnn,
-                                                     station.NetworkCode, station.StationCode, date).return_stninfo()
+        try:
+            self.StationInfo = pyStationInfo.StationInfo(cnn,
+                                                         station.NetworkCode,
+                                                         station.StationCode, date).return_stninfo()
+        except pyStationInfo.pyStationInfoHeightCodeNotFound as e:
+            tqdm.write(' -- WARNING: ' + str(e) + '. Antenna height will be used as is and GAMIT may produce a fatal.')
+            self.StationInfo = pyStationInfo.StationInfo(cnn,
+                                                         station.NetworkCode,
+                                                         station.StationCode,
+                                                         date).return_stninfo(no_dharp_translate=True)
 
         self.date = date  # type: pyDate.Date
         self.Archive_path = GamitConfig.archive_path

@@ -142,33 +142,68 @@ def check_rinex_stn(NetworkCode, StationCode, start_date, end_date):
                StationCode + ' using node ' + platform.node(), None
 
 
-def CheckRinexIntegrity(stnlist, start_date, end_date, JobServer):
+def CheckRinexIntegrity(cnn, Config, stnlist, start_date, end_date, operation, JobServer):
 
-    global rinex_css
+    global differences
 
-    modules = ('os', 'pyArchiveStruct', 'dbConnection', 'pyOptions', 'traceback', 'platform', 'pyEvents')
+    tqdm.write(' >> Archive path: %s' % Config.archive_path)
 
-    pbar = tqdm(total=len(stnlist), ncols=80)
-    rinex_css = []
+    if operation == 'fix':
+        modules = ('os', 'pyArchiveStruct', 'dbConnection', 'pyOptions', 'traceback', 'platform', 'pyEvents')
 
-    JobServer.create_cluster(check_rinex_stn, callback=stnrnx_callback, progress_bar=pbar, modules=modules)
+        pbar = tqdm(total=len(stnlist), ncols=80)
+        differences = []
 
-    for stn in stnlist:
-        StationCode = stn['StationCode']
-        NetworkCode = stn['NetworkCode']
+        JobServer.create_cluster(check_rinex_stn, callback=stnrnx_callback, progress_bar=pbar, modules=modules)
 
-        JobServer.submit(NetworkCode, StationCode, start_date, end_date)
+        for stn in stnlist:
+            StationCode = stn['StationCode']
+            NetworkCode = stn['NetworkCode']
 
-    JobServer.wait()
+            JobServer.submit(NetworkCode, StationCode, start_date, end_date)
 
-    pbar.close()
+        JobServer.wait()
 
-    for rinex in rinex_css:
-        if rinex[1]:
-            for diff in rinex[1]:
-                print('File ' + diff + ' was not found in the archive. See events for details.')
-        elif rinex[0]:
-            print('Error encountered: ' + rinex[0])
+        pbar.close()
+
+        for rinex in differences:
+            if rinex[1]:
+                for diff in rinex[1]:
+                    print('File ' + diff + ' was not found in the archive. See events for details.')
+            elif rinex[0]:
+                print('Error encountered: ' + rinex[0])
+
+    elif operation == 'report':
+
+        Archive = pyArchiveStruct.RinexStruct(cnn)
+
+        for stn in tqdm(stnlist, ncols=160, desc=' >> Checking archive integrity', disable=None, position=0):
+            StationCode = stn['StationCode']
+            NetworkCode = stn['NetworkCode']
+
+            rs = cnn.query('SELECT * FROM rinex WHERE "NetworkCode" = \'%s\' AND '
+                           '"StationCode" = \'%s\' AND '
+                           '"ObservationSTime" BETWEEN \'%s\' AND \'%s\' '
+                           'ORDER BY "ObservationSTime"'
+                           % (NetworkCode, StationCode, start_date.yyyymmdd(), end_date.yyyymmdd()))
+
+            rnxtbl = rs.dictresult()
+
+            pbar = tqdm(total=len(rnxtbl), ncols=160, desc=' >> Checking archive integrity', disable=None, position=1)
+
+            for rnx in rnxtbl:
+                archive_path = Archive.build_rinex_path(NetworkCode, StationCode, rnx['ObservationYear'],
+                                                        rnx['ObservationDOY'], filename=rnx['Filename'])
+                crinex_path = os.path.join(Config.archive_path, archive_path)
+
+                pbar.postfix = '%s.%s: %s' % (NetworkCode, StationCode, archive_path)
+                pbar.update()
+
+                if not os.path.exists(crinex_path):
+                    tqdm.write(' -- CRINEZ file %s exists in the database but was not found in the archive'
+                               % crinex_path)
+
+            pbar.close()
 
 
 def StnInfoRinexIntegrity(cnn, stnlist, start_date, end_date, JobServer):
@@ -263,8 +298,8 @@ def StnInfoCheck(cnn, stnlist, Config):
             if len(empty_edata) > 1:
                 list_empty = [pyDate.Date(datetime=record[1]).yyyyddd() for record in empty_edata]
                 list_empty = ', '.join(list_empty)
-                sys.stdout.write('There is more than one station info entry with Session Stop = 9999 999 '
-                                 'Session Start -> %s\n' % list_empty)
+                sys.stdout.write('%s.%s: There is more than one station info entry with Session Stop = 9999 999 '
+                                 'Session Start -> %s\n' % (NetworkCode, StationCode, list_empty))
 
             # there should not be a DateStart < DateEnd of different record
             list_problems = []
@@ -277,8 +312,8 @@ def StnInfoCheck(cnn, stnlist, Config):
                 # determine the reference frame using the start date
                 frame, atx_file = determine_frame(Config.options['frames'], record['DateStart'])
                 # check if antenna in atx, if not, produce a warning
-                if (record['AntennaCode'], record['RadomeCode']) not in atx[frame]:
-                    sys.stdout.write('%s.%s -> Error: %-16s%s not found on atx %s (%s)\n'
+                if record['AntennaCode'] not in atx[frame]:
+                    sys.stdout.write('%s.%s: %-16s%s -> Not found in ANTEX file %s (%s) - dome not checked\n'
                                      % (NetworkCode, StationCode, record['AntennaCode'], record['RadomeCode'],
                                         os.path.basename(atx_file), frame))
                     atx_problem = True
@@ -304,28 +339,23 @@ def StnInfoCheck(cnn, stnlist, Config):
 
                     # if the delta between previous and current session exceeds one second, check if any rinex falls
                     # in that gap
-                    if (sdate.datetime() - edate.datetime()).total_seconds > 1:
+                    if (sdate.datetime() - edate.datetime()).total_seconds() > 1:
                         count = cnn.query('SELECT count(*) as rcount FROM rinex_proc '
                                           'WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND '
-                                          '"ObservationSTime" > \'%s\' AND "ObservationSTime" < \'%s\''
+                                          '"ObservationETime" > \'%s\' AND "ObservationSTime" < \'%s\' AND '
+                                          '"Completion" >= 0.5'
                                           % (NetworkCode, StationCode,
                                              edate.strftime(),
                                              sdate.strftime())).dictresult()[0]['rcount']
                         if count != 0:
-                            d1 = sdate.datetime()
-                            d2 = edate.datetime()
-                            try:
-                                # superfluous check, but...
-                                stninfo = pyStationInfo.StationInfo(cnn, NetworkCode, StationCode,
-                                                                    pyDate.Date(datetime=(d1 + (d2 - d1)/2)))
-                            except pyStationInfo.pyStationInfoException:
-                                station_list_gaps += [[count, [str(erecord['DateStart']), str(erecord['DateEnd'])],
-                                                       [str(srecord['DateStart']), str(srecord['DateEnd'])]]]
+                            station_list_gaps += [[count, [str(erecord['DateStart']), str(erecord['DateEnd'])],
+                                                   [str(srecord['DateStart']), str(srecord['DateEnd'])]]]
 
             # there should not be RINEX data outside the station info window
             rs = cnn.query('SELECT min("ObservationSTime") as first_obs, max("ObservationSTime") as last_obs '
-                           'FROM rinex_proc WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\''
-                           % (NetworkCode, StationCode))
+                           'FROM rinex_proc WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' '
+                           'AND "Completion" >= 0.5'
+                           % (NetworkCode, StationCode))  # only check RINEX files with more than 12 hours of data
 
             rnxtbl = rs.dictresult()
 
@@ -334,32 +364,31 @@ def StnInfoCheck(cnn, stnlist, Config):
                 if rnxtbl[0]['first_obs'] < stninfo.records[0]['DateStart'].datetime():
                     d1 = pyDate.Date(datetime=rnxtbl[0]['first_obs'])
                     d2 = stninfo.records[0]['DateStart']
-                    sys.stdout.write('There is one or more RINEX observation file(s) outside the '
-                                     'Session Start -> RINEX: %s STNINFO: %s\n' % (d1.yyyyddd(), d2.yyyyddd()))
+                    sys.stdout.write('%s.%s: There is one or more RINEX observation file(s) outside the '
+                                     'Session Start -> RINEX: %s STNINFO: %s\n'
+                                     % (NetworkCode, StationCode, d1.yyyyddd(), d2.yyyyddd()))
                     first_obs = True
 
                 if rnxtbl[0]['last_obs'] > stninfo.records[-1]['DateEnd'].datetime():
                     d1 = pyDate.Date(datetime=rnxtbl[0]['last_obs'])
                     d2 = stninfo.records[-1]['DateEnd']
-                    sys.stdout.write('There is one or more RINEX observation file(s) outside the last '
-                                     'Session End -> RINEX: %s STNINFO: %s\n' % (d1.yyyyddd(), d2.yyyyddd()))
+                    sys.stdout.write('%s.%s: There is one or more RINEX observation file(s) outside the last '
+                                     'Session End -> RINEX: %s STNINFO: %s\n'
+                                     % (NetworkCode, StationCode, d1.yyyyddd(), d2.yyyyddd()))
                     first_obs = True
 
             if len(station_list_gaps) > 0:
                 for gap in station_list_gaps:
-                    sys.stdout.write('There is a gap with %s RINEX files between '
-                                     'the following station information records:\n%s -> %s\n%s -> %s\n' % (gap[0],
-                                                                                                           gap[1][0],
-                                                                                                           gap[1][1],
-                                                                                                           gap[2][0],
-                                                                                                           gap[2][1]))
+                    sys.stdout.write('%s.%s: There is a gap with %s RINEX file(s) between '
+                                     'the following station information records: %s -> %s :: %s -> %s\n'
+                                     % (NetworkCode, StationCode, gap[0], gap[1][0], gap[1][1], gap[2][0], gap[2][1]))
             if len(list_problems) > 0:
                 list_problems = [record[0] + ' -> ' + record[1] +
                                  ' conflicts ' + record[2] + ' -> ' + record[3] for record in list_problems]
 
                 list_problems = '\n   '.join(list_problems)
 
-                sys.stdout.write('There are conflicting recods in the station information table for %s.%s.\n   %s\n'
+                sys.stdout.write('%s.%s: There are conflicting recods in the station information table\n   %s\n'
                                  % (NetworkCode, StationCode, list_problems))
 
             if len(empty_edata) > 1 or len(list_problems) > 0 or first_obs or len(station_list_gaps) > 0 or \
@@ -367,7 +396,7 @@ def StnInfoCheck(cnn, stnlist, Config):
                 # only print a partial of the station info:
                 sys.stdout.write('\n' + stninfo.return_stninfo_short() + '\n\n')
             else:
-                sys.stderr.write('No problems found for %s.%s\n' % (NetworkCode, StationCode))
+                sys.stderr.write('%s.%s: No problems found\n' % (NetworkCode, StationCode))
 
             sys.stdout.flush()
 
@@ -769,10 +798,11 @@ def main():
                         help='Date range filter for all operations. '
                              'Can be specified in wwww-d, yyyy_ddd, yyyy/mm/dd or fyear format')
 
-    parser.add_argument('-rinex', '--check_rinex', action='store_true',
+    parser.add_argument('-rinex', '--check_rinex', choices=['fix', 'report'], type=str, nargs=1,
                         help='Check the RINEX integrity of the archive-database by verifying that the RINEX files '
-                             'reported in the rinex table exist in the archive. If a RINEX file does not exist, '
-                             'remove the record. PPP records or gamit_soln are deleted.')
+                             'reported in the rinex table exist in the archive. If argument = "fix" and a RINEX file '
+                             'does not exist, remove the record. PPP records or gamit_soln are deleted. If argument = '
+                             '"report" then just list the missing files.')
 
     parser.add_argument('-rnx_count', '--rinex_count', action='store_true',
                         help='Count the total number of RINEX files (unique station-days) '
@@ -853,7 +883,7 @@ def main():
     #####################################
 
     if args.check_rinex:
-        CheckRinexIntegrity(stnlist, dates[0], dates[1], JobServer)
+        CheckRinexIntegrity(cnn, Config, stnlist, dates[0], dates[1], args.check_rinex[0], JobServer)
 
     #####################################
 

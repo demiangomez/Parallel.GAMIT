@@ -494,8 +494,9 @@ class ReadRinex(RinexRecord):
 
         for line in self.header:
             # DDG: to avoid problems with accents, and non-UTF-8 chars, remove them
-            line = line.decode('utf-8', 'ignore').encode('utf-8')
-            line = unicodedata.normalize('NFD', unicode(line, 'utf-8')).encode('ascii', 'ignore').decode('utf-8')
+            line = ''.join([i if 32 <= ord(i) < 128 or ord(i) == 10 or ord(i) == 13 else '_' for i in line])
+            # line = line.decode('utf-8', 'ignore').encode('utf-8')
+            # line = unicodedata.normalize('NFD', unicode(line, 'utf-8')).encode('ascii', 'ignore').decode('utf-8')
             if any(line.strip().endswith(key) for key in self.required_records.keys()):
                 # get the first occurrence only!
                 record = [key for key in self.required_records.keys() if key in line][0]

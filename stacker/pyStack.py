@@ -213,7 +213,7 @@ class Stack(list):
                                                  % (name, end_date.year, end_date.doy,
                                                     project, end_date.year, end_date.doy), as_dict=True)
 
-            for d in tqdm(self.dates, ncols=160, desc=' >> Initializing the stack polyhedrons'):
+            for d in tqdm(self.dates, ncols=160, desc=' >> Initializing the stack polyhedrons', disable=None):
                 try:
                     # try to append the stack vertices
                     self.append(Polyhedron(self.stack_vertices, project, d, aligned=True))
@@ -249,7 +249,7 @@ class Stack(list):
         """
         print ' >> Calculating ETMs for %s...' % self.name
 
-        for s in tqdm(self.stations, ncols=160, desc=self.name):
+        for s in tqdm(self.stations, ncols=160, desc=self.name, disable=None):
 
             ts = self.get_station(s['NetworkCode'], s['StationCode'])
             try:
@@ -426,7 +426,7 @@ class Stack(list):
 
                 # loop through all the polyhedrons
                 for poly in tqdm(self, ncols=160, desc=' -- Applying transformation -> %s(2 * pi * 1/%.2f)' %
-                                                       (cs.__name__, np.divide(1., freq))):
+                                                       (cs.__name__, np.divide(1., freq)), disable=None):
 
                     # subtract the inverted common modes
                     poly.vertices['x'] = poly.vertices['x'] - cs(2 * pi * freq * 365.25 * poly.date.fyear) * \
@@ -585,7 +585,7 @@ class Stack(list):
                                'helmert_transformation': comb.helmert.tolist(),
                                'comments': 'No scale factor estimated.'}
 
-        for poly in tqdm(self, ncols=160, desc=' -- Applying coordinate space transformation'):
+        for poly in tqdm(self, ncols=160, desc=' -- Applying coordinate space transformation', disable=None):
             if poly.date != ref_date:
                 poly.align(helmert=helmert, scale=scale)
 
@@ -654,7 +654,7 @@ class Stack(list):
                    ' wrms: %.3f it: %i' % (wrms * 1000, it))
 
         # loop through all the polyhedrons
-        for poly in tqdm(self, ncols=160, desc=' -- Applying velocity space transformation'):
+        for poly in tqdm(self, ncols=160, desc=' -- Applying velocity space transformation', disable=None):
             t = np.repeat(poly.date.fyear - ref_date.fyear, poly.Ax.shape[0])
 
             poly.vertices['x'] = poly.vertices['x'] - t * np.dot(poly.ax(scale=scale), c)
@@ -756,19 +756,21 @@ class Stack(list):
         save the polyhedrons to the database
         :return: nothing
         """
-        for poly in tqdm(self, ncols=160, desc='Saving ' + self.name):
-
-            try:
-                self.cnn.executemany('INSERT INTO stacks ("Project", "NetworkCode", "StationCode", "X", "Y", "Z", '
-                                     '"FYear", "Year", "DOY", sigmax, sigmay, sigmaz, name) VALUES '
-                                     '(%s, %s, %s, %f, %f, %f, %f, %i, %i, 0.000, 0.000, 0.000, %s)',
-                                     [(self.project, vert['stn'].split('.')[0], vert['stn'].split('.')[1],
-                                       float(vert['x']), float(vert['y']), float(vert['z']), float(vert['fy']),
-                                       int(vert['yr']), int(vert['dd']), self.name)
-                                      for vert in poly.vertices])
-            except dbConnection.dbErrInsert:
-                # the element already exists in the database (polyhedron already aligned)
-                pass
+        for poly in tqdm(self, ncols=160, desc='Saving ' + self.name, disable=None):
+            if not poly.aligned_at_init:
+                # this polyhedron was missing when we initialized the objects
+                # thus, this is a new stack or this polyhedron has been added: save it!
+                try:
+                    self.cnn.executemany('INSERT INTO stacks ("Project", "NetworkCode", "StationCode", "X", "Y", "Z", '
+                                         '"FYear", "Year", "DOY", sigmax, sigmay, sigmaz, name) VALUES '
+                                         '(%s, %s, %s, %f, %f, %f, %f, %i, %i, 0.000, 0.000, 0.000, %s)',
+                                         [(self.project, vert['stn'].split('.')[0], vert['stn'].split('.')[1],
+                                           float(vert['x']), float(vert['y']), float(vert['z']), float(vert['fy']),
+                                           int(vert['yr']), int(vert['dd']), self.name)
+                                          for vert in poly.vertices])
+                except (dbConnection.dbErrInsert, dbConnection.IntegrityError):
+                    # the element already exists in the database (polyhedron already aligned)
+                    pass
 
     def to_json(self, json_file):
         json_dump = dict()
@@ -787,6 +789,8 @@ class Polyhedron(object):
         self.project = project
         self.date = date
         self.aligned = aligned
+        # declare a property that provides information about the state of the polyhedron at initialization
+        self.aligned_at_init = aligned
         self.helmert = None
         self.wrms = None
         self.stations_used = None
@@ -988,7 +992,7 @@ def main():
 
     stack = Stack(cnn, 'igs-sirgas', redo=True)
 
-    for i in tqdm(range(1, len(stack)), ncols=160):
+    for i in tqdm(range(1, len(stack)), ncols=160, disable=None):
         stack[i].align(stack[i - 1])
 
     net = 'igs'

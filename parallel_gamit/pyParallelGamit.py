@@ -148,7 +148,7 @@ def purge_solutions(JobServer, args, dates, GamitConfig):
 
         print(' >> Purging selected year-doys before run:')
 
-        pbar = tqdm(total=len(dates), ncols=80, desc=' -- Purge progress')
+        pbar = tqdm(total=len(dates), ncols=80, desc=' -- Purge progress', disable=None)
 
         modules = ('pyDate', 'dbConnection', 'os', 'glob')
 
@@ -174,7 +174,7 @@ def station_list(cnn, NetworkConfig, dates):
     stn_obj = []
 
     # use the connection to the db to get the stations
-    for Stn in tqdm(sorted(stations), ncols=80):
+    for Stn in tqdm(sorted(stations), ncols=80, disable=None):
 
         NetworkCode = Stn['NetworkCode']
         StationCode = Stn['StationCode']
@@ -329,7 +329,7 @@ def main():
     sessions = []
     archive = pyArchiveStruct.RinexStruct(cnn)  # type: pyArchiveStruct.RinexStruct
 
-    for date in tqdm(dates, ncols=80):
+    for date in tqdm(dates, ncols=80, disable=None):
 
         # make the dir for these sessions
         # this avoids a racing condition when starting each process
@@ -386,7 +386,7 @@ def generate_kml(dates, sessions, GamitConfig):
     styles_tie.highlightstyle.iconstyle.color = 'ff0000ff'
     styles_tie.highlightstyle.labelstyle.scale = 2
 
-    for date in tqdm(dates, ncols=80):
+    for date in tqdm(dates, ncols=80, disable=None):
 
         folder = kml.newfolder(name=date.yyyyddd())
 
@@ -428,7 +428,7 @@ def ParseZTD(project, Sessions, GamitConfig):
     # a dictionary for the station aliases lookup table
     alias = dict()
 
-    for GamitSession in tqdm(Sessions, ncols=80):
+    for GamitSession in tqdm(Sessions, ncols=80, disable=None):
         try:
             znd = os.path.join(GamitSession.pwd_glbf, GamitConfig.gamitopt['org'] + GamitSession.date.wwwwd() + '.znd')
 
@@ -478,7 +478,7 @@ def ParseZTD(project, Sessions, GamitConfig):
             # select the station and date
             zd = atmzen[np.logical_and.reduce((atmzen['stn'] == stn,
                                                atmzen['yr'] == date[0], atmzen['doy'] == date[1]))]
-            # careful, not do anything if there is not data for this station-day
+            # careful, don't do anything if there is no data for this station-day
             if zd.size > 0:
                 # find the unique days
                 days = np.unique(np.array([zd['y'], zd['m'], zd['d'], zd['h'], zd['mm']]).transpose(), axis=0)
@@ -500,11 +500,22 @@ def ParseZTD(project, Sessions, GamitConfig):
 
     # now do a bulk insert
     try:
-        tqdm.write(' -- Inserting zenith tropospheric delays into the database...')
+        tqdm.write(' -- Inserting zenith tropospheric delays (%i) into the database...' % len(uztd))
 
-        cnn.executemany('INSERT INTO gamit_ztd ("NetworkCode", "StationCode", "Date", "Project", "model", "sigma", '
-                        '                       "ZTD", "Year", "DOY") VALUES (%s, %s, %s, %s, %f, %f, %f, %i, %i)',
-                        uztd)
+        for ztd in uztd:
+            cnn.insert('gamit_ztd',
+                       NetworkCode=ztd[0],
+                       StationCode=ztd[1],
+                       Date=ztd[2],
+                       Project=ztd[3],
+                       model=ztd[4],
+                       sigma=ztd[5],
+                       ZTD=ztd[6],
+                       Year=ztd[7],
+                       DOY=ztd[8])
+        # cnn.executemany('INSERT INTO gamit_ztd ("NetworkCode", "StationCode", "Date", "Project", "model", "sigma", '
+        #                '                       "ZTD", "Year", "DOY") VALUES (%s, %s, %s, %s, %f, %f, %f, %i, %i)',
+        #                uztd)
     except Exception as e:
         tqdm.write(' -- Error inserting parsed zenith delays: %s' % str(e))
 
@@ -517,7 +528,7 @@ def ExecuteGlobk(GamitConfig, sessions, dates):
 
     tqdm.write(' >> Combining with GLOBK sessions with more than one subnetwork...')
 
-    for date in tqdm(dates, ncols=80):
+    for date in tqdm(dates, ncols=80, disable=None):
 
         pwd = GamitConfig.gamitopt['solutions_dir'].rstrip('/') + '/' + date.yyyy() + '/' + date.ddd()
 
@@ -640,7 +651,7 @@ def run_gamit_session(gamit_task, dir_name, year, doy, dry_run):
 def ExecuteGamit(Sessions, JobServer, dry_run=False):
 
     gamit_pbar = tqdm(total=len([GamitSession for GamitSession in Sessions if not GamitSession.ready]),
-                      desc=' >> GAMIT sessions completion', ncols=100)  # type: tqdm
+                      desc=' >> GAMIT sessions completion', ncols=100, disable=None)  # type: tqdm
 
     tqdm.write(' >> Initializing %i GAMIT sessions' % (len(Sessions)))
 

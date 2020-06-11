@@ -24,7 +24,9 @@ def parse_atx_antennas(atx_file):
     output = f.readlines()
     f.close()
 
-    return re.findall(r'START OF ANTENNA\s+(\w+[.-\/+]?\w*[.-\/+]?\w*)\s+(\w+)', ''.join(output), re.MULTILINE)
+    # return re.findall(r'START OF ANTENNA\s+(\w+[.-\/+]?\w*[.-\/+]?\w*)\s+(\w+)', ''.join(output), re.MULTILINE)
+    # do not return the RADOME
+    return re.findall(r'START OF ANTENNA\s+([\S]+)', ''.join(output), re.MULTILINE)
 
 
 def smallestN_indices(a, N):
@@ -421,7 +423,7 @@ def get_resource_delimiter():
     return '.'
 
 
-def process_stnlist(cnn, stnlist_in, print_summary=True):
+def process_stnlist(cnn, stnlist_in, print_summary=True, summary_title=None):
 
     if len(stnlist_in) == 1 and os.path.isfile(stnlist_in[0]):
         print ' >> Station list read from file: ' + stnlist_in[0]
@@ -473,8 +475,14 @@ def process_stnlist(cnn, stnlist_in, print_summary=True):
         else:
             stnlist = [stnl for stnl in stnlist if stnl['StationCode'] != stn.lower()]
 
+    # sort the dictionary
+    stnlist = sorted(stnlist, key=lambda i: i['StationCode'])
+
     if print_summary:
-        print ' >> Selected station list:'
+        if summary_title is None:
+            print ' >> Selected station list:'
+        else:
+            print ' >> ' + summary_title
         print_columns([item['NetworkCode'] + '.' + item['StationCode'] for item in stnlist])
 
     return stnlist

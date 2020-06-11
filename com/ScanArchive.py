@@ -683,7 +683,7 @@ def scan_rinex(cnn, JobServer, pyArchive, archive_path, master_list, ignore):
     master_list = [item['NetworkCode'] + '.' + item['StationCode'] for item in master_list]
 
     print " >> Analyzing the archive's structure..."
-    pbar = tqdm(ncols=80, unit='crz')
+    pbar = tqdm(ncols=80, unit='crz', disable=None)
 
     depfuncs = (verify_rinex_date_multiday,)
     modules = ('dbConnection', 'pyDate', 'pyRinex', 'shutil', 'platform', 'datetime',
@@ -732,7 +732,7 @@ def process_otl(cnn, JobServer, master_list):
 
     records = rs.dictresult()
 
-    pbar = tqdm(total=len(records), ncols=80)
+    pbar = tqdm(total=len(records), ncols=80, disable=None)
 
     depfuncs = (ecef2lla,)
     modules = ('dbConnection', 'pyRinex', 'pyArchiveStruct', 'pyOTL', 'pyPPP', 'numpy', 'platform', 'pySp3',
@@ -761,7 +761,7 @@ def scan_station_info(JobServer, pyArchive, archive_path, master_list):
 
     master_list = [item['NetworkCode'] + '.' + item['StationCode'] for item in master_list]
 
-    pbar = tqdm(total=len(stninfo), ncols=80)
+    pbar = tqdm(total=len(stninfo), ncols=80, disable=None)
 
     modules = ('dbConnection', 'pyStationInfo', 'sys', 'datetime', 'pyDate', 'platform', 'traceback')
 
@@ -796,7 +796,7 @@ def scan_station_info_man(cnn, pyArchive, stn_info_path, stations, stn_info_net,
         stn_info_obj = pyStationInfo.StationInfo(cnn)
         stn_list = stn_info_obj.parse_station_info(stdin)
 
-        for Station in tqdm(stations, total=len(stations)):
+        for Station in tqdm(stations, total=len(stations), disable=None):
             # input "stations" has a list in net.stnm format
             if Station['StationCode'] in [stn['StationCode'].lower() for stn in stn_list]:
                 tqdm.write("   >> Processing %s using network code %s" % (Station['StationCode'], NetworkCode))
@@ -821,7 +821,7 @@ def scan_station_info_man(cnn, pyArchive, stn_info_path, stations, stn_info_net,
             stn_info_obj = pyStationInfo.StationInfo(cnn)
             stn_list = stn_info_obj.parse_station_info(stninfopath)
 
-            for Station in tqdm(stations, total=len(stations)):
+            for Station in tqdm(stations, total=len(stations), disable=None):
                 # input "stations" has a list in net.stnm format
                 if Station['StationCode'] in [stn['StationCode'].lower() for stn in stn_list]:
                     tqdm.write("   >> Processing %s using network code %s" % (Station['StationCode'], NetworkCode))
@@ -858,7 +858,7 @@ def hash_check(cnn, master_list, sdate, edate, rehash=False, h_tolerant=0):
     else:
         print ' -- Rehashing all records. This may take a while...'
 
-    for soln in tqdm(tbl, ncols=80):
+    for soln in tqdm(tbl, ncols=80, disable=None):
         # load station info object
         try:
 
@@ -925,7 +925,7 @@ def process_ppp(cnn, Config, pyArchive, archive_path, JobServer, master_list, sd
 
     tblrinex = rs_rnx.dictresult()
 
-    pbar = tqdm(total=len(tblrinex), ncols=80)
+    pbar = tqdm(total=len(tblrinex), ncols=80, disable=None)
 
     modules = ('dbConnection', 'pyRinex', 'pyPPP', 'pyStationInfo', 'pyDate', 'pySp3', 'os', 'platform',
                'pyArchiveStruct', 'traceback', 'pyOptions', 'pyEvents', 'Utils')
@@ -977,9 +977,9 @@ def export_station(cnn, stnlist, pyArchive, archive_path, dataless):
     # loop collecting the necessary information
     print " >> Collecting the information for each station in the list..."
 
-    pbar1 = tqdm(total=len(stnlist), ncols=160, position=0)
+    pbar1 = tqdm(total=len(stnlist), ncols=160, position=0, disable=None)
 
-    for stn in tqdm(stnlist, ncols=80):
+    for stn in tqdm(stnlist, ncols=80, disable=None):
 
         NetworkCode = stn['NetworkCode']
         StationCode = stn['StationCode']
@@ -1022,7 +1022,7 @@ def export_station(cnn, stnlist, pyArchive, archive_path, dataless):
             os.makedirs(dest)
 
         rinex_dict = []
-        pbar2 = tqdm(total=len(rinex_lst), ncols=160, position=1)
+        pbar2 = tqdm(total=len(rinex_lst), ncols=160, position=1, disable=None)
         for rnx in rinex_lst:
 
             # make a copy of each file
@@ -1073,7 +1073,7 @@ def import_station(cnn, args):
 
     print " >> Processing input files..."
 
-    for ff in tqdm(files):
+    for ff in tqdm(files, ncols=160, disable=None):
 
         filename = os.path.basename(ff)
 
@@ -1199,7 +1199,7 @@ def get_rinex_file(cnn, stnlist, date, Archive_path):
 
     print " >> Getting stations from db..."
 
-    for stn in tqdm(stnlist, ncols=80):
+    for stn in tqdm(stnlist, ncols=80, disable=None):
 
         NetworkCode = stn['NetworkCode']
         StationCode = stn['StationCode']

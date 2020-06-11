@@ -10,13 +10,16 @@ import os
 import getopt
 import re
 
+
 class StationListException(Exception):
     def __init__(self, value):
         self.value = value
+
     def __str__(self):
         return repr(self.value)
 
-class StationList():
+
+class StationList(object):
 
     def __init__(self,src=None):
 
@@ -47,7 +50,8 @@ class StationList():
     def addStation(self,stn):
         if isinstance(stn, basestring):
             self.stn_list += re.split(',', stn)
-        elif all(isinstance(item, basestring) for item in stn): # check iterable for stringness of all items. Will raise TypeError if some_object is not iterable
+        elif all(isinstance(item, basestring) for item in stn):
+            # check iterable for stringness of all items. Will raise TypeError if some_object is not iterable
             self.stn_list.append(item for item in stn)
         else:
             raise StationListException('Station input type not recognized')

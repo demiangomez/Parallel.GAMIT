@@ -94,7 +94,7 @@ def calculate_etms(cnn, stack, JobServer, iterations, create_target=True):
     """
     global etm_vertices
 
-    qbar = tqdm(total=len(stack.stations), desc=' >> Calculating ETMs', ncols=160)
+    qbar = tqdm(total=len(stack.stations), desc=' >> Calculating ETMs', ncols=160, disable=None)
 
     modules = ('pyETM', 'pyDate', 'dbConnection', 'traceback')
 
@@ -124,7 +124,7 @@ def calculate_etms(cnn, stack, JobServer, iterations, create_target=True):
 
     if create_target:
         target = []
-        for i in tqdm(range(len(stack.dates)), ncols=160, desc=' >> Initializing the target polyhedrons'):
+        for i in tqdm(range(len(stack.dates)), ncols=160, desc=' >> Initializing the target polyhedrons', disable=None):
             dd = stack.dates[i]
             if not stack[i].aligned:
                 # not aligned, put in a target polyhedron
@@ -314,7 +314,8 @@ def main():
 
         target = calculate_etms(cnn, stack, JobServer, i)
 
-        qbar = tqdm(total=len(stack), ncols=160, desc=' >> Aligning polyhedrons (%i of %i)' % (i+1, max_iters))
+        qbar = tqdm(total=len(stack), ncols=160,
+                    desc=' >> Aligning polyhedrons (%i of %i)' % (i+1, max_iters), disable=None)
 
         # work on each polyhedron of the stack
         for j in range(len(stack)):
@@ -364,7 +365,7 @@ def main():
     stack.save()
 
     if args.plot_stack_etms:
-        qbar = tqdm(total=len(stack.stations), ncols=160)
+        qbar = tqdm(total=len(stack.stations), ncols=160, disable=None)
         for stn in stack.stations:
             # plot the ETMs
             qbar.update()

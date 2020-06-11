@@ -2,22 +2,36 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="a64c3a05-b10f-4d88-bc8d-bee6a190e9d3" name="Default" comment="">
+      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/Project_Default.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classes/Utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/Utils.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classes/dbConnection.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/dbConnection.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classes/pyETM.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/pyETM.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classes/pyETM1.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/pyETM1.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classes/pyJobServer.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/pyJobServer.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classes/pyPPP.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/pyPPP.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classes/pyRinex.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/pyRinex.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classes/pyStationInfo.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/pyStationInfo.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../com/ArchiveService.py" beforeDir="false" afterPath="$PROJECT_DIR$/../com/ArchiveService.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../com/IntegrityCheck.py" beforeDir="false" afterPath="$PROJECT_DIR$/../com/IntegrityCheck.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../com/PlotETM.py" beforeDir="false" afterPath="$PROJECT_DIR$/../com/PlotETM.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../com/ScanArchive.py" beforeDir="false" afterPath="$PROJECT_DIR$/../com/ScanArchive.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../parallel_gamit/StationList.py" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/StationList.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../parallel_gamit/pyParallelGamit.py" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/pyParallelGamit.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../parallel_gamit/pyStation.py" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/pyStation.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Stacker.py" beforeDir="false" afterPath="$PROJECT_DIR$/Stacker.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pyStack.py" beforeDir="false" afterPath="$PROJECT_DIR$/pyStack.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
-  <component name="FavoritesManager">
-    <favorites_list name="stacker" />
-  </component>
   <component name="FileTemplateManagerImpl">
     <option name="RECENT_TEMPLATES">
       <list>
-        <option value="Python Script" />
         <option value="Setup Script" />
+        <option value="Python Script" />
       </list>
     </option>
   </component>
@@ -28,15 +42,17 @@
   <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
-    <option name="showExcludedFiles" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
   <component name="PropertiesComponent">
     <property name="SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$/../com" />
-    <property name="settings.editor.selected.configurable" value="configurable.group.project" />
+    <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable" />
   </component>
   <component name="RecentsManager">
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/../com" />
+    </key>
     <key name="CopyFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/../com" />
       <recent name="$PROJECT_DIR$" />
@@ -143,18 +159,6 @@
       </list>
     </recent_temporary>
   </component>
-  <component name="ServiceViewManager">
-    <option name="viewStates">
-      <list>
-        <serviceView>
-          <treeState>
-            <expand />
-            <select />
-          </treeState>
-        </serviceView>
-      </list>
-    </option>
-  </component>
   <component name="SvnConfiguration">
     <configuration />
   </component>
@@ -173,20 +177,37 @@
       <map>
         <entry key="MAIN">
           <value>
-            <State>
-              <option name="COLUMN_ORDER" />
-            </State>
+            <State />
           </value>
         </entry>
       </map>
     </option>
+    <option name="oldMeFiltersMigrated" value="true" />
   </component>
   <component name="WindowStateProjectService">
-    <state x="616" y="355" key="com.intellij.ide.util.TipDialog" timestamp="1579814054293">
+    <state x="100" y="125" width="1720" height="806" key="DiffContextDialog" timestamp="1583256124032">
       <screen x="0" y="27" width="1920" height="1004" />
     </state>
-    <state x="616" y="355" key="com.intellij.ide.util.TipDialog/0.27.1920.1004/1920.0.1920.1080@0.27.1920.1004" timestamp="1579814054293" />
-    <state x="616" y="355" key="com.intellij.ide.util.TipDialog/0.27.1920.1004@0.27.1920.1004" timestamp="1576267787567" />
+    <state x="100" y="125" width="1720" height="806" key="DiffContextDialog/0.27.1920.1004/1920.0.1920.1080@0.27.1920.1004" timestamp="1583256124032" />
+    <state x="449" y="163" key="SettingsEditor" timestamp="1588200464596">
+      <screen x="0" y="27" width="1920" height="1004" />
+    </state>
+    <state x="449" y="163" key="SettingsEditor/0.27.1920.1004/1920.0.1366.768@0.27.1920.1004" timestamp="1588200464596" />
+    <state x="616" y="355" key="com.intellij.ide.util.TipDialog" timestamp="1586176383160">
+      <screen x="0" y="27" width="1920" height="1004" />
+    </state>
+    <state x="616" y="355" key="com.intellij.ide.util.TipDialog/0.27.1920.1004/1920.0.1366.768@0.27.1920.1004" timestamp="1586176383160" />
+    <state x="616" y="355" key="com.intellij.ide.util.TipDialog/0.27.1920.1004/1920.0.1920.1080@0.27.1920.1004" timestamp="1583418476753" />
+    <state x="2536" y="353" key="com.intellij.ide.util.TipDialog/0.27.1920.1004/1920.0.1920.1080@1920.0.1920.1080" timestamp="1580240501757" />
+    <state x="616" y="355" key="com.intellij.ide.util.TipDialog/0.27.1920.1004@0.27.1920.1004" timestamp="1585522026296" />
+    <state x="608" y="239" width="1152" height="586" key="find.popup" timestamp="1583426437039">
+      <screen x="0" y="27" width="1920" height="1004" />
+    </state>
+    <state x="608" y="239" width="1152" height="586" key="find.popup/0.27.1920.1004/1920.0.1920.1080@0.27.1920.1004" timestamp="1583426437039" />
+    <state x="623" y="245" width="672" height="678" key="search.everywhere.popup" timestamp="1588695407423">
+      <screen x="0" y="27" width="1920" height="1004" />
+    </state>
+    <state x="623" y="245" width="672" height="678" key="search.everywhere.popup/0.27.1920.1004/1920.0.1366.768@0.27.1920.1004" timestamp="1588695407423" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
@@ -200,6 +221,11 @@
           <url>file://$PROJECT_DIR$/../classes/pyVoronoi.py</url>
           <line>6</line>
           <option name="timeStamp" value="2" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/../classes/dbConnection.py</url>
+          <line>186</line>
+          <option name="timeStamp" value="3" />
         </line-breakpoint>
       </breakpoints>
       <default-breakpoints>

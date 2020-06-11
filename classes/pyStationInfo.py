@@ -277,15 +277,16 @@ class StationInfo(object):
 
                 return record
             else:
-                raise pyStationInfoHeightCodeNotFound('Could not translate height code %s to DHARP (%s.%s: %s). '
+                raise pyStationInfoHeightCodeNotFound('%s.%s: %s -> Could not translate height code %s to DHARP. '
                                                       'Check the height codes table.'
-                                                       % (record.HeightCode, self.NetworkCode, self.StationCode,
-                                                          record.AntennaCode))
+                                                      % (self.NetworkCode, self.StationCode, record.AntennaCode,
+                                                         record.HeightCode))
 
-    def return_stninfo(self, record=None):
+    def return_stninfo(self, record=None, no_dharp_translate=False):
         """
         return a station information string to write to a file (without header
         :param record: to print a specific record, pass a record, otherwise, leave empty to print all records
+        :param no_dharp_translate: specify if DHARP translation should be done or not
         :return: a string in station information format
         """
         stninfo = []
@@ -298,7 +299,10 @@ class StationInfo(object):
 
         if records is not None:
             for record in records:
-                stninfo.append(str(self.to_dharp(record)))
+                if no_dharp_translate:
+                    stninfo.append(str(record))
+                else:
+                    stninfo.append(str(self.to_dharp(record)))
 
         return '\n'.join(stninfo)
 

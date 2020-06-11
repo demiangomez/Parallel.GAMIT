@@ -10,7 +10,6 @@ import time
 import dispy
 import dispy.httpd
 from tqdm import tqdm
-import traceback
 
 DELAY = 10
 
@@ -264,7 +263,12 @@ class JobServer:
 
             self.cluster.wait()
 
-            self.result.append(j())
+            # create a delay to allow propagation of the result
+            tt = time.time()
+            while j is None and time.time() - tt < 2:
+                pass
+
+            self.result.append(j.result)
 
             self.nodes.append(node)
 

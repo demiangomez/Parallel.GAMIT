@@ -721,7 +721,7 @@ def main():
 
     if args.purge_locks:
         # first, delete all associated files
-        for lock in tqdm(locks, ncols=160, unit='crz', desc='%-30s' % ' >> Purging locks'):
+        for lock in tqdm(locks, ncols=160, unit='crz', desc='%-30s' % ' >> Purging locks', disable=None):
             try:
                 os.remove(os.path.join(Config.repository_data_in, lock['filename']))
             except Exception:
@@ -741,13 +741,13 @@ def main():
 
     archive = pyArchiveStruct.RinexStruct(cnn)
 
-    pbar = tqdm(desc='%-30s' % ' >> Scanning data_in_retry', ncols=160, unit='crz')
+    pbar = tqdm(desc='%-30s' % ' >> Scanning data_in_retry', ncols=160, unit='crz', disable=None)
 
     rfiles, paths, _ = archive.scan_archive_struct(data_in_retry, pbar)
 
     pbar.close()
 
-    pbar = tqdm(desc='%-30s' % ' -- Moving files to data_in', total=len(rfiles), ncols=160, unit='crz')
+    pbar = tqdm(desc='%-30s' % ' -- Moving files to data_in', total=len(rfiles), ncols=160, unit='crz', disable=None)
 
     for rfile, path in zip(rfiles, paths):
 
@@ -776,13 +776,13 @@ def main():
     files_path = []
     files_list = []
 
-    pbar = tqdm(desc='%-30s' % ' >> Repository crinez scan', ncols=160)
+    pbar = tqdm(desc='%-30s' % ' >> Repository crinez scan', ncols=160, disable=None)
 
     rpaths, _, files = archive.scan_archive_struct(data_in, pbar)
 
     pbar.close()
 
-    pbar = tqdm(desc='%-30s' % ' -- Checking the locks table', total=len(files), ncols=130, unit='crz')
+    pbar = tqdm(desc='%-30s' % ' -- Checking the locks table', total=len(files), ncols=130, unit='crz', disable=None)
 
     for file, path in zip(files, rpaths):
         pbar.set_postfix(crinez=file)
@@ -796,7 +796,7 @@ def main():
     tqdm.write(" -- Found %i files in the lock list..." % (len(locks)))
     tqdm.write(" -- Found %i files (matching format [stnm][doy][s].[yy]d.Z) to process..." % (len(files_list)))
 
-    pbar = tqdm(desc='%-30s' % ' >> Processing repository', total=len(files_path), ncols=160, unit='crz')
+    pbar = tqdm(desc='%-30s' % ' >> Processing repository', total=len(files_path), ncols=160, unit='crz', disable=None)
 
     # dependency functions
     depfuncs = (check_rinex_timespan_int, write_error, error_handle, insert_data, verify_rinex_multiday)
