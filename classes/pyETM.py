@@ -2188,7 +2188,9 @@ class ETM:
         window = None
 
         for jump in self.Jumps.table:
-            if jump.date == date and jump.p.jump_type in (GENERIC_JUMP, CO_SEISMIC_JUMP_DECAY):
+            if jump.date == date and \
+                    jump.p.jump_type in (GENERIC_JUMP, CO_SEISMIC_JUMP_DECAY, ANTENNA_CHANGE, CO_SEISMIC_JUMP) \
+                    and jump.fit:
                 if np.sqrt(np.sum(np.square(jump.p.params[:, 0]))) > 0.02:
                     window = jump.date
                     # if no pre or post specified, then determine using the time of the jump

@@ -2,10 +2,7 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="a64c3a05-b10f-4d88-bc8d-bee6a190e9d3" name="Default" comment="">
-      <change beforePath="$PROJECT_DIR$/../classes/dbConnection.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/dbConnection.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit/GenerateKml.py" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/GenerateKml.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit/pyParallelGamit.py" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/pyParallelGamit.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classes/pyETM.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/pyETM.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
