@@ -21,7 +21,8 @@ import matplotlib.dates as mdates
 from matplotlib.collections import PolyCollection
 from io import BytesIO
 import base64
-
+import numpy as np
+import pyDate
 
 if 'DISPLAY' in os.environ.keys():
     if not os.environ['DISPLAY']:
@@ -69,7 +70,7 @@ def generate_kml(cnn, project, stations):
     stylec.normalstyle.labelstyle.scale = 0
 
     stylec.highlightstyle.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png'
-    stylec.highlightstyle.labelstyle.scale = 2
+    stylec.highlightstyle.labelstyle.scale = 3
 
     styles_ok = simplekml.StyleMap()
     styles_ok.normalstyle.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/placemark_square.png'
@@ -78,7 +79,7 @@ def generate_kml(cnn, project, stations):
 
     styles_ok.highlightstyle.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/placemark_square.png'
     styles_ok.highlightstyle.iconstyle.color = 'ff00ff00'
-    styles_ok.highlightstyle.labelstyle.scale = 2
+    styles_ok.highlightstyle.labelstyle.scale = 3
 
     styles_nok = simplekml.StyleMap()
     styles_nok.normalstyle.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/placemark_square.png'
@@ -87,7 +88,7 @@ def generate_kml(cnn, project, stations):
 
     styles_nok.highlightstyle.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/placemark_square.png'
     styles_nok.highlightstyle.iconstyle.color = 'ff0000ff'
-    styles_nok.highlightstyle.labelstyle.scale = 2
+    styles_nok.highlightstyle.labelstyle.scale = 3
 
     for stn in tqdm(rs, ncols=80):
 
@@ -153,7 +154,7 @@ def generate_kml(cnn, project, stations):
     kml.savekmz('production/' + project + '.kmz')
 
 
-def plot_station_info_rinex(cnn, NetworkCode, StationCode, stninfo):
+def plot_station_info_rinex2(cnn, NetworkCode, StationCode, stninfo):
 
     import matplotlib.pyplot as plt
 
@@ -203,11 +204,66 @@ def plot_station_info_rinex(cnn, NetworkCode, StationCode, stninfo):
 
     figfile = BytesIO()
 
-    plt.savefig(figfile, format='png')
-    # plt.show()
-    figfile.seek(0)  # rewind to beginning of file
+    try:
+        plt.savefig(figfile, format='png')
+        # plt.show()
+        figfile.seek(0)  # rewind to beginning of file
 
-    figdata_png = base64.b64encode(figfile.getvalue())
+        figdata_png = base64.b64encode(figfile.getvalue())
+    except ValueError:
+        # either no rinex or no station info
+        figdata_png = ''
+        tqdm.write(' -- Error processing %s.%s: station appears to have no RINEX or Station Info'
+                   % (NetworkCode, StationCode))
+
+    plt.close()
+
+    return figdata_png
+
+
+def plot_station_info_rinex(cnn, NetworkCode, StationCode, stninfo):
+
+    import matplotlib.pyplot as plt
+
+    stnfo = []
+
+    if stninfo.records is not None:
+        for record in stninfo.records:
+            if record['DateEnd'].year is not None:
+                stnfo.append([record['DateStart'].fyear, record['DateEnd'].fyear])
+            else:
+                stnfo.append([record['DateStart'].fyear, pyDate.Date(datetime=dt.datetime.now()).fyear])
+
+    rinex = np.array(cnn.query_float('SELECT "ObservationFYear" FROM rinex_proc WHERE "NetworkCode" = \'%s\' '
+                                     'AND "StationCode" = \'%s\'' % (NetworkCode, StationCode)))
+
+    fig, ax = plt.subplots(figsize=(7, 3))
+
+    ax.grid(True)
+    ax.set_title('RINEX and Station Information for %s.%s' % (NetworkCode, StationCode))
+
+    for poly in stnfo:
+        ax.plot(poly, [1, 1], 'o-', linewidth=2, markersize=4, color='tab:orange')
+        # break line to clearly show the stop of a station info
+        ax.plot([poly[1], poly[1]], [-0.5, 1.5], ':', color='tab:orange')
+
+    ax.plot(rinex, np.zeros(rinex.shape[0]), 'o', color='tab:blue', markersize=3)
+    ax.set_yticks([0, 1])
+    ax.set_yticklabels(["rinex", "stninfo"])
+    plt.ylim([-.5, 1.5])
+    figfile = BytesIO()
+
+    try:
+        plt.savefig(figfile, format='png')
+        # plt.show()
+        figfile.seek(0)  # rewind to beginning of file
+
+        figdata_png = base64.b64encode(figfile.getvalue())
+    except Exception:
+        # either no rinex or no station info
+        figdata_png = ''
+        tqdm.write(' -- Error processing %s.%s: station appears to have no RINEX or Station Info'
+                   % (NetworkCode, StationCode))
 
     plt.close()
 

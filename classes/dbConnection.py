@@ -60,8 +60,8 @@ class Cnn(pg.DB):
             options[iconfig] = val
 
         # open connection to server
-        tries = 0
-        while True:
+        err = None
+        for i in range(3):
             try:
                 pg.DB.__init__(self, host=options['hostname'],
                                user=options['username'],
@@ -73,18 +73,18 @@ class Cnn(pg.DB):
                     pg.set_decimal(float)
                 else:
                     pg.set_decimal(Decimal)
-                break
             except pg.InternalError as e:
+                err = e
                 if 'Operation timed out' in str(e) or 'Connection refused' in str(e):
-                    if tries < 4:
-                        tries += 1
-                        continue
-                    else:
-                        raise dbErrConnect(e)
+                    continue
                 else:
                     raise e
             except Exception as e:
                 raise e
+            else:
+                break
+        else:
+            raise dbErrConnect(err)
 
         # open a conenction to a cursor
         self.cursor_conn = pgdb.connect(host=self.options['hostname'],
@@ -95,12 +95,18 @@ class Cnn(pg.DB):
         self.cursor = self.cursor_conn.cursor()
 
     def query(self, command, *args):
-        try:
-            rs = pg.DB.query(self, command, *args)
-        except ValueError:
-            # connection lost, attempt to reconnect
-            self.reopen()
-            rs = pg.DB.query(self, command, *args)
+        err = None
+        for i in range(3):
+            try:
+                rs = pg.DB.query(self, command, *args)
+            except ValueError as e:
+                # connection lost, attempt to reconnect
+                self.reopen()
+                err = e
+            else:
+                break
+        else:
+            raise Exception('dbConnection.query failed after 3 retries. Last error was: ' + str(err))
 
         return rs
 
@@ -109,12 +115,18 @@ class Cnn(pg.DB):
         pg.set_typecast('Numeric', float)
         pg.set_decimal(float)
 
-        try:
-            rs = self.query(command)
-        except ValueError:
-            # connection lost, attempt to reconnect
-            self.reopen()
-            rs = self.query(command)
+        err = None
+        for i in range(3):
+            try:
+                rs = self.query(command)
+            except ValueError as e:
+                # connection lost, attempt to reconnect
+                self.reopen()
+                err = e
+            else:
+                break
+        else:
+            raise Exception('dbConnection.query_float failed after 3 retries. Last error was: ' + str(err))
 
         if as_dict:
             recordset = rs.dictresult()
@@ -127,7 +139,8 @@ class Cnn(pg.DB):
         return recordset
 
     def get_columns(self, table):
-        tblinfo = self.query('select column_name, data_type from information_schema.columns where table_name=\'%s\'' % table)
+        tblinfo = self.query('select column_name, data_type from information_schema.columns where table_name=\'%s\''
+                             % table)
 
         field_dict = dict()
 
@@ -153,15 +166,20 @@ class Cnn(pg.DB):
         self.rollback()
 
     def insert(self, table, row=None, **kw):
-
-        try:
-            pg.DB.insert(self, table, row, **kw)
-        except ValueError:
-            # connection lost, attempt to reconnect
-            self.reopen()
-            pg.DB.insert(self, table, row, **kw)
-        except Exception as e:
-            raise dbErrInsert(e)
+        err = None
+        for i in range(3):
+            try:
+                pg.DB.insert(self, table, row, **kw)
+            except ValueError as e:
+                # connection lost, attempt to reconnect
+                self.reopen()
+                err = e
+            except Exception as e:
+                raise dbErrInsert(e)
+            else:
+                break
+        else:
+            raise dbErrInsert('dbConnection.insert failed after 3 retries. Last error was: ' + str(err))
 
     def executemany(self, sql, parameters):
 
@@ -174,26 +192,36 @@ class Cnn(pg.DB):
             raise
 
     def update(self, table, row=None, **kw):
-
-        try:
-            pg.DB.update(self, table, row, **kw)
-        except ValueError:
-            # connection lost, attempt to reconnect
-            self.reopen()
-            pg.DB.update(self, table, row, **kw)
-        except Exception as e:
-            raise dbErrUpdate(e)
+        err = None
+        for i in range(3):
+            try:
+                pg.DB.update(self, table, row, **kw)
+            except ValueError as e:
+                # connection lost, attempt to reconnect
+                self.reopen()
+                err = e
+            except Exception as e:
+                raise dbErrUpdate(e)
+            else:
+                break
+        else:
+            raise dbErrUpdate('dbConnection.update failed after 3 retries. Last error was: ' + str(err))
 
     def delete(self, table, row=None, **kw):
-
-        try:
-            pg.DB.delete(self, table, row, **kw)
-        except ValueError:
-            # connection lost, attempt to reconnect
-            self.reopen()
-            pg.DB.delete(self, table, row, **kw)
-        except Exception as e:
-            raise dbErrDelete(e)
+        err = None
+        for i in range(3):
+            try:
+                pg.DB.delete(self, table, row, **kw)
+            except ValueError as e:
+                # connection lost, attempt to reconnect
+                self.reopen()
+                err = e
+            except Exception as e:
+                raise dbErrDelete(e)
+            else:
+                break
+        else:
+            raise dbErrDelete('dbConnection.delete failed after 3 retries. Last error was: ' + str(err))
 
     def insert_event(self, event):
 

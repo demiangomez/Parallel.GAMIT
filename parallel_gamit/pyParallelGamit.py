@@ -33,7 +33,7 @@ import simplekml
 import numpy as np
 from itertools import repeat
 
-cnn = None
+cnn = dbConnection.Cnn('gnss_data.cfg')  # type: dbConnection.Cnn
 
 
 def print_summary(stations, sessions, dates):
@@ -168,7 +168,7 @@ def purge_solutions(JobServer, args, dates, GamitConfig):
         JobServer.close_cluster()
 
 
-def station_list(cnn, NetworkConfig, dates):
+def station_list(NetworkConfig, dates):
 
     stations = process_stnlist(cnn, NetworkConfig['stn_list'].split(','))
     stn_obj = []
@@ -237,8 +237,6 @@ def compare_aliases(Station, AllStations):
 
 def main():
 
-    global cnn
-
     parser = argparse.ArgumentParser(description='Parallel.GAMIT main execution program')
 
     parser.add_argument('session_cfg', type=str, nargs=1, metavar='session.cfg',
@@ -302,8 +300,6 @@ def main():
                                       run_parallel=not args.noparallel,
                                       software_sync=GamitConfig.gamitopt['gamit_remote_local'])
 
-    cnn = dbConnection.Cnn(GamitConfig.gamitopt['gnss_data'])  # type: dbConnection.Cnn
-
     # to exclude stations, append them to GamitConfig.NetworkConfig with a - in front
     exclude = args.exclude
     if exclude is not None:
@@ -322,7 +318,7 @@ def main():
         purge_solutions(JobServer, args, dates, GamitConfig)
 
     # initialize stations in the project
-    stations = station_list(cnn, GamitConfig.NetworkConfig, drange)
+    stations = station_list(GamitConfig.NetworkConfig, drange)
 
     tqdm.write(' >> Creating GAMIT session instances, please wait...')
 
@@ -522,8 +518,6 @@ def ParseZTD(project, Sessions, GamitConfig):
 
 def ExecuteGlobk(GamitConfig, sessions, dates):
 
-    global cnn
-
     project = GamitConfig.NetworkConfig.network_id.lower()
 
     tqdm.write(' >> Combining with GLOBK sessions with more than one subnetwork...')
@@ -594,7 +588,7 @@ def ExecuteGlobk(GamitConfig, sessions, dates):
                         # tqdm.write('    --> Error inserting ' + key + ' -> ' + str(e))
                         pass
                 else:
-                    tqdm.write(' >> Invalid key found in session %s -> %s' % (date.yyyyddd(), key))
+                    tqdm.write(' -- Invalid key found in session %s -> %s' % (date.yyyyddd(), key))
     return
 
 
