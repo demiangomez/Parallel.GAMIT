@@ -321,7 +321,8 @@ def main():
     # initialize stations in the project
     stations = station_list(GamitConfig.NetworkConfig, drange)
 
-    tqdm.write(' >> Creating GAMIT session instances, please wait...')
+    tqdm.write(' >> %s Creating GAMIT session instances, please wait...'
+               % datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
 
     sessions = []
     archive = pyArchiveStruct.RinexStruct(cnn)  # type: pyArchiveStruct.RinexStruct
@@ -352,12 +353,13 @@ def main():
 
     # execute globk on doys that had to be divided into subnets
     if not args.dry_run:
-        ExecuteGlobk(GamitConfig, sessions, dates)
+        ExecuteGlobk(JobServer, GamitConfig, sessions, dates)
 
         # parse the zenith delay outputs
         ParseZTD(GamitConfig.NetworkConfig.network_id, sessions, GamitConfig)
 
-    print(' >> Done processing and parsing information. Successful exit from Parallel.GAMIT')
+    print(' >> %s Done processing and parsing information. Successful exit from Parallel.GAMIT'
+          % datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
 
 
 def generate_kml(dates, sessions, GamitConfig):
@@ -418,7 +420,7 @@ def ParseZTD(project, Sessions, GamitConfig):
 
     global cnn
 
-    tqdm.write(' >> Parsing the zenith tropospheric delays...')
+    tqdm.write(' >> %s Parsing the zenith tropospheric delays...' % datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
 
     # atmospheric zenith delay list
     atmzen = []
@@ -463,7 +465,8 @@ def ParseZTD(project, Sessions, GamitConfig):
 
     atmzen.sort(order=['stn', 'y', 'm', 'd', 'h', 'mm'])
 
-    tqdm.write(' -- Averaging zenith delays from stations in multiple sessions...')
+    tqdm.write(' -- %s Averaging zenith delays from stations in multiple sessions...'
+               % datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
     # get the stations in the processing
     stations = np.unique(atmzen['stn'])
     # get the unique dates for this process
@@ -490,14 +493,16 @@ def ParseZTD(project, Sessions, GamitConfig):
                                 date.tolist())
 
     # drop all records from the database to make sure there will be no problems with massive insert
-    tqdm.write(' -- Deleting previous zenith tropospheric delays from the database...')
+    tqdm.write(' -- %s Deleting previous zenith tropospheric delays from the database...'
+               % datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
     for date in date_vec:
         cnn.query('DELETE FROM gamit_ztd WHERE "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i'
                   % (project.lower(), date[0], date[1]))
 
     # now do a bulk insert
     try:
-        tqdm.write(' -- Inserting zenith tropospheric delays (%i) into the database...' % len(uztd))
+        tqdm.write(' -- %s Inserting zenith tropospheric delays (%i) into the database...'
+                   % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), len(uztd)))
 
         for ztd in uztd:
             cnn.insert('gamit_ztd',
