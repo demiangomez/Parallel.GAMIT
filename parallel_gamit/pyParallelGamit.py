@@ -17,7 +17,7 @@ import pyGamitSession
 from pyNetwork import Network
 from datetime import datetime
 import dbConnection
-from math import sqrt
+import math
 import shutil
 from math import ceil
 import argparse
@@ -529,7 +529,7 @@ def ExecuteGlobk(JobServer, GamitConfig, sessions, dates):
     tqdm.write(' >> %s Combining with GLOBK sessions with more than one subnetwork...'
                % datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
 
-    modules = ('os', 'shutil', 'snxParse', 'subprocess', 'platform', 'traceback', 'glob', 'dbConnection')
+    modules = ('os', 'shutil', 'snxParse', 'subprocess', 'platform', 'traceback', 'glob', 'dbConnection', 'math')
 
     JobServer.create_cluster(run_globk, (pyGlobkTask.Globk, pyGamitSession.GamitSession),
                              globk_callback, modules=modules)
@@ -658,12 +658,12 @@ def run_globk(globk_object, project, date):
                            X=value.X,
                            Y=value.Y,
                            Z=value.Z,
-                           sigmax=value.sigX * sqrt(variance),
-                           sigmay=value.sigY * sqrt(variance),
-                           sigmaz=value.sigZ * sqrt(variance),
-                           sigmaxy=value.sigXY * sqrt(variance),
-                           sigmaxz=value.sigXZ * sqrt(variance),
-                           sigmayz=value.sigYZ * sqrt(variance),
+                           sigmax=value.sigX * math.sqrt(variance),
+                           sigmay=value.sigY * math.sqrt(variance),
+                           sigmaz=value.sigZ * math.sqrt(variance),
+                           sigmaxy=value.sigXY * math.sqrt(variance),
+                           sigmaxz=value.sigXZ * math.sqrt(variance),
+                           sigmayz=value.sigYZ * math.sqrt(variance),
                            VarianceFactor=variance)
             except dbConnection.dbErrInsert as e:
                 # tqdm.write('    --> Error inserting ' + key + ' -> ' + str(e))
