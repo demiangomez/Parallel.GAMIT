@@ -17,7 +17,7 @@ import pyGamitSession
 from pyNetwork import Network
 from datetime import datetime
 import dbConnection
-import math
+from math import sqrt
 import shutil
 from math import ceil
 import argparse
@@ -349,7 +349,7 @@ def main():
     # print_summary(stations, sessions, drange)
 
     # run the job server
-    ExecuteGamit(sessions, JobServer, dry_run)
+    # ExecuteGamit(sessions, JobServer, dry_run)
 
     # execute globk on doys that had to be divided into subnets
     if not args.dry_run:
@@ -601,32 +601,62 @@ def gamit_callback(job):
                 try:
                     cnn.insert('gamit_stats', result)
                 except dbConnection.dbErrInsert as e:
-                    tqdm.write(' -- Error while inserting GAMIT stat for %s: ' % result['session'] + str(e))
+                    tqdm.write(' -- %s Error while inserting GAMIT stat for %s: '
+                               % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), result['session'] + str(e)))
 
             else:
-                tqdm.write(' -- Done processing: %s -> FATAL:\n%s' % (result['session'],
-                                                                      '    > Failed to complete. Check monitor.log'))
+                tqdm.write(' -- Done processing: %s -> FATAL:\n%s'
+                           % (result['session'], '    > Failed to complete. Check monitor.log'))
                 # write FATAL to file
                 f = open('FATAL.log', 'a')
                 f.write('ON %s session %s -> FATAL: Failed to complete. Check monitor.log\n'
                         % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), result['session']))
                 f.close()
         else:
-            tqdm.write(' -- Error in session %s message from node follows -> \n%s'
-                       % (result['session'], result['error']))
+            tqdm.write(' -- %s Error in session %s message from node follows -> \n%s'
+                       % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), result['session'], result['error']))
 
     else:
-        tqdm.write(' -- Fatal error on node %s message from node follows -> \n%s' % (job.ip_addr, job.exception))
+        tqdm.write(' -- %s Fatal error on node %s message from node follows -> \n%s'
+                   % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), job.ip_addr, job.exception))
 
 
 def globk_callback(job):
 
+    global cnn
+
     result = job.result
 
     if result is not None:
-        if not result['success']:
-            tqdm.write(' -- %s Error while combining with GLOBK -> %s'
-                       % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), result['error']))
+        polyhedron, variance, project, date = result
+        # insert polyherdon in gamit_soln table
+        for key, value in polyhedron.iteritems():
+            if '.' in key:
+                try:
+                    cnn.insert('gamit_soln',
+                               NetworkCode=key.split('.')[0],
+                               StationCode=key.split('.')[1],
+                               Project=project,
+                               Year=date.year,
+                               DOY=date.doy,
+                               FYear=date.fyear,
+                               X=value.X,
+                               Y=value.Y,
+                               Z=value.Z,
+                               sigmax=value.sigX * sqrt(variance),
+                               sigmay=value.sigY * sqrt(variance),
+                               sigmaz=value.sigZ * sqrt(variance),
+                               sigmaxy=value.sigXY * sqrt(variance),
+                               sigmaxz=value.sigXZ * sqrt(variance),
+                               sigmayz=value.sigYZ * sqrt(variance),
+                               VarianceFactor=variance)
+                except dbConnection.dbErrInsert as e:
+                    # tqdm.write('    --> Error inserting ' + key + ' -> ' + str(e))
+                    pass
+            else:
+                tqdm.write(' -- %s Error while combining with GLOBK -> Invalid key found in session %s -> %s. '
+                           'Polyhedron in database may be incomplete.'
+                           % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), date.yyyyddd(), key))
 
     else:
         tqdm.write(' -- %s Fatal error on node %s message from node follows -> \n%s'
@@ -640,39 +670,8 @@ def run_gamit_session(gamit_task, dir_name, year, doy, dry_run):
 
 def run_globk(globk_object, project, date):
 
-    cnn = dbConnection.Cnn('gnss_data.cfg')
-
     polyhedron, variance = globk_object.execute()
-
-    # insert polyherdon in gamit_soln table
-    for key, value in polyhedron.iteritems():
-        if '.' in key:
-            try:
-                cnn.insert('gamit_soln',
-                           NetworkCode=key.split('.')[0],
-                           StationCode=key.split('.')[1],
-                           Project=project,
-                           Year=date.year,
-                           DOY=date.doy,
-                           FYear=date.fyear,
-                           X=value.X,
-                           Y=value.Y,
-                           Z=value.Z,
-                           sigmax=value.sigX * math.sqrt(variance),
-                           sigmay=value.sigY * math.sqrt(variance),
-                           sigmaz=value.sigZ * math.sqrt(variance),
-                           sigmaxy=value.sigXY * math.sqrt(variance),
-                           sigmaxz=value.sigXZ * math.sqrt(variance),
-                           sigmayz=value.sigYZ * math.sqrt(variance),
-                           VarianceFactor=variance)
-            except dbConnection.dbErrInsert as e:
-                # tqdm.write('    --> Error inserting ' + key + ' -> ' + str(e))
-                pass
-        else:
-            return {'error': ' -- Invalid key found in session %s -> %s. Polyhedron in database may be incomplete.'
-                             % (date.yyyyddd(), key), 'success': False}
-
-    return {'error': None, 'success': True}
+    return polyhedron, variance, project, date
 
 
 def ExecuteGamit(Sessions, JobServer, dry_run=False):
@@ -695,7 +694,7 @@ def ExecuteGamit(Sessions, JobServer, dry_run=False):
 
     JobServer.create_cluster(run_gamit_session, (pyGamitTask.GamitTask,), gamit_callback, gamit_pbar, modules=modules)
 
-    gtasks = []
+    # gtasks = []
 
     for GamitSession in Sessions:
         if not GamitSession.ready:
@@ -705,10 +704,17 @@ def ExecuteGamit(Sessions, JobServer, dry_run=False):
 
             JobServer.submit(task, task.params['DirName'], task.date.year, task.date.doy, dry_run)
 
+            tqdm.write(' -- %s Submitting %s %s %02i for processing'
+                       % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                          GamitSession.NetName, GamitSession.date.yyyyddd(),
+                          GamitSession.subnet if GamitSession.subnet is not None else 0))
             # save it just in case...
-            gtasks.append(task)
+            # gtasks.append(task)
         else:
-            tqdm.write(' -- Session already processed: ' + GamitSession.NetName + ' ' + GamitSession.date.yyyyddd())
+            tqdm.write(' -- %s Session %s %s %02i already processed'
+                       % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                          GamitSession.NetName, GamitSession.date.yyyyddd(),
+                          GamitSession.subnet if GamitSession.subnet is not None else 0))
 
     tqdm.write(' -- %s Done initializing and submitting GAMIT sessions' % datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
 
