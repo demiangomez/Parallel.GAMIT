@@ -548,13 +548,17 @@ def ExecuteGlobk(JobServer, GamitConfig, sessions, dates):
                 # add to combination
                 GlobkComb.append(GamitSession)
 
-                cmd = 'grep -q \'FATAL\' ' + os.path.join(GamitSession.solution_pwd, 'monitor.log')
-                fatal = os.system(cmd)
+                if os.path.isfile(os.path.join(GamitSession.solution_pwd, 'monitor.log')):
+                    cmd = 'grep -q \'FATAL\' ' + os.path.join(GamitSession.solution_pwd, 'monitor.log')
+                    fatal = os.system(cmd)
+                else:
+                    fatal = 0
 
                 if fatal == 0:
                     Fatal = True
-                    tqdm.write(' >> GAMIT FATAL found in monitor of session %s %s. This combined solution will not be '
-                               'added to the database.' % (GamitSession.NetName, GamitSession.date.yyyyddd()))
+                    tqdm.write(' >> GAMIT FATAL found in monitor of session %s %s (or no monitor.log file). '
+                               'This combined solution will not be added to the database.'
+                               % (GamitSession.NetName, GamitSession.date.yyyyddd()))
 
         if not Fatal:
             # folder where the combination (or final solution if single network) should be written to

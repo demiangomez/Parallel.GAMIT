@@ -62,7 +62,7 @@ class Globk(object):
     def linktables(self, year, eop_type):
 
         try:
-            link_tables = open(os.path.join(self.pwd_comb, 'link_tables.sh'),'w')
+            link_tables = open(os.path.join(self.pwd_comb, 'link_tables.sh'), 'w')
         except Exception:
             raise GlobkException('could not open file link_tables.sh')
 
@@ -108,7 +108,7 @@ class Globk(object):
         run_file_path = os.path.join(self.pwd_comb, 'globk.sh')
 
         try:
-            run_file = open(run_file_path,'w')
+            run_file = open(run_file_path, 'w')
         except Exception:
             raise GlobkException('could not open file '+run_file_path)
 
@@ -206,7 +206,7 @@ class Globk(object):
         run_file.close()
 
         # add executable permissions
-        os.system('chmod +x '+run_file_path)
+        os.system('chmod +x ' + run_file_path)
 
         return
 
