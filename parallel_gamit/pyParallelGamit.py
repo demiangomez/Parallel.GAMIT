@@ -533,7 +533,16 @@ def ExecuteGlobk(JobServer, GamitConfig, sessions, dates):
 
     JobServer.create_cluster(run_globk, (pyGlobkTask.Globk, pyGamitSession.GamitSession),
                              globk_callback, modules=modules)
-    gk_objects = []
+
+    # For debugging parallel python runs
+    console = logging.FileHandler('pp.log')
+    console.setLevel(logging.DEBUG)
+    JobServer.job_server.logger.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('%(asctime)s %(name)s: %(levelname)-8s %(message)s')
+    console.setFormatter(formatter)
+    JobServer.job_server.logger.addHandler(console)
+
+    # gk_objects = []
 
     for date in tqdm(dates, ncols=80, disable=None):
 
@@ -568,7 +577,7 @@ def ExecuteGlobk(JobServer, GamitConfig, sessions, dates):
 
             JobServer.submit(globk, project, date)
             # save the object just in case...
-            gk_objects.append(globk)
+            # gk_objects.append(globk)
 
     JobServer.wait()
     JobServer.close_cluster()
@@ -637,23 +646,29 @@ def globk_callback(job):
         for key, value in polyhedron.iteritems():
             if '.' in key:
                 try:
-                    cnn.insert('gamit_soln',
-                               NetworkCode=key.split('.')[0],
-                               StationCode=key.split('.')[1],
-                               Project=project,
-                               Year=date.year,
-                               DOY=date.doy,
-                               FYear=date.fyear,
-                               X=value.X,
-                               Y=value.Y,
-                               Z=value.Z,
-                               sigmax=value.sigX * sqrt(variance),
-                               sigmay=value.sigY * sqrt(variance),
-                               sigmaz=value.sigZ * sqrt(variance),
-                               sigmaxy=value.sigXY * sqrt(variance),
-                               sigmaxz=value.sigXZ * sqrt(variance),
-                               sigmayz=value.sigYZ * sqrt(variance),
-                               VarianceFactor=variance)
+                    if not len(cnn.query_float('SELECT * FROM gamit_soln WHERE '
+                                               '"NetworkCode" = \'' + key.split('.')[0] + '\' AND '
+                                               '"StationCode" = \'' + key.split('.')[1] + '\' AND '
+                                               '"Project" = \'' + project + '\' AND '
+                                               '"Year" = ' + str(date.year) + ' AND '
+                                               '"DOY" = ' + str(date.doy))):
+                        cnn.insert('gamit_soln',
+                                   NetworkCode=key.split('.')[0],
+                                   StationCode=key.split('.')[1],
+                                   Project=project,
+                                   Year=date.year,
+                                   DOY=date.doy,
+                                   FYear=date.fyear,
+                                   X=value.X,
+                                   Y=value.Y,
+                                   Z=value.Z,
+                                   sigmax=value.sigX * sqrt(variance),
+                                   sigmay=value.sigY * sqrt(variance),
+                                   sigmaz=value.sigZ * sqrt(variance),
+                                   sigmaxy=value.sigXY * sqrt(variance),
+                                   sigmaxz=value.sigXZ * sqrt(variance),
+                                   sigmayz=value.sigYZ * sqrt(variance),
+                                   VarianceFactor=variance)
                 except dbConnection.dbErrInsert as e:
                     # tqdm.write('    --> Error inserting ' + key + ' -> ' + str(e))
                     pass
