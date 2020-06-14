@@ -4,10 +4,10 @@ Date: Dic-03-2016
 Author: Demian D. Gomez
 """
 import os
-from shutil import copyfile
 import glob
 import subprocess
 import snxParse
+import shutil
 
 
 class GlobkException(Exception):
@@ -30,20 +30,34 @@ class Globk(object):
         self.stdout = None
         self.stderr = None
         self.p = None
+        self.polyhedron = None
+        self.variance = None
 
-        # try to create the folder
-        if not os.path.exists(pwd_comb):
-            os.makedirs(pwd_comb)
+        # if more than one session, then we need to run globk to combine
+        if len(Sessions) > 1:
+            # try to create the folder
+            if not os.path.exists(pwd_comb):
+                os.makedirs(pwd_comb)
+            else:
+                # if exists, delete and recreate
+                shutil.rmtree(pwd_comb)
+                os.makedirs(pwd_comb)
 
-        # see if there is any FATAL in the sessions to be combined
-        for GamitSession in Sessions:
+            # see if there is any FATAL in the sessions to be combined
+            for GamitSession in Sessions:
 
-            for file in glob.glob(os.path.join(GamitSession.pwd_glbf, 'h*.glx')):
-                copyfile(file, os.path.join(pwd_comb, 'h' + GamitSession.DirName + date.yyyy() + date.ddd() +
-                                            '_' + GamitSession.GamitOpts['expt'] + '.glx'))
+                for glx in glob.glob(os.path.join(GamitSession.pwd_glbf, 'h*.glx')):
+                    shutil.copyfile(glx, os.path.join(pwd_comb, 'h' +
+                                                      GamitSession.DirName +
+                                                      date.yyyy() +
+                                                      date.ddd() +
+                                                      '_' + GamitSession.GamitOpts['expt'] + '.glx'))
 
-        self.linktables(date.yyyy(), Sessions[0].GamitOpts['eop_type'])
-        self.create_combination_script(date, Sessions[0].GamitOpts['org'])
+            self.linktables(date.yyyy(), Sessions[0].GamitOpts['eop_type'])
+            self.create_combination_script(date, Sessions[0].GamitOpts['org'])
+        else:
+            # if single session, parse sinex and save the polyhedron and variance
+            self.polyhedron, self.variance = self.Sessions[0].parse_sinex()
 
     def linktables(self, year, eop_type):
 
@@ -70,11 +84,17 @@ class Globk(object):
 
     def execute(self):
 
-        # loop through the folders and execute the script
-        self.p = subprocess.Popen('./globk.sh', shell=False, stdout=subprocess.PIPE,
-                                  stderr=subprocess.PIPE, cwd=self.pwd_comb)
+        if len(self.Sessions) > 1:
+            # multiple sessions execute globk
+            self.p = subprocess.Popen('./globk.sh', shell=False, stdout=subprocess.PIPE,
+                                      stderr=subprocess.PIPE, cwd=self.pwd_comb)
 
-        self.stdout, self.stderr = self.p.communicate()
+            self.stdout, self.stderr = self.p.communicate()
+
+            return self.parse_sinex()
+        else:
+            # single session, parse sinex and return result
+            return self.polyhedron, self.variance
 
     def create_combination_script(self, date, org):
 

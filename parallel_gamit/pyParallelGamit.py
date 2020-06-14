@@ -13,6 +13,7 @@ import os
 from tqdm import tqdm
 import pyGamitTask
 import pyGlobkTask
+import pyGamitSession
 from pyNetwork import Network
 from datetime import datetime
 import dbConnection
@@ -516,11 +517,18 @@ def ParseZTD(project, Sessions, GamitConfig):
         tqdm.write(' -- Error inserting parsed zenith delays: %s' % str(e))
 
 
-def ExecuteGlobk(GamitConfig, sessions, dates):
+def ExecuteGlobk(JobServer, GamitConfig, sessions, dates):
 
     project = GamitConfig.NetworkConfig.network_id.lower()
 
-    tqdm.write(' >> Combining with GLOBK sessions with more than one subnetwork...')
+    tqdm.write(' >> %s Combining with GLOBK sessions with more than one subnetwork...'
+               % datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+
+    modules = ('os', 'shutil', 'snxParse', 'subprocess', 'platform', 'traceback', 'glob')
+
+    JobServer.create_cluster(run_globk, (pyGlobkTask.Globk, pyGamitSession.GamitSession),
+                             globk_callback, modules=modules)
+    gk_objects = []
 
     for date in tqdm(dates, ncols=80, disable=None):
 
@@ -544,55 +552,24 @@ def ExecuteGlobk(GamitConfig, sessions, dates):
                                'added to the database.' % (GamitSession.NetName, GamitSession.date.yyyyddd()))
 
         if not Fatal:
-            if len(GlobkComb) > 1:
-                # create the combination folder
-                pwd_comb = os.path.join(pwd, project + '/glbf')
-                if not os.path.exists(pwd_comb):
-                    os.makedirs(pwd_comb)
-                else:
-                    # delete and recreate
-                    shutil.rmtree(pwd_comb)
-                    os.makedirs(pwd_comb)
+            # folder where the combination (or final solution if single network) should be written to
+            pwd_comb = os.path.join(pwd, project + '/glbf')
+            # globk combination object
+            globk = pyGlobkTask.Globk(pwd_comb, date, GlobkComb)
 
-                Globk = pyGlobkTask.Globk(pwd_comb, date, GlobkComb)
-                Globk.execute()
+            JobServer.submit(globk, project, date)
+            # save the object just in case...
+            gk_objects.append(globk)
 
-                # after combining the subnetworks, parse the resulting SINEX
-                polyhedron, variance = Globk.parse_sinex()
-            else:
-                # parse the sinex for the only session for this doy
-                polyhedron, variance = GlobkComb[0].parse_sinex()
+    JobServer.wait()
+    JobServer.close_cluster()
 
-            # insert polyherdon in gamit_soln table
-            for key, value in polyhedron.iteritems():
-                if '.' in key:
-                    try:
-                        cnn.insert('gamit_soln',
-                                   NetworkCode=key.split('.')[0],
-                                   StationCode=key.split('.')[1],
-                                   Project=project,
-                                   Year=date.year,
-                                   DOY=date.doy,
-                                   FYear=date.fyear,
-                                   X=value.X,
-                                   Y=value.Y,
-                                   Z=value.Z,
-                                   sigmax=value.sigX * sqrt(variance),
-                                   sigmay=value.sigY * sqrt(variance),
-                                   sigmaz=value.sigZ * sqrt(variance),
-                                   sigmaxy=value.sigXY * sqrt(variance),
-                                   sigmaxz=value.sigXZ * sqrt(variance),
-                                   sigmayz=value.sigYZ * sqrt(variance),
-                                   VarianceFactor=variance)
-                    except dbConnection.dbErrInsert as e:
-                        # tqdm.write('    --> Error inserting ' + key + ' -> ' + str(e))
-                        pass
-                else:
-                    tqdm.write(' -- Invalid key found in session %s -> %s' % (date.yyyyddd(), key))
+    tqdm.write(' >> %s Done combining subnetworks' % datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+
     return
 
 
-def callback_handle(job):
+def gamit_callback(job):
 
     global cnn
 
@@ -637,9 +614,60 @@ def callback_handle(job):
         tqdm.write(' -- Fatal error on node %s message from node follows -> \n%s' % (job.ip_addr, job.exception))
 
 
+def globk_callback(job):
+
+    result = job.result
+
+    if result is not None:
+        if not result['success']:
+            tqdm.write(' -- %s Error while combining with GLOBK -> %s'
+                       % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), result['error']))
+
+    else:
+        tqdm.write(' -- %s Fatal error on node %s message from node follows -> \n%s'
+                   % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), job.ip_addr, job.exception))
+
+
 def run_gamit_session(gamit_task, dir_name, year, doy, dry_run):
 
     return gamit_task.start(dir_name, year, doy, dry_run)
+
+
+def run_globk(globk_object, project, date):
+
+    cnn = dbConnection.Cnn('gnss_data.cfg')
+
+    polyhedron, variance = globk_object.execute()
+
+    # insert polyherdon in gamit_soln table
+    for key, value in polyhedron.iteritems():
+        if '.' in key:
+            try:
+                cnn.insert('gamit_soln',
+                           NetworkCode=key.split('.')[0],
+                           StationCode=key.split('.')[1],
+                           Project=project,
+                           Year=date.year,
+                           DOY=date.doy,
+                           FYear=date.fyear,
+                           X=value.X,
+                           Y=value.Y,
+                           Z=value.Z,
+                           sigmax=value.sigX * sqrt(variance),
+                           sigmay=value.sigY * sqrt(variance),
+                           sigmaz=value.sigZ * sqrt(variance),
+                           sigmaxy=value.sigXY * sqrt(variance),
+                           sigmaxz=value.sigXZ * sqrt(variance),
+                           sigmayz=value.sigYZ * sqrt(variance),
+                           VarianceFactor=variance)
+            except dbConnection.dbErrInsert as e:
+                # tqdm.write('    --> Error inserting ' + key + ' -> ' + str(e))
+                pass
+        else:
+            return {'error': ' -- Invalid key found in session %s -> %s. Polyhedron in database may be incomplete.'
+                             % (date.yyyyddd(), key), 'success': False}
+
+    return {'error': None, 'success': True}
 
 
 def ExecuteGamit(Sessions, JobServer, dry_run=False):
@@ -647,7 +675,7 @@ def ExecuteGamit(Sessions, JobServer, dry_run=False):
     gamit_pbar = tqdm(total=len([GamitSession for GamitSession in Sessions if not GamitSession.ready]),
                       desc=' >> GAMIT sessions completion', ncols=100, disable=None)  # type: tqdm
 
-    tqdm.write(' >> Initializing %i GAMIT sessions' % (len(Sessions)))
+    tqdm.write(' >> %s Initializing %i GAMIT sessions' % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), len(Sessions)))
 
     # For debugging parallel python runs
     # console = logging.FileHandler('pp.log')
@@ -660,7 +688,7 @@ def ExecuteGamit(Sessions, JobServer, dry_run=False):
     modules = ('pyRinex', 'datetime', 'os', 'shutil', 'pyBrdc', 'pySp3', 'subprocess', 're', 'pyETM', 'glob',
                'platform', 'traceback')
 
-    JobServer.create_cluster(run_gamit_session, (pyGamitTask.GamitTask,), callback_handle, gamit_pbar, modules=modules)
+    JobServer.create_cluster(run_gamit_session, (pyGamitTask.GamitTask,), gamit_callback, gamit_pbar, modules=modules)
 
     gtasks = []
 
@@ -677,7 +705,7 @@ def ExecuteGamit(Sessions, JobServer, dry_run=False):
         else:
             tqdm.write(' -- Session already processed: ' + GamitSession.NetName + ' ' + GamitSession.date.yyyyddd())
 
-    tqdm.write(' -- Done initializing and submitting GAMIT sessions')
+    tqdm.write(' -- %s Done initializing and submitting GAMIT sessions' % datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
 
     JobServer.wait()
 
