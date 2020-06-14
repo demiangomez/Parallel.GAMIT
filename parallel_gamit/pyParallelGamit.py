@@ -529,7 +529,7 @@ def ExecuteGlobk(JobServer, GamitConfig, sessions, dates):
     tqdm.write(' >> %s Combining with GLOBK sessions with more than one subnetwork...'
                % datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
 
-    modules = ('os', 'shutil', 'snxParse', 'subprocess', 'platform', 'traceback', 'glob')
+    modules = ('os', 'shutil', 'snxParse', 'subprocess', 'platform', 'traceback', 'glob', 'dbConnection')
 
     JobServer.create_cluster(run_globk, (pyGlobkTask.Globk, pyGamitSession.GamitSession),
                              globk_callback, modules=modules)
