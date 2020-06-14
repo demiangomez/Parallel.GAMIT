@@ -368,7 +368,7 @@ class JobServer:
             self.cluster = dispy.JobCluster(function, [dispy.NodeAllocate(node.ip_addr, setup_args=(modules,))
                                                        for node in self.nodes], list(deps),
                                             callback, self.cluster_status, pulse_interval=60, setup=setup,
-                                            loglevel=dispy.logger.CRITICAL, reentrant=True, ip_addr=self.ip_address)
+                                            loglevel=dispy.logger.DEBUG, reentrant=True, ip_addr=self.ip_address)
 
             self.http_server = dispy.httpd.DispyHTTPServer(self.cluster, poll_sec=2)
 

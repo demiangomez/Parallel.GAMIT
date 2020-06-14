@@ -534,14 +534,6 @@ def ExecuteGlobk(JobServer, GamitConfig, sessions, dates):
     JobServer.create_cluster(run_globk, (pyGlobkTask.Globk, pyGamitSession.GamitSession),
                              globk_callback, modules=modules)
 
-    # For debugging parallel python runs
-    console = logging.FileHandler('pp.log')
-    console.setLevel(logging.DEBUG)
-    JobServer.job_server.logger.setLevel(logging.DEBUG)
-    formatter = logging.Formatter('%(asctime)s %(name)s: %(levelname)-8s %(message)s')
-    console.setFormatter(formatter)
-    JobServer.job_server.logger.addHandler(console)
-
     # gk_objects = []
 
     for date in tqdm(dates, ncols=80, disable=None):
