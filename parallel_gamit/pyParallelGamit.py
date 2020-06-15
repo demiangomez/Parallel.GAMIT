@@ -465,14 +465,23 @@ def ParseZTD(project, Sessions, GamitConfig):
 
     atmzen.sort(order=['stn', 'y', 'm', 'd', 'h', 'mm'])
 
-    tqdm.write(' -- %s Averaging zenith delays from stations in multiple sessions...'
+    tqdm.write(' -- %s Computing unique stations and days...'
                % datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
     # get the stations in the processing
     stations = np.unique(atmzen['stn'])
     # get the unique dates for this process
     date_vec = np.unique(np.array([atmzen['yr'], atmzen['doy']]).transpose(), axis=0)
-    # unique ztd
-    uztd = []
+
+    # drop all records from the database to make sure there will be no problems with massive insert
+    tqdm.write(' -- %s Deleting previous zenith tropospheric delays from the database...'
+               % datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+    for date in date_vec:
+        cnn.query('DELETE FROM gamit_ztd WHERE "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i'
+                  % (project.lower(), date[0], date[1]))
+
+    tqdm.write(' -- %s Averaging zenith delays from stations in multiple sessions and inserting into database...'
+               % datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+
     for stn in stations:
         for date in date_vec:
             # select the station and date
@@ -487,39 +496,27 @@ def ParseZTD(project, Sessions, GamitConfig):
                     rows = zd[np.logical_and.reduce((zd['y'] == d[0], zd['m'] == d[1],
                                                      zd['d'] == d[2], zd['h'] == d[3], zd['mm'] == d[4]))]
 
-                    uztd.append(alias[stn] + [datetime(d[0], d[1], d[2], d[3], d[4]).strftime('%Y-%m-%d %H:%M:%S')] +
-                                [project.lower()] +
-                                [np.mean(rows['z']) - np.mean(rows['mo']), np.mean(rows['s']), np.mean(rows['z'])] +
-                                date.tolist())
+                    ztd = alias[stn] + [datetime(d[0], d[1], d[2], d[3], d[4]).strftime('%Y-%m-%d %H:%M:%S')] + \
+                                  [project.lower()] + [np.mean(rows['z']) - np.mean(rows['mo']), np.mean(rows['s']),
+                                                       np.mean(rows['z'])] + date.tolist()
 
-    # drop all records from the database to make sure there will be no problems with massive insert
-    tqdm.write(' -- %s Deleting previous zenith tropospheric delays from the database...'
-               % datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-    for date in date_vec:
-        cnn.query('DELETE FROM gamit_ztd WHERE "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i'
-                  % (project.lower(), date[0], date[1]))
-
-    # now do a bulk insert
-    try:
-        tqdm.write(' -- %s Inserting zenith tropospheric delays (%i) into the database...'
-                   % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), len(uztd)))
-
-        for ztd in uztd:
-            cnn.insert('gamit_ztd',
-                       NetworkCode=ztd[0],
-                       StationCode=ztd[1],
-                       Date=ztd[2],
-                       Project=ztd[3],
-                       model=ztd[4],
-                       sigma=ztd[5],
-                       ZTD=ztd[6],
-                       Year=ztd[7],
-                       DOY=ztd[8])
+                    # now do the insert
+                    try:
+                        cnn.insert('gamit_ztd',
+                                   NetworkCode=ztd[0],
+                                   StationCode=ztd[1],
+                                   Date=ztd[2],
+                                   Project=ztd[3],
+                                   model=ztd[4],
+                                   sigma=ztd[5],
+                                   ZTD=ztd[6],
+                                   Year=ztd[7],
+                                   DOY=ztd[8])
         # cnn.executemany('INSERT INTO gamit_ztd ("NetworkCode", "StationCode", "Date", "Project", "model", "sigma", '
         #                '                       "ZTD", "Year", "DOY") VALUES (%s, %s, %s, %s, %f, %f, %f, %i, %i)',
         #                uztd)
-    except Exception as e:
-        tqdm.write(' -- Error inserting parsed zenith delays: %s' % str(e))
+                    except Exception as e:
+                        tqdm.write(' -- Error inserting parsed zenith delay: %s' % str(e))
 
 
 def ExecuteGlobk(JobServer, GamitConfig, sessions, dates):
