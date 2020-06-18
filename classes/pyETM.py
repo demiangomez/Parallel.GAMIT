@@ -276,6 +276,8 @@ class PppSoln(object):
                 self.t = np.array([pyDate.Date(year=item[0], doy=item[1]).fyear for item in a[:, 3:5]])
                 self.mjd = np.array([pyDate.Date(year=item[0], doy=item[1]).mjd for item in a[:, 3:5]])
 
+                self.date = [pyDate.Date(year=item[0], doy=item[1]) for item in a[:, 3:5]]
+
                 # continuous time vector for plots
                 ts = np.arange(np.min(self.mjd), np.max(self.mjd) + 1, 1)
                 self.mjds = ts
@@ -2123,7 +2125,7 @@ class ETM:
 
     def todictionary(self, time_series=False, model=False):
         # convert the ETM adjustment into a dictionary
-        # optionally, output the whole time series as well
+        # optionally, output the whole time series and evaluated model as well
 
         L = self.l
 

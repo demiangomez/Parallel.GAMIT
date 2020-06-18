@@ -12,6 +12,7 @@ import pyDate
 import random
 import string
 import os
+import numpy as np
 from tqdm import tqdm
 
 COMPLETION = 0.5
@@ -26,13 +27,30 @@ class pyStationException(Exception):
         return str(self.value)
 
 
+class pyStationCollectionException(pyStationException):
+    pass
+
+
 class Station(object):
 
-    def __init__(self, cnn, NetworkCode, StationCode, dates):
+    def __init__(self, cnn, NetworkCode, StationCode, dates, StationAlias=None):
 
         self.NetworkCode  = NetworkCode
         self.StationCode  = StationCode
-        self.StationAlias = StationCode  # upon creation, Alias = StationCode
+        if StationAlias is None:
+            if 'public.stationalias' in cnn.get_tables():
+                rs = cnn.query_float('SELECT * FROM stationalias WHERE "NetworkCode" = \'%s\' '
+                                     'AND "StationCode" = \'%s\''
+                                     % (NetworkCode, StationCode), as_dict=True)
+                if len(rs):
+                    self.StationAlias = rs[0]['StationAlias']
+                else:
+                    # if no record, then Alias = StationCode
+                    self.StationAlias = StationCode
+            else:
+                self.StationAlias = StationCode  # upon creation, Alias = StationCode
+        else:
+            self.StationAlias = StationAlias
         self.record       = None
         self.etm          = None
         self.StationInfo  = None
@@ -57,24 +75,24 @@ class Station(object):
             self.X = self.record.auto_x
             self.Y = self.record.auto_y
             self.Z = self.record.auto_z
+            self.netstn = self.NetworkCode + '.' + self.StationCode
 
             # get the available dates for the station (RINEX files with conditions to be processed)
             rs = cnn.query(
                 'SELECT "ObservationYear" as y, "ObservationDOY" as d FROM rinex_proc '
                 'WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND '
-                '"ObservationSTime" >= \'%s\' AND "ObservationETime" <= \'%s\' AND '
+                '("ObservationYear", "ObservationDOY") BETWEEN (%s) AND (%s) AND '
                 '"Completion" >= %.3f AND "Interval" <= %i'
-                % (NetworkCode, StationCode, (dates[0] - 1).first_epoch(),
-                   (dates[1] + 1).last_epoch(), COMPLETION, INTERVAL))
+                % (NetworkCode, StationCode, dates[0].yyyy() + ', ' + dates[0].ddd(),
+                   dates[1].yyyy() + ', ' + dates[1].ddd(), COMPLETION, INTERVAL))
 
-            self.good_rinex = [pyDate.Date(year=r['y'], doy=r['d']) for r in rs.dictresult()
-                               if dates[0] <= pyDate.Date(year=r['y'], doy=r['d']) <= dates[1]]
+            self.good_rinex = [pyDate.Date(year=r['y'], doy=r['d']) for r in rs.dictresult()]
 
             # create a list of the missing days
             good_rinex = [d.mjd for d in self.good_rinex]
 
-            self.missing_rinex = [pyDate.Date(mjd=d)
-                                  for d in range(dates[0].mjd, dates[1].mjd+1) if d not in good_rinex]
+            self.missing_rinex = [pyDate.Date(mjd=d) for d in range(dates[0].mjd, dates[1].mjd+1)
+                                  if d not in good_rinex]
 
             self.etm = pyETM.PPPETM(cnn, NetworkCode, StationCode)  # type: pyETM.PPPETM
             self.StationInfo = pyStationInfo.StationInfo(cnn, NetworkCode, StationCode)
@@ -83,15 +101,32 @@ class Station(object):
             rs = cnn.query_float(
                 'SELECT "ObservationYear" as y, "ObservationDOY" as d FROM rinex_proc '
                 'WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND '
-                '"ObservationSTime" >= \'%s\' AND "ObservationETime" <= \'%s\' AND '
+                '("ObservationYear", "ObservationDOY") BETWEEN (%s) AND (%s) AND '
                 '"Completion" < %.3f AND "Interval" <= %i'
-                % (NetworkCode, StationCode, (dates[0] - 1).first_epoch(),
-                   (dates[1] + 1).last_epoch(), COMPLETION, INTERVAL))
+                % (NetworkCode, StationCode, dates[0].yyyy() + ', ' + dates[0].ddd(),
+                   dates[1].yyyy() + ', ' + dates[1].ddd(), COMPLETION, INTERVAL))
+
             if len(rs):
                 tqdm.write('    WARNING: The requested date interval has %i days with < 50%% of observations. '
                            'These days will not be processed.' % len(rs))
         else:
             raise ValueError('Specified station %s.%s could not be found' % (NetworkCode, StationCode))
+
+    def check_gamit_soln(self, cnn, project, date):
+        """
+        Function to check if a gamit solution exists for this station, project and date
+        :param cnn: database connection
+        :param project: name of the project to search
+        :param date: date to check if a solution exists
+        :return: True if solution exists, otherwise False
+        """
+        soln = cnn.query_float('SELECT * FROM gamit_soln WHERE "Project" = \'%s\' AND "Year" = %i AND '
+                               '"DOY" = %i AND "NetworkCode" = \'%s\' AND "StationCode" = \'%s\''
+                               % (project, date.year, date.doy, self.NetworkCode, self.StationCode))
+        if len(soln):
+            return True
+        else:
+            return False
 
     def generate_alias(self):
         self.StationAlias = self.id_generator()
@@ -115,7 +150,10 @@ class Station(object):
         return self.NetworkCode + '.' + self.StationCode
 
     def __repr__(self):
-        return 'pyStation.Station(' + str(self) + ')'
+        return 'pyStation.Station(' + str(self) + ', ' + self.StationAlias + ')'
+
+    def __iter__(self):
+        return self
 
 
 class StationInstance(object):
@@ -220,3 +258,198 @@ class StationInstance(object):
 
         return self.StationInfo.replace(self.StationCode.upper(), self.StationAlias.upper())
 
+
+class StationCollection(list):
+    """
+    StationCollection object accumulates Station objects verifying there is no collision in StationCodes
+    It is essentially a list with an overloaded append method that triggers verification of the StationCodes and
+    makes changes to StationAliases as needed
+    """
+    def __init__(self, stations=None):
+        super(StationCollection, self).__init__()
+        if stations:
+            self.append(stations)
+
+    def append(self, station, check_aliases=True):
+        if not (isinstance(station, Station) or isinstance(station, list)):
+            raise pyStationException('type: ' + str(type(station)) + ' invalid. Can only append Station objects or '
+                                                                     'lists of Station objects')
+
+        if isinstance(station, Station):
+            station = [station]
+
+        for stn in station:
+            # check that the incoming stations is not already in the list
+            if not self.ismember(stn):
+                # verify the incoming Station against all StationCodes
+                if check_aliases:
+                    self.check_station_codes(stn)
+                super(StationCollection, self).append(stn)
+
+    def check_station_codes(self, station):
+
+        for stn in self:
+            if stn.NetworkCode != station.NetworkCode and stn.StationCode == station.StationCode:
+                # duplicate StationCode (different Network), produce Alias
+                unique = False
+                while not unique:
+                    station.generate_alias()
+                    # compare again to make sure this name is unique
+                    unique = self.compare_aliases(station)
+
+        return
+
+    def compare_aliases(self, station):
+
+        # make sure alias does not exists as alias and station code
+        for stn in self:
+            if stn != station:
+                if station.StationAlias == stn.StationAlias or station.StationAlias == stn.StationCode:
+                    # not unique!
+                    return False
+
+        return True
+
+    def get_active_stations(self, date, check_aliases=False):
+        """
+        create a collection with the stations that actually have observations for a given day
+        by default, the aliases are leaved untouched
+        :param date: to check if observations are available or not
+        :param check_aliases: boolean, check the aliases of the stations and change them if necessary
+        :return: a collection with the stations that have observations
+        """
+        collection = StationCollection()
+        for stn in self:
+            if date in stn.good_rinex:
+                collection.append(stn, check_aliases)
+
+        return collection
+
+    def get_active_coordinates(self, date):
+        """
+        obtain a numpy array of the coordinates for the active stations in the collection
+        :param date:
+        :return: numpy array
+        """
+        return np.array([[stn.X, stn.Y, stn.Z] for stn in self if date in stn.good_rinex])
+
+    def replace_alias(self, stations, aliases=None):
+        """
+        replace alias for station(s) provided in the list
+        :param stations: can be a station object, a list of station objects, a StationCollection or a list of strings
+        :param aliases: new aliases to apply to the stations (must be string or list of strings). If it's not provided
+        then aliases are pulled from the stations objects (in which case, stations must be a Station object)
+        :return: None
+        """
+
+        if isinstance(stations, StationCollection) or isinstance(stations, list):
+            if isinstance(stations, list):
+                for stn in stations:
+                    if not (isinstance(stn, Station) or isinstance(stn, str)):
+                        raise pyStationException('type: ' + str(type(stn)) +
+                                                 ' invalid. Can only pass Station or String objects.')
+
+            if isinstance(aliases, list):
+                if len(stations) != len(aliases):
+                    raise pyStationCollectionException('Length of stations and aliases arguments must match')
+
+            elif isinstance(aliases, str) and len(stations) > 1:
+                raise pyStationCollectionException('More than one station for a single alias string')
+
+            elif aliases is None:
+                aliases = [stn.StationAlias for stn in stations]
+
+            elif not (isinstance(aliases, str) or isinstance(aliases, list)):
+                raise pyStationException('type: ' + str(type(aliases)) +
+                                         ' invalid. Can only pass List or String objects.')
+
+        elif isinstance(stations, Station) or isinstance(stations, str):
+            if isinstance(aliases, list) and len(aliases) > 1:
+                raise pyStationCollectionException('More than one alias for a single station object')
+            elif aliases is None:
+                if isinstance(stations, Station):
+                    aliases = stations.StationAlias
+                else:
+                    raise pyStationException('No aliases provided. Argument stations must be a Station object')
+            elif not (isinstance(aliases, list) or isinstance(aliases, str)):
+                raise pyStationException('type: ' + str(type(aliases)) +
+                                         ' invalid. Can only pass List or String objects.')
+
+        else:
+            raise pyStationException('type: ' + str(type(stations)) +
+                                     ' invalid. Can only pass List, StationCollection or String objects.')
+
+        if isinstance(aliases, str):
+            aliases = [aliases]
+
+        if isinstance(stations, str) or isinstance(stations, Station):
+            stations = [stations]
+
+        for stn, alias in zip(stations, aliases):
+            try:
+                self[stn].StationAlias = alias
+                # make sure there is no alias overlap
+                while not self.compare_aliases(self[stn]):
+                    self[stn].generate_alias()
+
+            except pyStationCollectionException:
+                pass  # not found in collection
+
+    def ismember(self, station):
+        """
+        determines if a station is part of the collection or not
+        :param station: station object or string
+        :return: boolean
+        """
+        try:
+            _ = self[station]
+            return True
+        except pyStationCollectionException:
+            return False
+
+    def __getitem__(self, item):
+        """
+        return the station object that matches a given another station object or net.stn string
+        :param item: station object or string
+        :return: station object
+        """
+        if isinstance(item, str):
+            for stn in self:
+                if stn.netstn == item.lower():
+                    return stn
+            raise pyStationCollectionException('Requested station code ' + item.lower() + ' could not be found')
+
+        elif isinstance(item, Station):
+            for stn in self:
+                if stn.netstn == item.netstn:
+                    return stn
+            raise pyStationCollectionException('Requested station code ' + item.netstn + ' could not be found')
+
+        else:
+            raise pyStationException('type: ' + str(type(item)) + ' invalid. Can only pass Station or String objects.')
+
+    def __contains__(self, item):
+        return self.ismember(item)
+
+
+if __name__ == '__main__':
+    import dbConnection
+    cnn = dbConnection.Cnn('gnss_data.cfg')
+    import pyDate
+    dr = [pyDate.Date(year=2010,doy=1), pyDate.Date(year=2010,doy=2)]
+    s1 = Station(cnn, 'rms', 'igm1', dr)
+    s2 = Station(cnn, 'rms', 'lpgs', dr)
+    s3 = Station(cnn, 'rms', 'chac', dr)
+    s4 = Station(cnn, 'cap', 'chac', dr)
+    c = StationCollection()
+    c.append(s1)
+    c.append(s2)
+    c.append(s3)
+    print c
+    c.append(s4)
+    print c
+    c.replace_alias([s1, s2], ['zzz1', 'zzz1'])
+    print c
+    print c.get_active_stations(dr[0]).ismember(s3)
+    for i, s in enumerate(c):
+        print i, s

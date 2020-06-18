@@ -14,6 +14,9 @@ from scipy.spatial import distance
 from glob import glob
 from shutil import rmtree
 from tqdm import tqdm
+from pyStation import StationCollection
+from pyStation import Station
+from datetime import datetime
 
 BACKBONE_NET = 40
 NET_LIMIT = 40
@@ -32,121 +35,93 @@ class NetworkException(Exception):
 
 class Network(object):
 
-    def __init__(self, cnn, archive, GamitConfig, stations, date):
+    def __init__(self, cnn, archive, GamitConfig, stations, date, check_stations=None, ignore_missing=False):
 
         self.name = GamitConfig.NetworkConfig.network_id.lower()
         self.org = GamitConfig.gamitopt['org']
         self.GamitConfig = GamitConfig
         self.date = date
 
-        # start by dividing up the stations into clusters
-        # get all the coordinates of valid stations for this date
-        points = np.array([[stn.X, stn.Y, stn.Z] for stn in stations if date in stn.good_rinex])
-
-        # create a list that only has the active stations for this day
-        active_stations = [stn for stn in stations if date in stn.good_rinex]
-
         # find out if this project-day has been processed before
         db_subnets = cnn.query_float('SELECT * FROM gamit_subnets '
                                      'WHERE "Project" = \'%s\' AND "Year" = %i AND '
-                                     '"DOY" = %i' % (self.name, date.year, date.doy), as_dict=True)
+                                     '"DOY" = %i ORDER BY "subnet"' % (self.name, date.year, date.doy), as_dict=True)
 
         if len(db_subnets) > 0:
-            tqdm.write(' >> Processing for %s already exists, attempting to recover it...' % date.yyyyddd())
+            tqdm.write(' >> %s Processing for %s already exists' % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                                                    date.yyyyddd()))
 
-            # subnetworks already exist. Check that the station set is the same
-            cfg_stations = [stn.NetworkCode + '.' + stn.StationCode for stn in active_stations]
-            dba_stations = [s for stn in db_subnets for s in stn['stations']]
-            dba_alias = [s for stn in db_subnets for s in stn['alias']]
+            # sub-network already exist, put information in lists
+            dba_stn = [Station(cnn, stn.split('.')[0], stn.split('.')[1], [date, date], alias) for net in db_subnets
+                       for stn, alias in zip(net['stations'], net['alias'])]
 
-            # get the station difference (do not consider stationed REMOVED from the CFG still present in the processing
-            stn_diff = list(set(cfg_stations) - set(dba_stations))
+            # create a station collection for convenience
+            db_stations = StationCollection(dba_stn)
 
-            # apply database aliases
-            self.apply_db_aliases(dba_stations, stations, dba_alias)
+            # make the necessary changes to the stations aliases (so they match those in the database)
+            stations.replace_alias(db_stations)
 
             # build the sub-networks using the information in the database
-            clusters, backbone, ties = self.recover_subnets(db_subnets, active_stations)
+            clusters, backbone, ties = self.recover_subnets(db_subnets, stations.get_active_stations(date))
 
-            if 0 < len(stn_diff) <= len(clusters['centroids']) * 4:
-                # there are some stations not originally in the processing
-                # add them to the best cluster
-                # the number of stations should not be such that there's more than 4 new stations per cluster
-                clusters = self.add_missing_station(cnn, clusters, active_stations, stn_diff)
-                self.check_stn_diff_aliases(stn_diff, cfg_stations, active_stations)
+            if check_stations:
+                for stn in check_stations.get_active_stations(date):
+                    if stn not in db_stations:
+                        # add station to StationCollection to make sure there's no name collisions
+                        stations.append(stn)
+                        # determine the closest sub-network (cluster) to this station and add it
+                        clusters = self.add_missing_station(cnn, clusters, stn)
 
-            elif len(stn_diff) > len(clusters['centroids']) * 4 or len(stations) < len(dba_stations) - 5:
+            # find if there are any incomplete sub-networks or stations without solution
+            for subnet in db_subnets:
+                stat = cnn.query_float('SELECT * FROM gamit_stats WHERE "Project" = \'%s\' AND "Year" = %i AND '
+                                       '"DOY" = %i AND "subnet" = %i'
+                                       % (self.name, date.year, date.doy, subnet['subnet']), as_dict=True)
 
-                tqdm.write(' -- Too many new stations to add. Redoing the whole thing')
-
-                # is condition not satisfied, redo eveything
-                cnn.query('DELETE FROM gamit_subnets WHERE "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i'
-                          % (self.name, date.year, date.doy))
-                cnn.query('DELETE FROM gamit_stats   WHERE "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i'
-                          % (self.name, date.year, date.doy))
-
-                # delete folders
-                project = glob(GamitConfig.gamitopt['solutions_dir'].rstrip('/') +
-                               '/%s/%s/%s*' % (date.yyyy(), date.ddd(), self.name))
-
-                for f in project:
-                    rmtree(f)
-
-                clusters = self.make_clusters(points, active_stations)
-
-                if len(clusters['stations']) > 1:
-                    # get the ties between subnetworks
-                    ties = self.tie_subnetworks(points, clusters, active_stations)
-
-                    # build the backbone network
-                    backbone = self.backbone_delauney(points, active_stations)
+                if not len(stat):
+                    # sub-network didn't finish properly, GamitSession will detect this condition and flag session for
+                    # reprocessing. Generate message alerting the user
+                    tqdm.write(' -- Sub-network %s%02i did not finish successfully and will be reprocessed'
+                               % (self.org, subnet['subnet']))
                 else:
-                    ties = []
-                    backbone = []
+                    # loop through the stations in this sub-network and find it in the StationsCollection
+                    # if exists and there is no gamit_soln, trigger reprocessing
+                    for stn in subnet['stations']:
+                        # logic here is that, if the station in the database is still in the list to be processed and
+                        # ignore_missing is turned off OR station is part of the check stations, then verify
+                        # the solution is in the database. Otherwise, skip the station
+                        if stn in stations.get_active_stations(date) and \
+                                (not ignore_missing or stn in check_stations.get_active_stations(date)):
+                            if not stations[stn].check_gamit_soln(cnn, self.name, date):
+                                # stations is in the database but there was no solution for this day, rerun
+                                cnn.delete('gamit_stats', Project=self.name, Year=self.date.year, DOY=self.date.doy,
+                                           subnet=subnet['subnet'])
+                                cnn.delete('gamit_subnets', Project=self.name, Year=self.date.year, DOY=self.date.doy,
+                                           subnet=subnet['subnet'])
+                                tqdm.write(' -- %s in sub-network %s%02i did not produce a solution and will be '
+                                           'reprocessed' % (stn, self.org, subnet['subnet']))
+
         else:
-            tqdm.write(' >> Creating network clusters for %s...' % date.yyyyddd())
+            tqdm.write(' >> %s Creating network clusters for %s...' % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                                                       date.yyyyddd()))
 
             # create station clusters
             # cluster centroids will be used later to tie the networks
-            clusters = self.make_clusters(points, active_stations)
+            clusters = self.make_clusters(stations.get_active_coordinates(date), stations.get_active_stations(date))
 
             if len(clusters['stations']) > 1:
                 # get the ties between subnetworks
-                ties = self.tie_subnetworks(points, clusters, active_stations)
+                ties = self.tie_subnetworks(stations.get_active_coordinates(date), clusters,
+                                            stations.get_active_stations(date))
 
                 # build the backbone network
-                backbone = self.backbone_delauney(points, active_stations)
+                backbone = self.backbone_delauney(stations.get_active_coordinates(date),
+                                                  stations.get_active_stations(date))
             else:
                 ties = []
                 backbone = []
 
         self.sessions = self.create_gamit_sessions(cnn, archive, clusters, backbone, ties, date)
-
-    def check_stn_diff_aliases(self, stn_diff, cfg_stations, stations):
-
-        # for each station in the difference vector
-        for stn in stn_diff:
-            # get the codes except for stn
-            cfg_stncodes = [s.split('.')[1] for s in cfg_stations if s != stn]
-
-            if stn.split('.')[1] in cfg_stncodes:
-                # if stn stationcode in cfg_stations, generate alias
-                stno = [s for s in stations if s.NetworkCode + '.' + s.StationCode == stn]
-
-                if stno:
-                    # if object exists, replace it's alias
-                    stno[0].generate_alias()
-
-    def apply_db_aliases(self, dba_stations, stations, dba_alias):
-
-        # apply database list of aliases
-        for i, stn in enumerate(dba_stations):
-            stno = [s for s in stations if s.NetworkCode + '.' + s.StationCode == stn]
-            # careful: a station in the database might not be present in the station list because a station removal
-            # from the CFG does not have any effect in the processing
-            if stno:
-                # if object exists, replace it's alias
-                stno[0].StationAlias = dba_alias[i]
 
     def make_clusters(self, points, stations, net_limit=NET_LIMIT):
 
@@ -409,9 +384,9 @@ class Network(object):
         if len(stations) > NET_LIMIT:
             # this session will require be split into more than one subnet
 
-            points = np.array([[stn.record.lat, stn.record.lon] for stn in stations if date in stn.good_rinex])
+            points = np.array([[stn.record.lat, stn.record.lon] for stn in stations.get_active_stations(date)])
 
-            stn_candidates = [stn for stn in stations if date in stn.good_rinex]
+            stn_candidates = [stn for stn in stations.get_active_stations(date)]
 
             # create a convex hull
             hull = ConvexHull(points)
@@ -464,55 +439,55 @@ class Network(object):
                 clusters['centroids'].append(subnet['centroid'])
                 # labels start at zero, but zero subnet is backbone
                 # clusters['labels'] += np.ones(len(subnet['stations'])) * (subnet['subnet'] - 1)
-                clusters['stations'].append([s for s in stations
-                                             if s.NetworkCode + '.' + s.StationCode in subnet['stations']])
+                clusters['stations'].append([stations[stn] for stn in subnet['stations']])
                 # add the corresponding ties
-                ties.append([s for s in stations if s.NetworkCode + '.' + s.StationCode in subnet['ties']])
+                ties.append([stations[stn] for stn in subnet['ties']])
 
             clusters['centroids'] = np.array(clusters['centroids'])
 
             # now recover the backbone
-            backbone = [s for s in stations if s.NetworkCode + '.' + s.StationCode in db_subnets[0]['stations']]
+            backbone = [stations[stn] for stn in db_subnets[0]['stations']]
 
         return clusters, backbone, ties
 
-    def add_missing_station(self, cnn, clusters, stations, stn_diff):
+    def add_missing_station(self, cnn, clusters, add_station):
 
         # this method does not update the labels because they are not used
         # labels are only used to tie station
 
-        # find the station objects for the elements listed in stn_diff
-        stnobj_diff = [s for s in stations if s.NetworkCode + '.' + s.StationCode in stn_diff]
-
-        tqdm.write(' -- Adding missing stations %s' % ' '.join(stn_diff))
-
         if len(clusters['centroids']) == 1:
             # single station network, just add the missing station
-            clusters['stations'][0] += stnobj_diff
+            clusters['stations'][0].append(add_station)
             clusters['labels'] = np.zeros(len(clusters['stations'][0]))
 
             # because a station was added, delete the gamit_stats record to force reprocessing
             cnn.delete('gamit_stats', Project=self.name, Year=self.date.year, DOY=self.date.doy, subnet=0)
             cnn.delete('gamit_subnets', Project=self.name, Year=self.date.year, DOY=self.date.doy, subnet=0)
+
+            tqdm.write(' -- %s was not originally in the processing, will be added to sub-network %s00'
+                       % (add_station.netstn, self.org))
         else:
-            for stn in stnobj_diff:
-                # find the closest centroid to this station
-                xyz = np.zeros((1, 3))
-                xyz[0] = np.array([stn.X, stn.Y, stn.Z])
+            # find the closest centroid to this station
+            xyz = np.zeros((1, 3))
+            xyz[0] = np.array([add_station.X, add_station.Y, add_station.Z])
 
-                sd = distance.cdist(xyz, clusters['centroids']) / 1e3
+            sd = distance.cdist(xyz, clusters['centroids']) / 1e3
 
-                for i in range(len(clusters['centroids'])):
-                    s = smallestN_indices(sd, len(clusters['centroids']))[i]
+            for i in range(len(clusters['centroids'])):
+                s = smallestN_indices(sd, len(clusters['centroids']))[i]
 
-                    if sd[s[0], s[1]] <= MAX_DIST:
-                        # can add the station to this sub-network
-                        clusters['stations'][i].append(stn)
-                        # because a station was added, delete the gamit_stats and subnets record to force reprocessing
-                        cnn.delete('gamit_stats', Project=self.name, Year=self.date.year, DOY=self.date.doy,
-                                   subnet=i + 1)
-                        cnn.delete('gamit_subnets', Project=self.name, Year=self.date.year, DOY=self.date.doy,
-                                   subnet=i + 1)
+                if sd[s[0], s[1]] <= MAX_DIST:
+                    # can add the station to this sub-network
+                    clusters['stations'][i].append(add_station)
+                    # because a station was added, delete the gamit_stats and subnets record to force reprocessing
+                    cnn.delete('gamit_stats', Project=self.name, Year=self.date.year, DOY=self.date.doy,
+                               subnet=i + 1)
+                    cnn.delete('gamit_subnets', Project=self.name, Year=self.date.year, DOY=self.date.doy,
+                               subnet=i + 1)
+
+                    tqdm.write(' -- %s was not originally in the processing, will be added to sub-network %s%02i'
+                               % (add_station.netstn, self.org, i + 1))
+                    break
         return clusters
 
     def create_gamit_sessions(self, cnn, archive, clusters, backbone, ties, date):

@@ -355,10 +355,12 @@ class GamitTask(object):
 
         try:
             ms = re.findall(r'No data for site (\w+)', output, re.MULTILINE)
+            ms += re.findall(r'.*deleting station (\w+)', output, re.MULTILINE)
             missing_sites = []
             for stn in ms:
                 for rinex in self.params['rinex']:
-                    if rinex['StationAlias'].lower() == stn.lower():
+                    if rinex['StationAlias'].lower() == stn.lower() \
+                            and rinex['NetworkCode'] + '.' + rinex['StationCode'] not in missing_sites:
                         missing_sites += [rinex['NetworkCode'] + '.' + rinex['StationCode']]
 
         except Exception:
