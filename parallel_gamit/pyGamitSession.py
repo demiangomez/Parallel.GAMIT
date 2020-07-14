@@ -60,11 +60,11 @@ class GamitSession(object):
 
         self.solution_base = self.GamitOpts['solutions_dir'].rstrip('/')
 
-        # core station dictionary
+        # tie station dictionary (to build KMLs, do not change)
         self.tie_dict = [{'name': stn.NetworkCode + '.' + stn.StationCode, 'coords': [(stn.lon, stn.lat)]}
                          for stn in ties]
 
-        # station dictionary
+        # station dictionary (to build KMLs, do not change)
         self.stations_dict = [{'name': stn.NetworkCode + '.' + stn.StationCode, 'coords': [(stn.lon, stn.lat)]}
                               for stn in stations]
 
@@ -126,8 +126,8 @@ class GamitSession(object):
             cnn.insert('gamit_subnets', {'Year': date.year, 'DOY': date.doy, 'Project': self.NetName,
                                          'subnet': 0 if subnet is None else subnet,
                                          'stations': '{%s}' % ','.join([s.NetworkCode + '.' + s.StationCode
-                                                                        for s in stations]),
-                                         'alias': '{%s}' % ','.join([s.StationAlias for s in stations]),
+                                                                        for s in stations + list(ties)]),
+                                         'alias': '{%s}' % ','.join([s.StationAlias for s in stations + list(ties)]),
                                          'ties': '{%s}' % ','.join([s['name'] for s in self.tie_dict]),
                                          'centroid': '{%s}' % ','.join(['%.1f' % c for c in centroid])})
 

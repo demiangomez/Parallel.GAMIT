@@ -156,6 +156,33 @@ class Stack(list):
             print ' >> Preserving the existing stack ' + name
             print ' >> Determining differences between stack %s and GAMIT solutions for project %s...' % (name, project)
 
+            # build a dates vector
+            dates = self.cnn.query_float('SELECT "Year", "DOY" FROM stacks WHERE "name" = \'%s\' '
+                                         'AND ("Year", "DOY") <= (%i, %i) '
+                                         'UNION '
+                                         'SELECT "Year", "DOY" FROM gamit_soln WHERE "Project" = \'%s\' '
+                                         'AND ("Year", "DOY") <= (%i, %i) '
+                                         'ORDER BY "Year", "DOY"'
+                                         % (name, end_date.year, end_date.doy, project, end_date.year, end_date.doy))
+
+            self.dates = [Date(year=d[0], doy=d[1]) for d in dates]
+
+            for d in tqdm(self.dates, ncols=160, desc=' >> Checking station count for each day', disable=None):
+                try:
+                    s = self.cnn.query_float('SELECT count("X") FROM stacks WHERE "Project" = \'%s\' '
+                                             'AND "name" = \'%s\' AND "Year" = %i AND "DOY" = %i'
+                                             % (project, name, d.year, d.doy))
+                    g = self.cnn.query_float('SELECT count("X") FROM gamit_soln WHERE "Project" = \'%s\' '
+                                             'AND "Year" = %i AND "DOY" = %i'
+                                             % (project, d.year, d.doy))
+                    if s[0] < g[0]:
+                        self.cnn.query('DELETE FROM stacks WHERE "Project" = \'%s\' '
+                                       'AND "name" = \'%s\' AND "Year" = %i AND "DOY" = %i'
+                                       % (project, name, d.year, d.doy))
+                except Exception as e:
+                    # if value error is risen, then append the gamit vertices
+                    tqdm.write(' -- Error while processing %s: %s' % (d.yyyyddd(), str(e)))
+
             # load the vertices that don't have differences wrt to the GAMIT solution
             stack_vertices = self.cnn.query_float(
                 'SELECT "NetworkCode" || \'.\' || "StationCode", "X", "Y", "Z", "Year", "DOY", "FYear" FROM stacks '
@@ -193,16 +220,6 @@ class Stack(list):
             self.gamit_vertices = np.array(gamit_vertices, dtype=[('stn', 'S8'), ('x', 'float64'), ('y', 'float64'),
                                                                   ('z', 'float64'), ('yr', 'i4'), ('dd', 'i4'),
                                                                   ('fy', 'float64')])
-
-            dates = self.cnn.query_float('SELECT "Year", "DOY" FROM stacks WHERE "name" = \'%s\' '
-                                         'AND ("Year", "DOY") <= (%i, %i) '
-                                         'UNION '
-                                         'SELECT "Year", "DOY" FROM gamit_soln WHERE "Project" = \'%s\' '
-                                         'AND ("Year", "DOY") <= (%i, %i) '
-                                         'ORDER BY "Year", "DOY"'
-                                         % (name, end_date.year, end_date.doy, project, end_date.year, end_date.doy))
-
-            self.dates = [Date(year=d[0], doy=d[1]) for d in dates]
 
             self.stations = self.cnn.query_float('SELECT "NetworkCode", "StationCode" FROM stacks '
                                                  'WHERE "name" = \'%s\' AND ("Year", "DOY") <= (%i, %i) '

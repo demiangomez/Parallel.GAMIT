@@ -15,6 +15,7 @@ import curses.ascii
 from curses.textpad import Textbox, rectangle
 from collections import OrderedDict
 import traceback
+import re
 
 cnn = dbConnection.Cnn('gnss_data.cfg')
 Config = pyOptions.ReadOptions("gnss_data.cfg")  # type: pyOptions.ReadOptions
@@ -254,6 +255,19 @@ class Menu(object):
             except Exception:
                 self.ShowError('Value must be numeric!')
                 return False
+
+        elif self.items[self.position]['field'] == 'ReceiverFirmware':
+            # field has to be numeric
+            if (not (re.findall(r'^\d+[.]?\d*[DEde+-]?\d*$', edit_field)
+                    or edit_field in ('-', '--', '---', '----', '-----'))) or len(edit_field) > 5:
+                self.ShowError('Receiver Firmware format must be one of these: d.d-d, d.d+d, dEd, d.d, or five '
+                               'dashes (-----)')
+                return False
+            else:
+                if edit_field in ('-', '--', '---', '----', '-----'):
+                    edit_field = '-----'
+                else:
+                    edit_field = edit_field.upper()
 
         elif self.items[self.position]['field'] == 'HeightCode':
 

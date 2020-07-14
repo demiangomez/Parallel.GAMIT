@@ -108,12 +108,7 @@ def main():
 
     cnn = dbConnection.Cnn('gnss_data.cfg')
 
-    if len(args.stnlist) == 1 and os.path.isfile(args.stnlist[0]):
-        print ' >> Station list read from ' + args.stnlist[0]
-        stnlist = [line.strip() for line in open(args.stnlist[0], 'r')]
-        stnlist = [{'NetworkCode': item.split('.')[0], 'StationCode': item.split('.')[1]} for item in stnlist]
-    else:
-        stnlist = Utils.process_stnlist(cnn, args.stnlist)
+    stnlist = Utils.process_stnlist(cnn, args.stnlist)
 
     # define the language
     pyETM.LANG = args.language.lower()

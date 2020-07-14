@@ -672,7 +672,12 @@ def split_string(str, limit, sep=" "):
         res.append(part)
     return res
 
-    
+
+def indent(text, amount, ch=' '):
+    padding = amount * ch
+    return ''.join(padding + line for line in text.splitlines(True))
+
+
 if __name__ == '__main__':
     
     file = '/some/path/g0107321.snx.gz';

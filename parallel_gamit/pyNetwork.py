@@ -48,25 +48,22 @@ class Network(object):
                                      '"DOY" = %i ORDER BY "subnet"' % (self.name, date.year, date.doy), as_dict=True)
 
         if len(db_subnets) > 0:
-            tqdm.write(' >> %s Processing for %s already exists' % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                                                                    date.yyyyddd()))
+            tqdm.write(' >> %s %s %s -> Processing already exists' % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                                                      self.name, date.yyyyddd()))
 
             # sub-network already exist, put information in lists
-            dba_stn = [Station(cnn, stn.split('.')[0], stn.split('.')[1], [date, date], alias) for net in db_subnets
-                       for stn, alias in zip(net['stations'], net['alias'])]
-
-            # create a station collection for convenience
-            db_stations = StationCollection(dba_stn)
+            dba_stn = [stn for net in db_subnets for stn in net['stations']]
+            dba_alias = [alias for net in db_subnets for alias in net['alias']]
 
             # make the necessary changes to the stations aliases (so they match those in the database)
-            stations.replace_alias(db_stations)
+            stations.replace_alias(dba_stn, dba_alias)
 
             # build the sub-networks using the information in the database
             clusters, backbone, ties = self.recover_subnets(db_subnets, stations.get_active_stations(date))
 
             if check_stations:
                 for stn in check_stations.get_active_stations(date):
-                    if stn not in db_stations:
+                    if stn.netstn not in dba_stn:
                         # add station to StationCollection to make sure there's no name collisions
                         stations.append(stn)
                         # determine the closest sub-network (cluster) to this station and add it
@@ -102,8 +99,8 @@ class Network(object):
                                            'reprocessed' % (stn, self.org, subnet['subnet']))
 
         else:
-            tqdm.write(' >> %s Creating network clusters for %s...' % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                                                                       date.yyyyddd()))
+            tqdm.write(' >> %s %s %s -> Creating network clusters' % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                                                      self.name, date.yyyyddd()))
 
             # create station clusters
             # cluster centroids will be used later to tie the networks
@@ -439,7 +436,9 @@ class Network(object):
                 clusters['centroids'].append(subnet['centroid'])
                 # labels start at zero, but zero subnet is backbone
                 # clusters['labels'] += np.ones(len(subnet['stations'])) * (subnet['subnet'] - 1)
-                clusters['stations'].append([stations[stn] for stn in subnet['stations']])
+                # DDG: clusters['stations'] should not have the ties! this is because ties are merged to each
+                #      sub-network in GamitSession
+                clusters['stations'].append([stations[stn] for stn in subnet['stations'] if stn not in subnet['ties']])
                 # add the corresponding ties
                 ties.append([stations[stn] for stn in subnet['ties']])
 

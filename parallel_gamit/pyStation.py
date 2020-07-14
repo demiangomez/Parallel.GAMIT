@@ -37,6 +37,7 @@ class Station(object):
 
         self.NetworkCode  = NetworkCode
         self.StationCode  = StationCode
+        self.netstn = self.NetworkCode + '.' + self.StationCode
         if StationAlias is None:
             if 'public.stationalias' in cnn.get_tables():
                 rs = cnn.query_float('SELECT * FROM stationalias WHERE "NetworkCode" = \'%s\' '
@@ -75,7 +76,6 @@ class Station(object):
             self.X = self.record.auto_x
             self.Y = self.record.auto_y
             self.Z = self.record.auto_z
-            self.netstn = self.NetworkCode + '.' + self.StationCode
 
             # get the available dates for the station (RINEX files with conditions to be processed)
             rs = cnn.query(
@@ -386,13 +386,17 @@ class StationCollection(list):
             stations = [stations]
 
         for stn, alias in zip(stations, aliases):
+            if self[stn].StationCode == alias:
+                # if alias == StationCode continue to next one
+                continue
             try:
                 self[stn].StationAlias = alias
                 # make sure there is no alias overlap
                 while not self.compare_aliases(self[stn]):
                     self[stn].generate_alias()
 
-            except pyStationCollectionException:
+            except pyStationCollectionException as e:
+                print str(e)
                 pass  # not found in collection
 
     def ismember(self, station):

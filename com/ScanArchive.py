@@ -1013,6 +1013,8 @@ def export_station(cnn, stnlist, pyArchive, archive_path, dataless):
             export_dic['y'] = stn['auto_y']
             export_dic['z'] = stn['auto_z']
             export_dic['otl'] = stn['Harpos_coeff_otl']
+            export_dic['dome'] = stn['dome']
+            export_dic['max_dist'] = stn['max_dist']
         else:
             tqdm.write(' -- Warning! %s.%s has incomplete station data' % (NetworkCode, StationCode))
 
@@ -1099,11 +1101,15 @@ def import_station(cnn, args):
                 result, match, closest_stn = spatial.verify_spatial_coherence(cnn, StationCode)
 
                 if result:
-                    tqdm.write(' -- Found external station %s.%s in network %s'
-                               % (NetworkCode, StationCode, match[0]['NetworkCode']))
+                    tqdm.write(' -- Found external station %s.%s in network %s (distance %.3f)'
+                               % (NetworkCode, StationCode, match[0]['NetworkCode'], match[0]['distance']))
 
-                    try_insert_files(cnn, archive, station, match[0]['NetworkCode'],
-                                     StationCode, glob.glob(os.path.join(path, '*d.Z')))
+                    # ask the user what to do with the data
+                    r = raw_input('\n  Insert data to this station?: y/n ')
+
+                    if r.lower() == 'y':
+                        try_insert_files(cnn, archive, station, match[0]['NetworkCode'],
+                                         StationCode, glob.glob(os.path.join(path, '*d.Z')))
 
                 else:
                     if len(match) == 1:
@@ -1111,16 +1117,58 @@ def import_station(cnn, args):
                                    % (NetworkCode, StationCode, match[0]['NetworkCode'],
                                       match[0]['StationCode'], match[0]['distance']))
 
+                        # ask the user what to do with the data
+                        r = raw_input('\n  Insert new station %s with network code %s '
+                                      'or add this data to station %s.%s?: (i)nsert new/(a)dd '
+                                      % (StationCode, network, match[0]['NetworkCode'], match[0]['StationCode']))
+
+                        if r.lower() == 'i':
+                            if insert_station(cnn, network, station):
+                                try_insert_files(cnn, archive, station, network,
+                                                 StationCode, glob.glob(os.path.join(path, '*d.Z')))
+                        else:
+                            # if data is added to existing station, replace the StationCode with the matched
+                            # StationCode the rinexobj will apply the naming convention to the file
+                            try_insert_files(cnn, archive, station, match[0]['NetworkCode'],
+                                             match[0]['StationCode'], glob.glob(os.path.join(path, '*d.Z')))
+
                     elif len(match) > 1:
                         tqdm.write(' -- External station %s.%s not found. Possible matches are %s'
                                    % (NetworkCode, StationCode,
                                       ', '.join(['%s.%s: %.3f m' %
                                                  (m['NetworkCode'], m['StationCode'], m['distance']) for m in match])))
 
+                        options = ', '.join(['%s.%s (%i)' % (m['NetworkCode'], m['StationCode'], i+1)
+                                             for i, m in enumerate(match)])
+
+                        r = raw_input('\n  Insert new station %s with network code %s '
+                                      'or add this data as %s: (i)nsert new/(number)' % (StationCode, network, options))
+
+                        if r.lower() == 'i':
+                            if insert_station(cnn, network, station):
+                                try_insert_files(cnn, archive, station, network,
+                                                 StationCode, glob.glob(os.path.join(path, '*d.Z')))
+                        else:
+                            try:
+                                i = int(r)
+                                try_insert_files(cnn, archive, station, match[i]['NetworkCode'],
+                                                 match[i]['StationCode'], glob.glob(os.path.join(path, '*d.Z')))
+                            except ValueError:
+                                tqdm.write(' -- Selected value is not numeric!')
+
                     else:
                         tqdm.write(' -- External station %s.%s not found. Closest station is %s.%s: %.3f m'
                                    % (NetworkCode, StationCode, closest_stn[0]['NetworkCode'],
                                       closest_stn[0]['StationCode'], closest_stn[0]['distance']))
+
+                        # ask the user what to do with the data
+                        r = raw_input('\n  Insert new station with default station network %s?: y/n ' % network)
+
+                        if r.lower() == 'y':
+                            if insert_station(cnn, network, station):
+                                # now that station was created, insert files
+                                try_insert_files(cnn, archive, station, network,
+                                                 StationCode, glob.glob(os.path.join(path, '*d.Z')))
 
                 # delete all files once we're done.
                 shutil.rmtree(path)
@@ -1129,10 +1177,38 @@ def import_station(cnn, args):
                 tqdm.write(' -- Bad zipfile detected: %s' % ff)
 
 
+def insert_station(cnn, network, station):
+
+    # check that another station with same name doesn't exist in this network
+    rstn = cnn.query_float('SELECT * FROM stations WHERE "NetworkCode" = \'%s\' AND '
+                           '"StationCode" = \'%s\'' % (network, station['StationCode']))
+    if len(rstn) > 0:
+        tqdm.write(' -- Station code %s already exists in network %s. Cannot insert station'
+                   % (station['StationCode'], network))
+        return False
+    else:
+        # check if network exists
+        if not cnn.query_float('SELECT * FROM networks WHERE "NetworkCode" = \'%s\'' % network):
+            cnn.insert('networks', NetworkCode=network)
+
+        # insert the station and metadata in the json file
+        cnn.insert('stations',
+                   NetworkCode=network,
+                   StationCode=station['StationCode'],
+                   auto_x=station['x'], auto_y=station['y'], auto_z=station['z'],
+                   Harpos_coeff_otl=station['otl'],
+                   lat=station['lat'],
+                   lon=station['lon'],
+                   height=station['height'],
+                   max_dist=station['max_dist'] if 'max_dist' in station.keys() else None,
+                   dome=station['dome'] if 'dome' in station.keys() else None)
+        return True
+
+
 def try_insert_files(cnn, archive, station, NetworkCode, StationCode, rinex):
 
     import_stninfo = station['StationInfo']
-    stninfo = pyStationInfo.StationInfo(cnn, NetworkCode, StationCode)
+    stninfo = pyStationInfo.StationInfo(cnn, NetworkCode, StationCode, allow_empty=True)
 
     if rinex:
         # a station file with rinex data in it. Attempt to insert the data and the associated station information
@@ -1163,8 +1239,15 @@ def try_insert_files(cnn, archive, station, NetworkCode, StationCode, rinex):
                     for record in import_stninfo:
                         import_record = pyStationInfo.StationInfoRecord(NetworkCode, StationCode, record)
 
+                        # DDG: to avoid problems with files that contain two different station info records, we check
+                        # that import_record.DateEnd.datetime() is not less than the first observation of the rinex
                         if rinexinfo.datetime_firstObs >= import_record.DateStart.datetime() and \
-                                rinexinfo.datetime_lastObs <= import_record.DateEnd.datetime():
+                                not import_record.DateEnd.datetime() <= rinexinfo.datetime_firstObs:
+
+                            if rinexinfo.datetime_lastObs > import_record.DateEnd.datetime():
+                                tqdm.write('    WARNING! RINEX file %s has an end data past the station info record. '
+                                           'Maybe this file has a receiver/antenna change in the middle.'
+                                           % os.path.basename(rnx))
                             # the record we are looking for
                             try:
                                 stninfo.InsertStationInfo(import_record)

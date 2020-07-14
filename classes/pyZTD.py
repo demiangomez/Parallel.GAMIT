@@ -222,5 +222,5 @@ if __name__ == '__main__':
     import dbConnection
 
     cnn = dbConnection.Cnn('gnss_data.cfg')
-    ztd = Ztd(cnn, 'rms', 'igm1', 'igs-sirgas')
-
+    ztd = Ztd(cnn, 'cap', 'ecgm', 'igs-sirgas')
+    ztd.plot('test.png', residuals=True)

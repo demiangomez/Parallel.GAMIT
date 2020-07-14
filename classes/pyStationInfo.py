@@ -533,6 +533,7 @@ class StationInfo(object):
                     record.DateEnd = pyDate.Date(datetime=rnxtbl[i-count]['ObservationETime'])
                     record.HeightCode = 'DHARP'
                     record.ReceiverVers = Vers[:5]
+                    record.ReceiverFirmware = '-----'
 
                     stninfo.append(str(record))
 
@@ -552,6 +553,7 @@ class StationInfo(object):
         record.DateStart = pyDate.Date(datetime=StartDate)
         record.DateEnd = pyDate.Date(stninfo=None)
         record.HeightCode = 'DHARP'
+        record.ReceiverFirmware = '-----'
 
         stninfo.append(str(record))
 

@@ -196,7 +196,7 @@ class GamitTask(object):
             result = self.parse_monitor(self.success)
 
             with open(os.path.join(self.pwd, 'monitor.log'), 'a') as monitor:
-                monitor.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' -> return to ParallelGamit\n')
+                monitor.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' -> return to Parallel.GAMIT\n')
 
             # no matter the result of the processing, move folder to final destination
             if not dry_run:
@@ -234,7 +234,7 @@ class GamitTask(object):
                           'Year': self.date.year, 'DOY': self.date.doy,
                           'FYear': self.date.fyear, 'wl': 0, 'nl': 0, 'nrms': 0, 'relaxed_constrains': '',
                           'max_overconstrained': '', 'node': platform.node(), 'execution_time': 0, 'execution_date': 0,
-                          'missing': '', 'success': False}
+                          'missing': '', 'success': False, 'fatals': []}
 
             result['error'] = msg
 
@@ -275,6 +275,14 @@ class GamitTask(object):
 
         except Exception:
             end_time = datetime.datetime(2001, 1, 1, 0, 0, 0)
+
+        try:
+            if not success:
+                fatals = set(re.findall(r'(.*?FATAL.*)', output, re.MULTILINE))
+            else:
+                fatals = []
+        except Exception as e:
+            fatals = ['Could not retrieve FATALS: ' + str(e)]
 
         try:
             iterations = int(re.findall(r'run.sh \(\d+-\d+-\d+ \d+:\d+:\d+\): Iteration depth: (\d+)',
@@ -355,13 +363,16 @@ class GamitTask(object):
 
         try:
             ms = re.findall(r'No data for site (\w+)', output, re.MULTILINE)
-            ms += re.findall(r'.*deleting station (\w+)', output, re.MULTILINE)
+            ds = re.findall(r'.*deleting station (\w+)', output, re.MULTILINE)
             missing_sites = []
-            for stn in ms:
+            for stn in ms + ds:
                 for rinex in self.params['rinex']:
                     if rinex['StationAlias'].lower() == stn.lower() \
                             and rinex['NetworkCode'] + '.' + rinex['StationCode'] not in missing_sites:
-                        missing_sites += [rinex['NetworkCode'] + '.' + rinex['StationCode']]
+                        if stn in ms:
+                            missing_sites += ['(' + rinex['NetworkCode'] + '.' + rinex['StationCode'] + ')']
+                        else:
+                            missing_sites += [rinex['NetworkCode'] + '.' + rinex['StationCode']]
 
         except Exception:
             # maybe GAMIT didn't finish
@@ -384,7 +395,8 @@ class GamitTask(object):
                 'execution_time': int((end_time - start_time).total_seconds() / 60.0),
                 'execution_date': start_time,
                 'missing': missing_sites,
-                'success': success}
+                'success': success,
+                'fatals': fatals}
 
     def finish(self):
 

@@ -26,8 +26,14 @@ from shutil import copy
 import pyRinex
 import glob
 import urllib
+import subprocess
+import pyStationInfo
+from Utils import indent
 
-def replace_vars(filename, date):
+TIMEOUT = 10
+
+
+def replace_vars(filename, date, stationcode):
 
     filename = filename.replace('${year}', str(date.year))
     filename = filename.replace('${doy}', str(date.doy).zfill(3))
@@ -37,6 +43,8 @@ def replace_vars(filename, date):
     filename = filename.replace('${gpswkday}', str(date.gpsWeekDay))
     filename = filename.replace('${year2d}', str(date.year)[2:])
     filename = filename.replace('${month2d}', str(date.month).zfill(2))
+    filename = filename.replace('${STATION}', stationcode.upper())
+    filename = filename.replace('${station}', stationcode.lower())
 
     return filename
 
@@ -45,9 +53,16 @@ def main():
     parser = argparse.ArgumentParser(description='Archive operations Main Program')
 
     parser.add_argument('stnlist', type=str, nargs='+', metavar='all|net.stnm',
-                        help="List of networks/stations to process given in [net].[stnm] format or just [stnm] (separated by spaces; if [stnm] is not unique in the database, all stations with that name will be processed). Use keyword 'all' to process all stations in the database. If [net].all is given, all stations from network [net] will be processed. Alternatevily, a file with the station list can be provided.")
+                        help="List of networks/stations to process given in [net].[stnm] format or just [stnm] "
+                             "(separated by spaces; if [stnm] is not unique in the database, all stations with that "
+                             "name will be processed). Use keyword 'all' to process all stations in the database. "
+                             "If [net].all is given, all stations from network [net] will be processed. "
+                             "Alternatevily, a file with the station list can be provided.")
 
-    parser.add_argument('-date', '--date_range', nargs='+', action=required_length(1,2), metavar='date_start|date_end', help="Date range to check given as [date_start] or [date_start] and [date_end]. Allowed formats are yyyy.doy or yyyy/mm/dd..")
+    parser.add_argument('-date', '--date_range', nargs='+', action=required_length(1, 2),
+                        metavar='date_start|date_end',
+                        help="Date range to check given as [date_start] or [date_start] "
+                             "and [date_end]. Allowed formats are yyyy.doy or yyyy/mm/dd..")
     parser.add_argument('-win', '--window', nargs=1, metavar='days', type=int,
                         help="Download data from a given time window determined by today - {days}.")
 
@@ -57,12 +72,7 @@ def main():
         cnn = dbConnection.Cnn('gnss_data.cfg')
         Config = pyOptions.ReadOptions('gnss_data.cfg')
 
-        if len(args.stnlist) == 1 and os.path.isfile(args.stnlist[0]):
-            print ' >> Station list read from ' + args.stnlist[0]
-            stnlist = [line.strip() for line in open(args.stnlist[0], 'r')]
-            stnlist = [{'NetworkCode': item.split('.')[0], 'StationCode': item.split('.')[1]} for item in stnlist]
-        else:
-            stnlist = Utils.process_stnlist(cnn, args.stnlist)
+        stnlist = Utils.process_stnlist(cnn, args.stnlist)
 
         print ' >> Selected station list:'
         print_columns([item['NetworkCode'] + '.' + item['StationCode'] for item in stnlist])
@@ -109,7 +119,19 @@ def download_data(cnn, Config, stnlist, drange):
             pbar.set_postfix(current='%s.%s %s' % (NetworkCode, StationCode, date.yyyyddd()))
             pbar.update()
 
-            rinex = archive.get_rinex_record(NetworkCode=NetworkCode, StationCode=StationCode, ObservationYear=date.year,
+            try:
+                _ = pyStationInfo.StationInfo(cnn, NetworkCode, StationCode, date=date)
+            except pyStationInfo.pyStationInfoHeightCodeNotFound:
+                # if the error is that no height code is found, then there is a record
+                pass
+            except pyStationInfo.pyStationInfoException:
+                # no possible data here, inform and skip
+                tqdm.write(' >> %s.%s skipped: no station information available -> assume station is inactive'
+                           % (NetworkCode, StationCode))
+                continue
+
+            rinex = archive.get_rinex_record(NetworkCode=NetworkCode, StationCode=StationCode,
+                                             ObservationYear=date.year,
                                              ObservationDOY=date.doy)
 
             if not rinex:
@@ -120,7 +142,8 @@ def download_data(cnn, Config, stnlist, drange):
                 download = False
 
             if download:
-                rs = cnn.query('SELECT * FROM data_source WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' ORDER BY try_order' % (NetworkCode, StationCode))
+                rs = cnn.query('SELECT * FROM data_source WHERE "NetworkCode" = \'%s\' '
+                               'AND "StationCode" = \'%s\' ORDER BY try_order' % (NetworkCode, StationCode))
                 sources = rs.dictresult()
 
                 for source in sources:
@@ -129,15 +152,17 @@ def download_data(cnn, Config, stnlist, drange):
 
                     result = False
 
-                    folder = os.path.dirname(replace_vars(source['path'], date))
+                    folder = os.path.dirname(replace_vars(source['path'], date, StationCode))
                     destiny = os.path.join(Config.repository_data_in, source['fqdn'].replace(':', '_'))
-                    filename = os.path.basename(replace_vars(source['path'], date))
+                    filename = os.path.basename(replace_vars(source['path'], date, StationCode))
 
                     if source['protocol'].lower() == 'ftp':
-                        result = download_ftp(source['fqdn'], source['username'], source['password'], folder, destiny, filename)
+                        result = download_ftp(source['fqdn'], source['username'], source['password'],
+                                              folder, destiny, filename)
 
                     elif source['protocol'].lower() == 'sftp':
-                        result = download_sftp(source['fqdn'], source['username'], source['password'], folder, destiny, filename)
+                        result = download_sftp(source['fqdn'], source['username'], source['password'],
+                                               folder, destiny, filename)
 
                     elif source['protocol'].lower() == 'http':
                         result = download_http(source['fqdn'], folder, destiny, filename)
@@ -218,27 +243,42 @@ def download_ftp(fqdn, username, password, folder, destiny, filename):
         tqdm.write('   -- Connecting to ' + fqdn)
 
         # connect to ftp
-        ftp = ftplib.FTP(fqdn, username, password)
+        # ftp = ftplib.FTP(fqdn, username, password)
 
         if not os.path.exists(destiny):
             os.makedirs(destiny)
             tqdm.write('   -- Creating dir ' + destiny)
 
-        tqdm.write('   -- Changing folder to ' + folder)
+        # tqdm.write('   -- Changing folder to ' + folder)
 
-        ftp.cwd(folder)
+        # ftp.cwd(folder)
+        # ftp_list = ftp.nlst()
 
-        ftp_list = ftp.nlst()
+        # if filename in ftp_list:
+        #     ftp.retrbinary("RETR " + filename, open(os.path.join(destiny, filename), 'wb').write)
+        # else:
+        #    ftp.quit()
+        #    return False
 
-        if filename in ftp_list:
-            ftp.retrbinary("RETR " + filename, open(os.path.join(destiny, filename), 'wb').write)
+        # ftp.quit()
+
+        p = subprocess.Popen('wget --user=%s --password=%s -O %s ftp://%s%s || rm -f %s'
+                             % (username, password, os.path.join(destiny, filename), fqdn,
+                                os.path.join(folder, filename),
+                                os.path.join(destiny, filename)), shell=True,
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        stdout, stderr = p.communicate()
+
+        if stdout:
+            tqdm.write(indent(stdout, 6))
+        if stderr:
+            tqdm.write(indent(stderr, 6))
+
+        if os.path.isfile(os.path.join(destiny, filename)):
+            return True
         else:
-            ftp.quit()
             return False
-
-        ftp.quit()
-
-        return True
 
     except Exception as e:
         # folder not present, skip
@@ -259,29 +299,29 @@ def download_sftp(fqdn, username, password, folder, destiny, filename):
         else:
             port = 22
 
-        sftp = pysftp.Connection(fqdn, port=port, username=username, password=password, cnopts=cnopts)
+        # sftp = pysftp.Connection(fqdn, port=port, username=username, password=password, cnopts=cnopts)
 
-        tqdm.write('   -- Connecting to ' + fqdn)
+        # tqdm.write('   -- Connecting to ' + fqdn)
 
         if not os.path.exists(destiny):
             os.makedirs(destiny)
             tqdm.write('   -- Creating dir ' + destiny)
 
-        tqdm.write('   -- Changing folder to ' + folder)
+        # tqdm.write('   -- Changing folder to ' + folder)
 
-        sftp.chdir(folder)
+        # sftp.chdir(folder)
 
-        ftp_list = sftp.listdir()
+        # ftp_list = sftp.listdir()
 
-        if filename in ftp_list:
-            sftp.get(filename, os.path.join(destiny, filename))
-        else:
-            sftp.close()
-            return False
+        # if filename in ftp_list:
+        #     sftp.get(filename, os.path.join(destiny, filename))
+        # else:
+        #    sftp.close()
+        #    return False
 
-        sftp.close()
+        #sftp.close()
 
-        return True
+        return False
 
     except Exception as e:
         # folder not present, skip
@@ -297,16 +337,29 @@ def download_http(fqdn, folder, destiny, filename):
             os.makedirs(destiny)
             tqdm.write('   -- Creating dir ' + destiny)
 
-        rinex = urllib.URLopener()
+        # rinex = urllib.URLopener()
         tqdm.write('   -- %s%s ' % (fqdn, os.path.join(folder, filename)))
-        rinex.retrieve("http://%s%s" % (fqdn, os.path.join(folder, filename)), os.path.join(destiny, filename))
+        # rinex.retrieve("http://%s%s" % (fqdn, os.path.join(folder, filename)), os.path.join(destiny, filename))
+        p = subprocess.Popen('wget -O %s http://%s%s || rm -f %s'
+                             % (os.path.join(destiny, filename), fqdn, os.path.join(folder, filename),
+                                os.path.join(destiny, filename)), shell=True,
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        stdout, stderr = p.communicate()
+        if stdout:
+            tqdm.write(indent(stdout, 6))
+        if stderr:
+            tqdm.write(indent(stderr, 6))
 
     except Exception as e:
         # folder not present, skip
         tqdm.write('   -- http error: ' + str(e))
         return False
 
-    return True
+    if os.path.isfile(os.path.join(destiny, filename)):
+        return True
+    else:
+        return False
 
 
 if __name__ == '__main__':

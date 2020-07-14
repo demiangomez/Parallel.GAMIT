@@ -2555,7 +2555,7 @@ class ETM:
 
 class PPPETM(ETM):
 
-    def __init__(self, cnn, NetworkCode, StationCode, plotit=False, no_model=False):
+    def __init__(self, cnn, NetworkCode, StationCode, plotit=False, no_model=False, interseismic=None):
 
         # load all the PPP coordinates available for this station
         # exclude ppp solutions in the exclude table and any solution that is more than 100 meters from the auto coord

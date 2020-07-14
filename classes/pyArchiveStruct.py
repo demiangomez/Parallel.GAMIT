@@ -20,7 +20,7 @@ import Utils
 import pyRinex
 
 
-class RinexStruct():
+class RinexStruct(object):
 
     def __init__(self, cnn):
 

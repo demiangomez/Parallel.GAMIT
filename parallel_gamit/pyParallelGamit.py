@@ -26,6 +26,7 @@ import pyJobServer
 from Utils import process_date
 from Utils import process_stnlist
 from Utils import parseIntSet
+from Utils import indent
 from pyStation import Station
 from pyStation import StationCollection
 from pyETM import pyETMException
@@ -33,9 +34,30 @@ import pyArchiveStruct
 import logging
 import simplekml
 import numpy as np
+import traceback
 from itertools import repeat
+import time
+import threading
 
 cnn = dbConnection.Cnn('gnss_data.cfg')  # type: dbConnection.Cnn
+
+
+class DbAlive(object):
+    def __init__(self, increment):
+        self.next_t = time.time()
+        self.done = False
+        self.increment = increment
+        self.run()
+
+    def run(self):
+        _ = cnn.query('SELECT * FROM networks')
+        # tqdm.write('%s -> keeping db alive' % print_datetime())
+        self.next_t += self.increment
+        if not self.done:
+            threading.Timer(self.next_t - time.time(), self.run).start()
+
+    def stop(self):
+        self.done = True
 
 
 def print_summary(stations, sessions, dates):
@@ -201,6 +223,10 @@ def station_list(stations, dates):
     return stn_obj
 
 
+def print_datetime():
+    return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+
 def main():
 
     parser = argparse.ArgumentParser(description='Parallel.GAMIT main execution program')
@@ -231,9 +257,8 @@ def main():
     parser.add_argument('-dry', '--dry_run', action='store_true',
                         help="Generate the directory structures (locally) but do not run GAMIT. "
                              "Output is left in the production directory.")
-    parser.add_argument('-kml', '--generate_kml', action='store_true',
-                        help="Generate KML and exit without running GAMIT.")
-
+    parser.add_argument('-kml', '--create_kml', action='store_true',
+                        help="Create a KML with everything processed in this run.")
     parser.add_argument('-np', '--noparallel', action='store_true', help="Execute command without parallelization.")
 
     args = parser.parse_args()
@@ -294,65 +319,38 @@ def main():
         Utils.print_columns(check_station_list)
         check_stations = station_list(check_station_list, drange)
     else:
-        check_stations = None
+        check_stations = StationCollection()
 
     if args.dry_run is not None:
         dry_run = args.dry_run
     else:
         dry_run = False
 
-    if not dry_run and check_stations is None:
+    if not dry_run and not len(check_stations):
         # ignore if calling a dry run
         # purge solutions if requested
         purge_solutions(JobServer, args, dates, GamitConfig)
     else:
         if args.purge:
-            print(' >> Dry run or check mode activated. Cannot purge solutions in these modes.')
-
-    tqdm.write(' >> %s Creating GAMIT session instances, please wait...'
-               % datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-
-    sessions = []
-    archive = pyArchiveStruct.RinexStruct(cnn)  # type: pyArchiveStruct.RinexStruct
-
-    for date in tqdm(dates, ncols=80, disable=None):
-
-        # make the dir for these sessions
-        # this avoids a racing condition when starting each process
-        pwd = GamitConfig.gamitopt['solutions_dir'].rstrip('/') + '/' + date.yyyy() + '/' + date.ddd()
-
-        if not os.path.exists(pwd):
-            os.makedirs(pwd)
-
-        net_object = Network(cnn, archive, GamitConfig, stations, date, check_stations, args.ignore_missing)
-
-        sessions += net_object.sessions
-
-    if args.generate_kml:
-        # generate a KML of the sessions
-        generate_kml(dates, sessions, GamitConfig)
-        exit()
-
-    # print a summary of the current project (NOT VERY USEFUL AFTER ALL)
-    # print_summary(stations, sessions, drange)
+            tqdm.write(' >> Dry run or check mode activated. Cannot purge solutions in these modes.')
 
     # run the job server
-    ExecuteGamit(sessions, JobServer, dry_run)
+    sessions = ExecuteGamit(JobServer, GamitConfig, stations, check_stations, args.ignore_missing, dates,
+                            args.dry_run, args.create_kml)
 
     # execute globk on doys that had to be divided into subnets
     if not args.dry_run:
         ExecuteGlobk(JobServer, GamitConfig, sessions, dates)
 
         # parse the zenith delay outputs
-        ParseZTD(GamitConfig.NetworkConfig.network_id, sessions, GamitConfig)
+        ParseZTD(GamitConfig.NetworkConfig.network_id, dates, sessions, GamitConfig, JobServer)
 
-    print(' >> %s Done processing and parsing information. Successful exit from Parallel.GAMIT'
-          % datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+    tqdm.write(' >> %s Successful exit from Parallel.GAMIT' % print_datetime())
 
 
 def generate_kml(dates, sessions, GamitConfig):
 
-    tqdm.write('  >> Generating KML for this run (see production directory)...')
+    tqdm.write(' >> Generating KML for this run (see production directory)...')
 
     kml = simplekml.Kml()
 
@@ -404,107 +402,89 @@ def generate_kml(dates, sessions, GamitConfig):
     kml.savekmz('production/' + GamitConfig.NetworkConfig.network_id.lower() + '.kmz')
 
 
-def ParseZTD(project, Sessions, GamitConfig):
+def ParseZTD(project, dates, Sessions, GamitConfig, JobServer):
 
-    global cnn
+    tqdm.write(' >> %s Parsing the tropospheric zenith delays...' % print_datetime())
 
-    tqdm.write(' >> %s Parsing the zenith tropospheric delays...' % datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+    # JobServer.create_cluster(parse_ztd, callback=parse_ztd_callback)
 
-    # atmospheric zenith delay list
-    atmzen = []
-    # a dictionary for the station aliases lookup table
-    alias = dict()
+    # parse and insert one day at the time, otherwise, the process becomes too slow for long runs
+    for date in tqdm(dates, ncols=80, disable=None):
 
-    for GamitSession in tqdm(Sessions, ncols=80, disable=None):
-        try:
-            znd = os.path.join(GamitSession.pwd_glbf, GamitConfig.gamitopt['org'] + GamitSession.date.wwwwd() + '.znd')
+        tqdm.write(' >> %s Working on tropospheric zenith delays for %s'
+                   % (print_datetime(), date.yyyyddd()))
 
-            if os.path.isfile(znd):
-                # read the content of the file
-                f = open(znd, 'r')
-                output = f.readlines()
-                f.close()
-                v = re.findall(r'ATM_ZEN X (\w+) .. (\d+)\s*(\d*)\s*(\d*)\s*(\d*)\s*(\d*)\s*\d*\s*([- ]?'
-                               r'\d*.\d+)\s*[+-]*\s*(\d*.\d*)\s*(\d*.\d*)', ''.join(output), re.MULTILINE)
-                # add the year doy tuple to the result
-                atmzen += [i + (GamitSession.date.year, GamitSession.date.doy) for i in v]
-            else:
-                v = []
+        # atmospheric zenith delay list
+        atmzen = []
+        # a dictionary for the station aliases lookup table
+        alias = dict()
 
-            # create a lookup table for station aliases
-            for zd in v:
-                for StnIns in GamitSession.StationInstances:
-                    if StnIns.StationAlias.upper() == zd[0]:
-                        alias[zd[0]] = [StnIns.NetworkCode, StnIns.StationCode]
+        # get all the session of this day
+        sessions = [s for s in Sessions if s.date == date]
 
-        except Exception as e:
-            tqdm.write(' -- Error parsing zenith delays for session %s: %s' % (GamitSession.NetName, str(e)))
+        for GamitSession in sessions:
+            try:
+                znd = os.path.join(GamitSession.pwd_glbf,
+                                   GamitConfig.gamitopt['org'] + GamitSession.date.wwwwd() + '.znd')
 
-    if not len(atmzen):
-        tqdm.write(' -- No sessions with usable atmospheric zenith delays were found!')
-        return
+                if os.path.isfile(znd):
+                    # read the content of the file
+                    f = open(znd, 'r')
+                    output = f.readlines()
+                    f.close()
+                    v = re.findall(r'ATM_ZEN X (\w+) .. (\d+)\s*(\d*)\s*(\d*)\s*(\d*)\s*(\d*)\s*\d*\s*([- ]?'
+                                   r'\d*.\d+)\s*[+-]*\s*(\d*.\d*)\s*(\d*.\d*)', ''.join(output), re.MULTILINE)
+                    # add the year doy tuple to the result
+                    atmzen += [i + (GamitSession.date.year, GamitSession.date.doy) for i in v]
+                else:
+                    v = []
 
-    # all station days are in the atmzen
-    # convert to numpy to sort and average
+                # create a lookup table for station aliases
+                for zd in v:
+                    for StnIns in GamitSession.StationInstances:
+                        if StnIns.StationAlias.upper() == zd[0]:
+                            alias[zd[0]] = [StnIns.NetworkCode, StnIns.StationCode]
 
-    atmzen = np.array(atmzen, dtype=[('stn', 'S4'), ('y', 'i4'), ('m', 'i4'), ('d', 'i4'), ('h', 'i4'), ('mm', 'i4'),
-                                     ('mo', 'float64'), ('s', 'float64'), ('z', 'float64'),
-                                     ('yr', 'i4'), ('doy', 'i4')])
+            except Exception as e:
+                tqdm.write(' -- Error parsing zenith delays for session %s:\n%s'
+                           % (GamitSession.NetName, traceback.format_exc()))
 
-    atmzen.sort(order=['stn', 'y', 'm', 'd', 'h', 'mm'])
+        if not len(atmzen):
+            tqdm.write(' -- %s No sessions with usable atmospheric zenith delays were found for %s'
+                       % (print_datetime(), date.yyyyddd()))
+            continue
 
-    tqdm.write(' -- %s Computing unique stations and days...'
-               % datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-    # get the stations in the processing
-    stations = np.unique(atmzen['stn'])
-    # get the unique dates for this process
-    date_vec = np.unique(np.array([atmzen['yr'], atmzen['doy']]).transpose(), axis=0)
+        # turn atmzen into a numpy array
+        atmzen = np.array(atmzen,
+                          dtype=[('stn', 'S4'), ('y', 'i4'), ('m', 'i4'), ('d', 'i4'), ('h', 'i4'), ('mm', 'i4'),
+                                 ('mo', 'float64'), ('s', 'float64'), ('z', 'float64'),
+                                 ('yr', 'i4'), ('doy', 'i4')])
 
-    # drop all records from the database to make sure there will be no problems with massive insert
-    tqdm.write(' -- %s Deleting previous zenith tropospheric delays from the database...'
-               % datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-    for date in date_vec:
-        cnn.query('DELETE FROM gamit_ztd WHERE "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i'
-                  % (project.lower(), date[0], date[1]))
+        atmzen.sort(order=['stn', 'y', 'm', 'd', 'h', 'mm'])
 
-    tqdm.write(' -- %s Averaging zenith delays from stations in multiple sessions and inserting into database...'
-               % datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+        # get the stations in the processing
+        stations = np.unique(atmzen['stn'])
+        # get the unique dates for this process
+        date_vec = np.unique(np.array([atmzen['yr'], atmzen['doy']]).transpose(), axis=0)
 
-    for stn in stations:
-        for date in date_vec:
-            # select the station and date
-            zd = atmzen[np.logical_and.reduce((atmzen['stn'] == stn,
-                                               atmzen['yr'] == date[0], atmzen['doy'] == date[1]))]
-            # careful, don't do anything if there is no data for this station-day
-            if zd.size > 0:
-                # find the unique days
-                days = np.unique(np.array([zd['y'], zd['m'], zd['d'], zd['h'], zd['mm']]).transpose(), axis=0)
-                # average over the existing records
-                for d in days:
-                    rows = zd[np.logical_and.reduce((zd['y'] == d[0], zd['m'] == d[1],
-                                                     zd['d'] == d[2], zd['h'] == d[3], zd['mm'] == d[4]))]
+        # drop all records from the database to make sure there will be no problems with massive insert
+        # tqdm.write(' -- %s Deleting previous zenith tropospheric delays from the database...'
+        #            % print_datetime())
 
-                    ztd = alias[stn] + [datetime(d[0], d[1], d[2], d[3], d[4]).strftime('%Y-%m-%d %H:%M:%S')] + \
-                                  [project.lower()] + [np.mean(rows['z']) - np.mean(rows['mo']), np.mean(rows['s']),
-                                                       np.mean(rows['z'])] + date.tolist()
+        for dd in date_vec:
+            cnn.query('DELETE FROM gamit_ztd WHERE "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i'
+                      % (project.lower(), dd[0], dd[1]))
 
-                    # now do the insert
-                    try:
-                        cnn.insert('gamit_ztd',
-                                   NetworkCode=ztd[0],
-                                   StationCode=ztd[1],
-                                   Date=ztd[2],
-                                   Project=ztd[3],
-                                   model=ztd[4],
-                                   sigma=ztd[5],
-                                   ZTD=ztd[6],
-                                   Year=ztd[7],
-                                   DOY=ztd[8])
-        # cnn.executemany('INSERT INTO gamit_ztd ("NetworkCode", "StationCode", "Date", "Project", "model", "sigma", '
-        #                '                       "ZTD", "Year", "DOY") VALUES (%s, %s, %s, %s, %f, %f, %f, %i, %i)',
-        #                uztd)
-                    except Exception as e:
-                        tqdm.write(' -- Error inserting parsed zenith delay: %s' % str(e))
+        # tqdm.write(
+        #     ' -- %s Averaging zenith delays from stations in multiple sessions and inserting into database...'
+        #     % print_datetime())
+
+        for stn in stations:
+            # JobServer.submit(date_vec, atmzen, stn, alias, project)
+            parse_ztd(date_vec, atmzen, stn, alias, project)
+        # JobServer.wait()
+
+    # JobServer.close_cluster()
 
 
 def ExecuteGlobk(JobServer, GamitConfig, sessions, dates):
@@ -512,14 +492,12 @@ def ExecuteGlobk(JobServer, GamitConfig, sessions, dates):
     project = GamitConfig.NetworkConfig.network_id.lower()
 
     tqdm.write(' >> %s Combining with GLOBK sessions with more than one subnetwork...'
-               % datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+               % print_datetime())
 
     modules = ('os', 'shutil', 'snxParse', 'subprocess', 'platform', 'traceback', 'glob', 'dbConnection', 'math')
 
     JobServer.create_cluster(run_globk, (pyGlobkTask.Globk, pyGamitSession.GamitSession),
                              globk_callback, modules=modules)
-
-    # gk_objects = []
 
     for date in tqdm(dates, ncols=80, disable=None):
 
@@ -544,7 +522,7 @@ def ExecuteGlobk(JobServer, GamitConfig, sessions, dates):
                     Fatal = True
                     tqdm.write(' >> GAMIT FATAL found in monitor of session %s %s (or no monitor.log file). '
                                'This combined solution will not be added to the database.'
-                               % (GamitSession.NetName, GamitSession.date.yyyyddd()))
+                               % (GamitSession.date.yyyyddd(), GamitSession.DirName))
 
         if not Fatal:
             # folder where the combination (or final solution if single network) should be written to
@@ -553,13 +531,11 @@ def ExecuteGlobk(JobServer, GamitConfig, sessions, dates):
             globk = pyGlobkTask.Globk(pwd_comb, date, GlobkComb)
 
             JobServer.submit(globk, project, date)
-            # save the object just in case...
-            # gk_objects.append(globk)
 
     JobServer.wait()
     JobServer.close_cluster()
 
-    tqdm.write(' >> %s Done combining subnetworks' % datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+    tqdm.write(' >> %s Done combining subnetworks' % print_datetime())
 
     return
 
@@ -585,30 +561,32 @@ def gamit_callback(job):
             # DDG: only show sessions with problems to facilitate debugging.
             if result['success']:
                 if len(msg) > 0:
-                    tqdm.write(' -- Done processing: %s -> WARNINGS:\n%s' % (result['session'], '\n'.join(msg)))
+                    tqdm.write(' -- %s Done processing: %s -> WARNINGS:\n%s'
+                               % (print_datetime(), result['session'], '\n'.join(msg)))
 
                 # insert information in gamit_stats
                 try:
                     cnn.insert('gamit_stats', result)
                 except dbConnection.dbErrInsert as e:
                     tqdm.write(' -- %s Error while inserting GAMIT stat for %s: '
-                               % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), result['session'] + str(e)))
+                               % (print_datetime(), result['session'] + ' ' + str(e)))
 
             else:
-                tqdm.write(' -- Done processing: %s -> FATAL:\n%s'
-                           % (result['session'], '    > Failed to complete. Check monitor.log'))
+                tqdm.write(' -- %s Done processing: %s -> FATAL:\n'
+                           '    > Failed to complete. Check monitor.log:\n%s'
+                           % (print_datetime(), result['session'], indent('\n'.join(result['fatals']), 4)))
                 # write FATAL to file
                 f = open('FATAL.log', 'a')
-                f.write('ON %s session %s -> FATAL: Failed to complete. Check monitor.log\n'
-                        % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), result['session']))
+                f.write('ON %s session %s -> FATAL: Failed to complete. Check monitor.log\n%s\n'
+                        % (print_datetime(), result['session'], indent('\n'.join(result['fatals']), 4)))
                 f.close()
         else:
             tqdm.write(' -- %s Error in session %s message from node follows -> \n%s'
-                       % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), result['session'], result['error']))
+                       % (print_datetime(), result['session'], result['error']))
 
     else:
         tqdm.write(' -- %s Fatal error on node %s message from node follows -> \n%s'
-                   % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), job.ip_addr, job.exception))
+                   % (print_datetime(), job.ip_addr, job.exception))
 
 
 def globk_callback(job):
@@ -652,11 +630,43 @@ def globk_callback(job):
             else:
                 tqdm.write(' -- %s Error while combining with GLOBK -> Invalid key found in session %s -> %s. '
                            'Polyhedron in database may be incomplete.'
-                           % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), date.yyyyddd(), key))
+                           % (print_datetime(), date.yyyyddd(), key))
 
     else:
         tqdm.write(' -- %s Fatal error on node %s message from node follows -> \n%s'
-                   % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), job.ip_addr, job.exception))
+                   % (print_datetime(), job.ip_addr, job.exception))
+
+
+def parse_ztd_callback(job):
+
+    global cnn
+
+    result = job.result
+
+    if result is not None:
+        result, stn = result
+        for ztd in result:
+            # now do the insert
+            try:
+                cnn.insert('gamit_ztd',
+                           NetworkCode=ztd[0],
+                           StationCode=ztd[1],
+                           Date=ztd[2],
+                           Project=ztd[3],
+                           model=ztd[4],
+                           sigma=ztd[5],
+                           ZTD=ztd[6],
+                           Year=ztd[7],
+                           DOY=ztd[8])
+
+            except Exception as e:
+                tqdm.write(' -- Error inserting parsed zenith delay: %s' % str(e))
+
+        # tqdm.write(' -- %s %s -> ZTD successfully parsed and inserted to database'
+        #            % (print_datetime(), stn))
+    else:
+        tqdm.write(' -- %s Fatal error on node %s message from node follows -> \n%s'
+                   % (print_datetime(), job.ip_addr, job.exception))
 
 
 def run_gamit_session(gamit_task, dir_name, year, doy, dry_run):
@@ -670,55 +680,126 @@ def run_globk(globk_object, project, date):
     return polyhedron, variance, project, date
 
 
-def ExecuteGamit(Sessions, JobServer, dry_run=False):
+def parse_ztd(date_vec, atmzen, stn, alias, project):
 
-    gamit_pbar = tqdm(total=len([GamitSession for GamitSession in Sessions if not GamitSession.ready]),
-                      desc=' >> GAMIT sessions completion', ncols=100, disable=None)  # type: tqdm
+    # parallel function: import modules with aliases
+    # from datetime import datetime
+    # import numpy as np
+    ztd = []
 
-    tqdm.write(' >> %s Initializing %i GAMIT sessions' % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), len(Sessions)))
+    for date in date_vec:
+        # select the station and date
+        zd = atmzen[np.logical_and.reduce((atmzen['stn'] == stn,
+                                           atmzen['yr'] == date[0], atmzen['doy'] == date[1]))]
+        # careful, don't do anything if there is no data for this station-day
+        if zd.size > 0:
+            # find the unique days
+            days = np.unique(np.array([zd['y'], zd['m'], zd['d'], zd['h'], zd['mm']]).transpose(), axis=0)
+            # average over the existing records
+            for d in days:
+                rows = zd[np.logical_and.reduce((zd['y'] == d[0], zd['m'] == d[1],
+                                                 zd['d'] == d[2], zd['h'] == d[3], zd['mm'] == d[4]))]
 
-    # For debugging parallel python runs
-    # console = logging.FileHandler('pp.log')
-    # console.setLevel(logging.DEBUG)
-    # JobServer.job_server.logger.setLevel(logging.DEBUG)
-    # formatter = logging.Formatter('%(asctime)s %(name)s: %(levelname)-8s %(message)s')
-    # console.setFormatter(formatter)
-    # JobServer.job_server.logger.addHandler(console)
+                try:
+                    ztd.append(alias[stn] +
+                               [datetime(d[0], d[1], d[2], d[3], d[4]).strftime('%Y-%m-%d %H:%M:%S')] +
+                               [project.lower()] + [np.mean(rows['z']) - np.mean(rows['mo']), np.mean(rows['s']),
+                                                    np.mean(rows['z'])] + date.tolist())
+                except KeyError:
+                    tqdm.write(' -- Key error: could not translate station alias %s' % stn)
+
+    # return ztd, stn
+    zz = ztd
+    for ztd in zz:
+        # now do the insert
+        try:
+            cnn.insert('gamit_ztd',
+                       NetworkCode=ztd[0],
+                       StationCode=ztd[1],
+                       Date=ztd[2],
+                       Project=ztd[3],
+                       model=ztd[4],
+                       sigma=ztd[5],
+                       ZTD=ztd[6],
+                       Year=ztd[7],
+                       DOY=ztd[8])
+
+        except Exception as e:
+            tqdm.write(' -- Error inserting parsed zenith delay: %s' % str(e))
+
+
+def ExecuteGamit(JobServer, GamitConfig, stations, check_stations, ignore_missing, dates,
+                 dry_run=False, create_kml=False):
 
     modules = ('pyRinex', 'datetime', 'os', 'shutil', 'pyBrdc', 'pySp3', 'subprocess', 're', 'pyETM', 'glob',
                'platform', 'traceback')
 
-    JobServer.create_cluster(run_gamit_session, (pyGamitTask.GamitTask,), gamit_callback, gamit_pbar, modules=modules)
+    tqdm.write(' >> %s Creating GAMIT session instances and executing GAMIT, please wait...' % print_datetime())
 
-    # gtasks = []
+    sessions = []
+    archive = pyArchiveStruct.RinexStruct(cnn)  # type: pyArchiveStruct.RinexStruct
 
-    for GamitSession in Sessions:
+    for date in tqdm(dates, ncols=80, disable=None):
+
+        # make the dir for these sessions
+        # this avoids a racing condition when starting each process
+        pwd = GamitConfig.gamitopt['solutions_dir'].rstrip('/') + '/' + date.yyyy() + '/' + date.ddd()
+
+        if not os.path.exists(pwd):
+            os.makedirs(pwd)
+
+        net_object = Network(cnn, archive, GamitConfig, stations, date, check_stations, ignore_missing)
+
+        sessions += net_object.sessions
+
+        # Network outputs the sessions to be processed
+        # submit them if they are not ready
+        tqdm.write(' >> %s %i GAMIT sessions to submit (%i already processed)'
+                   % (print_datetime(),
+                      len([sess for sess in net_object.sessions if not sess.ready]),
+                      len([sess for sess in net_object.sessions if sess.ready])))
+
+    pbar = tqdm(total=len(sessions), disable=None, desc=' >> GAMIT sessions completion', ncols=100)
+    # create the cluster for the run
+    JobServer.create_cluster(run_gamit_session, (pyGamitTask.GamitTask,), gamit_callback, pbar, modules=modules)
+
+    for GamitSession in sessions:
         if not GamitSession.ready:
             # do not submit the task if the session is ready!
+            # tqdm.write(' >> %s Init' % (datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
             GamitSession.initialize()
+            # tqdm.write(' >> %s Done Init' % (datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
             task = pyGamitTask.GamitTask(GamitSession.remote_pwd, GamitSession.params, GamitSession.solution_pwd)
-
+            # tqdm.write(' >> %s Done task' % (datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
             JobServer.submit(task, task.params['DirName'], task.date.year, task.date.doy, dry_run)
 
-            tqdm.write(' -- %s Submitting %s %s %s%02i for processing'
-                       % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            tqdm.write(' -- %s %s %s %s%02i -> Submitting for processing'
+                       % (print_datetime(),
                           GamitSession.NetName, GamitSession.date.yyyyddd(), GamitSession.org,
                           GamitSession.subnet if GamitSession.subnet is not None else 0))
-            # save it just in case...
-            # gtasks.append(task)
         else:
-            tqdm.write(' -- %s Session %s %s %02i already processed'
-                       % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                          GamitSession.NetName, GamitSession.date.yyyyddd(),
+            pbar.update()
+            tqdm.write(' -- %s %s %s %s%02i -> Session already processed'
+                       % (print_datetime(),
+                          GamitSession.NetName, GamitSession.date.yyyyddd(), GamitSession.org,
                           GamitSession.subnet if GamitSession.subnet is not None else 0))
 
-    tqdm.write(' -- %s Done initializing and submitting GAMIT sessions' % datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+    if create_kml:
+        # generate a KML of the sessions
+        generate_kml(dates, sessions, GamitConfig)
 
+    tqdm.write(' -- %s Done initializing and submitting GAMIT sessions' % print_datetime())
+
+    # DDG: because of problems with keeping the database connection open (in some platforms), we invoke a class
+    # that just performs a select on the database
+    timer = DbAlive(120)
     JobServer.wait()
-
-    gamit_pbar.close()
+    pbar.close()
+    timer.stop()
 
     JobServer.close_cluster()
+
+    return sessions
 
 
 if __name__ == '__main__':
