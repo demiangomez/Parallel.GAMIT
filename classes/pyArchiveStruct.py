@@ -18,6 +18,8 @@ import pyOptions
 import pyEvents
 import Utils
 import pyRinex
+import pyRinexName
+from pyRinexName import RinexNameFormat
 
 
 class RinexStruct(object):
@@ -94,11 +96,11 @@ class RinexStruct(object):
                                                                       record['ObservationDOY'],
                                                                       with_filename=False, rinexobj=rinexobj))
 
-                    # copy fixed version into the archive
+                    # copy fixed version into the archive (in case another session exists for RINEX v2)
                     archived_crinex = rinexobj.compress_local_copyto(path2archive)
                     copy_succeeded = True
                     # get the rinex filename to update the database
-                    rnx = rinexobj.to_format(os.path.basename(archived_crinex), pyRinex.TYPE_RINEX)
+                    rnx = RinexNameFormat(archived_crinex).to_rinex_format(pyRinexName.TYPE_RINEX, no_path=True)
 
                     if rnx != rinexobj.rinex:
                         # update the table with the filename (always force with step)
@@ -195,7 +197,8 @@ class RinexStruct(object):
             if os.path.isfile(rinex_path):
                 if move_to_dir:
 
-                    filename = Utils.move(rinex_path, os.path.join(move_to_dir, os.path.basename(rinex_path)))
+                    filename = Utils.move(rinex_path,
+                                          os.path.join(move_to_dir, os.path.basename(rinex_path)))
                     description = 'RINEX %s was removed from the database and archive. ' \
                                   'File moved to %s. See next events for reason.' % (record['Filename'], filename)
                 else:
@@ -271,39 +274,6 @@ class RinexStruct(object):
 
         return self.cnn.query(sql).dictresult()
 
-    def check_directory_struct(self, ArchivePath, NetworkCode, StationCode, date):
-
-        path = self.build_rinex_path(NetworkCode,StationCode,date.year,date.doy,False)
-
-        try:
-            if not os.path.isdir(os.path.join(ArchivePath,path)):
-                os.makedirs(os.path.join(ArchivePath,path))
-        except OSError:
-            # race condition: two prcesses trying to create the same folder
-            pass
-
-        return
-
-    @staticmethod
-    def parse_crinex_filename(filename):
-        # parse a crinex filename
-        sfile = re.findall(r'(\w{4})(\d{3})(\w{1})\.(\d{2})([d])\.[Z]$', filename)
-
-        if sfile:
-            return sfile[0]
-        else:
-            return []
-
-    @staticmethod
-    def parse_rinex_filename(filename):
-        # parse a rinex filename
-        sfile = re.findall(r'(\w{4})(\d{3})(\w{1})\.(\d{2})([o])$', filename)
-
-        if sfile:
-            return sfile[0]
-        else:
-            return []
-
     def scan_archive_struct(self, rootdir, progress_bar=None):
 
         self.archiveroot = rootdir
@@ -314,17 +284,17 @@ class RinexStruct(object):
         for path, _, files in scandir.walk(rootdir):
             for file in files:
                 if progress_bar is not None:
-                    progress_bar.set_postfix(crinex=os.path.join(path,file).rsplit(rootdir+'/')[1])
+                    progress_bar.set_postfix(crinex=os.path.join(path, file).rsplit(rootdir+'/')[1])
                     progress_bar.update()
 
-                # DDG issue #15: match the name of the file to a valid rinex filename
-                if self.parse_crinex_filename(file):
-                    # only add valid rinex compressed files
+                try:
+                    _ = RinexNameFormat(file)
+                    # only add valid rinex files (now allows the full range)
                     fls.append(file)
-                    rnx.append(os.path.join(path,file).rsplit(rootdir+'/')[1])
-                    path2rnx.append(os.path.join(path,file))
+                    rnx.append(os.path.join(path, file).rsplit(rootdir+'/')[1])
+                    path2rnx.append(os.path.join(path, file))
 
-                else:
+                except pyRinexName.RinexNameException:
                     if file.endswith('DS_Store') or file[0:2] == '._':
                         # delete the stupid mac files
                         try:
@@ -386,8 +356,7 @@ class RinexStruct(object):
             sql_string = ", ".join(sql_list)
 
             if filename:
-                if self.parse_crinex_filename(filename):
-                    filename = filename.replace('d.Z', 'o')
+                filename = RinexNameFormat(filename).to_rinex_format(pyRinexName.TYPE_RINEX)
 
                 # if filename is set, user requesting a specific file: query rinex table
                 rs = self.cnn.query('SELECT ' + sql_string + ' FROM rinex WHERE "NetworkCode" = \'' +
@@ -408,10 +377,9 @@ class RinexStruct(object):
                     keys.append(str(field[level['rinex_col_in']]).zfill(level['TotalChars']))
 
                 if with_filename:
+                    rnx_name = RinexNameFormat(field['Filename'])
                     # database stores rinex, we want crinez
-                    return "/".join(keys) + "/" + \
-                           field['Filename'].replace(field['Filename'].split('.')[-1],
-                                                     field['Filename'].split('.')[-1].replace('o', 'd.Z'))
+                    return "/".join(keys) + "/" + rnx_name.to_rinex_format(pyRinexName.TYPE_CRINEZ)
                 else:
                     return "/".join(keys)
             else:
@@ -442,53 +410,52 @@ class RinexStruct(object):
             else:
                 raise ValueError('Invalid path result: %s' % path)
 
-    def parse_archive_keys(self, path, key_filter=()):
+    def parse_archive_keys(self, path_filename, key_filter=()):
+        """
+        based on a path and filename, this function parses the data and organizes the information in a dictionary
+        key_filter allows to select which keys you want to get a hold on. The order of the keys in the path is given
+        by the database table rinex_tank_struct
+        :param path:
+        :param key_filter:
+        :return:
+        """
+        keys_out = dict()
 
         try:
-            pathparts = path.split('/')
-            filename = path.split('/')[-1]
+            path = os.path.dirname(path_filename).split('/')
+            filename = os.path.basename(path_filename)
 
-            # check the number of levels in pathparts against the number of expected levels
-            # subtract one for the filename
-            if len(pathparts) - 1 != len(self.levels):
+            # check the number of levels in path parts against the number of expected levels
+            if len(path) != len(self.levels):
                 return False, {}
+
+            # now look in the different levels to match more data (or replace filename keys)
+            for key in self.levels:
+
+                if len(path[key['Level'] - 1]) != key['TotalChars']:
+                    return False, {}
+
+                if key['isnumeric'] == '1':
+                    keys_out[key['KeyCode']] = int(path[key['Level'] - 1])
+                else:
+                    keys_out[key['KeyCode']] = path[key['Level'] - 1].lower()
 
             if not filename.endswith('.info'):
-                fileparts = self.parse_crinex_filename(filename)
-            else:
-                # parsing a station info file, fill with dummy the doy and year
-                fileparts = ('dddd', '1', '0', '80')
 
-            if fileparts:
-                keys = dict()
+                fileparts = RinexNameFormat(filename)
 
-                # fill in all the possible keys using the crinex file info
-                keys['station'] = fileparts[0]
-                keys['doy'] = int(fileparts[1])
-                keys['session'] = fileparts[2]
-                keys['year'] = int(fileparts[3])
-                keys['network'] = 'rnx'
+                # fill in all the possible keys_out using the crinex file info
+                keys_out['station'] = fileparts.StationCode
+                keys_out['doy'] = fileparts.date.doy
+                keys_out['session'] = fileparts.session
+                keys_out['year'] = fileparts.date.year
 
-                # now look in the different levels to match more data (or replace filename keys)
-                for key in self.levels:
+                # check date is valid and also fill day and month keys_out
+                keys_out['day'] = fileparts.date.day
+                keys_out['month'] = fileparts.date.month
 
-                    if len(pathparts[key['Level'] - 1]) != key['TotalChars']:
-                        return False, {}
+                return True, {key: keys_out[key] for key in keys_out.keys() if key in key_filter}
 
-                    if key['isnumeric'] == '1':
-                        keys[key['KeyCode']] = int(pathparts[key['Level']-1])
-                    else:
-                        keys[key['KeyCode']] = pathparts[key['Level'] - 1].lower()
-
-                # check date is valid and also fill day and month keys
-                date = pyDate.Date(year=keys['year'], doy=keys['doy'])
-                keys['day'] = date.day
-                keys['month'] = date.month
-
-                return True, {key: keys[key] for key in keys.keys() if key in key_filter}
-            else:
-                return False, {}
-
-        except Exception as e:
+        except Exception:
             return False, {}
 

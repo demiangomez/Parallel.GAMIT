@@ -120,7 +120,9 @@ def main():
     parser.add_argument('project', type=str, nargs=1, metavar='{project name}',
                         help="Specify the project name used to process the GAMIT solutions in Parallel.GAMIT.")
     parser.add_argument('-d', '--date_filter', nargs='+', metavar='date',
-                        help='Date range filter Can be specified in yyyy/mm/dd yyyy_doy  wwww-d format')
+                        help='Date range filter. Can be specified in yyyy/mm/dd yyyy_doy  wwww-d format')
+    parser.add_argument('-w', '--plot_window', nargs='+', metavar='date',
+                        help='Date window range to plot. Can be specified in yyyy/mm/dd yyyy_doy  wwww-d format')
 
     args = parser.parse_args()
 
@@ -133,6 +135,19 @@ def main():
         dates = process_date(args.date_filter)
     except ValueError as e:
         parser.error(str(e))
+
+    pdates = None
+    if args.plot_window is not None:
+        if len(args.plot_window) == 1:
+            try:
+                pdates = process_date(args.plot_window, missing_input=None, allow_days=False)
+                pdates = (pdates[0].fyear,)
+            except ValueError:
+                # an integer value
+                pdates = float(args.plot_window[0])
+        else:
+            pdates = process_date(args.plot_window)
+            pdates = (pdates[0].fyear, pdates[1].fyear)
 
     # create folder for plots
 
@@ -163,7 +178,7 @@ def main():
                     etm = pyETM.DailyRep(cnn, NetworkCode, StationCode, False, False, dra_ts)
 
                     etm.plot(pngfile='%s/%s.%s_DRA.png' % (project + '_dra', NetworkCode, StationCode),
-                             plot_missing=False)
+                             plot_missing=False, t_win=pdates)
 
             except Exception as e:
                 tqdm.write(' -->' + str(e))

@@ -22,42 +22,20 @@ class Globk(object):
 
     def __init__(self, pwd_comb, date, Sessions):
 
-        self.polyhedron     = None
+        self.polyhedron = None
         self.VarianceFactor = None
-        self.date           = date
-        self.pwd_comb       = pwd_comb
-        self.Sessions       = Sessions  # type: list
+        self.date = date
+        self.eop = Sessions[0].GamitOpts['eop_type']
+        self.org = Sessions[0].GamitOpts['org']
+        self.expt = Sessions[0].GamitOpts['expt']
+        self.pwd_comb = pwd_comb
+        self.Sessions = Sessions  # type: list
+        self.h_files = []
         self.stdout = None
         self.stderr = None
         self.p = None
         self.polyhedron = None
         self.variance = None
-
-        # if more than one session, then we need to run globk to combine
-        if len(Sessions) > 1:
-            # try to create the folder
-            if not os.path.exists(pwd_comb):
-                os.makedirs(pwd_comb)
-            else:
-                # if exists, delete and recreate
-                shutil.rmtree(pwd_comb)
-                os.makedirs(pwd_comb)
-
-            # see if there is any FATAL in the sessions to be combined
-            for GamitSession in Sessions:
-
-                for glx in glob.glob(os.path.join(GamitSession.pwd_glbf, 'h*.glx')):
-                    shutil.copyfile(glx, os.path.join(pwd_comb, 'h' +
-                                                      GamitSession.DirName +
-                                                      date.yyyy() +
-                                                      date.ddd() +
-                                                      '_' + GamitSession.GamitOpts['expt'] + '.glx'))
-
-            self.linktables(date.yyyy(), Sessions[0].GamitOpts['eop_type'])
-            self.create_combination_script(date, Sessions[0].GamitOpts['org'])
-        else:
-            # if single session, parse sinex and save the polyhedron and variance
-            self.polyhedron, self.variance = self.Sessions[0].parse_sinex()
 
     def linktables(self, year, eop_type):
 
@@ -80,29 +58,42 @@ class Globk(object):
 
         os.system('chmod +x '+os.path.join(self.pwd_comb, 'link_tables.sh'))
 
-        return
-
     def execute(self):
 
+        # if multiple session, run globk first, then returned parsed sinex
+        # if single session, then self.pwd_comb points to the folder where the sinex files is
         if len(self.Sessions) > 1:
+            # need to run globk
+            # try to create the folder
+            if not os.path.exists(self.pwd_comb):
+                os.makedirs(self.pwd_comb)
+            else:
+                # if exists, delete and recreate
+                shutil.rmtree(self.pwd_comb)
+                os.makedirs(self.pwd_comb)
+
+            for s in self.Sessions:
+                for glx in glob.glob(os.path.join(s.pwd_glbf, 'h*.glx')):
+                    # save the files that have to be copied, the copy process is done on each node
+                    h_file = 'h' + s.DirName + self.date.yyyy() + self.date.ddd() + '_' + \
+                             self.expt + '.glx'
+                    shutil.copyfile(glx, os.path.join(self.pwd_comb, h_file))
+
+            self.linktables(self.date.yyyy(), self.eop)
+            self.create_combination_script(self.date, self.org)
+
             # multiple sessions execute globk
             self.p = subprocess.Popen('./globk.sh', shell=False, stdout=subprocess.PIPE,
                                       stderr=subprocess.PIPE, cwd=self.pwd_comb)
 
             self.stdout, self.stderr = self.p.communicate()
 
-            return self.parse_sinex()
-        else:
-            # single session, parse sinex and return result
-            return self.polyhedron, self.variance
+        return self.parse_sinex()
 
     def create_combination_script(self, date, org):
 
         # extract the gps week and convert to string
-        gpsWeek_str = str(date.gpsWeek)
-
-        # normalize gps week string
-        if date.gpsWeek < 1000: gpsWeek_str = '0'+gpsWeek_str
+        gpsWeek_str = date.wwww()
 
         # set the path and name for the run script
         run_file_path = os.path.join(self.pwd_comb, 'globk.sh')

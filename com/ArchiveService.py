@@ -22,6 +22,7 @@ Options:
 """
 
 import pyRinex
+import pyRinexName
 import dbConnection
 import pyStationInfo
 import pyArchiveStruct
@@ -44,7 +45,7 @@ import pyProducts
 import argparse
 
 repository_data_in = ''
-cnn = None
+cnn = dbConnection.Cnn('gnss_data.cfg')
 
 
 def insert_station_w_lock(cnn, StationCode, filename, lat, lon, h, x, y, z, otl):
@@ -218,7 +219,7 @@ def error_handle(cnn, event, crinez, folder, filename, no_db_log=False):
     except (OSError, ValueError) as e:
         message = 'could not move file into this folder!' + str(e) + '\n. Original error: ' + event['Description']
 
-    error_file = mfile.replace('d.Z', '.log')
+    error_file = pyRinexName.RinexNameFormat(mfile).filename_no_ext() + '.log'
     write_error(folder, error_file, message)
 
     if not no_db_log:
@@ -298,19 +299,18 @@ def process_crinex_file(crinez, filename, data_rejected, data_retry):
 
     except Exception:
 
-        return traceback.format_exc() + ' while opening the database to process file ' + \
-               crinez + ' node ' + platform.node(), None
+        return traceback.format_exc() + ' while opening the database to process file %s node %s' \
+               % (crinez, platform.node()), None
 
     # assume a default networkcode
     NetworkCode = 'rnx'
-    # get the station code year and doy from the filename
-    fileparts = archive.parse_crinex_filename(filename)
+    try:
+        fileparts = pyRinexName.RinexNameFormat(filename)
 
-    if fileparts:
-        StationCode = fileparts[0].lower()
-        doy = int(fileparts[1])
-        year = int(Utils.get_norm_year_str(fileparts[3]))
-    else:
+        StationCode = fileparts.StationCode
+        doy = fileparts.date.doy
+        year = fileparts.date.year
+    except pyRinexName.RinexNameException:
         event = pyEvents.Event(
             Description='Could not read the station code, year or doy for file ' + crinez,
             EventType='error')
@@ -318,11 +318,9 @@ def process_crinex_file(crinez, filename, data_rejected, data_retry):
         return event['Description'], None
 
     # we can now make better reject and retry folders
-    reject_folder = os.path.join(data_rejected,
-                                 '%reason%/' + Utils.get_norm_year_str(year) + '/' + Utils.get_norm_doy_str(doy))
+    reject_folder = os.path.join(data_rejected, '%reason%' + '/%04i/%03i' % (year, doy))
 
-    retry_folder = os.path.join(data_retry,
-                                '%reason%/' + Utils.get_norm_year_str(year) + '/' + Utils.get_norm_doy_str(doy))
+    retry_folder = os.path.join(data_retry, '%reason%' + '/%04i/%03i' % (year, doy))
 
     try:
         # main try except block
@@ -393,9 +391,9 @@ def process_crinex_file(crinez, filename, data_rejected, data_retry):
                                                    ' : unreasonable geodetic height (%.3f). '
                                                    'RINEX file will not enter the archive.' % (ppp.h[0]))
 
-                Result, match, _ = ppp.verify_spatial_coherence(cnn, StationCode)
+                result, match, _ = ppp.verify_spatial_coherence(cnn, StationCode)
 
-                if Result:
+                if result:
                     # insert: there is only 1 match with the same StationCode.
                     rinexinfo.rename(NetworkCode=match[0]['NetworkCode'])
                     insert_data(cnn, archive, rinexinfo)
@@ -463,14 +461,15 @@ def process_crinex_file(crinez, filename, data_rejected, data_retry):
                         return None, [StationCode, (ppp.x, ppp.y, ppp.z), coeff, (ppp.lat[0], ppp.lon[0],
                                                                                   ppp.h[0]), crinez]
 
-    except (pyRinex.pyRinexExceptionBadFile, pyRinex.pyRinexExceptionSingleEpoch, pyRinex.pyRinexExceptionNoAutoCoord) \
-            as e:
+    except (pyRinex.pyRinexExceptionBadFile, pyRinex.pyRinexExceptionSingleEpoch,
+            pyRinex.pyRinexExceptionNoAutoCoord) as e:
 
-        reject_folder = reject_folder.replace('%reason%','bad_rinex')
+        reject_folder = reject_folder.replace('%reason%', 'bad_rinex')
 
         # add more verbose output
-        e.event['Description'] = e.event['Description'] + '\n' + os.path.relpath(crinez, Config.repository_data_in) + \
-                                 ': (file moved to ' + reject_folder + ')'
+        e.event['Description'] = '%s\n%s: (file moved to %s)' % (e.event['Description'],
+                                                                 os.path.relpath(crinez, Config.repository_data_in),
+                                                                 reject_folder)
         e.event['StationCode'] = StationCode
         e.event['NetworkCode'] = '???'
         e.event['Year'] = year
@@ -513,7 +512,7 @@ def process_crinex_file(crinez, filename, data_rejected, data_retry):
 
     except pyPPP.pyRunPPPException as e:
 
-        reject_folder = reject_folder.replace('%reason%','no_ppp_solution')
+        reject_folder = reject_folder.replace('%reason%', 'no_ppp_solution')
 
         e.event['StationCode'] = StationCode
         e.event['NetworkCode'] = '???'
@@ -526,7 +525,7 @@ def process_crinex_file(crinez, filename, data_rejected, data_retry):
 
     except pyStationInfo.pyStationInfoException as e:
 
-        retry_folder = retry_folder.replace('%reason%','station_info_exception')
+        retry_folder = retry_folder.replace('%reason%', 'station_info_exception')
 
         e.event['Description'] = e.event['Description'] + '. The file will stay in the repository and will be ' \
                                                           'processed during the next cycle of pyArchiveService.'
@@ -694,7 +693,6 @@ def main():
     JobServer = pyJobServer.JobServer(Config, run_parallel=not args.noparallel,
                                       software_sync=[Config.options['ppp_remote_local']])  # type: pyJobServer.JobServer
 
-    cnn = dbConnection.Cnn('gnss_data.cfg')
     # create the execution log
     cnn.insert('executions', script='ArchiveService.py')
 
@@ -761,8 +759,8 @@ def main():
 
         # remove folder from data_in_retry (also removes the log file)
         try:
-            # remove the log file that accompanies this Z file
-            os.remove(path.replace('d.Z', '.log'))
+            # remove the log file that accompanies this CRINEZ file
+            os.remove(pyRinexName.RinexNameFormat(path).filename_no_ext() + '.log')
         except Exception:
             sys.exc_clear()
 
@@ -776,7 +774,7 @@ def main():
     files_path = []
     files_list = []
 
-    pbar = tqdm(desc='%-30s' % ' >> Repository crinez scan', ncols=160, disable=None)
+    pbar = tqdm(desc='%-30s' % ' >> Repository CRINEZ scan', ncols=160, disable=None)
 
     rpaths, _, files = archive.scan_archive_struct(data_in, pbar)
 
@@ -794,7 +792,7 @@ def main():
     pbar.close()
 
     tqdm.write(" -- Found %i files in the lock list..." % (len(locks)))
-    tqdm.write(" -- Found %i files (matching format [stnm][doy][s].[yy]d.Z) to process..." % (len(files_list)))
+    tqdm.write(" -- Found %i files (matching RINEX 2/3 format) to process..." % (len(files_list)))
 
     pbar = tqdm(desc='%-30s' % ' >> Processing repository', total=len(files_path), ncols=160, unit='crz', disable=None)
 
@@ -803,7 +801,7 @@ def main():
     # import modules
     modules = ('pyRinex', 'pyArchiveStruct', 'pyOTL', 'pyPPP', 'pyStationInfo', 'dbConnection', 'Utils', 'os',
                'uuid', 'datetime', 'pyDate', 'numpy', 'traceback', 'platform', 'pyBrdc', 'pyProducts',
-               'pyOptions', 'pyEvents')
+               'pyOptions', 'pyEvents', 'pyRinexName')
 
     JobServer.create_cluster(process_crinex_file, depfuncs, callback_handle, pbar, modules=modules)
 

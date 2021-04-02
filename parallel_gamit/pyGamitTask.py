@@ -925,7 +925,7 @@ class GamitTask(object):
         ln -s ../tables/svnav.dat .
 
         # create the binary h-file
-        htoglb . tmp.svs ../$DOY/h*.${YEAR}${DOY}  >> ../${FILE}.out
+        htoglb . tmp.svs -a ../$DOY/h*.${YEAR}${DOY}  >> ../${FILE}.out
 
         # grep any missing stations to report them to monitor.log
         grep 'No data for site ' ../${FILE}.out | sort | uniq >> ../monitor.log

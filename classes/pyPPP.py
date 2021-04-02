@@ -160,6 +160,10 @@ class RunPPP(PPPSpatialCheck):
 
         assert isinstance(rinexobj, pyRinex.ReadRinex)
 
+        # DDG: if RINEX 3 version, convert to RINEX 2 (no PPP support)
+        if rinexobj.rinex_version >= 3:
+            rinexobj.ConvertRinex(2)
+
         PPPSpatialCheck.__init__(self)
 
         self.rinex     = rinexobj

@@ -7,6 +7,7 @@ import pyDate
 import filecmp
 import argparse
 import numpy
+import pyRinexName
 from datetime import datetime
 
 
@@ -78,7 +79,7 @@ def parse_crinex_rinex_filename(filename):
             return []
 
 
-def _increment_filename(filename):
+def _increment_filename(filename, rnx_ver=2):
     """
     Returns a generator that yields filenames with a counter. This counter
     is placed before the file extension, and incremented with every iteration.
@@ -108,41 +109,50 @@ def _increment_filename(filename):
     #  2) a "counter" - the integer which is incremented
     #  3) an "extension" - the file extension
 
-    sessions = [0,1,2,3,4,5,6,7,8,9] + [chr(x) for x in xrange(ord('a'), ord('z')+1)]
+    if rnx_ver < 3:
+        sessions = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] + [chr(x) for x in xrange(ord('a'), ord('z')+1)]
 
-    path = os.path.dirname(filename)
-    filename = os.path.basename(filename)
-    fileparts = parse_crinex_rinex_filename(filename)
+        path = os.path.dirname(filename)
+        filename = os.path.basename(filename)
+        fileparts = parse_crinex_rinex_filename(filename)
 
-    if not fileparts:
-        raise ValueError('Invalid file naming convention: {}'.format(filename))
+        if not fileparts:
+            raise ValueError('Invalid file naming convention: {}'.format(filename))
 
-    # Check if there's a counter in the filename already - if not, start a new
-    # counter at 0.
-    value = 0
+        # Check if there's a counter in the filename already - if not, start a new
+        # counter at 0.
+        value = 0
 
-    filename = os.path.join(path, '%s%03i%s.%02i%s' % (fileparts[0].lower(), int(fileparts[1]), sessions[value], int(fileparts[3]), fileparts[4]))
+        filename = os.path.join(path, '%s%03i%s.%02i%s' % (fileparts[0].lower(), int(fileparts[1]),
+                                                           sessions[value], int(fileparts[3]), fileparts[4]))
 
-    # The counter is just an integer, so we can increment it indefinitely.
-    while True:
-        if value == 0:
-            yield filename
+        # The counter is just an integer, so we can increment it indefinitely.
+        while True:
+            if value == 0:
+                yield filename
 
-        value += 1
+            value += 1
 
-        if value == len(sessions):
-            raise ValueError('Maximum number of sessions reached: %s%03i%s.%02i%s' % (fileparts[0].lower(), int(fileparts[1]), sessions[value-1], int(fileparts[3]), fileparts[4]))
+            if value == len(sessions):
+                raise ValueError('Maximum number of sessions reached: %s%03i%s.%02i%s'
+                                 % (fileparts[0].lower(), int(fileparts[1]), sessions[value-1],
+                                    int(fileparts[3]), fileparts[4]))
 
-        yield os.path.join(path, '%s%03i%s.%02i%s' % (fileparts[0].lower(), int(fileparts[1]), sessions[value], int(fileparts[3]), fileparts[4]))
+            yield os.path.join(path, '%s%03i%s.%02i%s' % (fileparts[0].lower(), int(fileparts[1]),
+                                                          sessions[value], int(fileparts[3]), fileparts[4]))
+    else:
+        yield filename
 
 
-def copyfile(src, dst):
+def copyfile(src, dst, rnx_ver=2):
     """
     Copies a file from path src to path dst.
     If a file already exists at dst, it will not be overwritten, but:
      * If it is the same as the source file, do nothing
      * If it is different to the source file, pick a new name for the copy that
-       is distinct and unused, then copy the file there.
+       is different and unused, then copy the file there (if rnx_ver=2)
+     * If because rinex 3 files have names that are more comprehensive (include start time and duration)
+       if a rnx_ver == 3 then copy the file unless it already exists (in which case it does nothing)
     Returns the path to the copy.
     """
     if not os.path.exists(src):
@@ -158,7 +168,7 @@ def copyfile(src, dst):
         pass
 
     # Keep trying to copy the file until it works
-    dst_gen = _increment_filename(dst)
+    dst_gen = _increment_filename(dst, rnx_ver)
 
     while True:
 
@@ -171,43 +181,60 @@ def copyfile(src, dst):
             # need to do anything else.
             if filecmp.cmp(src, dst):
                 return dst
-
+            else:
+                # DDG: if the rinex version is == 3 and the files have the same name:
+                # 1) if dst size is < than src, replace file
+                # 2) if dst size is > than src, do nothing
+                if rnx_ver >= 3:
+                    if os.path.getsize(src) > os.path.getsize(dst):
+                        os.remove(dst)
+                        if do_copy_op(src, dst):
+                            return dst
+                        else:
+                            raise OSError('File exists during copy of RINEX 3 file: ' + dst)
+                    else:
+                        return dst
         else:
-
-            # If there is no file at the destination, then we attempt to write
-            # to it. There is a risk of a race condition here: if a file
-            # suddenly pops into existence after the `if os.path.exists()`
-            # check, then writing to it risks overwriting this new file.
-            #
-            # We write by transferring bytes using os.open(). Using the O_EXCL
-            # flag on the dst file descriptor will cause an OSError to be
-            # raised if the file pops into existence; the O_EXLOCK stops
-            # anybody else writing to the dst file while we're using it.
-            try:
-                src_fd = os.open(src, os.O_RDONLY)
-                dst_fd = os.open(dst, os.O_WRONLY | os.O_EXCL | os.O_CREAT)
-
-                # Read 100 bytes at a time, and copy them from src to dst
-                while True:
-                    data = os.read(src_fd, 100)
-                    os.write(dst_fd, data)
-
-                    # When there are no more bytes to read from the source
-                    # file, 'data' will be an empty string
-                    if not data:
-                        break
-
-                os.close(src_fd)
-                os.close(dst_fd)
+            if do_copy_op(src, dst):
                 # If we get to this point, then the write has succeeded
                 return dst
 
-            # An OSError errno 17 is what happens if a file pops into existence
-            # at dst, so we print an error and try to copy to a new location.
-            # Any other exception is unexpected and should be raised as normal.
-            except OSError as e:
-                if e.errno != 17 or e.strerror != 'File exists':
-                    raise
+
+def do_copy_op(src, dst):
+    # If there is no file at the destination, then we attempt to write
+    # to it. There is a risk of a race condition here: if a file
+    # suddenly pops into existence after the `if os.path.exists()`
+    # check, then writing to it risks overwriting this new file.
+    #
+    # We write by transferring bytes using os.open(). Using the O_EXCL
+    # flag on the dst file descriptor will cause an OSError to be
+    # raised if the file pops into existence; the O_EXLOCK stops
+    # anybody else writing to the dst file while we're using it.
+    try:
+        src_fd = os.open(src, os.O_RDONLY)
+        dst_fd = os.open(dst, os.O_WRONLY | os.O_EXCL | os.O_CREAT)
+
+        # Read 100 bytes at a time, and copy them from src to dst
+        while True:
+            data = os.read(src_fd, 100)
+            os.write(dst_fd, data)
+
+            # When there are no more bytes to read from the source
+            # file, 'data' will be an empty string
+            if not data:
+                break
+
+        os.close(src_fd)
+        os.close(dst_fd)
+        return True
+    # An OSError errno 17 is what happens if a file pops into existence
+    # at dst, so we print an error and try to copy to a new location.
+    # Any other exception is unexpected and should be raised as normal.
+    except OSError as e:
+        if e.errno != 17 or e.strerror != 'File exists':
+            raise
+        else:
+            return False
 
 
 def move(src, dst):
@@ -219,7 +246,8 @@ def move(src, dst):
        is distinct and unused, then copy the file there.
     Returns the path to the new file.
     """
-    dst = copyfile(src, dst)
+    rnx_ver = pyRinexName.RinexNameFormat(dst).version
+    dst = copyfile(src, dst, rnx_ver)
     os.remove(src)
     return dst
 
@@ -535,7 +563,7 @@ def parseIntSet(nputstr=""):
     for i in tokens:
         if len(i) > 0:
             if i[:1] == "<":
-                i = "1-%s"%(i[1:])
+                i = "1-%s" % (i[1:])
         try:
             # typically tokens are plain old integers
             selection.append(int(i))
@@ -559,25 +587,6 @@ def parseIntSet(nputstr=""):
         print "Invalid set: " + str(invalid)
         sys.exit(2)
     return selection
-
-
-def parse_stnId(stnId):
-    
-    # parse the station id
-    parts = re.split('\.',stnId);
-    
-    # make sure at least two components here
-    if len(parts) < 2:
-        raise UtilsException('invalid station id: '+stnId);
-    
-    # get station name space
-    ns = '.'.join(parts[:-1]);
-    
-    # get the station code
-    code = parts[-1];
-    
-    # that's it
-    return ns,code;
 
 
 def get_platform_id():
@@ -677,8 +686,3 @@ def indent(text, amount, ch=' '):
     padding = amount * ch
     return ''.join(padding + line for line in text.splitlines(True))
 
-
-if __name__ == '__main__':
-    
-    file = '/some/path/g0107321.snx.gz';
-    print file, fix_gps_week(file)

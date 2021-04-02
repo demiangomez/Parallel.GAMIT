@@ -10,8 +10,6 @@ from shutil import move
 from shutil import rmtree
 from pyEvents import Event
 from Utils import ecef2lla
-from pyRinexName import check_year
-import pyRinexName
 import os
 import pyDate
 import pyRunWithRetry
@@ -21,13 +19,130 @@ import Utils
 import uuid
 import re
 import struct
-import json
-import glob
+import subprocess
+import unicodedata
 
 TYPE_CRINEZ = 0
 TYPE_RINEX = 1
 TYPE_RINEZ = 2
 TYPE_CRINEX = 3
+
+version_2_ext = {TYPE_CRINEZ: 'd.Z',
+                 TYPE_RINEX: 'o',
+                 TYPE_RINEZ: 'o.Z',
+                 TYPE_CRINEX: 'd'}
+
+version_3_ext = {TYPE_CRINEZ: 'crx.gz',
+                 TYPE_RINEX: 'rnx',
+                 TYPE_RINEZ: 'rnx.gz',
+                 TYPE_CRINEX: 'crx'}
+
+
+def check_year(year):
+    # to check for wrong dates in RinSum
+
+    if int(year) - 1900 < 80 and int(year) >= 1900:
+        year = int(year) - 1900 + 2000
+
+    elif int(year) < 1900 and int(year) >= 80:
+        year = int(year) + 1900
+
+    elif int(year) < 1900 and int(year) < 80:
+        year = int(year) + 2000
+
+    return year
+
+
+def create_unzip_script(run_file_path):
+    # temporary script to uncompress o.Z files
+    # requested by RS issue #13
+    try:
+        run_file = open(run_file_path, 'w')
+    except (OSError, IOError):
+        raise Exception('could not open file ' + run_file_path)
+
+    contents = """#!/bin/csh -f
+        # set default mode
+        set out_current = 0
+        set del_input = 0
+        unset verbose
+        set ovrewrite = 0
+
+        set PROGRAM = CRX2RNX
+
+        unset noclobber
+
+        # check options
+        foreach var ($argv[*])
+        switch ($var)
+        case '-c':
+        set out_current = 1
+        shift; breaksw
+        case '-d':
+        set del_input = 1
+        shift; breaksw
+        case '-f':
+        set ovrewrite = 1
+        shift; breaksw
+        case '-v':
+        set verbose = 1
+        shift; breaksw
+        default:
+        break
+        endsw
+        end
+
+
+        # process files
+        foreach file ($argv[*])
+
+        # make command to be issued and name of output file
+        set file2 = $file
+        set ext   = $file:e
+        if ( $out_current ) set file2 = $file2:t
+        if( $ext == Z || $ext == gz ) set file2 = $file2:r
+        if( $file2 =~ *.??[oO] ) then
+        set file2 = `echo $file2 | sed -e 's/d$/o/' -e 's/D$/O/' `
+        else if( $file2 !~ *.??[oOnNgGlLpPhHbBmMcC] || ! ($ext == Z || $ext == gz) ) then
+        # This is not a compressed RINEX file ... skip it
+        continue
+        endif
+        set file_save = $file2
+
+        # check if the output file is preexisting
+        if ( -e "$file_save" && ! $ovrewrite ) then
+        echo "The file $file_save already exists. Overwrite?(y/n,default:n)"
+        if ( $< !~ [yY] ) continue
+        endif
+
+        # issue the command
+        if( $file =~ *.??[oO] ) then
+            cat $file - > $file_save
+        else if( $file =~ *.??[oO].Z || $file =~ *.??[oO].gz ) then
+          file $file | grep -q "Zip"
+          if ( "$status" == "0" ) then
+             unzip -p $file - > $file_save
+          else
+             file $file | grep -q "ASCII"
+             if ( "$status" == "0" ) then
+                cat $file > $file_save
+             else
+                zcat $file > $file_save
+             endif
+          endif
+        else
+        zcat $file > $file_save
+        endif
+
+        # remove the input file
+        if ( $status == 0 && $del_input ) rm $file
+
+        end
+    """
+    run_file.write(contents)
+    run_file.close()
+
+    os.system('chmod +x ' + run_file_path)
 
 
 class pyRinexException(Exception):
@@ -247,8 +362,7 @@ class ReadRinex(RinexRecord):
         if len('%-60s' % data) > 60:
             # field is too long!! cut to 60 chars
             data = data[0:60]
-            self.log_event('Found that record data for ' + record +
-                           ' was too long (> 60 chars). Replaced with: ' + data)
+            self.log_event('Found that record data for ' + record + ' was too long (> 60 chars). Replaced with: ' + data)
 
         data = '%-60s' % data + record
 
@@ -374,8 +488,7 @@ class ReadRinex(RinexRecord):
         # now check that all the records where included! there's missing ones, then force them
         if not interval_record['INTERVAL']['found']:
             new_header += [self.format_record(interval_record, 'INTERVAL', self.interval) + '\n']
-            new_header += [self.format_record(self.required_records, 'COMMENT',
-                                              'pyRinex: WARN! added interval to fix file!') + '\n']
+            new_header += [self.format_record(self.required_records, 'COMMENT', 'pyRinex: WARN! added interval to fix file!') + '\n']
             self.log_event('INTERVAL record not found, setting to %i' % self.interval)
 
         new_header += [''.ljust(60, ' ') + 'END OF HEADER\n']
@@ -457,7 +570,7 @@ class ReadRinex(RinexRecord):
                             self.log_event('Bad TIME OF FIRST OBS found -> fixed')
 
                     if record == 'MARKER NAME':
-                        # load the marker name
+                        # load the marker name, which RinSum does not return
                         self.marker_name = fields[0].strip().lower()
 
                 # regenerate the fields
@@ -498,17 +611,17 @@ class ReadRinex(RinexRecord):
 
         self.write_rinex(new_header)
 
-    def indentify_file(self, input_file):
+    def IdentifyFile(self, input_file):
 
         # get the crinez and rinex names
         filename = os.path.basename(input_file)
 
         self.origin_file = input_file
-        self.origin_type = self.rinex_name_format.type
+        self.origin_type = self.identify_type(filename)
         self.local_copy = os.path.abspath(os.path.join(self.rootdir, filename))
 
-        self.rinex = self.rinex_name_format.to_rinex_format(pyRinexName.TYPE_RINEX, no_path=True)
-        self.crinez =self.rinex_name_format.to_rinex_format(pyRinexName.TYPE_CRINEZ, no_path=True)
+        self.rinex = self.to_format(filename, TYPE_RINEX)
+        self.crinez = self.to_format(filename, TYPE_CRINEZ)
 
         # get the paths
         self.crinez_path = os.path.join(self.rootdir, self.crinez)
@@ -518,7 +631,7 @@ class ReadRinex(RinexRecord):
 
         return
 
-    def create_temp_dirs(self):
+    def CreateTempDirs(self):
 
         self.rootdir = os.path.join('production', 'rinex')
         self.rootdir = os.path.join(self.rootdir, str(uuid.uuid4()))
@@ -529,71 +642,83 @@ class ReadRinex(RinexRecord):
 
         return
 
-    def create_script(self, name, command):
+    def Uncompress(self):
 
-        f = open(os.path.join(self.rootdir, name), "w")
-        f.write('#! /bin/bash\n')
-        f.write(command + '\n')
-        f.close()
-        _ = os.system('chmod +x ' + os.path.join(self.rootdir, name))
+        if self.rinex_version < 3:
+            if self.origin_type in (TYPE_CRINEZ, TYPE_CRINEX):
 
-    def uncompress(self):
+                size = os.path.getsize(self.local_copy)
 
-        # determine compression type, if necessary
-        result = os.system('file "%s" | grep -q "Zip"' % self.local_copy)
-        if result is 0:
-            prg1 = 'unzip -p "%s" ' % self.local_copy
+                # run crz2rnx with timeout structure
+                cmd = pyRunWithRetry.RunCommand('crz2rnx -f -d ' + self.local_copy, 30)
+                try:
+                    _, err = cmd.run_shell()
+                except pyRunWithRetry.RunCommandWithRetryExeception as e:
+                    # catch the timeout except and pass it as a pyRinexException
+                    raise pyRinexException(str(e))
+
+                # the uncompressed-unhatanaked file size must be at least > than the crinez
+                if os.path.isfile(self.rinex_path):
+                    if err and os.path.getsize(self.rinex_path) <= size:
+                        raise pyRinexExceptionBadFile("Error in ReadRinex.__init__ -- crz2rnx: error and empty file: "
+                                                      + self.origin_file + ' -> ' + err)
+                else:
+                    if err:
+                        raise pyRinexException('Could not create RINEX file. crz2rnx stderr follows: ' + err)
+                    else:
+                        raise pyRinexException('Could not create RINEX file. Unknown reason. '
+                                               'Possible problem with crz2rnx?')
+
+            elif self.origin_type is TYPE_RINEZ:
+                # create an unzip script
+                create_unzip_script(os.path.join(self.rootdir, 'uncompress.sh'))
+
+                cmd = pyRunWithRetry.RunCommand('./uncompress.sh -f -d ' + self.local_copy, 30, self.rootdir)
+                try:
+                    _, _ = cmd.run_shell()
+                except pyRunWithRetry.RunCommandWithRetryExeception as e:
+                    # catch the timeout except and pass it as a pyRinexException
+                    raise pyRinexException(str(e))
         else:
-            result = os.system('file "%s" | grep -q "ASCII"' % self.local_copy)
-            if result is 0:
-                prg1 = 'cat "%s" ' % self.local_copy
+
+            f = open(os.path.join(self.rootdir, 'script.sh'), "w")
+            f.write('#! /bin/bash\n')
+
+            if self.origin_type == TYPE_CRINEZ:
+                f.write('gzip -d -c -f %s | crx2rnx > %s\n'
+                        % (self.local_copy, self.to_format(self.local_copy, TYPE_RINEX)))
+            elif self.origin_type == TYPE_CRINEX:
+                f.write('crx2rnx ' + self.local_copy + '\n')
             else:
-                prg1 = 'zcat "%s" ' % self.local_copy
+                f.write('gzip -d -f ' + self.local_copy + '\n')
 
-        # determine the program to pipe into
-        if self.origin_type in (TYPE_CRINEZ, TYPE_CRINEX):
-            prg2 = ' crx2rnx > "%s"' % self.rinex_path
-        else:
-            prg2 = ' > "%s"' % self.rinex_path
+            f.close()
+            _ = os.system('chmod +x ' + os.path.join(self.rootdir, 'script.sh'))
 
-        # create an uncompression script
-        self.create_script('uncompress.sh', prg1 + '|' + prg2)
+            try:
+                cmd = subprocess.Popen('./script.sh', shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                       cwd=self.rootdir)
+                stdout, stderr = cmd.communicate()
+                print stdout
+                print stderr
+            except pyRunWithRetry.RunCommandWithRetryExeception as e:
+                # catch the timeout except and pass it as a pyRinexException
+                raise pyRinexException(str(e))
 
-        # run crz2rnx with timeout structure
-        cmd = pyRunWithRetry.RunCommand(os.path.join(self.rootdir, 'uncompress.sh'), 45)
-        try:
-            _, err = cmd.run_shell()
-        except pyRunWithRetry.RunCommandWithRetryExeception as e:
-            # catch the timeout except and pass it as a pyRinexException
-            raise pyRinexException(str(e))
-
-        # check the size of the file
-        size = os.path.getsize(self.local_copy)
-        if os.path.isfile(self.rinex_path):
-            if err and os.path.getsize(self.rinex_path) < size:
-                raise pyRinexExceptionBadFile("Error in ReadRinex.__init__ -- crz2rnx: error and empty file: "
-                                              + self.origin_file + ' -> ' + err)
-        else:
-            if err:
-                raise pyRinexException('Could not create RINEX file. crx2rnx stderr follows: ' + err)
-            else:
-                raise pyRinexException('Could not create RINEX file. Unknown reason. Possible problem with crx2rnx?')
-
-    def ConvertRinex(self, to_version):
+    def ConvertRinex3to2(self):
 
         # most programs still don't support RINEX 3 (partially implemented in this code)
         # convert to RINEX 2.11 using RinEdit
-        cmd = pyRunWithRetry.RunCommand('gfzrnx_lx -finp %s -fout %s.t -vo %i -f'
-                                        % (self.rinex, self.rinex, to_version), 15, self.rootdir)
+        cmd = pyRunWithRetry.RunCommand('RinEdit --IF %s --OF %s.t --ver2' % (self.rinex, self.rinex), 15, self.rootdir)
 
         try:
-            _, err = cmd.run_shell()
+            out, _ = cmd.run_shell()
 
-            if '| E |' in err.lower():
-                raise pyRinexExceptionBadFile('gfzrnx_lx returned error converting to RINEX 2.11:\n' + err)
+            if 'exception' in out.lower():
+                raise pyRinexExceptionBadFile('RinEdit returned error converting to RINEX 2.11:\n' + out)
 
             if not os.path.exists(self.rinex_path + '.t'):
-                raise pyRinexExceptionBadFile('gfzrnx_lx failed to convert to RINEX 2.11:\n' + err)
+                raise pyRinexExceptionBadFile('RinEdit failed to convert to RINEX 2.11:\n' + out)
 
             # if all ok, move converted file to rinex_path
             os.remove(self.rinex_path)
@@ -608,10 +733,6 @@ class ReadRinex(RinexRecord):
             raise pyRinexException(str(e))
 
     def RunRinSum(self):
-        """
-        deprecated function to run RinSum
-        :return:
-        """
         # run RinSum to get file information
         cmd = pyRunWithRetry.RunCommand('RinSum --notable ' + self.rinex_path, 45)  # DDG: increased from 21 to 45.
         try:
@@ -627,25 +748,30 @@ class ReadRinex(RinexRecord):
 
         return output
 
-    def RunGfzrnx(self):
-        # run Gfzrnx to get file information
-        cmd = pyRunWithRetry.RunCommand('gfzrnx_lx -finp %s -fout %s.log -meta medium:json'
-                                        % (self.rinex_path, self.rinex_path), 45)
-        try:
-            _, err = cmd.run_shell()
-        except pyRunWithRetry.RunCommandWithRetryExeception as e:
-            # catch the timeout except and pass it as a pyRinexException
-            raise pyRinexException(str(e))
+    def isValidRinexName(self, filename):
+        """
+        check if the file name satisfies the rinex convention (2.xx and 3.xx)
+        :param filename: filename to check
+        :return: true or false
+        """
+        filename = os.path.basename(filename)
+        sfile = re.findall(r'(\w{4})(\d{3})(\w{1})\.(\d{2})([do]\.[Z])$', filename)
 
-        if '| E |' in err.lower():
-            raise pyRinexExceptionBadFile('gfzrnx_lx returned error:\n' + err)
+        if sfile:
+            return True
+        else:
+            sfile = re.findall(r'(\w{4})(\d{3})(\w{1})\.(\d{2})([od])$', filename)
 
-        # write RinSum output to a log file (debug purposes)
-        info = open(self.rinex_path + '.log', 'r')
-        j = json.load(info)
-        info.close()
-
-        return j
+            if sfile:
+                return True
+            else:
+                # DDG: try RINEX 3 naming convention
+                sfile = re.findall(r'([A-Z0-9]{9})_([RSU])_([0-9]{11})_([0-9]{2}[MHDYU])_([0-9]{2}[CZSMHDU])_'
+                                   r'([GREJCISM][OMN])\.(crx|rnx)(.gz|.zip|.bzip2|.bz2)?$', filename)
+                if sfile:
+                    return True
+                else:
+                    return False
 
     def __init__(self, NetworkCode, StationCode, origin_file, no_cleanup=False, allow_multiday=False):
         """
@@ -658,36 +784,31 @@ class ReadRinex(RinexRecord):
         self.no_cleanup = no_cleanup
         self.origin_file = None
         self.local_copy = None
-        self.rootdir = None
 
         # check that the rinex file name is valid!
-        try:
-            self.rinex_name_format = pyRinexName.RinexNameFormat(origin_file)
-        except pyRinexName.RinexNameException:
+        if not self.isValidRinexName(origin_file):
             raise pyRinexException('File name does not follow the RINEX(Z)/CRINEX(Z) naming convention: %s'
                                    % (os.path.basename(origin_file)))
 
-        self.create_temp_dirs()
+        self.CreateTempDirs()
 
-        self.indentify_file(origin_file)
+        self.IdentifyFile(origin_file)
 
         copy(origin_file, self.rootdir)
 
         if self.origin_type in (TYPE_CRINEZ, TYPE_CRINEX, TYPE_RINEZ):
-            self.uncompress()
+            self.Uncompress()
 
         # check basic infor in the rinex header to avoid problems with RinSum
         self.check_header()
 
-        # if self.rinex_version >= 3:
-        #    self.ConvertRinex3to2()
+        if self.rinex_version >= 3:
+            self.ConvertRinex3to2()
 
-        self.size = os.path.getsize(os.path.join(self.rootdir,
-                                                 self.rinex_name_format.to_rinex_format(TYPE_RINEX, no_path=True)))
         # process the output
-        self.parse_output(self.RunGfzrnx())
+        self.parse_output(self.RunRinSum())
 
-        # DDG: new interval checking after running Gfzrnx
+        # DDG: new interval checking after running RinSum
         # check the sampling interval
         self.check_interval()
 
@@ -768,20 +889,12 @@ class ReadRinex(RinexRecord):
         return continue_statements
 
     def split_file(self):
-        temp = os.path.join(self.rootdir, 'split')
-        # create a temporary folder to isolate the files
-        if not os.path.exists(temp):
-            os.makedirs(temp)
 
         # run in the local folder to get the files inside rootdir
-        cmd = pyRunWithRetry.RunCommand('gfzrnx_lx -finp %s -fout split/::RX%i:: -split 86400 -kv'
-                                        % (self.rinex, int(self.rinex_version)), 45, self.rootdir)
+        cmd = pyRunWithRetry.RunCommand('teqc -n_GLONASS 64 -n_GPS 64 -n_Galileo 64 -n_SBAS 64 -tbin 1d rnx ' +
+                                        self.rinex, 45, self.rootdir)
         try:
             _, err = cmd.run_shell()
-            # raise error if error reported by gfzrnx
-            if '| E |' in err:
-                raise pyRinexException('Error while binning RINEX file: ' + err)
-
         except pyRunWithRetry.RunCommandWithRetryExeception as e:
             # catch the timeout except and pass it as a pyRinexException
             raise pyRinexException(str(e))
@@ -791,97 +904,114 @@ class ReadRinex(RinexRecord):
         os.remove(self.rinex_path)
 
         # now we should have as many files named rnxDDD0.??o as days inside the RINEX
-        for ff in os.listdir(temp):
-            # move the file out of the temp folder
-            move(os.path.join(temp, ff), os.path.join(self.rootdir, ff))
-            # get the info for this file
-            try:
-                rnx = ReadRinex(self.NetworkCode, self.StationCode, os.path.join(self.rootdir, ff))
-                # append this rinex object to the multiday list
-                self.multiday_rnx_list.append(rnx)
-            except (pyRinexException, pyRinexExceptionBadFile):
-                # there was a problem with one of the multiday files. Do not append
-                pass
-        # remove the temp folder
-        rmtree(temp)
+        for file in os.listdir(self.rootdir):
+            if file[0:3] == 'rnx' and self.identify_type(file) is TYPE_RINEX:
+                # rename file
+                move(os.path.join(self.rootdir, file), os.path.join(self.rootdir,
+                                                                    file.replace('rnx', self.StationCode)))
+                # get the info for this file
+                try:
+                    rnx = ReadRinex(self.NetworkCode, self.StationCode,
+                                    os.path.join(self.rootdir, file.replace('rnx', self.StationCode)))
+                    # append this rinex object to the multiday list
+                    self.multiday_rnx_list.append(rnx)
+                except (pyRinexException, pyRinexExceptionBadFile):
+                    # there was a problem with one of the multiday files. Do not append
+                    pass
+
+        return
 
     def parse_output(self, output):
 
         try:
-            p = output['site']['position']
-            self.x, self.y, self.z = (float(p['x']), float(p['y']), float(p['z']))
+            self.x, self.y, self.z = [float(x) for x in
+                                      re.findall(r'Position\s+\(XYZ,m\)\s:\s\(\s*(\-?\d+\.\d+)\,\s*(-?\d+\.\d+)\,'
+                                                 r'\s*(-?\d+\.\d+)', output, re.MULTILINE)[0]]
             self.lat, self.lon, self.h = ecef2lla([self.x, self.y, self.z])
         except Exception:
             self.x, self.y, self.z = (None, None, None)
-            self.lat, self.lon, self.h = (None, None, None)
-            self.log_event('Problem parsing approximate position, setting to 0')
 
         try:
-            p = output['antenna']['height']
-            self.antOffset, self.antOffsetN, self.antOffsetE = (float(p['h']), float(p['n']), float(p['e']))
+            self.antOffset, self.antOffsetN, self.antOffsetE = [float(x) for x in
+                                                                re.findall(r'Antenna\sDelta\s+\(HEN,m\)\s:\s'
+                                                                           r'\(\s*(\-?\d+\.\d+)\,\s*(-?\d+\.\d+)'
+                                                                           r'\,\s*(-?\d+\.\d+)', output,
+                                                                           re.MULTILINE)[0]]
         except Exception:
             self.antOffset, self.antOffsetN, self.antOffsetE = (0, 0, 0)
             self.log_event('Problem parsing ANTENNA OFFSETS, setting to 0')
 
         try:
-            p = output['receiver']
-            self.recNo, self.recType, self.recVers = (p['number'], p['name'], p['firmware'])
+            self.recNo, self.recType, self.recVers = [x.strip() for x in
+                                                      re.findall(r'Rec#:([^,]*),\s*Type:([^,]*),\s*Vers:(.*)',
+                                                                 output, re.MULTILINE)[0]]
         except Exception:
             self.recNo, self.recType, self.recVers = ('', '', '')
             self.log_event('Problem parsing REC # / TYPE / VERS, setting to EMPTY')
 
         try:
-            self.marker_number = output['site']['number']
+            self.marker_number = re.findall(r'^Marker number\s*:\s*(.*)', output, re.MULTILINE)[0]
         except Exception:
             self.marker_number = 'NOT FOUND'
             self.log_event('No MARKER NUMBER found, setting to NOT FOUND')
 
         try:
-            p = output['antenna']
-            self.antNo, self.antType, self.antDome = (p['name'], p['name'], p['radome'])
+            self.antNo, AntDome = [x.strip() for x in re.findall(r'Antenna\s*#\s*:([^,]*),\s*Type\s*:\s*(.*)',
+                                                                 output, re.MULTILINE)[0]]
+
+            if ' ' in AntDome:
+                self.antType = AntDome.split()[0]
+                self.antDome = AntDome.split()[1]
+            else:
+                self.antType = AntDome
+                self.antDome = 'NONE'
+                self.log_event('No dome found, set to NONE')
 
         except Exception:
             self.antNo, self.antType, self.antDome = ('UNKNOWN', 'UNKNOWN', 'NONE')
             self.log_event('Problem parsing ANT # / TYPE, setting to UNKNOWN NONE')
 
         try:
-            p = output['data']['epoch']
-            # DDG: int(p['number']) + int(p['number_extra']) to consider TOTAL number of epochs in the file
-            self.interval, self.epochs = (float(p['interval']), int(p['number']) + int(p['number_extra']))
+            self.interval = float(re.findall(r'^Computed interval\s*(\d+\.\d+)', output, re.MULTILINE)[0])
         except Exception:
             self.interval = 0
+            self.log_event('Problem interval, setting to 0')
+
+        try:
+            self.epochs = float(re.findall(r'^There were\s*(\d+)\s*epochs', output, re.MULTILINE)[0])
+        except Exception:
             self.epochs = 0
-            self.log_event('Problem interval and epochs, setting to 0')
+            self.log_event('Problem parsing epochs, setting to 0')
 
         # stop here is epochs of interval is invalid
         if self.interval == 0:
             if self.epochs > 0:
                 raise pyRinexExceptionSingleEpoch('RINEX interval equal to zero. Single epoch or bad RINEX file. '
-                                                  'Reported epochs in file were %i' % self.epochs)
+                                                  'Reported epochs in file were %s' % (self.epochs))
             else:
                 raise pyRinexExceptionSingleEpoch('RINEX interval equal to zero. Single epoch or bad RINEX file. '
-                                                  'No epoch information to report. The output from Gfzrnx was:\n' +
-                                                  str(output))
+                                                  'No epoch information to report. The output from RinSum was:\n' +
+                                                  output)
 
         elif self.interval > 120:
-            raise pyRinexExceptionBadFile('RINEX sampling interval > 120s. The output from Gfzrnx was:\n' + str(output))
+            raise pyRinexExceptionBadFile('RINEX sampling interval > 120s. The output from RinSum was:\n' + output)
 
         elif self.epochs * self.interval < 3600:
             raise pyRinexExceptionBadFile('RINEX file with < 1 hr of observation time. '
-                                          'The output from Gfzrnx was:\n' + str(output))
+                                          'The output from RinSum was:\n' + output)
 
         try:
-            p = output['data']['epoch']
-            yy, mm, dd, hh, MM, ss = p['first'].split()
-
+            yy, mm, dd, hh, MM, ss = [int(x) for x in re.findall(r'^Computed first epoch:\s*(\d+)\/(\d+)\/(\d+)'
+                                                                 r'\s(\d+):(\d+):(\d+)', output, re.MULTILINE)[0]]
             yy = check_year(yy)
-            self.datetime_firstObs = datetime.datetime(int(yy), int(mm), int(dd), int(hh), int(MM), int(float(ss)))
+            self.datetime_firstObs = datetime.datetime(yy, mm, dd, hh, MM, ss)
             self.firstObs = self.datetime_firstObs.strftime('%Y/%m/%d %H:%M:%S')
 
-            yy, mm, dd, hh, MM, ss = p['last'].split()
-
+            yy, mm, dd, hh, MM, ss = [int(x) for x in re.findall(r'^Computed last\s*epoch:\s*(\d+)\/(\d+)'
+                                                                 r'\/(\d+)\s(\d+):(\d+):(\d+)', output,
+                                                                 re.MULTILINE)[0]]
             yy = check_year(yy)
-            self.datetime_lastObs = datetime.datetime(int(yy), int(mm), int(dd), int(hh), int(MM), int(float(ss)))
+            self.datetime_lastObs = datetime.datetime(yy, mm, dd, hh, MM, ss)
             self.lastObs = self.datetime_lastObs.strftime('%Y/%m/%d %H:%M:%S')
 
             if self.datetime_lastObs <= self.datetime_firstObs:
@@ -889,22 +1019,46 @@ class ReadRinex(RinexRecord):
                 raise pyRinexExceptionBadFile('Last observation (' + self.lastObs + ') <= first observation (' +
                                               self.firstObs + ')')
 
-        except Exception as e:
-            raise pyRinexException(self.rinex_path +
-                                   ': error in ReadRinex.parse_output: the output for first/last obs is invalid '
-                                   '(' + str(e) + ') The output from Gfzrnx was:\n' + str(output))
+        except Exception:
+            raise pyRinexException(self.rinex_path + ': error in ReadRinex.parse_output: the output for first/last obs '
+                                                     'is invalid. The output from RinSum was:\n' + output)
 
         try:
-            self.obs_types = [i for o in output['file']['sysobs'] for i in o]
+            self.size = int(re.findall(r'^Computed file size:\s*(\d+)', output, re.MULTILINE)[0])
+        except Exception:
+            self.size = 0
+            self.log_event('Problem parsing size, setting to 0')
+
+        try:
+            self.obs_types = int(re.findall(r'GPS Observation types\s*\((\d+)\)', output, re.MULTILINE)[0])
         except Exception:
             self.obs_types = 0
             self.log_event('Problem parsing observation types, setting to 0')
 
         try:
-            self.observables = output['file']['sysobs']
+            observables = re.findall(r'System GPS Obs types.*\[v2: (.*)\]', output, re.MULTILINE)[0]
+            self.observables = observables.strip().split()
         except Exception as e:
             self.observables = ()
             self.log_event('Problem parsing observables (%s), setting to ()' % str(e))
+
+        warn = re.findall('(.*Warning : Failed to read header: text 0:Incomplete or invalid header.*)', output,
+                          re.MULTILINE)
+        if warn:
+            raise pyRinexException("Warning in ReadRinex.parse_output: " + warn[0])
+
+        warn = re.findall('(.*unexpected exception.*)', output, re.MULTILINE)
+        if warn:
+            raise pyRinexException("unexpected exception in ReadRinex.parse_output: " + warn[0])
+
+        warn = re.findall('(.*Exception.*)', output, re.MULTILINE)
+        if warn:
+            raise pyRinexException("Exception in ReadRinex.parse_output: " + warn[0])
+
+        warn = re.findall('(.*no data found. Are time limits wrong.*)', output, re.MULTILINE)
+        if warn:
+            raise pyRinexException('RinSum: no data found. Are time limits wrong for file ' + self.rinex +
+                                   ' details:' + warn[0])
 
         # remove non-utf8 chars
         self.recNo   = self.recNo.decode('utf-8', 'ignore').encode('utf-8')
@@ -980,12 +1134,9 @@ class ReadRinex(RinexRecord):
 
         # do not work with the original file. Decimate and remove other systems (to increase speed)
         try:
-            # make a copy to decimate and remove systems to help sh_rx2apr (also, convert to rinex 2, if rinex 3)
+            # make a copy to decimate and remove systems to help sh_rx2apr
             # allow multiday files (will not change the answer), just get a coordinate for this file
             rnx = ReadRinex(self.NetworkCode, self.StationCode, self.rinex_path, allow_multiday=True)
-
-            if rnx.rinex_version >= 3:
-                rnx.ConvertRinex(2)
 
             if rnx.interval < 15:
                 rnx.decimate(30)
@@ -994,7 +1145,7 @@ class ReadRinex(RinexRecord):
             # remove the other systems that sh_rx2apr does not use
             if rnx.system is 'M':
                 rnx.remove_systems()
-                self.log_event('Removing systems other systems to run auto_coord')
+                self.log_event('Removing systems S, R and E to run auto_coord')
 
         except pyRinexException as e:
             # print str(e)
@@ -1065,7 +1216,7 @@ class ReadRinex(RinexRecord):
 
     def window_data(self, start=None, end=None, copyto=None):
         """
-        Window the RINEX data using GFZRNX
+        Window the RINEX data using TEQC
         :param start: a start datetime or self.firstObs if None
         :param end: a end datetime or self.lastObs if None
         :return:
@@ -1078,31 +1229,29 @@ class ReadRinex(RinexRecord):
             end = self.datetime_lastObs
             self.log_event('Setting end = last obs in window_data')
 
-        d = int((end - start).total_seconds())
+        cmd = pyRunWithRetry.RunCommand('teqc -n_GLONASS 64 -n_GPS 64 -n_SBAS 64 -n_Galileo 64 '
+                                        '-st %i%02i%02i%02i%02i%02i -e %i%02i%02i%02i%02i%02i +obs %s.t %s'
+                                        % (start.year, start.month, start.day, start.hour, start.minute, start.second,
+                                           end.year, end.month, end.day, end.hour, end.minute, end.second,
+                                           self.rinex_path, self.rinex_path), 5)
 
-        cmd = pyRunWithRetry.RunCommand('gfzrnx_lx -finp %s -fout %s.t -epo_beg %i%02i%02i_%02i%02i%02i -d %i -kv'
-                                        % (self.rinex_path, self.rinex_path, start.year, start.month, start.day,
-                                           start.hour, start.minute, start.second, d), 45)
-        try:
-            _, err = cmd.run_shell()
-            # raise error if error reported by gfzrnx
-            if '| E |' in err:
-                raise pyRinexException('Error while windowing RINEX file: ' + err)
+        out, err = cmd.run_shell()
 
-        except pyRunWithRetry.RunCommandWithRetryExeception as e:
-            # catch the timeout except and pass it as a pyRinexException
-            raise pyRinexException(str(e))
-
-        # delete the original file and replace with .t
-        if copyto is None:
-            os.remove(self.rinex_path)
-            move(self.rinex_path + '.t', self.rinex_path)
-            self.datetime_firstObs = start
-            self.datetime_lastObs = end
-            self.firstObs = self.datetime_firstObs.strftime('%Y/%m/%d %H:%M:%S')
-            self.lastObs = self.datetime_lastObs.strftime('%Y/%m/%d %H:%M:%S')
+        if 'teqc: failure to read' not in str(err):
+            # delete the original file and replace with .t
+            if copyto is None:
+                os.remove(self.rinex_path)
+                move(self.rinex_path + '.t', self.rinex_path)
+                self.datetime_firstObs = start
+                self.datetime_lastObs = end
+                self.firstObs = self.datetime_firstObs.strftime('%Y/%m/%d %H:%M:%S')
+                self.lastObs = self.datetime_lastObs.strftime('%Y/%m/%d %H:%M:%S')
+            else:
+                move(self.rinex_path + '.t', copyto)
         else:
-            move(self.rinex_path + '.t', copyto)
+            raise pyRinexException(err)
+
+        return
 
     def decimate(self, decimate_rate, copyto=None):
         # if copy to is passed, then the decimation is done on the copy of the file, not on the current rinex.
@@ -1113,25 +1262,29 @@ class ReadRinex(RinexRecord):
             copyto = self.rinex_path
             self.interval = decimate_rate
 
-        cmd = pyRunWithRetry.RunCommand('gfzrnx_lx -finp %s -fout %s.t -smp %i -kv'
-                                        % (copyto, copyto, decimate_rate), 45)
-        try:
-            _, err = cmd.run_shell()
-            # raise error if error reported by gfzrnx
-            if '| E |' in err:
-                raise pyRinexException('Error while windowing RINEX file: ' + err)
+        if self.rinex_version < 3:
+            cmd = pyRunWithRetry.RunCommand('teqc -n_GLONASS 64 -n_GPS 64 -n_SBAS 64 -n_Galileo 64 -O.dec %i '
+                                            '+obs %s.t %s' % (decimate_rate, copyto, copyto), 5)
+            # leave errors un-trapped on purpose (will raise an error to the parent)
+        else:
+            cmd = pyRunWithRetry.RunCommand('RinEdit --IF %s --OF %s.t --TN %i --TB %i,%i,%i,%i,%i,%i'
+                                            % (os.path.basename(copyto), os.path.basename(copyto), decimate_rate,
+                                               self.date.year, self.date.month, self.date.day, 0, 0, 0),
+                                            15, self.rootdir)
+        out, err = cmd.run_shell()
 
-        except pyRunWithRetry.RunCommandWithRetryExeception as e:
-            # catch the timeout except and pass it as a pyRinexException
-            raise pyRinexException(str(e))
-
-        # delete the original file and replace with .t
-        os.remove(copyto)
-        move(copyto + '.t', copyto)
+        if 'teqc: failure to read' not in str(err):
+            # delete the original file and replace with .t
+            os.remove(copyto)
+            move(copyto + '.t', copyto)
+        else:
+            raise pyRinexException(err)
 
         self.log_event('RINEX decimated to %is (applied to %s)' % (decimate_rate, str(copyto)))
 
-    def remove_systems(self, systems=('C', 'E', 'I', 'J', 'R', 'S'), copyto=None):
+        return
+
+    def remove_systems(self, systems=('R', 'E', 'S'), copyto=None):
         # if copy to is passed, then the system removal is done on the copy of the file, not on the current rinex.
         # other wise, system removal is done to current rinex
         if copyto is not None:
@@ -1139,28 +1292,24 @@ class ReadRinex(RinexRecord):
         else:
             copyto = self.rinex_path
 
-        vsys = 'CEIGJRS'
-        rsys = ''.join([s for s in vsys if s not in systems])
+        if self.rinex_version < 3:
+            rsys = '-' + ' -'.join(systems)
+            cmd = pyRunWithRetry.RunCommand('teqc -n_GLONASS 64 -n_GPS 64 -n_SBAS 64 -n_Galileo 64 %s +obs %s.t %s' % (rsys, copyto, copyto), 5)
+        else:
+            rsys = ' --DS '.join(systems)
+            cmd = pyRunWithRetry.RunCommand('RinEdit --IF %s --OF %s.t --DS %s' % (os.path.basename(copyto), os.path.basename(copyto), rsys), 15, self.rootdir)
 
-        cmd = pyRunWithRetry.RunCommand('gfzrnx_lx -finp %s -fout %s.t -satsys %s -kv' % (copyto, copyto, rsys), 45)
+        # leave errors un-trapped on purpose (will raise an error to the parent)
+        out, err = cmd.run_shell()
 
-        try:
-            _, err = cmd.run_shell()
-            # raise error if error reported by gfzrnx
-            if '| E |' in err:
-                raise pyRinexException('Error while binning RINEX file: ' + err)
-
-        except pyRunWithRetry.RunCommandWithRetryExeception as e:
-            # catch the timeout except and pass it as a pyRinexException
-            raise pyRinexException(str(e))
-
-        # delete the original file and replace with .t
-        os.remove(copyto)
-        move(copyto + '.t', copyto)
-        # if working on local copy, reload the rinex information
-        if copyto == self.rinex_path:
-            # reload information from this file
-            self.parse_output(self.RunGfzrnx())
+        if not 'teqc: failure to read' in str(err):
+            # delete the original file and replace with .t
+            os.remove(copyto)
+            move(copyto + '.t', copyto)
+            # if working on local copy, reload the rinex information
+            if copyto == self.rinex_path:
+                # reload information from this file
+                self.parse_output(self.RunRinSum())
         else:
             raise pyRinexException(err)
 
@@ -1168,7 +1317,7 @@ class ReadRinex(RinexRecord):
 
         return
 
-    def normalize_header(self, NewValues=None, brdc=None, x=None, y=None, z=None):
+    def normalize_header(self, NewValues, brdc=None, x=None, y=None, z=None):
         # this function gets rid of the heaer information and replaces it with the station info (trusted)
         # should be executed before calling PPP or before rebuilding the Archive
         # new function now accepts a dictionary OR a station info object
@@ -1188,21 +1337,6 @@ class ReadRinex(RinexRecord):
 
         new_header = self.header
 
-        # DDG: to keep things compatible, only check the first 4 chars of the station code (to keep the rest of the
-        # stuff of RINEX 3 files)
-        if self.marker_name[0:4] != self.StationCode:
-            if self.rinex_version < 3:
-                marker_name = self.StationCode.upper()
-            else:
-                marker_name = self.StationCode.upper() + self.marker_name[4:].upper()
-            new_header = self.replace_record(new_header, 'MARKER NAME', marker_name)
-            new_header = self.insert_comment(new_header, 'PREV MARKER NAME: ' + self.marker_name.upper())
-            self.marker_name = marker_name
-            # DDG: allow invoking without any new values to check the marker name
-            if NewValues is None:
-                self.write_rinex(new_header)
-                return
-
         # set values
         for i, field in enumerate(fieldnames):
             if field not in NewValues.keys():
@@ -1210,6 +1344,11 @@ class ReadRinex(RinexRecord):
                     NewValues[field] = self.record[rinex_field[i]]
                 else:
                     NewValues[field] = 0.0
+
+        if self.marker_name != self.StationCode:
+            new_header = self.replace_record(new_header, 'MARKER NAME', self.StationCode.upper())
+            new_header = self.insert_comment(new_header, 'PREV MARKER NAME: ' + self.marker_name.upper())
+            self.marker_name = self.StationCode
 
         if (NewValues['ReceiverCode'] != self.recType or
             NewValues['ReceiverVers'] != self.recVers or
@@ -1292,62 +1431,49 @@ class ReadRinex(RinexRecord):
 
         self.write_rinex(new_header)
 
+        return
+
     def apply_file_naming_convention(self):
         """
         function to rename a file to make it consistent with the RINEX naming convention
-        gfzrnx now makes things simpler: just use the appropriate command
         :return:
         """
-        temp = os.path.join(self.rootdir, 'rename')
-        # create a temporary folder to isolate the files
-        if not os.path.exists(temp):
-            os.makedirs(temp)
+        # is the current rinex filename valid?
+        fileparts = Utils.parse_crinex_rinex_filename(self.rinex)
 
-        # before applying naming convention, check the marker name in the header
-        if self.marker_name[0:4].lower() != self.StationCode.lower():
-            site = '-site ' + self.StationCode.lower()
-            self.normalize_header()
+        if fileparts:
+            doy = int(fileparts[1])
+            year = int(Utils.get_norm_year_str(fileparts[3]))
         else:
-            site = ''
+            # invalid RINEX filename! Assign some values to the variables
+            doy = 0
+            year = 1900
 
-        cmd = pyRunWithRetry.RunCommand('gfzrnx_lx -finp %s -fout rename/::RX%i:: -kv %s'
-                                        % (self.rinex, int(self.rinex_version), site), 45, self.rootdir)
-
-        try:
-            _, err = cmd.run_shell()
-            # raise error if error reported by gfzrnx
-            if '| E |' in err:
-                raise pyRinexException('Error while applying RINEX naming convention: ' + err)
-
-        except pyRunWithRetry.RunCommandWithRetryExeception as e:
-            # catch the timeout except and pass it as a pyRinexException
-            raise pyRinexException(str(e))
-
-        f = glob.glob(os.path.join(temp, '*'))
-        if not f:
-            raise pyRinexException('Error while applying RINEX naming convention (no file found): ' + err)
-        else:
-            # rename file if there was a change
-            if not os.path.basename(f[0]) == self.rinex:
-                self.rename(os.path.basename(f[0]))
-
-        # remove the temp directory
-        rmtree(temp)
+        if self.record['ObservationDOY'] != doy or self.record['ObservationYear'] != year or \
+                fileparts[0].lower() != self.StationCode:
+            # this if still remains here but we do not allow this condition any more to happen.
+            # See process_crinex_file -> if Result...
+            # NO! rename the file before moving to the archive
+            filename = self.StationCode + self.date.ddd() + '0.' + self.date.yyyy()[2:4] + 'o'
+            # rename file
+            self.rename(filename)
 
     def move_origin_file(self, path, destiny_type=TYPE_CRINEZ):
         # this function moves the ARCHIVE file (or repository) to another location indicated by path
         # can also specify other types, but assumed to be CRINEZ by default
-        # it also makes sure that it doesn't overwrite any existing file
-
-        # get the filename according to the requested destiny format type
-        dst = self.rinex_name_format.to_rinex_format(destiny_type, no_path=True)
+        # it also makes sure that it doesn' overwrite any existing file
 
         if not os.path.isabs(path):
             raise pyRinexException('Destination must be an absolute path')
 
-        if path == os.path.dirname(self.origin_file) and os.path.basename(self.origin_file) == dst:
-            raise pyRinexException('Error during move_origin_file: origin and destiny are the same!')
+        if destiny_type is TYPE_CRINEZ:
+            dst = self.crinez
+        elif destiny_type is TYPE_RINEX:
+            dst = self.rinex
+        else:
+            dst = self.to_format(self.rinex, destiny_type)
 
+        filename = ''
         # determine action base on origin type
         if self.origin_type == destiny_type:
             # intelligent move (creates folder and checks for file existence)
@@ -1356,46 +1482,40 @@ class ReadRinex(RinexRecord):
         else:
             # if other types are requested, or origin is not the destiny type, then use local file and delete the
             if destiny_type is TYPE_RINEX:
-                filename = copyfile(self.rinex_path, os.path.join(path, dst))
+                filename = Utils.move(self.rinex_path, os.path.join(path, dst))
 
             elif destiny_type is TYPE_CRINEZ:
                 filename = self.compress_local_copyto(path)
 
             elif destiny_type is TYPE_CRINEX:
-                self.create_script('compress.sh', 'cat "%s" | rnx2crx > "%s"'
-                                   % (self.rinex_path, os.path.join(path, dst)))
-
-                # apply hatanaka compression to the destiny file
-                cmd = pyRunWithRetry.RunCommand(os.path.join(self.rootdir, 'compress.sh'), 45)
+                cmd = pyRunWithRetry.RunCommand('rnx2crx -f ' + self.rinex_path, 45)
                 try:
                     _, err = cmd.run_shell()
 
-                    if os.path.getsize(os.path.join(path, dst)) == 0:
-                        raise pyRinexException('Error in move_origin_file: compressed version of ' +
-                                               self.rinex_path + ' has zero size!\n' + err)
+                    if os.path.getsize(os.path.join(self.rootdir, self.to_format(self.rinex, TYPE_CRINEX))) == 0:
+                        raise pyRinexException('Error in move_origin_file: compressed version of ' + self.rinex_path + ' has zero size!')
                 except pyRunWithRetry.RunCommandWithRetryExeception as e:
                     # catch the timeout except and pass it as a pyRinexException
                     raise pyRinexException(str(e))
 
-                filename = os.path.join(path, dst)
-
-            else:
+            elif destiny_type is TYPE_RINEZ:
                 raise pyRinexException('pyRinex will not natively generate a RINEZ file.')
 
         # to keep everything consistent, also change the local copies of the file
-        self.rename(filename)
-        # delete original (if the dest exists!)
-        if os.path.isfile(self.origin_file):
-            if os.path.isfile(filename):
-                os.remove(self.origin_file)
-            else:
-                raise pyRinexException('New \'origin_file\' (%s) does not exist!' % os.path.join(path, dst))
+        if filename != '':
+            self.rename(filename)
+            # delete original (if the dest exists!)
+            if os.path.isfile(self.origin_file):
+                if os.path.isfile(os.path.join(path, dst)):
+                    os.remove(self.origin_file)
+                else:
+                    raise pyRinexException('New \'origin_file\' (%s) does not exist!' % os.path.isfile(os.path.join(path, dst)))
 
-        # change origin file reference
-        self.origin_file = filename
-        self.origin_type = destiny_type
+            # change origin file reference
+            self.origin_file = os.path.join(path, dst)
+            self.origin_type = destiny_type
 
-        self.log_event('Origin moved to %s and converted to %i' % (self.origin_file, destiny_type))
+            self.log_event('Origin moved to %s and converted to %i' % (self.origin_file, destiny_type))
 
         return filename
 
@@ -1404,25 +1524,21 @@ class ReadRinex(RinexRecord):
         # meant to be used when a multiday rinex file is encountered and we need to move it to the repository
 
         # compress the rinex into crinez. Make the filename
-        crinez = self.rinex_name_format.to_rinex_format(TYPE_CRINEZ, no_path=True)
+        crinez = self.to_format(self.rinex, TYPE_CRINEZ)
 
         # we make the crinez again (don't use the existing from the database) to apply any corrections
         # made during the __init__ stage. Notice the -f in rnx2crz
-        self.create_script('compress.sh', 'cat "%s" | rnx2crx | gzip -c > "%s"'
-                           % (self.rinex_path, os.path.join(self.rootdir, crinez)))
-
-        cmd = pyRunWithRetry.RunCommand(os.path.join(self.rootdir, 'compress.sh'), 45)
+        cmd = pyRunWithRetry.RunCommand('rnx2crz -f ' + self.rinex_path, 45)
         try:
             _, err = cmd.run_shell()
 
             if os.path.getsize(os.path.join(self.rootdir, crinez)) == 0:
-                raise pyRinexException('Error in compress_local_copyto: compressed version of ' +
-                                       self.rinex_path + ' has zero size!\n' + err)
+                raise pyRinexException('Error in compress_local_copyto: compressed version of ' + self.rinex_path + ' has zero size!')
         except pyRunWithRetry.RunCommandWithRetryExeception as e:
             # catch the timeout except and pass it as a pyRinexException
             raise pyRinexException(str(e))
 
-        filename = Utils.copyfile(os.path.join(self.rootdir, crinez), os.path.join(path, crinez), self.rinex_version)
+        filename = Utils.copyfile(os.path.join(self.rootdir, crinez), os.path.join(path, crinez))
 
         self.log_event('Created CRINEZ from local copy and copied to %s' % path)
 
@@ -1435,12 +1551,11 @@ class ReadRinex(RinexRecord):
         # new name can be any valid format (??d.Z, .??o, ??d, ??o.Z)
 
         if new_name:
-            rnx = pyRinexName.RinexNameFormat(new_name)
-            # generate the corresponding names
-            rinex = rnx.to_rinex_format(TYPE_RINEX, no_path=True)
-            crinez = rnx.to_rinex_format(TYPE_CRINEZ, no_path=True)
+            rinex = os.path.basename(self.to_format(new_name, TYPE_RINEX))
             # do not continue executing unless there is a REAL change!
             if rinex != self.rinex:
+                crinez = os.path.basename(self.to_format(new_name, TYPE_CRINEZ))
+
                 # rename the rinex
                 if os.path.isfile(self.rinex_path):
                     move(self.rinex_path, os.path.join(self.rootdir, rinex))
@@ -1458,8 +1573,12 @@ class ReadRinex(RinexRecord):
                 # only cases that need to be renamed (again, IF they exist; they shouldn't, but just in case)
                 # are RINEZ and CRINEX since RINEX and CRINEZ are renamed above
                 if os.path.isfile(self.local_copy):
-                    local = rnx.to_rinex_format(self.origin_type, no_path=True)
-                    move(self.local_copy, os.path.join(self.rootdir, local))
+                    if self.origin_type is TYPE_RINEZ:
+                        local = os.path.basename(self.to_format(new_name, TYPE_RINEZ))
+                        move(self.local_copy, os.path.join(self.rootdir, local))
+                    elif self.origin_type is TYPE_CRINEX:
+                        local = os.path.basename(self.to_format(new_name, TYPE_CRINEX))
+                        move(self.local_copy, os.path.join(self.rootdir, local))
 
                 self.crinez = crinez
                 self.rinex = rinex
@@ -1477,6 +1596,81 @@ class ReadRinex(RinexRecord):
         if StationCode:
             self.StationCode = StationCode.strip().lower()
             self.record['StationCode'] = StationCode.strip().lower()
+
+        return
+
+    def identify_type(self, filename):
+
+        # get the type of file passed
+        filename = os.path.basename(filename)
+
+        if self.rinex_version is None:
+            # ooops, rinex version not determined yet! try to figure it out from the filename
+            if filename.endswith('d.Z') or filename.endswith('o') or filename.endswith('o.Z') or filename.endswith('d'):
+                self.rinex_version = 2
+            else:
+                self.rinex_version = 3
+
+        if self.rinex_version < 3:
+            if filename.endswith('d.Z'):
+                return TYPE_CRINEZ
+            elif filename.endswith('o'):
+                return TYPE_RINEX
+            elif filename.endswith('o.Z'):
+                return TYPE_RINEZ
+            elif filename.endswith('d'):
+                return TYPE_CRINEX
+            else:
+                raise pyRinexException('Invalid filename format: ' + filename)
+        else:
+            # DDG: itentify file type from filename
+            sfile = re.findall(r'[A-Z0-9]{9}_[RSU]_[0-9]{11}_[0-9]{2}[MHDYU]_[0-9]{2}[CZSMHDU]_'
+                               r'[GREJCISM][OMN]\.(crx|rnx)(.gz|.zip|.bzip2|.bz2)?$', filename)
+            if sfile:
+                if sfile[0][0] == 'rnx' and sfile[0][1] is not '':
+                    return TYPE_RINEZ
+                elif sfile[0][0] == 'rnx' and sfile[0][1] is '':
+                    return TYPE_RINEX
+                elif sfile[0][0] == 'crx' and sfile[0][1] is not '':
+                    return TYPE_CRINEZ
+                elif sfile[0][0] == 'crx' and sfile[0][1] is '':
+                    return TYPE_CRINEX
+            else:
+                raise pyRinexException('Could not determine the rinex type (malformed filename): ' + filename)
+
+    @staticmethod
+    def split_filename(version, f_type, filename):
+
+        if version < 3:
+            if f_type in (TYPE_RINEX, TYPE_CRINEX):
+                return filename[0:-1]
+            elif f_type in (TYPE_CRINEZ, TYPE_RINEZ):
+                return filename[0:-3]
+            else:
+                raise pyRinexException('Invalid filename format: ' + filename + ' for rinex version ' + str(version))
+        else:
+            sfile = re.findall(r'([A-Z0-9]{9}_[RSU]_[0-9]{11}_[0-9]{2}[MHDYU]_[0-9]{2}[CZSMHDU]_'
+                               r'[GREJCISM][OMN])\.(crx|rnx)\.?(gz|zip|bzip2|bz2)?$', filename)
+            if sfile:
+                return sfile[0][0]
+            else:
+                raise pyRinexException('Invalid filename format: ' + filename + ' for rinex version ' + str(version))
+
+    def to_format(self, filename, to_type):
+
+        path = os.path.dirname(filename)
+        filename = os.path.basename(filename)
+        f_type = self.identify_type(filename)
+
+        filename = self.split_filename(self.rinex_version, f_type, filename)
+        filename = os.path.join(path, filename)
+
+        if self.rinex_version < 3:
+            # join the path to the file again
+            return filename + version_2_ext[to_type]
+        else:
+            # join the path to the file again
+            return filename + '.' + version_3_ext[to_type]
 
     def cleanup(self):
         if self.rinex_path and not self.no_cleanup:
@@ -1535,3 +1729,12 @@ class ReadRinex(RinexRecord):
     def __repr__(self):
         return 'pyRinex.ReadRinex(' + self.NetworkCode + ', ' + self.StationCode + ', ' + str(self.date.year) \
                + ', ' + str(self.date.doy) + ')'
+
+
+def main():
+    # for testing purposes
+    rnx = ReadRinex('RNX', 'chac', 'chac0010.17o')
+
+
+if __name__ == '__main__':
+    main()

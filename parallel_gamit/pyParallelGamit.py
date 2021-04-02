@@ -5,7 +5,6 @@ Author: Demian D. Gomez
 """
 
 import pyGamitConfig
-import re
 import sys
 import pyDate
 import Utils
@@ -15,14 +14,14 @@ import pyGamitTask
 import pyGlobkTask
 import pyGamitSession
 from pyNetwork import Network
-from datetime import datetime
 import dbConnection
-from math import sqrt
+import math
 import shutil
 from math import ceil
 import argparse
 import glob
 import pyJobServer
+import pyParseZTD
 from Utils import process_date
 from Utils import process_stnlist
 from Utils import parseIntSet
@@ -33,24 +32,21 @@ from pyETM import pyETMException
 import pyArchiveStruct
 import logging
 import simplekml
-import numpy as np
-import traceback
-from itertools import repeat
 import time
 import threading
-
-cnn = dbConnection.Cnn('gnss_data.cfg')  # type: dbConnection.Cnn
+import datetime
 
 
 class DbAlive(object):
-    def __init__(self, increment):
+    def __init__(self, cnn, increment):
         self.next_t = time.time()
         self.done = False
         self.increment = increment
+        self.cnn = cnn
         self.run()
 
     def run(self):
-        _ = cnn.query('SELECT * FROM networks')
+        _ = self.cnn.query('SELECT * FROM networks')
         # tqdm.write('%s -> keeping db alive' % print_datetime())
         self.next_t += self.increment
         if not self.done:
@@ -192,7 +188,7 @@ def purge_solutions(JobServer, args, dates, GamitConfig):
         JobServer.close_cluster()
 
 
-def station_list(stations, dates):
+def station_list(cnn, stations, dates):
 
     stations = process_stnlist(cnn, stations)
     stn_obj = StationCollection()
@@ -224,7 +220,7 @@ def station_list(stations, dates):
 
 
 def print_datetime():
-    return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    return datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
 
 def main():
@@ -263,6 +259,8 @@ def main():
 
     args = parser.parse_args()
 
+    cnn = dbConnection.Cnn('gnss_data.cfg')  # type: dbConnection.Cnn
+
     dates = None
     drange = None
     try:
@@ -295,7 +293,7 @@ def main():
 
     GamitConfig = pyGamitConfig.GamitConfiguration(args.session_cfg[0])  # type: pyGamitConfig.GamitConfiguration
 
-    print(' >> Checing GAMIT tables for requested config and year, please wait...')
+    print(' >> Checking GAMIT tables for requested config and year, please wait...')
 
     JobServer = pyJobServer.JobServer(GamitConfig,
                                       check_gamit_tables=(pyDate.Date(year=drange[1].year, doy=drange[1].doy),
@@ -311,13 +309,13 @@ def main():
         GamitConfig.NetworkConfig['stn_list'] += ',-' + ',-'.join(exclude)
 
     # initialize stations in the project
-    stations = station_list(GamitConfig.NetworkConfig['stn_list'].split(','), drange)
+    stations = station_list(cnn, GamitConfig.NetworkConfig['stn_list'].split(','), drange)
 
     check_station_list = args.check_mode
     if check_station_list is not None:
         print(' >> Check mode. List of stations to check for selected days:')
         Utils.print_columns(check_station_list)
-        check_stations = station_list(check_station_list, drange)
+        check_stations = station_list(cnn, check_station_list, drange)
     else:
         check_stations = StationCollection()
 
@@ -335,15 +333,15 @@ def main():
             tqdm.write(' >> Dry run or check mode activated. Cannot purge solutions in these modes.')
 
     # run the job server
-    sessions = ExecuteGamit(JobServer, GamitConfig, stations, check_stations, args.ignore_missing, dates,
+    sessions = ExecuteGamit(cnn, JobServer, GamitConfig, stations, check_stations, args.ignore_missing, dates,
                             args.dry_run, args.create_kml)
 
     # execute globk on doys that had to be divided into subnets
     if not args.dry_run:
-        ExecuteGlobk(JobServer, GamitConfig, sessions, dates)
+        ExecuteGlobk(cnn, JobServer, GamitConfig, sessions, dates)
 
         # parse the zenith delay outputs
-        ParseZTD(GamitConfig.NetworkConfig.network_id, dates, sessions, GamitConfig, JobServer)
+        ParseZTD(GamitConfig.NetworkConfig.network_id.lower(), dates, sessions, GamitConfig, JobServer)
 
     tqdm.write(' >> %s Successful exit from Parallel.GAMIT' % print_datetime())
 
@@ -406,101 +404,41 @@ def ParseZTD(project, dates, Sessions, GamitConfig, JobServer):
 
     tqdm.write(' >> %s Parsing the tropospheric zenith delays...' % print_datetime())
 
-    # JobServer.create_cluster(parse_ztd, callback=parse_ztd_callback)
+    modules = ('numpy', 'os', 're', 'datetime', 'traceback', 'dbConnection')
+
+    pbar = tqdm(total=len(dates), disable=None, desc=' >> Zenith total delay parsing', ncols=100)
+
+    JobServer.create_cluster(run_parse_ztd, (pyParseZTD.ParseZtdTask, pyGamitSession.GamitSession),
+                             parse_ztd_callback, pbar, modules=modules)
 
     # parse and insert one day at the time, otherwise, the process becomes too slow for long runs
-    for date in tqdm(dates, ncols=80, disable=None):
-
-        tqdm.write(' >> %s Working on tropospheric zenith delays for %s'
-                   % (print_datetime(), date.yyyyddd()))
-
-        # atmospheric zenith delay list
-        atmzen = []
-        # a dictionary for the station aliases lookup table
-        alias = dict()
-
+    for date in dates:
         # get all the session of this day
         sessions = [s for s in Sessions if s.date == date]
+        task = pyParseZTD.ParseZtdTask(GamitConfig, project, sessions, date)
+        JobServer.submit(task)
 
-        for GamitSession in sessions:
-            try:
-                znd = os.path.join(GamitSession.pwd_glbf,
-                                   GamitConfig.gamitopt['org'] + GamitSession.date.wwwwd() + '.znd')
-
-                if os.path.isfile(znd):
-                    # read the content of the file
-                    f = open(znd, 'r')
-                    output = f.readlines()
-                    f.close()
-                    v = re.findall(r'ATM_ZEN X (\w+) .. (\d+)\s*(\d*)\s*(\d*)\s*(\d*)\s*(\d*)\s*\d*\s*([- ]?'
-                                   r'\d*.\d+)\s*[+-]*\s*(\d*.\d*)\s*(\d*.\d*)', ''.join(output), re.MULTILINE)
-                    # add the year doy tuple to the result
-                    atmzen += [i + (GamitSession.date.year, GamitSession.date.doy) for i in v]
-                else:
-                    v = []
-
-                # create a lookup table for station aliases
-                for zd in v:
-                    for StnIns in GamitSession.StationInstances:
-                        if StnIns.StationAlias.upper() == zd[0]:
-                            alias[zd[0]] = [StnIns.NetworkCode, StnIns.StationCode]
-
-            except Exception as e:
-                tqdm.write(' -- Error parsing zenith delays for session %s:\n%s'
-                           % (GamitSession.NetName, traceback.format_exc()))
-
-        if not len(atmzen):
-            tqdm.write(' -- %s No sessions with usable atmospheric zenith delays were found for %s'
-                       % (print_datetime(), date.yyyyddd()))
-            continue
-
-        # turn atmzen into a numpy array
-        atmzen = np.array(atmzen,
-                          dtype=[('stn', 'S4'), ('y', 'i4'), ('m', 'i4'), ('d', 'i4'), ('h', 'i4'), ('mm', 'i4'),
-                                 ('mo', 'float64'), ('s', 'float64'), ('z', 'float64'),
-                                 ('yr', 'i4'), ('doy', 'i4')])
-
-        atmzen.sort(order=['stn', 'y', 'm', 'd', 'h', 'mm'])
-
-        # get the stations in the processing
-        stations = np.unique(atmzen['stn'])
-        # get the unique dates for this process
-        date_vec = np.unique(np.array([atmzen['yr'], atmzen['doy']]).transpose(), axis=0)
-
-        # drop all records from the database to make sure there will be no problems with massive insert
-        # tqdm.write(' -- %s Deleting previous zenith tropospheric delays from the database...'
-        #            % print_datetime())
-
-        for dd in date_vec:
-            cnn.query('DELETE FROM gamit_ztd WHERE "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i'
-                      % (project.lower(), dd[0], dd[1]))
-
-        # tqdm.write(
-        #     ' -- %s Averaging zenith delays from stations in multiple sessions and inserting into database...'
-        #     % print_datetime())
-
-        for stn in stations:
-            # JobServer.submit(date_vec, atmzen, stn, alias, project)
-            parse_ztd(date_vec, atmzen, stn, alias, project)
-        # JobServer.wait()
-
-    # JobServer.close_cluster()
+    JobServer.wait()
+    pbar.close()
+    JobServer.close_cluster()
 
 
-def ExecuteGlobk(JobServer, GamitConfig, sessions, dates):
+def ExecuteGlobk(cnn, JobServer, GamitConfig, sessions, dates):
 
     project = GamitConfig.NetworkConfig.network_id.lower()
 
     tqdm.write(' >> %s Combining with GLOBK sessions with more than one subnetwork...'
                % print_datetime())
 
-    modules = ('os', 'shutil', 'snxParse', 'subprocess', 'platform', 'traceback', 'glob', 'dbConnection', 'math')
+    modules = ('os', 'shutil', 'snxParse', 'subprocess', 'platform', 'traceback', 'glob', 'dbConnection', 'math',
+               'datetime', 'pyDate')
+
+    pbar = tqdm(total=len(dates), disable=None, desc=' >> GLOBK combinations completion', ncols=100)
 
     JobServer.create_cluster(run_globk, (pyGlobkTask.Globk, pyGamitSession.GamitSession),
-                             globk_callback, modules=modules)
+                             globk_callback, progress_bar=pbar, modules=modules)
 
-    for date in tqdm(dates, ncols=80, disable=None):
-
+    for date in dates:
         pwd = GamitConfig.gamitopt['solutions_dir'].rstrip('/') + '/' + date.yyyy() + '/' + date.ddd()
 
         GlobkComb = []
@@ -512,37 +450,40 @@ def ExecuteGlobk(JobServer, GamitConfig, sessions, dates):
                 # add to combination
                 GlobkComb.append(GamitSession)
 
-                if os.path.isfile(os.path.join(GamitSession.solution_pwd, 'monitor.log')):
-                    cmd = 'grep -q \'FATAL\' ' + os.path.join(GamitSession.solution_pwd, 'monitor.log')
-                    fatal = os.system(cmd)
-                else:
-                    fatal = 0
+                #if os.path.isfile(os.path.join(GamitSession.solution_pwd, 'monitor.log')):
+                #    cmd = 'grep -q \'FATAL\' ' + os.path.join(GamitSession.solution_pwd, 'monitor.log')
+                #    fatal = os.system(cmd)
+                #else:
+                #    fatal = 0
 
-                if fatal == 0:
+                # check the database to see that the solution was successful
+                rn = cnn.query_float('SELECT * from gamit_stats WHERE "Project" = \'%s\' AND "Year" = %i AND '
+                                     '"DOY" = %i AND "subnet" = %i'
+                                     % (GamitSession.NetName, GamitSession.date.year, GamitSession.date.doy,
+                                        GamitSession.subnet if GamitSession.subnet is not None else 0))
+                # if fatal == 0:
+                if not len(rn):
                     Fatal = True
                     tqdm.write(' >> GAMIT FATAL found in monitor of session %s %s (or no monitor.log file). '
                                'This combined solution will not be added to the database.'
                                % (GamitSession.date.yyyyddd(), GamitSession.DirName))
+                    break
 
         if not Fatal:
             # folder where the combination (or final solution if single network) should be written to
             pwd_comb = os.path.join(pwd, project + '/glbf')
             # globk combination object
             globk = pyGlobkTask.Globk(pwd_comb, date, GlobkComb)
-
             JobServer.submit(globk, project, date)
 
     JobServer.wait()
+    pbar.close()
     JobServer.close_cluster()
 
     tqdm.write(' >> %s Done combining subnetworks' % print_datetime())
 
-    return
-
 
 def gamit_callback(job):
-
-    global cnn
 
     result = job.result
 
@@ -566,7 +507,9 @@ def gamit_callback(job):
 
                 # insert information in gamit_stats
                 try:
+                    cnn = dbConnection.Cnn('gnss_data.cfg')  # type: dbConnection.Cnn
                     cnn.insert('gamit_stats', result)
+                    cnn.close()
                 except dbConnection.dbErrInsert as e:
                     tqdm.write(' -- %s Error while inserting GAMIT stat for %s: '
                                % (print_datetime(), result['session'] + ' ' + str(e)))
@@ -591,47 +534,11 @@ def gamit_callback(job):
 
 def globk_callback(job):
 
-    global cnn
-
     result = job.result
 
     if result is not None:
-        polyhedron, variance, project, date = result
-        # insert polyherdon in gamit_soln table
-        for key, value in polyhedron.iteritems():
-            if '.' in key:
-                try:
-                    if not len(cnn.query_float('SELECT * FROM gamit_soln WHERE '
-                                               '"NetworkCode" = \'' + key.split('.')[0] + '\' AND '
-                                               '"StationCode" = \'' + key.split('.')[1] + '\' AND '
-                                               '"Project" = \'' + project + '\' AND '
-                                               '"Year" = ' + str(date.year) + ' AND '
-                                               '"DOY" = ' + str(date.doy))):
-                        cnn.insert('gamit_soln',
-                                   NetworkCode=key.split('.')[0],
-                                   StationCode=key.split('.')[1],
-                                   Project=project,
-                                   Year=date.year,
-                                   DOY=date.doy,
-                                   FYear=date.fyear,
-                                   X=value.X,
-                                   Y=value.Y,
-                                   Z=value.Z,
-                                   sigmax=value.sigX * sqrt(variance),
-                                   sigmay=value.sigY * sqrt(variance),
-                                   sigmaz=value.sigZ * sqrt(variance),
-                                   sigmaxy=value.sigXY * sqrt(variance),
-                                   sigmaxz=value.sigXZ * sqrt(variance),
-                                   sigmayz=value.sigYZ * sqrt(variance),
-                                   VarianceFactor=variance)
-                except dbConnection.dbErrInsert as e:
-                    # tqdm.write('    --> Error inserting ' + key + ' -> ' + str(e))
-                    pass
-            else:
-                tqdm.write(' -- %s Error while combining with GLOBK -> Invalid key found in session %s -> %s. '
-                           'Polyhedron in database may be incomplete.'
-                           % (print_datetime(), date.yyyyddd(), key))
-
+        for e in result:
+            tqdm.write(e)
     else:
         tqdm.write(' -- %s Fatal error on node %s message from node follows -> \n%s'
                    % (print_datetime(), job.ip_addr, job.exception))
@@ -639,31 +546,11 @@ def globk_callback(job):
 
 def parse_ztd_callback(job):
 
-    global cnn
-
     result = job.result
 
     if result is not None:
-        result, stn = result
-        for ztd in result:
-            # now do the insert
-            try:
-                cnn.insert('gamit_ztd',
-                           NetworkCode=ztd[0],
-                           StationCode=ztd[1],
-                           Date=ztd[2],
-                           Project=ztd[3],
-                           model=ztd[4],
-                           sigma=ztd[5],
-                           ZTD=ztd[6],
-                           Year=ztd[7],
-                           DOY=ztd[8])
-
-            except Exception as e:
-                tqdm.write(' -- Error inserting parsed zenith delay: %s' % str(e))
-
-        # tqdm.write(' -- %s %s -> ZTD successfully parsed and inserted to database'
-        #            % (print_datetime(), stn))
+        for e in result:
+            tqdm.write(e)
     else:
         tqdm.write(' -- %s Fatal error on node %s message from node follows -> \n%s'
                    % (print_datetime(), job.ip_addr, job.exception))
@@ -674,61 +561,56 @@ def run_gamit_session(gamit_task, dir_name, year, doy, dry_run):
     return gamit_task.start(dir_name, year, doy, dry_run)
 
 
-def run_globk(globk_object, project, date):
+def run_globk(globk_task, project, date):
 
-    polyhedron, variance = globk_object.execute()
-    return polyhedron, variance, project, date
+    polyhedron, variance = globk_task.execute()
+    # open a database connection (this is on the node)
+    cnn = dbConnection.Cnn('gnss_data.cfg')
+    err = []
 
+    # kill the existing polyhedron to make sure all the new vertices get in
+    # this is because when adding a station, only the
+    cnn.query('DELETE FROM gamit_soln WHERE "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i'
+              % (project, date.year, date.doy))
 
-def parse_ztd(date_vec, atmzen, stn, alias, project):
-
-    # parallel function: import modules with aliases
-    # from datetime import datetime
-    # import numpy as np
-    ztd = []
-
-    for date in date_vec:
-        # select the station and date
-        zd = atmzen[np.logical_and.reduce((atmzen['stn'] == stn,
-                                           atmzen['yr'] == date[0], atmzen['doy'] == date[1]))]
-        # careful, don't do anything if there is no data for this station-day
-        if zd.size > 0:
-            # find the unique days
-            days = np.unique(np.array([zd['y'], zd['m'], zd['d'], zd['h'], zd['mm']]).transpose(), axis=0)
-            # average over the existing records
-            for d in days:
-                rows = zd[np.logical_and.reduce((zd['y'] == d[0], zd['m'] == d[1],
-                                                 zd['d'] == d[2], zd['h'] == d[3], zd['mm'] == d[4]))]
-
-                try:
-                    ztd.append(alias[stn] +
-                               [datetime(d[0], d[1], d[2], d[3], d[4]).strftime('%Y-%m-%d %H:%M:%S')] +
-                               [project.lower()] + [np.mean(rows['z']) - np.mean(rows['mo']), np.mean(rows['s']),
-                                                    np.mean(rows['z'])] + date.tolist())
-                except KeyError:
-                    tqdm.write(' -- Key error: could not translate station alias %s' % stn)
-
-    # return ztd, stn
-    zz = ztd
-    for ztd in zz:
-        # now do the insert
-        try:
-            cnn.insert('gamit_ztd',
-                       NetworkCode=ztd[0],
-                       StationCode=ztd[1],
-                       Date=ztd[2],
-                       Project=ztd[3],
-                       model=ztd[4],
-                       sigma=ztd[5],
-                       ZTD=ztd[6],
-                       Year=ztd[7],
-                       DOY=ztd[8])
-
-        except Exception as e:
-            tqdm.write(' -- Error inserting parsed zenith delay: %s' % str(e))
+    # insert polyherdon in gamit_soln table
+    for key, value in polyhedron.iteritems():
+        if '.' in key:
+            try:
+                cnn.insert('gamit_soln',
+                           NetworkCode=key.split('.')[0],
+                           StationCode=key.split('.')[1],
+                           Project=project,
+                           Year=date.year,
+                           DOY=date.doy,
+                           FYear=date.fyear,
+                           X=value.X,
+                           Y=value.Y,
+                           Z=value.Z,
+                           sigmax=value.sigX * math.sqrt(variance),
+                           sigmay=value.sigY * math.sqrt(variance),
+                           sigmaz=value.sigZ * math.sqrt(variance),
+                           sigmaxy=value.sigXY * math.sqrt(variance),
+                           sigmaxz=value.sigXZ * math.sqrt(variance),
+                           sigmayz=value.sigYZ * math.sqrt(variance),
+                           VarianceFactor=variance)
+            except dbConnection.dbErrInsert as e:
+                # tqdm.write('    --> Error inserting ' + key + ' -> ' + str(e))
+                pass
+        else:
+            err.append(' -- %s Error while combining with GLOBK -> Invalid key found in session %s -> %s '
+                       'polyhedron in database may be incomplete.'
+                       % (datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), date.yyyyddd(), key))
+    cnn.close()
+    return err
 
 
-def ExecuteGamit(JobServer, GamitConfig, stations, check_stations, ignore_missing, dates,
+def run_parse_ztd(parse_task):
+
+    return parse_task.execute()
+
+
+def ExecuteGamit(cnn, JobServer, GamitConfig, stations, check_stations, ignore_missing, dates,
                  dry_run=False, create_kml=False):
 
     modules = ('pyRinex', 'datetime', 'os', 'shutil', 'pyBrdc', 'pySp3', 'subprocess', 're', 'pyETM', 'glob',
@@ -754,7 +636,7 @@ def ExecuteGamit(JobServer, GamitConfig, stations, check_stations, ignore_missin
 
         # Network outputs the sessions to be processed
         # submit them if they are not ready
-        tqdm.write(' >> %s %i GAMIT sessions to submit (%i already processed)'
+        tqdm.write(' -- %s %i GAMIT sessions to submit (%i already processed)'
                    % (print_datetime(),
                       len([sess for sess in net_object.sessions if not sess.ready]),
                       len([sess for sess in net_object.sessions if sess.ready])))
@@ -792,7 +674,7 @@ def ExecuteGamit(JobServer, GamitConfig, stations, check_stations, ignore_missin
 
     # DDG: because of problems with keeping the database connection open (in some platforms), we invoke a class
     # that just performs a select on the database
-    timer = DbAlive(120)
+    timer = DbAlive(cnn, 120)
     JobServer.wait()
     pbar.close()
     timer.stop()

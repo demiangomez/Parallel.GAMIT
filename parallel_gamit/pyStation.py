@@ -196,6 +196,7 @@ class StationInstance(object):
         self.ArchiveFile = archive.build_rinex_path(self.NetworkCode, self.StationCode,
                                                     self.date.year, self.date.doy)
 
+        # DDG: force RINEX 2 filenames even with RINEX 3 data
         self.filename = self.StationAlias + self.date.ddd() + '0.' + self.date.yyyy()[2:4] + 'd.Z'
 
         # save some information for debugging purposes
@@ -438,22 +439,36 @@ class StationCollection(list):
 
 if __name__ == '__main__':
     import dbConnection
+    import pyGamitConfig
+    import pyArchiveStruct
+    import pyGamitSession
     cnn = dbConnection.Cnn('gnss_data.cfg')
+    GamitConfig = pyGamitConfig.GamitConfiguration('CPC-Ar_session.cfg')
+    archive = pyArchiveStruct.RinexStruct(cnn)
+    import pycos
     import pyDate
     dr = [pyDate.Date(year=2010,doy=1), pyDate.Date(year=2010,doy=2)]
     s1 = Station(cnn, 'rms', 'igm1', dr)
     s2 = Station(cnn, 'rms', 'lpgs', dr)
     s3 = Station(cnn, 'rms', 'chac', dr)
     s4 = Station(cnn, 'cap', 'chac', dr)
+    si = StationInstance(cnn, archive, s1, dr[0], GamitConfig)
+    gs = pyGamitSession.GamitSession(cnn, archive, 'igg', 'IGN', None,
+                                     pyDate.Date(year=2020,doy=100),GamitConfig, [s1, s2, s3])
     c = StationCollection()
+    a = pycos.unserialize(pycos.serialize(gs))
+    print a
+    b = pycos.unserialize(pycos.serialize(s1))
+    print b
     c.append(s1)
     c.append(s2)
     c.append(s3)
+    c = pycos.unserialize(pycos.serialize(c))
     print c
-    c.append(s4)
-    print c
-    c.replace_alias([s1, s2], ['zzz1', 'zzz1'])
-    print c
-    print c.get_active_stations(dr[0]).ismember(s3)
-    for i, s in enumerate(c):
-        print i, s
+    # c.append(s4)
+    # print c
+    # c.replace_alias([s1, s2], ['zzz1', 'zzz1'])
+    # print c
+    # print c.get_active_stations(dr[0]).ismember(s3)
+    # for i, s in enumerate(c):
+    #     print i, s

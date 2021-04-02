@@ -198,12 +198,17 @@ def process_file(filepath, filename, destiny, source, StationCode, date):
             if not os.path.isdir(temp_dir):
                 os.makedirs(temp_dir)
 
-        if source.lower() == 'ibge' or source.lower() == 'uruguay':
+        if source.lower() in ('ibge', 'uruguay'):
             os.system('unzip -o "%s" -d "%s" > /dev/null' % (filepath, temp_dir))
 
         elif source.lower() == 'chile':
             os.system('gzip -f -d -c "%s" > %s' % (filepath, os.path.join(temp_dir, filename.replace('.gz', ''))))
 
+        elif source.lower() == 'igac':
+            os.system('gzip -f -d -c "%s" > %s' % (filepath,
+                                                   os.path.join(temp_dir,
+                                                                filename.replace('o.Z', 'o').replace('O.Z', 'o'))))
+            os.system("cd " + temp_dir + "; for f in *; do mv $f `echo $f | tr '[:upper:]' '[:lower:]'`; done")
         elif source.lower() == 'rnx2crz':
             # scheme rnx2crz does not require any pre-process, just copy the file
             copy(filepath, temp_dir)

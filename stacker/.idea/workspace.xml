@@ -2,22 +2,24 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="a64c3a05-b10f-4d88-bc8d-bee6a190e9d3" name="Default" comment="">
+      <change afterPath="$PROJECT_DIR$/../classes/pyRinexName.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../parallel_gamit/pyParseZTD.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../classes/Utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/Utils.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../classes/pyArchiveStruct.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/pyArchiveStruct.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../classes/pyETM.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/pyETM.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classes/pyPPP.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/pyPPP.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classes/pyRinex.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/pyRinex.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classes/pyRinex_old.py" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../classes/pyStationInfo.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/pyStationInfo.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../classes/pyZTD.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/pyZTD.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../com/ArchiveService.py" beforeDir="false" afterPath="$PROJECT_DIR$/../com/ArchiveService.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../com/DownloadSources.py" beforeDir="false" afterPath="$PROJECT_DIR$/../com/DownloadSources.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../com/PlotETM.py" beforeDir="false" afterPath="$PROJECT_DIR$/../com/PlotETM.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../com/ScanArchive.py" beforeDir="false" afterPath="$PROJECT_DIR$/../com/ScanArchive.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../com/StationInfoEdit.py" beforeDir="false" afterPath="$PROJECT_DIR$/../com/StationInfoEdit.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit/pyGamitSession.py" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/pyGamitSession.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../parallel_gamit/pyGamitTask.py" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/pyGamitTask.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../parallel_gamit/pyGlobkTask.py" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/pyGlobkTask.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../parallel_gamit/pyNetwork.py" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/pyNetwork.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../parallel_gamit/pyParallelGamit.py" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/pyParallelGamit.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../parallel_gamit/pyStation.py" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/pyStation.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pyStack.py" beforeDir="false" afterPath="$PROJECT_DIR$/pyStack.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pyDRA.py" beforeDir="false" afterPath="$PROJECT_DIR$/pyDRA.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -156,6 +158,7 @@
       </list>
     </recent_temporary>
   </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
   <component name="SvnConfiguration">
     <configuration />
   </component>
@@ -182,18 +185,22 @@
     <option name="oldMeFiltersMigrated" value="true" />
   </component>
   <component name="WindowStateProjectService">
+    <state x="100" y="125" width="1720" height="806" key="DiffContextDialog" timestamp="1595215454038">
+      <screen x="0" y="27" width="1920" height="1004" />
+    </state>
+    <state x="100" y="125" width="1720" height="806" key="DiffContextDialog/0.27.1920.1004/1920.0.1366.768@0.27.1920.1004" timestamp="1595215454038" />
     <state x="449" y="163" key="SettingsEditor" timestamp="1588200464596">
       <screen x="0" y="27" width="1920" height="1004" />
     </state>
     <state x="449" y="163" key="SettingsEditor/0.27.1920.1004/1920.0.1366.768@0.27.1920.1004" timestamp="1588200464596" />
-    <state x="616" y="355" key="com.intellij.ide.util.TipDialog" timestamp="1586176383160">
+    <state x="529" y="182" width="1098" height="522" key="find.popup" timestamp="1595188636176">
       <screen x="0" y="27" width="1920" height="1004" />
     </state>
-    <state x="616" y="355" key="com.intellij.ide.util.TipDialog/0.27.1920.1004/1920.0.1366.768@0.27.1920.1004" timestamp="1586176383160" />
-    <state x="623" y="245" width="672" height="678" key="search.everywhere.popup" timestamp="1594603088774">
+    <state x="529" y="182" width="1098" height="522" key="find.popup/0.27.1920.1004/1920.0.1366.768@0.27.1920.1004" timestamp="1595188636176" />
+    <state x="623" y="245" width="672" height="678" key="search.everywhere.popup" timestamp="1595220212266">
       <screen x="0" y="27" width="1920" height="1004" />
     </state>
-    <state x="623" y="245" width="672" height="678" key="search.everywhere.popup/0.27.1920.1004/1920.0.1366.768@0.27.1920.1004" timestamp="1594603088774" />
+    <state x="623" y="245" width="672" height="678" key="search.everywhere.popup/0.27.1920.1004/1920.0.1366.768@0.27.1920.1004" timestamp="1595220212266" />
     <state x="623" y="245" width="672" height="678" key="search.everywhere.popup/0.27.1920.1004@0.27.1920.1004" timestamp="1591971624448" />
   </component>
   <component name="XDebuggerManager">

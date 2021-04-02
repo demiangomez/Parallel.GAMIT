@@ -26,7 +26,7 @@ positional arguments:
 
 optional arguments:
   -h, --help            show this help message and exit
-  -rinex, --rinex       Scan the current archive for RINEX files (d.Z).
+  -rinex, --rinex       Scan the current archive for RINEX 2/3 files.
   -otl, --ocean_loading
                         Calculate ocean loading coefficients.
   -stninfo [argument [argument ...]], --station_info [argument [argument ...]]
@@ -67,6 +67,7 @@ import pyArchiveStruct
 import dbConnection
 import pyDate
 import pyRinex
+import pyRinexName
 import traceback
 import datetime
 import os
@@ -205,13 +206,14 @@ def try_insert(NetworkCode, StationCode, year, doy, rinex):
         # get the rejection directory ready
         data_reject = os.path.join(Config.repository_data_reject, 'bad_rinex/%i/%03i' % (year, doy))
 
+        # get the rinex file name
+        rnx_name = pyRinexName.RinexNameFormat(rinex)
     except Exception:
         return traceback.format_exc() + ' processing rinex: %s (%s.%s %s %s) using node %s' \
                % (rinex, NetworkCode, StationCode, str(year), str(doy), platform.node())
 
     try:
-        # get the rinex file name
-        filename = os.path.basename(rinex).replace('d.Z', 'o')
+        filename = rnx_name.to_rinex_format(pyRinexName.TYPE_RINEX, no_path=True)
 
         # build the archive level sql string
         # the file has not to exist in the RINEX table (check done using filename)
@@ -687,7 +689,7 @@ def scan_rinex(cnn, JobServer, pyArchive, archive_path, master_list, ignore):
 
     depfuncs = (verify_rinex_date_multiday,)
     modules = ('dbConnection', 'pyDate', 'pyRinex', 'shutil', 'platform', 'datetime',
-               'traceback', 'pyOptions', 'pyEvents', 'Utils', 'os')
+               'traceback', 'pyOptions', 'pyEvents', 'Utils', 'os', 'pyRinexName')
 
     JobServer.create_cluster(try_insert, dependencies=depfuncs, modules=modules, callback=callback_handle)
 
@@ -699,7 +701,8 @@ def scan_rinex(cnn, JobServer, pyArchive, archive_path, master_list, ignore):
     for path, _, files in scandir.walk(archive_path):
         for sfile in files:
             # DDG issue #15: match the name of the file to a valid rinex filename
-            if pyArchive.parse_crinex_filename(sfile):
+            try:
+                _ = pyRinexName.RinexNameFormat(sfile)
                 # only examine valid rinex compressed files
                 rnx = os.path.join(path, sfile).rsplit(archive_path + '/')[1]
                 path2rnx = os.path.join(path, sfile)
@@ -708,6 +711,8 @@ def scan_rinex(cnn, JobServer, pyArchive, archive_path, master_list, ignore):
                 pbar.update()
 
                 post_scan_rinex_job(cnn, pyArchive, rnx, path2rnx, master_list, JobServer, ignore)
+            except pyRinexName.RinexNameException:
+                pass
 
         JobServer.wait()
 
@@ -769,7 +774,7 @@ def scan_station_info(JobServer, pyArchive, archive_path, master_list):
 
     for stninfofile, stninfopath in zip(stninfo,path2stninfo):
 
-        valid, result = pyArchive.parse_archive_keys(stninfofile, key_filter=('network','station'))
+        valid, result = pyArchive.parse_archive_keys(stninfofile, key_filter=('network', 'station'))
 
         if valid:
 
@@ -1094,6 +1099,9 @@ def import_station(cnn, args):
 
                 jfile = glob.glob(os.path.join(path, '*.json'))
 
+                # DDG: may want to consider other compression formats
+                rnx_files = [f for f_ in [glob.glob(os.path.join(path, e)) for e in ['*.gz', '*d.Z']] for f in f_]
+
                 station = json.load(open(jfile[0], 'r'))
 
                 spatial = pyPPP.PPPSpatialCheck([station['lat']], [station['lon']], [station['height']])
@@ -1108,8 +1116,7 @@ def import_station(cnn, args):
                     r = raw_input('\n  Insert data to this station?: y/n ')
 
                     if r.lower() == 'y':
-                        try_insert_files(cnn, archive, station, match[0]['NetworkCode'],
-                                         StationCode, glob.glob(os.path.join(path, '*d.Z')))
+                        try_insert_files(cnn, archive, station, match[0]['NetworkCode'], StationCode, rnx_files)
 
                 else:
                     if len(match) == 1:
@@ -1124,13 +1131,12 @@ def import_station(cnn, args):
 
                         if r.lower() == 'i':
                             if insert_station(cnn, network, station):
-                                try_insert_files(cnn, archive, station, network,
-                                                 StationCode, glob.glob(os.path.join(path, '*d.Z')))
+                                try_insert_files(cnn, archive, station, network, StationCode, rnx_files)
                         else:
                             # if data is added to existing station, replace the StationCode with the matched
                             # StationCode the rinexobj will apply the naming convention to the file
                             try_insert_files(cnn, archive, station, match[0]['NetworkCode'],
-                                             match[0]['StationCode'], glob.glob(os.path.join(path, '*d.Z')))
+                                             match[0]['StationCode'], rnx_files)
 
                     elif len(match) > 1:
                         tqdm.write(' -- External station %s.%s not found. Possible matches are %s'
@@ -1146,13 +1152,12 @@ def import_station(cnn, args):
 
                         if r.lower() == 'i':
                             if insert_station(cnn, network, station):
-                                try_insert_files(cnn, archive, station, network,
-                                                 StationCode, glob.glob(os.path.join(path, '*d.Z')))
+                                try_insert_files(cnn, archive, station, network, StationCode, rnx_files)
                         else:
                             try:
                                 i = int(r)
                                 try_insert_files(cnn, archive, station, match[i]['NetworkCode'],
-                                                 match[i]['StationCode'], glob.glob(os.path.join(path, '*d.Z')))
+                                                 match[i]['StationCode'], rnx_files)
                             except ValueError:
                                 tqdm.write(' -- Selected value is not numeric!')
 
@@ -1168,7 +1173,7 @@ def import_station(cnn, args):
                             if insert_station(cnn, network, station):
                                 # now that station was created, insert files
                                 try_insert_files(cnn, archive, station, network,
-                                                 StationCode, glob.glob(os.path.join(path, '*d.Z')))
+                                                 StationCode, rnx_files)
 
                 # delete all files once we're done.
                 shutil.rmtree(path)
@@ -1314,7 +1319,7 @@ def main():
                              "Alternatively, a file with the station list can be provided.")
 
     parser.add_argument('-rinex', '--rinex', metavar='{ignore_stnlist}', type=int, nargs=1, default=None,
-                        help="Scan the current archive for RINEX files (d.Z) and add them to the database if missing. "
+                        help="Scan the current archive for RINEX 2/3 files and add them to the database if missing. "
                              "Station list will be used to filter specific networks and stations if {ignore_stnlist} = "
                              "0. For example: ScanArchive [net].all -rinex 0 will process all the stations in network "
                              "[net], but networks and stations have to exist in the database. "
