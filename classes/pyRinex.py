@@ -1446,6 +1446,9 @@ class ReadRinex(RinexRecord):
                     move(self.rinex_path, os.path.join(self.rootdir, rinex))
 
                 self.rinex_path = os.path.join(self.rootdir, rinex)
+                # DDG JUN 16 2021: have to also rename the new object rinex_name_format to make it consistent with new
+                #                  stations code!
+                self.rinex_name_format.StationCode = rnx.StationCode
 
                 # rename the files
                 # check if local crinez exists (possibly made by compress_local_copyto)
