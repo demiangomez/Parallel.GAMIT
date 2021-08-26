@@ -314,6 +314,7 @@ class PppSoln(object):
                                        'WHERE p1."NetworkCode" = \'%s\' AND p1."StationCode" = \'%s\''
                                        % (NetworkCode, StationCode))
 
+            # print("nahuel", self.t, self.blunders, self.auto_x, self.auto_y, self.auto_z, ts[0], ts[-1], ppp_hash[0][0], VERSION)
             self.hash = crc32(str(len(self.t) + len(self.blunders)) + ' ' + str(self.auto_x) + str(self.auto_y) +
                               str(self.auto_z) + str(ts[0]) + ' ' + str(ts[-1]) + ' ' + str(ppp_hash[0][0]) + VERSION)
 
@@ -409,7 +410,7 @@ class GamitSoln(object):
             self.ts_ns = np.array([float(item['ObservationFYear']) for item in self.rnx_no_ppp])
 
             self.completion = 100. - float(len(self.ts_ns)) / float(len(self.ts_ns) + len(self.t)) * 100.
-
+            ##print("nahuel2", self.t, self.blunders, ts[0], ts[-1], VERSION)
             self.hash = crc32(str(len(self.t) + len(self.blunders)) + ' ' + str(ts[0]) + ' ' + str(ts[-1]) + VERSION)
 
         else:
@@ -2577,7 +2578,8 @@ class PPPETM(ETM):
         self.run_adjustment(cnn, self.l, plotit, self.ppp_soln)
         # save the parameters to the db
         # always save for PPP
-        self.save_parameters(cnn)
+        if self.A is not None:
+            self.save_parameters(cnn)
 
 
 class GamitETM(ETM):
@@ -2616,7 +2618,9 @@ class GamitETM(ETM):
         self.run_adjustment(cnn, self.l, plotit, self.gamit_soln)
         # save parameters to db
         # the object will also save parameters if the list object is invoked
-        self.save_parameters(cnn)
+        # DDG: but only save the parameters when there is an ETM solution!
+        if self.A is not None:
+            self.save_parameters(cnn)
 
     def get_etm_soln_list(self, use_ppp_model=False, cnn=None):
         # this function return the values of the ETM ONLY
@@ -2691,7 +2695,8 @@ class DailyRep(ETM):
         self.run_adjustment(cnn, self.l, plotit, self.gamit_soln)
 
         # only save the excluded solutions in this module (DailyRep)
-        self.save_excluded_soln(cnn)
+        if self.A is not None:
+            self.save_excluded_soln(cnn)
 
     def get_residuals_dict(self):
         # this function return the values of the ETM ONLY
