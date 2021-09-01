@@ -3,12 +3,20 @@ import os
 import re
 import subprocess
 import sys
-import pyDate
 import filecmp
 import argparse
-import numpy
-import pyRinexName
+import stat
 from datetime import datetime
+from zlib import crc32 as zlib_crc32
+from pathlib import Path
+
+
+# deps
+import numpy
+
+# app
+import pyRinexName
+import pyDate
 
 
 class UtilsException(Exception):
@@ -19,11 +27,19 @@ class UtilsException(Exception):
         return str(self.value)
 
 
+def get_field_or_attr(obj, f):
+    try:
+        return obj[f]
+    except:
+        return getattr(obj, f)
+
+def stationID(s):
+    return "%s.%s" % (get_field_or_attr(s, 'NetworkCode'),
+                      get_field_or_attr(s, 'StationCode'))
+
 def parse_atx_antennas(atx_file):
 
-    f = open(atx_file, 'r')
-    output = f.readlines()
-    f.close()
+    output = file_readlines(atx_file)
 
     # return re.findall(r'START OF ANTENNA\s+(\w+[.-\/+]?\w*[.-\/+]?\w*)\s+(\w+)', ''.join(output), re.MULTILINE)
     # do not return the RADOME
@@ -42,7 +58,6 @@ def smallestN_indices(a, N):
 
 
 def ll2sphere_xyz(ell):
-    
     r = 6371000.0
     x = []
     for lla in ell:
@@ -56,27 +71,28 @@ def ll2sphere_xyz(ell):
 def required_length(nmin,nmax):
     class RequiredLength(argparse.Action):
         def __call__(self, parser, args, values, option_string=None):
-            if not nmin<=len(values)<=nmax:
-                msg='argument "{f}" requires between {nmin} and {nmax} arguments'.format(
-                    f=self.dest,nmin=nmin,nmax=nmax)
+            if not nmin <= len(values) <= nmax:
+                msg = 'argument "{f}" requires between {nmin} and {nmax} arguments'.format(
+                       f = self.dest, nmin = nmin, nmax = nmax)
                 raise argparse.ArgumentTypeError(msg)
+
             setattr(args, self.dest, values)
+
     return RequiredLength
 
 
 def parse_crinex_rinex_filename(filename):
     # parse a crinex filename
     sfile = re.findall('(\w{4})(\d{3})(\w{1})\.(\d{2})([d]\.[Z])$', filename)
-
     if sfile:
         return sfile[0]
-    else:
-        sfile = re.findall('(\w{4})(\d{3})(\w{1})\.(\d{2})([o])$', filename)
 
-        if sfile:
-            return sfile[0]
-        else:
-            return []
+    sfile = re.findall('(\w{4})(\d{3})(\w{1})\.(\d{2})([o])$', filename)
+    if sfile:
+        return sfile[0]
+
+    return []
+
 
 
 def _increment_filename(filename, rnx_ver=2):
@@ -110,10 +126,10 @@ def _increment_filename(filename, rnx_ver=2):
     #  3) an "extension" - the file extension
 
     if rnx_ver < 3:
-        sessions = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] + [chr(x) for x in xrange(ord('a'), ord('z')+1)]
+        sessions = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] + [chr(x) for x in range(ord('a'), ord('z')+1)]
 
-        path = os.path.dirname(filename)
-        filename = os.path.basename(filename)
+        path      = os.path.dirname(filename)
+        filename  = os.path.basename(filename)
         fileparts = parse_crinex_rinex_filename(filename)
 
         if not fileparts:
@@ -123,8 +139,11 @@ def _increment_filename(filename, rnx_ver=2):
         # counter at 0.
         value = 0
 
-        filename = os.path.join(path, '%s%03i%s.%02i%s' % (fileparts[0].lower(), int(fileparts[1]),
-                                                           sessions[value], int(fileparts[3]), fileparts[4]))
+        filename = os.path.join(path, '%s%03i%s.%02i%s' % (fileparts[0].lower(),
+                                                           int(fileparts[1]),
+                                                           sessions[value],
+                                                           int(fileparts[3]),
+                                                           fileparts[4]))
 
         # The counter is just an integer, so we can increment it indefinitely.
         while True:
@@ -135,11 +154,17 @@ def _increment_filename(filename, rnx_ver=2):
 
             if value == len(sessions):
                 raise ValueError('Maximum number of sessions reached: %s%03i%s.%02i%s'
-                                 % (fileparts[0].lower(), int(fileparts[1]), sessions[value-1],
-                                    int(fileparts[3]), fileparts[4]))
+                                 % (fileparts[0].lower(),
+                                    int(fileparts[1]),
+                                    sessions[value-1],
+                                    int(fileparts[3]),
+                                    fileparts[4]))
 
-            yield os.path.join(path, '%s%03i%s.%02i%s' % (fileparts[0].lower(), int(fileparts[1]),
-                                                          sessions[value], int(fileparts[3]), fileparts[4]))
+            yield os.path.join(path, '%s%03i%s.%02i%s' % (fileparts[0].lower(),
+                                                          int(fileparts[1]),
+                                                          sessions[value],
+                                                          int(fileparts[3]),
+                                                          fileparts[4]))
     else:
         yield filename
 
@@ -161,8 +186,9 @@ def copyfile(src, dst, rnx_ver=2):
     # make the folders if they don't exist
     # careful! racing condition between different workers
     try:
-        if not os.path.exists(os.path.dirname(dst)):
-            os.makedirs(os.path.dirname(dst))
+        dst_dir = os.path.dirname(dst)
+        if not os.path.exists(dst_dir):
+            os.makedirs(dst_dir)
     except OSError:
         # some other process created the folder an instant before
         pass
@@ -171,7 +197,6 @@ def copyfile(src, dst, rnx_ver=2):
     dst_gen = _increment_filename(dst, rnx_ver)
 
     while True:
-
         dst = next(dst_gen)
 
         # Check if there is a file at the destination location
@@ -210,31 +235,33 @@ def do_copy_op(src, dst):
     # flag on the dst file descriptor will cause an OSError to be
     # raised if the file pops into existence; the O_EXLOCK stops
     # anybody else writing to the dst file while we're using it.
+    src_fd = None
+    dst_fd = None
     try:
         src_fd = os.open(src, os.O_RDONLY)
         dst_fd = os.open(dst, os.O_WRONLY | os.O_EXCL | os.O_CREAT)
 
-        # Read 100 bytes at a time, and copy them from src to dst
+        # Read 65536 bytes at a time, and copy them from src to dst
         while True:
-            data = os.read(src_fd, 100)
+            data = os.read(src_fd, 65536)
+            if not data:
+                # When there are no more bytes to read from the source
+                # file, 'data' will be an empty string
+                return True
             os.write(dst_fd, data)
 
-            # When there are no more bytes to read from the source
-            # file, 'data' will be an empty string
-            if not data:
-                break
-
-        os.close(src_fd)
-        os.close(dst_fd)
-        return True
     # An OSError errno 17 is what happens if a file pops into existence
     # at dst, so we print an error and try to copy to a new location.
     # Any other exception is unexpected and should be raised as normal.
     except OSError as e:
         if e.errno != 17 or e.strerror != 'File exists':
             raise
-        else:
-            return False
+        return False
+    finally:
+        if src_fd != None:
+            os.close(src_fd)
+        if dst_fd != None:
+            os.close(dst_fd)
 
 
 def move(src, dst):
@@ -322,39 +349,6 @@ def rotlg2ct(lat, lon, n=1):
     return R
 
 
-def parseIntSet(nputstr=""):
-
-    selection = []
-    invalid = []
-    # tokens are comma seperated values
-    tokens = [x.strip() for x in nputstr.split(',')]
-    for i in tokens:
-        if len(i) > 0:
-            if i[:1] == "<":
-                i = "1-%s"%(i[1:])
-        try:
-            # typically tokens are plain old integers
-            selection.append(int(i))
-        except Exception:
-            # if not, then it might be a range
-            try:
-                token = [int(k.strip()) for k in i.split('-')]
-                if len(token) > 1:
-                    token.sort()
-                    # we have items seperated by a dash
-                    # try to build a valid range
-                    first = token[0]
-                    last = token[len(token)-1]
-                    for x in range(first, last+1):
-                        selection.append(x)
-            except:
-                # not an int and not a range...
-                invalid.append(i)
-    # Report invalid tokens before returning valid selection
-    if len(invalid) > 0:
-        print "Invalid set: " + str(invalid)
-        sys.exit(2)
-    return selection
 
 
 def ecef2lla(ecefArr):
@@ -372,17 +366,17 @@ def ecef2lla(ecefArr):
     asq = numpy.power(a, 2)
     esq = numpy.power(e, 2)
 
-    b = numpy.sqrt(asq * (1 - esq))
+    b   = numpy.sqrt(asq * (1 - esq))
     bsq = numpy.power(b, 2)
 
     ep = numpy.sqrt((asq - bsq) / bsq)
-    p = numpy.sqrt(numpy.power(x, 2) + numpy.power(y, 2))
+    p  = numpy.sqrt(numpy.power(x, 2) + numpy.power(y, 2))
     th = numpy.arctan2(a * z, b * p)
 
     lon = numpy.arctan2(y, x)
     lat = numpy.arctan2((z + numpy.power(ep, 2) * b * numpy.power(numpy.sin(th), 3)),
-                     (p - esq * a * numpy.power(numpy.cos(th), 3)))
-    N = a / (numpy.sqrt(1 - esq * numpy.power(numpy.sin(lat), 2)))
+                        (p - esq * a * numpy.power(numpy.cos(th), 3)))
+    N   = a / (numpy.sqrt(1 - esq * numpy.power(numpy.sin(lat), 2)))
     alt = p / numpy.cos(lat) - N
 
     lon = lon * 180 / numpy.pi
@@ -397,8 +391,10 @@ def process_date(arg, missing_input='fill', allow_days=True):
     #        missing_input = a string specifying if vector should be filled when something is missing
     #        allow_day = allow a single argument which represents an integer N expressed in days, to compute now()-N
 
+    now = datetime.now()
     if missing_input == 'fill':
-        dates = [pyDate.Date(year=1980, doy=1), pyDate.Date(datetime=datetime.now())]
+        dates = [pyDate.Date(year=1980, doy=1),
+                 pyDate.Date(datetime = now)]
     else:
         dates = [None, None]
 
@@ -408,16 +404,21 @@ def process_date(arg, missing_input='fill', allow_days=True):
                 if '.' in arg:
                     dates[i] = pyDate.Date(fyear=float(arg))
                 elif '_' in arg:
-                    dates[i] = pyDate.Date(year=int(arg.split('_')[0]), doy=int(arg.split('_')[1]))
+                    dates[i] = pyDate.Date(year = int(arg.split('_')[0]), 
+                                           doy =  int(arg.split('_')[1]))
                 elif '/' in arg:
-                    dates[i] = pyDate.Date(year=int(arg.split('/')[0]), month=int(arg.split('/')[1]), day=int(arg.split('/')[2]))
+                    dates[i] = pyDate.Date(year  = int(arg.split('/')[0]),
+                                           month = int(arg.split('/')[1]),
+                                           day   = int(arg.split('/')[2]))
                 elif '-' in arg:
-                    dates[i] = pyDate.Date(gpsWeek=int(arg.split('-')[0]), gpsWeekDay=int(arg.split('-')[1]))
+                    dates[i] = pyDate.Date(gpsWeek    = int(arg.split('-')[0]),
+                                           gpsWeekDay = int(arg.split('-')[1]))
                 elif len(arg) > 0:
                     if allow_days and i == 0:
-                        dates[i] = pyDate.Date(datetime=datetime.now()) - int(arg)
+                        dates[i] = pyDate.Date(datetime = now) - int(arg)
                     else:
                         raise ValueError('Invalid input date: allow_days was set to False.')
+
             except Exception as e:
                 raise ValueError('Could not decode input date (valid entries: '
                                  'fyear, yyyy_ddd, yyyy/mm/dd, gpswk-wkday). '
@@ -454,8 +455,8 @@ def get_resource_delimiter():
 def process_stnlist(cnn, stnlist_in, print_summary=True, summary_title=None):
 
     if len(stnlist_in) == 1 and os.path.isfile(stnlist_in[0]):
-        print ' >> Station list read from file: ' + stnlist_in[0]
-        stnlist_in = [line.strip() for line in open(stnlist_in[0], 'r')]
+        print(' >> Station list read from file: ' + stnlist_in[0])
+        stnlist_in = [line.strip() for line in file_readlines(stnlist_in[0])]
 
     stnlist = []
 
@@ -464,9 +465,9 @@ def process_stnlist(cnn, stnlist_in, print_summary=True, summary_title=None):
         rs = cnn.query('SELECT * FROM stations WHERE "NetworkCode" NOT LIKE \'?%%\' '
                        'ORDER BY "NetworkCode", "StationCode"')
 
-        for rstn in rs.dictresult():
-            stnlist += [{'NetworkCode': rstn['NetworkCode'], 'StationCode': rstn['StationCode']}]
-
+        stnlist += [{'NetworkCode': rstn['NetworkCode'],
+                     'StationCode': rstn['StationCode']}
+                    for rstn in rs.dictresult() ]
     else:
         for stn in stnlist_in:
             rs = None
@@ -492,26 +493,28 @@ def process_stnlist(cnn, stnlist_in, print_summary=True, summary_title=None):
 
             if rs is not None:
                 for rstn in rs.dictresult():
-                    if {'NetworkCode': rstn['NetworkCode'], 'StationCode': rstn['StationCode']} not in stnlist:
-                        stnlist += [{'NetworkCode': rstn['NetworkCode'], 'StationCode': rstn['StationCode']}]
+                    if {'NetworkCode': rstn['NetworkCode'],
+                        'StationCode': rstn['StationCode']} not in stnlist:
+                        stnlist += [{'NetworkCode': rstn['NetworkCode'],
+                                     'StationCode': rstn['StationCode']}]
 
     # deal with station removals (-)
-    for stn in [stn.replace('-', '') for stn in stnlist_in if '-' in stn]:
+    for stn in [stn.replace('-', '').lower() for stn in stnlist_in if '-' in stn]:
         # if netcode not given, remove everybody with that station code
-        if '.' in stn.lower():
-            stnlist = [stnl for stnl in stnlist if stnl['NetworkCode'] + '.' + stnl['StationCode'] != stn.lower()]
+        if '.' in stn:
+            stnlist = [stnl for stnl in stnlist if stationID(stnl) != stn]
         else:
-            stnlist = [stnl for stnl in stnlist if stnl['StationCode'] != stn.lower()]
+            stnlist = [stnl for stnl in stnlist if stnl['StationCode'] != stn]
 
     # sort the dictionary
     stnlist = sorted(stnlist, key=lambda i: i['StationCode'])
 
     if print_summary:
         if summary_title is None:
-            print ' >> Selected station list:'
+            print(' >> Selected station list:')
         else:
-            print ' >> ' + summary_title
-        print_columns([item['NetworkCode'] + '.' + item['StationCode'] for item in stnlist])
+            print(' >> ' + summary_title)
+        print_columns([stationID(item) for item in stnlist])
 
     return stnlist
 
@@ -521,11 +524,9 @@ def get_norm_year_str(year):
     # mk 4 digit year
     try:
         year = int(year)
-    except Exception:
-        raise UtilsException('must provide a positive integer year YY or YYYY');
-    
-    # defensively, make sure that the year is positive
-    if year < 0:
+        # defensively, make sure that the year is positive
+        assert year >= 0 
+    except:
         raise UtilsException('must provide a positive integer year YY or YYYY');
     
     if 80 <= year <= 99:
@@ -537,37 +538,28 @@ def get_norm_year_str(year):
 
 
 def get_norm_doy_str(doy):
-    
     try:
         doy = int(doy)
-    except Exception:
+        # create string version up fround
+        return "%03d" % doy
+    except:
         raise UtilsException('must provide an integer day of year'); 
-       
-    # create string version up fround
-    doy = str(doy);
-       
-    # mk 3 diit doy
-    if len(doy) == 1:
-        doy = "00"+doy
-    elif len(doy) == 2:
-        doy = "0"+doy
-    return doy
 
 
 def parseIntSet(nputstr=""):
 
     selection = []
-    invalid = []
-    # tokens are comma seperated values
-    tokens = [x.strip() for x in nputstr.split(',')]
+    invalid   = []
+    # tokens are comma separated values
+    tokens    = [x.strip() for x in nputstr.split(',')]
     for i in tokens:
         if len(i) > 0:
             if i[:1] == "<":
-                i = "1-%s" % (i[1:])
+                i = "1-%s"%(i[1:])
         try:
             # typically tokens are plain old integers
             selection.append(int(i))
-        except Exception:
+        except:
             # if not, then it might be a range
             try:
                 token = [int(k.strip()) for k in i.split('-')]
@@ -576,43 +568,40 @@ def parseIntSet(nputstr=""):
                     # we have items seperated by a dash
                     # try to build a valid range
                     first = token[0]
-                    last = token[len(token)-1]
+                    last  = token[-1]
                     for x in range(first, last+1):
                         selection.append(x)
-            except Exception:
+            except:
                 # not an int and not a range...
                 invalid.append(i)
     # Report invalid tokens before returning valid selection
     if len(invalid) > 0:
-        print "Invalid set: " + str(invalid)
+        print("Invalid set: " + str(invalid))
         sys.exit(2)
     return selection
 
 
+
 def get_platform_id():
-    
     # ask the os for platform information
-    uname = os.uname();
+    uname = os.uname()
     
     # combine to form the platform identification
-    return '.'.join((uname[0],uname[2],uname[4]));
+    return '.'.join((uname[0], uname[2], uname[4]))
     
-    
+
+
+# @todo this function is not used, remove it?
 def get_processor_count():
-    
-    # init to null
-    num_cpu = None;
-    
     # ok, lets get some operating system info
-    uname = os.uname();
+    uname = os.uname()[0].lower()
             
-    if uname[0].lower() == 'linux':
-        
+    if uname == 'linux':
         # open the system file and read the lines
-        with open('/proc/cpuinfo') as fid:
-            nstr = sum([ l.strip().replace('\t','').split(':')[0] == 'core id' for l in fid.readlines()]);
+        nstr = sum(l.strip().replace('\t','').split(':')[0] == 'core id'
+                   for l in file_readlines('/proc/cpuinfo'))
             
-    elif uname[0].lower() == 'darwin':
+    elif uname == 'darwin':
         nstr = subprocess.Popen(['sysctl','-n','hw.ncpu'],stdout=subprocess.PIPE).communicate()[0];
     else:
         raise UtilsException('Unrecognized/Unsupported operating system');  
@@ -620,9 +609,9 @@ def get_processor_count():
     # try to turn the process response into an integer
     try:
         num_cpu = int(nstr)
-    except Exception:
+    except:
         # nothing else we can do here
-        num_cpu = None
+        return None
         
     # that's all folks
     # return the number of PHYSICAL CORES, not the logical number (usually double)
@@ -632,15 +621,18 @@ def get_processor_count():
 def human_readable_time(secs):
     
     # start with work time in seconds
-    unit = 'secs'; time = secs
+    time = secs
+    unit = 'secs'
     
     # make human readable work time with units
     if time > 60 and time < 3600:
-        time = time / 60.0; unit = 'mins'
+        time = time / 60.0
+        unit = 'mins'
     elif time > 3600:
-        time = time /3600.0; unit = 'hours';
+        time = time / 3600.0
+        unit = 'hours';
         
-    return time,unit
+    return time, unit
 
 
 def fix_gps_week(file_path):
@@ -651,16 +643,18 @@ def fix_gps_week(file_path):
     path,full_file_name = os.path.split(file_path);    
     
     # init 
-    file_name = full_file_name;  file_ext = ''; ext = None;
+    file_name = full_file_name
+    file_ext  = ''
+    ext       = None
     
     # remove all file extensions
     while ext != '':
-        file_name, ext = os.path.splitext(file_name);
-        file_ext = ext + file_ext;
+        file_name, ext = os.path.splitext(file_name)
+        file_ext       = ext + file_ext
     
     # if the name is short 1 character then add zero
     if len(file_name) == 7:
-        file_name = file_name[0:3]+'0'+file_name[3:];
+        file_name = file_name[0:3]+'0'+file_name[3:]
     
     # reconstruct file path
     return  os.path.join(path,file_name+file_ext);
@@ -668,7 +662,7 @@ def fix_gps_week(file_path):
 
 def split_string(str, limit, sep=" "):
     words = str.split()
-    if max(map(len, words)) > limit:
+    if max(list(map(len, words))) > limit:
         raise ValueError("limit is too small")
     res, part, others = [], words[0], words[1:]
     for word in others:
@@ -686,3 +680,61 @@ def indent(text, amount, ch=' '):
     padding = amount * ch
     return ''.join(padding + line for line in text.splitlines(True))
 
+
+# python 3 unpack_from returns bytes instead of strings
+def struct_unpack(fs, data):
+    return [(f.decode('utf-8', 'ignore') if isinstance(f, (bytes, bytearray)) else f)
+            for f in fs.unpack_from(bytes(data, 'utf-8'))]
+
+# python 3 zlib.crc32 requires bytes instead of strings
+# also returns a positive int (ints are bignums on python 3)
+def crc32(s):
+    x = zlib_crc32(bytes(s, 'utf-8'))
+    return x - ((x & 0x80000000) <<1)
+
+
+# Text files
+
+def file_open(path, mode='r'):
+    return open(path, mode+'t', encoding='utf-8', errors='ignore')
+
+def file_write(path, data):
+    with file_open(path, 'w') as f:
+        f.write(data)
+        
+def file_append(path, data):
+    with file_open(path, 'a') as f:
+        f.write(data)
+    
+def file_readlines(path):
+    with file_open(path) as f:
+        return f.readlines()
+
+def file_read_all(path):
+    with file_open(path) as f:
+        return f.read()
+    
+def file_try_remove(path):
+    try:
+        os.remove(path)
+        return True
+    except:
+        return False
+
+
+def chmod_exec(path):
+    # chmod +x path
+    f = Path(path)
+    f.chmod(f.stat().st_mode | stat.S_IEXEC)
+
+# A custom json converter is needed to fix this exception:
+# TypeError: Object of type 'int64' is not JSON serializable
+# See https://github.com/automl/SMAC3/issues/453
+def json_converter(obj):
+    if isinstance(obj, numpy.integer):
+        return int(obj)
+    elif isinstance(obj, numpy.floating):
+        return float(obj)
+    elif isinstance(obj, numpy.ndarray):
+        return obj.tolist()
+        

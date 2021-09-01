@@ -1,15 +1,20 @@
+#!/usr/bin/env python
 
 import argparse
+import copy
+
+# deps
 import pg
+
+# app
 import dbConnection
 import Utils
-import copy
 from Utils import required_length
 from pyBunch import Bunch
 
-from pyETM import DEFAULT_FREQUENCIES
-from pyETM import DEFAULT_POL_TERMS
-from pyETM import DEFAULT_RELAXATION
+from pyETM import (DEFAULT_FREQUENCIES,
+                   DEFAULT_POL_TERMS,
+                   DEFAULT_RELAXATION)
 
 
 def main():
@@ -68,8 +73,8 @@ def print_params(cnn, stnlist):
                                      % (station['NetworkCode'], station['StationCode']), as_dict=True)
 
             for p in params:
-                print ' %s.%s %-5s %-5s %2i' \
-                      % (station['NetworkCode'], station['StationCode'], p['soln'], p['object'], p['terms'])
+                print(' %s.%s %-5s %-5s %2i' \
+                      % (station['NetworkCode'], station['StationCode'], p['soln'], p['object'], p['terms']))
 
 
 def insert_modify_param(parser, cnn, stnlist, args):
@@ -78,29 +83,29 @@ def insert_modify_param(parser, cnn, stnlist, args):
     if len(args.function_type) < 2:
         parser.error('invalid number of arguments')
 
-    if args.function_type[0] not in ('p', 'j', 'q'):
+    elif args.function_type[0] not in ('p', 'j', 'q'):
         parser.error('function type should be one of the following: polynomial (p), jump (j), or periodic (q)')
 
     # create a bunch object to save all the params that will enter the database
     tpar = Bunch()
     tpar.NetworkCode = None
     tpar.StationCode = None
-    tpar.soln = None
-    tpar.object = None
-    tpar.terms = None
+    tpar.soln        = None
+    tpar.object      = None
+    tpar.terms       = None
     tpar.frequencies = None
-    tpar.jump_type = None
-    tpar.relaxation = None
-    tpar.Year = None
-    tpar.DOY = None
-    tpar.action = None
+    tpar.jump_type   = None
+    tpar.relaxation  = None
+    tpar.Year        = None
+    tpar.DOY         = None
+    tpar.action      = None
 
     ftype = args.function_type[0]
 
     try:
         if ftype == 'p':
             tpar.object = 'polynomial'
-            tpar.terms = int(args.function_type[1])
+            tpar.terms  = int(args.function_type[1])
 
             if tpar.terms <= 0:
                 parser.error('polynomial terms should be > 0')
@@ -118,64 +123,68 @@ def insert_modify_param(parser, cnn, stnlist, args):
 
             if tpar.jump_type not in (0, 1):
                 parser.error('jump type should be either 0 or 1')
+
             try:
                 date, _ = Utils.process_date([args.function_type[3]])
 
                 # recover the year and doy
                 tpar.Year = date.year
-                tpar.DOY = date.doy
+                tpar.DOY  = date.doy
 
             except Exception as e:
                 parser.error('while parsing jump date: ' + str(e))
 
+
             if tpar.jump_type == 1:
                 tpar.relaxation = [float(f) for f in args.function_type[4:]]
 
-                if not tpar.relaxation and tpar.action == '-':
-                    tpar.relaxation = None
-                elif not tpar.relaxation and tpar.action == '+':
-                    parser.error('jump type == 1 but no relaxation parameter, please specify relaxation')
+                if not tpar.relaxation:
+                    if tpar.action == '-':
+                        tpar.relaxation = None
+                    elif tpar.action == '+':
+                        parser.error('jump type == 1 but no relaxation parameter, please specify relaxation')
 
         elif ftype == 'q':
-            tpar.object = 'periodic'
+            tpar.object      = 'periodic'
             tpar.frequencies = [float(1/float(p)) for p in args.function_type[1:]]
 
     except ValueError:
         parser.error('invalid argument type for function "%s"' % ftype)
 
+
     for station in stnlist:
         for soln in args.solution_type:
             tpar.NetworkCode = station['NetworkCode']
             tpar.StationCode = station['StationCode']
-            tpar.soln = soln
+            tpar.soln        = soln
 
             ppar = copy.deepcopy(dict(tpar))
-            ppar = {k: v for k, v in ppar.items()
-                    if v not in (None, []) and k not in ('action', 'relaxation', 'jump_type', 'terms', 'frequencies')}
+            ppar = {k : v
+                    for k, v in ppar.items()
+                    if v not in (None, []) and k not in ('action', 'relaxation', 'jump_type',
+                                                         'terms', 'frequencies')}
 
+            station_soln = "%s.%s (%s)" % (station['NetworkCode'], station['StationCode'], soln)
             # check if solution exists for this station
             try:
-                epar = cnn.get('etm_params', ppar, ppar.keys())
+                epar = cnn.get('etm_params', ppar, list(ppar.keys()))
+                
+                print(' >> Found a set of matching parameters for station ' + station_soln)
 
-                print ' >> Found a set of matching parameters for station %s.%s (%s)' \
-                      % (station['NetworkCode'], station['StationCode'], soln)
+                print(' -- Deleting ' + station_soln)
 
-                print ' -- Deleting %s.%s (%s)' % (station['NetworkCode'], station['StationCode'], soln)
                 cnn.delete('etm_params', epar)
 
             except pg.DatabaseError:
-                print ' >> No set of parameters found for station %s.%s (%s)' \
-                      % (station['NetworkCode'], station['StationCode'], soln)
+                print(' >> No set of parameters found for station ' + station_soln)
 
             cnn.insert('etm_params', tpar)
             # insert replaces the uid field
             del tpar.uid
 
-            print ' -- Inserting %s for %s.%s (%s)' \
-                  % (tpar.object, station['NetworkCode'], station['StationCode'], soln)
+            print(' -- Inserting %s for %s' % (tpar.object, station_soln))
 
 
 if __name__ == '__main__':
-
     main()
 

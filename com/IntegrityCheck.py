@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 """
 Project: Parallel.Archive
 Date: 3/27/17 11:54 AM
@@ -12,30 +14,36 @@ Integrity check utility of the database. Checks the following:
 """
 
 import sys
+import traceback
+import os
+import numpy
+import shutil
+import argparse
+import platform
+from math import ceil
+
+# deps
+from tqdm import tqdm
+
+# app
 import pyOptions
 import dbConnection
-import traceback
 import pyDate
 import pyStationInfo
 import pyArchiveStruct
 import pyPPP
 import Utils
-from tqdm import tqdm
-import os
-import numpy
-import shutil
-import argparse
-from Utils import process_date
-from Utils import ecef2lla
-from Utils import parse_atx_antennas
-from Utils import determine_frame
+from Utils import (process_date,
+                   ecef2lla,
+                   parse_atx_antennas,
+                   determine_frame)
 import pyJobServer
-import platform
 import pyEvents
-from math import ceil
+
+
 
 differences = []
-rinex_css = []
+rinex_css   = []
 
 
 def stnrnx_callback(job):
@@ -74,19 +82,12 @@ def compare_stninfo_rinex(NetworkCode, StationCode, STime, ETime, rinex_serial):
 
 def get_differences(differences):
 
-    def get_key(item):
-        return item[0]
-
-    err = [diff[0] for diff in differences if diff[0] is not None]
-
     # print out any error messages
-    for error in err:
+    for error in (diff[0] for diff in differences if diff[0] is not None):
         sys.stdout.write(error + '\n')
 
-    dd = [diff[1] for diff in differences if diff[1] is not None]
-    dd.sort(key=get_key)
-
-    return dd
+    return sorted((diff[1] for diff in differences if diff[1] is not None),
+                  key = lambda item: item[0])
 
 
 def check_rinex_stn(NetworkCode, StationCode, start_date, end_date):
@@ -94,7 +95,7 @@ def check_rinex_stn(NetworkCode, StationCode, start_date, end_date):
     # load the connection
     try:
         # try to open a connection to the database
-        cnn = dbConnection.Cnn("gnss_data.cfg")
+        cnn    = dbConnection.Cnn("gnss_data.cfg")
         Config = pyOptions.ReadOptions("gnss_data.cfg")
     except Exception:
         return traceback.format_exc() + ' processing: (' + NetworkCode + '.' + StationCode \
@@ -115,8 +116,11 @@ def check_rinex_stn(NetworkCode, StationCode, start_date, end_date):
         for rnx in rnxtbl:
 
             crinex_path = os.path.join(Config.archive_path,
-                                       Archive.build_rinex_path(NetworkCode, StationCode, rnx['ObservationYear'],
-                                                                rnx['ObservationDOY'], filename=rnx['Filename']))
+                                       Archive.build_rinex_path(NetworkCode,
+                                                                StationCode,
+                                                                rnx['ObservationYear'],
+                                                                rnx['ObservationDOY'],
+                                                                filename = rnx['Filename']))
 
             if not os.path.exists(crinex_path):
                 # problem with file! does not appear to be in the archive
@@ -124,12 +128,12 @@ def check_rinex_stn(NetworkCode, StationCode, start_date, end_date):
                 Archive.remove_rinex(rnx)
 
                 event = pyEvents.Event(
-                    Description='A missing RINEX file was found during RINEX integrity check: ' + crinex_path +
-                                '. It has been removed from the database. Consider rerunning PPP for this station.',
-                    NetworkCode=NetworkCode,
-                    StationCode=StationCode,
-                    Year=rnx['ObservationYear'],
-                    DOY=rnx['ObservationDOY'])
+                    Description = ('A missing RINEX file was found during RINEX integrity check: ' + crinex_path +
+                                 '. It has been removed from the database. Consider rerunning PPP for this station.'),
+                    NetworkCode = NetworkCode,
+                    StationCode = StationCode,
+                    Year        = rnx['ObservationYear'],
+                    DOY         = rnx['ObservationDOY'])
 
                 cnn.insert_event(event)
 
@@ -192,8 +196,11 @@ def CheckRinexIntegrity(cnn, Config, stnlist, start_date, end_date, operation, J
             pbar = tqdm(total=len(rnxtbl), ncols=160, desc=' >> Checking archive integrity', disable=None, position=1)
 
             for rnx in rnxtbl:
-                archive_path = Archive.build_rinex_path(NetworkCode, StationCode, rnx['ObservationYear'],
-                                                        rnx['ObservationDOY'], filename=rnx['Filename'])
+                archive_path = Archive.build_rinex_path(NetworkCode,
+                                                        StationCode,
+                                                        rnx['ObservationYear'],
+                                                        rnx['ObservationDOY'],
+                                                        filename = rnx['Filename'])
                 crinex_path = os.path.join(Config.archive_path, archive_path)
 
                 pbar.postfix = '%s.%s: %s' % (NetworkCode, StationCode, archive_path)
@@ -237,8 +244,11 @@ def StnInfoRinexIntegrity(cnn, stnlist, start_date, end_date, JobServer):
 
         for rnx in rnxtbl:
             # for each rinex found in the table, submit a job
-            JobServer.submit(NetworkCode, StationCode, rnx['ObservationSTime'],
-                             rnx['ObservationETime'], rnx['ReceiverSerial'].lower())
+            JobServer.submit(NetworkCode,
+                             StationCode,
+                             rnx['ObservationSTime'],
+                             rnx['ObservationETime'], 
+                             rnx['ReceiverSerial'].lower())
 
         JobServer.wait()
 
@@ -253,24 +263,32 @@ def StnInfoRinexIntegrity(cnn, stnlist, start_date, end_date, JobServer):
         print_head = True
         for i, diff in enumerate(diff_vect):
             year = Utils.get_norm_year_str(diff[0].year)
-            doy = Utils.get_norm_doy_str(diff[0].doy)
+            doy  = Utils.get_norm_doy_str(diff[0].doy)
 
             if print_head:
                 sys.stdout.write('Warning! %s.%s from %s %s to ' % (NetworkCode, StationCode, year, doy))
 
             if i != len(diff_vect)-1:
-                if diff_vect[i+1][0] == diff[0] + 1 and diff_vect[i+1][1] == diff[1] and diff_vect[i+1][2] == diff[2]:
+                if diff_vect[i+1][0] == diff[0] + 1 and \
+                   diff_vect[i+1][1] == diff[1] and \
+                   diff_vect[i+1][2] == diff[2]:
                     print_head = False
                 else:
                     sys.stdout.write('%s %s: RINEX SN %s != Station Information %s Possible change in station or '
                                      'bad RINEX metadata.\n'
-                                     % (year, doy, diff_vect[i-1][1].ljust(maxlen), diff_vect[i-1][2].ljust(maxlen)))
+                                     % (year,
+                                        doy,
+                                        diff_vect[i-1][1].ljust(maxlen),
+                                        diff_vect[i-1][2].ljust(maxlen)))
                     print_head = True
 
         if diff_vect:
             sys.stdout.write('%s %s: RINEX SN %s != Station Information %s Possible change in station or '
                              'bad RINEX metadata.\n'
-                             % (year, doy, diff_vect[-1][1].ljust(maxlen), diff_vect[-1][2].ljust(maxlen)))
+                             % (year,
+                                doy,
+                                diff_vect[-1][1].ljust(maxlen),
+                                diff_vect[-1][2].ljust(maxlen)))
         else:
             sys.stdout.write("No inconsistencies found.\n")
 
@@ -292,19 +310,20 @@ def StnInfoCheck(cnn, stnlist, Config):
             stninfo = pyStationInfo.StationInfo(cnn, NetworkCode, StationCode)  # type: pyStationInfo.StationInfo
 
             # there should not be more than one entry with 9999 999 in DateEnd
-            empty_edata = [[record['DateEnd'], record['DateStart']] for record in stninfo.records
+            empty_edata = [(record['DateEnd'], record['DateStart'])
+                           for record in stninfo.records
                            if not record['DateEnd']]
 
             if len(empty_edata) > 1:
-                list_empty = [pyDate.Date(datetime=record[1]).yyyyddd() for record in empty_edata]
-                list_empty = ', '.join(list_empty)
+                list_empty = ', '.join(pyDate.Date(datetime=record[1]).yyyyddd()
+                                       for record in empty_edata)
                 sys.stdout.write('%s.%s: There is more than one station info entry with Session Stop = 9999 999 '
                                  'Session Start -> %s\n' % (NetworkCode, StationCode, list_empty))
 
             # there should not be a DateStart < DateEnd of different record
             list_problems = []
-            atx_problem = False
-            hc_problem = False
+            atx_problem   = False
+            hc_problem    = False
 
             for i, record in enumerate(stninfo.records):
 
@@ -322,17 +341,19 @@ def StnInfoCheck(cnn, stnlist, Config):
 
                 overlaps = stninfo.overlaps(record)
                 if overlaps:
-
                     for overlap in overlaps:
                         if overlap['DateStart'].datetime() != record['DateStart'].datetime():
 
-                            list_problems.append([str(overlap['DateStart']), str(overlap['DateEnd']),
-                                                  str(record['DateStart']), str(record['DateEnd'])])
+                            list_problems.append([str(overlap['DateStart']),
+                                                  str(overlap['DateEnd']),
+                                                  str(record['DateStart']),
+                                                  str(record['DateEnd'])])
 
             station_list_gaps = []
             if len(stninfo.records) > 1:
                 # get gaps between stninfo records
-                for erecord, srecord in zip(stninfo.records[0:-1], stninfo.records[1:]):
+                for erecord, srecord in zip(stninfo.records[0:-1],
+                                            stninfo.records[1:]):
 
                     sdate = srecord['DateStart']
                     edate = erecord['DateEnd']
@@ -382,14 +403,15 @@ def StnInfoCheck(cnn, stnlist, Config):
                     sys.stdout.write('%s.%s: There is a gap with %s RINEX file(s) between '
                                      'the following station information records: %s -> %s :: %s -> %s\n'
                                      % (NetworkCode, StationCode, gap[0], gap[1][0], gap[1][1], gap[2][0], gap[2][1]))
-            if len(list_problems) > 0:
-                list_problems = [record[0] + ' -> ' + record[1] +
-                                 ' conflicts ' + record[2] + ' -> ' + record[3] for record in list_problems]
 
-                list_problems = '\n   '.join(list_problems)
+            if len(list_problems) > 0:
+                problems = '\n   '.join(record[0] + ' -> ' + record[1] +
+                                        ' conflicts ' +
+                                        record[2] + ' -> ' + record[3]
+                                        for record in list_problems)
 
                 sys.stdout.write('%s.%s: There are conflicting recods in the station information table\n   %s\n'
-                                 % (NetworkCode, StationCode, list_problems))
+                                 % (NetworkCode, StationCode, problems))
 
             if len(empty_edata) > 1 or len(list_problems) > 0 or first_obs or len(station_list_gaps) > 0 or \
                 atx_problem:
@@ -425,11 +447,13 @@ def CheckSpatialCoherence(cnn, stnlist, start_date, end_date):
 
             for soln in tqdm(ppp):
                 year = soln['Year']
-                doy = soln['DOY']
+                doy  = soln['DOY']
                 date = pyDate.Date(year=year, doy=doy)
 
                 # calculate lla of solution
-                lat, lon, h = ecef2lla([float(soln['X']), float(soln['Y']), float(soln['Z'])])
+                lat, lon, h = ecef2lla([float(soln['X']),
+                                        float(soln['Y']),
+                                        float(soln['Z'])])
 
                 SpatialCheck = pyPPP.PPPSpatialCheck(lat, lon, h)
 
@@ -490,17 +514,16 @@ def GetGaps(cnn, NetworkCode, StationCode, start_date, end_date):
     possible_doys = []
 
     if len(rnxtbl) > 0:
-        start_date = pyDate.Date(year=rnxtbl[0]['ObservationYear'], doy=rnxtbl[0]['ObservationDOY'])
-        end_date = pyDate.Date(year=rnxtbl[-1]['ObservationYear'], doy=rnxtbl[-1]['ObservationDOY'])
+        start_date = pyDate.Date(year=rnxtbl[0]['ObservationYear'],  doy=rnxtbl[0]['ObservationDOY'])
+        end_date   = pyDate.Date(year=rnxtbl[-1]['ObservationYear'], doy=rnxtbl[-1]['ObservationDOY'])
 
         possible_doys = [pyDate.Date(mjd=mjd) for mjd in range(start_date.mjd, end_date.mjd+1)]
 
+        # @todo optimize, has quadratic time
         actual_doys = [pyDate.Date(year=rnx['ObservationYear'], doy=rnx['ObservationDOY']) for rnx in rnxtbl]
-        gaps = []
-        for doy in possible_doys:
-
-            if doy not in actual_doys:
-                gaps += [doy]
+        gaps = [doy
+                for doy in possible_doys
+                if doy not in actual_doys]
 
     return gaps, possible_doys
 
@@ -541,8 +564,8 @@ def GetStnGaps(cnn, stnlist, ignore_val, start_date, end_date):
         for i, rnx in enumerate(rnxtbl):
 
             if i > 0:
-                d1 = pyDate.Date(year=rnx['ObservationYear'],doy=rnx['ObservationDOY'])
-                d2 = pyDate.Date(year=rnxtbl[i-1]['ObservationYear'],doy=rnxtbl[i-1]['ObservationDOY'])
+                d1 = pyDate.Date(year = rnx['ObservationYear'],doy=rnx['ObservationDOY'])
+                d2 = pyDate.Date(year = rnxtbl[i-1]['ObservationYear'],doy=rnxtbl[i-1]['ObservationDOY'])
 
                 if d1 != d2 + 1 and not gap_begin:
                     gap_begin = d2 + 1
@@ -590,7 +613,7 @@ def RenameStation(cnn, NetworkCode, StationCode, DestNetworkCode, DestStationCod
 
         if rs.ntuples() == 0:
             # ask the user if he/she want to create it?
-            print 'The requested destiny station does not exist. Please create it and try again'
+            print('The requested destiny station does not exist. Please create it and try again')
         else:
 
             # select the original rinex files names
@@ -604,14 +627,16 @@ def RenameStation(cnn, NetworkCode, StationCode, DestNetworkCode, DestStationCod
 
             original_rs = rs.dictresult()
 
-            print " >> Beginning transfer of %i rinex files from %s.%s to %s.%s" \
-                  % (len(original_rs), NetworkCode, StationCode, DestNetworkCode, DestStationCode)
+            print(" >> Beginning transfer of %i rinex files from %s.%s to %s.%s" \
+                  % (len(original_rs), NetworkCode, StationCode, DestNetworkCode, DestStationCode))
 
             for src_rinex in tqdm(original_rs):
                 # rename files
                 Archive = pyArchiveStruct.RinexStruct(cnn)  # type: pyArchiveStruct.RinexStruct
-                src_file_path = Archive.build_rinex_path(NetworkCode, StationCode, src_rinex['ObservationYear'],
-                                                         src_rinex['ObservationDOY'], filename=src_rinex['Filename'])
+                src_file_path = Archive.build_rinex_path(NetworkCode, StationCode,
+                                                         src_rinex['ObservationYear'],
+                                                         src_rinex['ObservationDOY'],
+                                                         filename = src_rinex['Filename'])
 
                 src_path = os.path.split(os.path.join(archive_path, src_file_path))[0]
                 src_file = os.path.split(os.path.join(archive_path, src_file_path))[1]
@@ -637,12 +662,14 @@ def RenameStation(cnn, NetworkCode, StationCode, DestNetworkCode, DestStationCod
                 if not os.path.isdir(dest_path):
                     os.makedirs(dest_path)
 
-                shutil.move(os.path.join(src_path, src_file), os.path.join(dest_path, dest_file))
+                shutil.move(os.path.join(src_path,  src_file),
+                            os.path.join(dest_path, dest_file))
 
                 # if we are here, we are good. Commit
                 cnn.commit_transac()
 
-                date = pyDate.Date(year=src_rinex['ObservationYear'], doy=src_rinex['ObservationDOY'])
+                date = pyDate.Date(year=src_rinex['ObservationYear'],
+                                   doy =src_rinex['ObservationDOY'])
                 # Station info transfer
                 try:
                     stninfo_dest = pyStationInfo.StationInfo(cnn, DestNetworkCode,
@@ -653,10 +680,10 @@ def RenameStation(cnn, NetworkCode, StationCode, DestNetworkCode, DestStationCod
                     # the source station
                     try:
                         stninfo_dest = pyStationInfo.StationInfo(cnn, DestNetworkCode, DestStationCode)
-                        stninfo_src = pyStationInfo.StationInfo(cnn, NetworkCode, StationCode, date)
+                        stninfo_src  = pyStationInfo.StationInfo(cnn, NetworkCode,     StationCode, date)
 
                         # force the station code in record to be the same as deststationcode
-                        record = stninfo_src.currentrecord
+                        record                = stninfo_src.currentrecord
                         record['StationCode'] = DestStationCode
 
                         stninfo_dest.InsertStationInfo(record)
@@ -673,24 +700,26 @@ def RenameStation(cnn, NetworkCode, StationCode, DestNetworkCode, DestStationCod
 def VisualizeGaps(cnn, stnlist, start_date, end_date):
 
     for Stn in stnlist:
+        stn_id = '%s.%s' % (Stn['NetworkCode'], Stn['StationCode'])
+        print(' >> Calculating gaps for %s' % stn_id)
 
-        print ' >> Calculating gaps for %s.%s' % (Stn['NetworkCode'], Stn['StationCode'])
-
-        missing_doys, possible_doys = GetGaps(cnn, Stn['NetworkCode'], Stn['StationCode'], start_date, end_date)
+        missing_doys, possible_doys = GetGaps(cnn, Stn['NetworkCode'], Stn['StationCode'],
+                                              start_date, end_date)
 
         if len(possible_doys) == 0:
-            print ' -- %s.%s has no data' % (Stn['NetworkCode'], Stn['StationCode'])
+            print(' -- %s has no data' % stn_id)
             continue
 
-        sys.stdout.write(' -- %s.%s: (First and last observation in timespan: %i %03i - %i %03i)\n'
-                         % (Stn['NetworkCode'], Stn['StationCode'], possible_doys[0].year, possible_doys[0].doy,
+        sys.stdout.write(' -- %s: (First and last observation in timespan: %i %03i - %i %03i)\n'
+                         % (stn_id,
+                            possible_doys[0].year,  possible_doys[0].doy,
                             possible_doys[-1].year, possible_doys[-1].doy))
 
         # make a group per year
-        for year in sorted(set([d.year for d in possible_doys])):
+        for year in sorted({d.year for d in possible_doys}):
 
-            missing_dates = [m.doy for m in missing_doys if m.year == year]
-            p_doys = [m.doy for m in possible_doys if m.year == year]
+            missing_dates = {m.doy for m in missing_doys  if m.year == year}
+            p_doys        = [m.doy for m in possible_doys if m.year == year]
 
             sys.stdout.write('\n%i:\n    %03i>' % (year, p_doys[0]))
 
@@ -701,17 +730,18 @@ def VisualizeGaps(cnn, stnlist, start_date, end_date):
 
             for i, doy in enumerate(zip(p_doys[0:-1:2], p_doys[1::2])):
 
-                if doy[0] not in missing_dates and doy[1] not in missing_dates:
-                    sys.stdout.write(unichr(0x2588))
+                if doy[0] not in missing_dates:
+                    if doy[1] not in missing_dates:
+                        c = chr(0x2588)
+                    else:
+                        c = chr(0x258C)
+                else:
+                    if doy[1] not in missing_dates:
+                        c = chr(0x2590)
+                    else:
+                        c = ' '
 
-                elif doy[0] not in missing_dates and doy[1] in missing_dates:
-                    sys.stdout.write(unichr(0x258C))
-
-                elif doy[0] in missing_dates and doy[1] not in missing_dates:
-                    sys.stdout.write(unichr(0x2590))
-
-                elif doy[0] in missing_dates and doy[1] in missing_dates:
-                    sys.stdout.write(' ')
+                sys.stdout.write(c)
 
                 if i+1 == cut_len:
                     sys.stdout.write('<%03i\n' % doy[0])
@@ -720,8 +750,8 @@ def VisualizeGaps(cnn, stnlist, start_date, end_date):
             if len(p_doys) % 2 != 0:
                 # last one missing
                 if p_doys[-1] not in missing_dates:
-                    sys.stdout.write(unichr(0x258C))
-                elif p_doys[-1] in missing_dates:
+                    sys.stdout.write(chr(0x258C))
+                else:
                     sys.stdout.write(' ')
 
                 if cut_len < len(p_doys):
@@ -731,7 +761,7 @@ def VisualizeGaps(cnn, stnlist, start_date, end_date):
             else:
                 sys.stdout.write('<%03i\n' % (p_doys[-1]))
 
-        print ''
+        print('')
         sys.stdout.flush()
 
 
@@ -773,6 +803,7 @@ def DeleteRinex(cnn, stnlist, start_date, end_date, completion_limit=0.0):
         rinex = rs.dictresult()
         tqdm.write(' >> Deleting %i RINEX files and solutions for %s.%s between %s - %s and completion <= %.3f' %
                    (len(rinex), NetworkCode, StationCode, start_date.yyyyddd(), end_date.yyyyddd(), completion_limit))
+
         for rnx in tqdm(rinex):
             try:
                 # delete rinex file (also deletes PPP and GAMIT solutions)
@@ -828,7 +859,8 @@ def main():
                         help='Check the RINEX files in the database and look for gaps (missing days). '
                              'Optional, [ignore_days] with the smallest gap to display.')
 
-    parser.add_argument('-gg', '--graphical_gaps', action='store_true', help='Visually output RINEX gaps for stations.')
+    parser.add_argument('-gg', '--graphical_gaps', action='store_true',
+                        help='Visually output RINEX gaps for stations.')
 
     parser.add_argument('-sc', '--spatial_coherence', choices=['exclude', 'delete', 'noop'], type=str, nargs=1,
                         help='Check that the RINEX files correspond to the stations they are linked to using their '
@@ -856,7 +888,8 @@ def main():
                              'Completion ranges form 1.0 to 0.0. Use 1.0 to delete all data. '
                              'Operation cannot be undone!')
 
-    parser.add_argument('-np', '--noparallel', action='store_true', help="Execute command without parallelization.")
+    parser.add_argument('-np', '--noparallel', action='store_true',
+                        help="Execute command without parallelization.")
 
     args = parser.parse_args()
 
@@ -865,16 +898,17 @@ def main():
     # create the execution log
     cnn.insert('executions', script='pyIntegrityCheck.py')
 
-    Config = pyOptions.ReadOptions("gnss_data.cfg")  # type: pyOptions.ReadOptions
+    Config    = pyOptions.ReadOptions("gnss_data.cfg")  # type: pyOptions.ReadOptions
 
-    stnlist = Utils.process_stnlist(cnn, args.stnlist)
+    stnlist   = Utils.process_stnlist(cnn, args.stnlist)
 
     JobServer = pyJobServer.JobServer(Config, run_parallel=not args.noparallel)  # type: pyJobServer.JobServer
 
     #####################################
     # date filter
 
-    dates = [pyDate.Date(year=1980, doy=1), pyDate.Date(year=2100, doy=1)]
+    dates = [pyDate.Date(year=1980, doy=1),
+             pyDate.Date(year=2100, doy=1)]
     try:
         dates = process_date(args.date_filter)
     except ValueError as e:
@@ -962,12 +996,12 @@ def main():
             DestNetworkCode = args.rename[0].split('.')[0]
             DestStationCode = args.rename[0].split('.')[1]
 
-            RenameStation(cnn, stnlist[0]['NetworkCode'], stnlist[0]['StationCode'], DestNetworkCode, DestStationCode,
+            RenameStation(cnn, stnlist[0]['NetworkCode'], stnlist[0]['StationCode'],
+                          DestNetworkCode, DestStationCode,
                           dates[0], dates[1], Config.archive_path)
 
     JobServer.close_cluster()
 
 
 if __name__ == '__main__':
-
     main()

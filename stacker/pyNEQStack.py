@@ -4,24 +4,28 @@ Date: 6/12/18 10:28 AM
 Author: Demian D. Gomez
 """
 
-import dbConnection
-import pyOptions
 import argparse
-import pyETM
-import pyJobServer
-import numpy
-import pyDate
-from pyDate import Date
-from tqdm import tqdm
 import traceback
 from pprint import pprint
 import os
+
+# deps
 import numpy as np
+from tqdm import tqdm
 from scipy.stats import chi2
-from Utils import process_date
-from Utils import ct2lg
-from Utils import ecef2lla
-from Utils import rotct2lg
+
+
+# app
+import dbConnection
+import pyOptions
+import pyETM
+import pyJobServer
+import pyDate
+from pyDate import Date
+from Utils import (process_date, 
+                   ct2lg,
+                   ecef2lla,
+                   rotct2lg)
 
 LIMIT = 2.5
 
@@ -111,6 +115,7 @@ def sql_select_union(project, fields, date1, date2, stn_filter=None):
 
     if stn_filter:
         for stn in stn_filter:
+            # @todo bug here? string not appended, filters by a single stn
             where = ' AND g1."NetworkCode" || \'.\' || g1."StationCode" IN (\'' + '\',\''.join(stn_filter) + '\')'
     else:
         where = ''
@@ -165,7 +170,8 @@ def dra(cnn, project, dates):
 
     ep = ep.dictresult()
 
-    epochs = [Date(year=item['Year'], doy=item['DOY']) for item in ep]
+    epochs = [Date(year=item['Year'], doy=item['DOY'])
+              for item in ep]
 
     A = np.array([])
     Ax = []
@@ -174,12 +180,12 @@ def dra(cnn, project, dates):
 
     for station in stnlist:
 
-        print 'stacking %s.%s' % (station['NetworkCode'], station['StationCode'])
+        print('stacking %s.%s' % (station['NetworkCode'], station['StationCode']))
 
         try:
             etm = pyETM.GamitETM(cnn, station['NetworkCode'], station['StationCode'], project=project)
         except Exception as e:
-            print " Exception: " + str(e)
+            print(" Exception: " + str(e))
             continue
 
         x = etm.soln.x
@@ -214,7 +220,8 @@ def main():
 
     # create the execution log
 
-    dates = [pyDate.Date(year=1980, doy=1), pyDate.Date(year=2100, doy=1)]
+    dates = [pyDate.Date(year=1980, doy=1),
+             pyDate.Date(year=2100, doy=1)]
     try:
         dates = process_date(args.date_filter)
     except ValueError as e:

@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 Project: Parallel.GAMIT
 Date: 7/18/18 10:28 AM
@@ -8,14 +9,16 @@ and gradients)
 """
 
 import argparse
+import os
+
+# app
 import pyOptions
 import dbConnection
 import pyDate
-from Utils import process_date
-from Utils import process_stnlist
 import snxParse
-import os
-
+from Utils import (process_date, 
+                   process_stnlist,
+                   file_open)
 
 def replace_in_sinex(sinex, observations, unknowns, new_val):
 
@@ -26,8 +29,9 @@ def replace_in_sinex(sinex, observations, unknowns, new_val):
  SAMPLING INTERVAL (SECONDS)           30
 """ % (new_val, observations - new_val)
 
-    with open(os.path.basename(os.path.splitext(sinex)[0]) + '_MOD.snx', 'w') as nsnx:
-        with open(sinex) as osnx:
+    sinex_path = os.path.basename(os.path.splitext(sinex)[0]) + '_MOD.snx'
+    with file_open(sinex_path, 'w') as nsnx:
+        with file_open(sinex, 'r') as osnx:
             for line in osnx:
                 if ' NUMBER OF UNKNOWNS%22i' % unknowns in line:
                     # empty means local directory! LA RE PU...
@@ -37,7 +41,7 @@ def replace_in_sinex(sinex, observations, unknowns, new_val):
 
     # rename file
     os.remove(sinex)
-    os.renames(os.path.basename(os.path.splitext(sinex)[0]) + '_MOD.snx', sinex)
+    os.renames(sinex_path, sinex)
 
 
 def add_domes(sinex, stations):
@@ -46,7 +50,8 @@ def add_domes(sinex, stations):
         if stn['dome'] is not None:
             # " BATF  A ---------"
             os.system("sed -i 's/ %s  A ---------/ %s  A %s/g' %s"
-                      % (stn['StationCode'].upper(), stn['StationCode'].upper(), stn['dome'], sinex))
+                      % (stn['StationCode'].upper(),
+                         stn['StationCode'].upper(), stn['dome'], sinex))
 
 
 def process_sinex(cnn, project, dates, sinex):
@@ -64,7 +69,7 @@ def process_sinex(cnn, project, dates, sinex):
                          'GROUP BY "Year", "DOY"'
                          % (project, dates[0].first_epoch('fyear'), dates[1].last_epoch('fyear'), stnlist))
 
-    zg = sum([s[0] for s in zg])
+    zg = sum(s[0] for s in zg)
 
     zd = cnn.query_float('SELECT count("ZTD") + %i as implicit FROM gamit_ztd '
                          'WHERE "Date" BETWEEN \'%s\' AND \'%s\' '
@@ -72,7 +77,7 @@ def process_sinex(cnn, project, dates, sinex):
 
     zd = zd[0][0]
 
-    print ' >> Adding NUMBER OF UNKNOWNS: %i (previous value: %i)' % (zd, snx.unknowns)
+    print(' >> Adding NUMBER OF UNKNOWNS: %i (previous value: %i)' % (zd, snx.unknowns))
 
     replace_in_sinex(sinex, snx.observations, snx.unknowns, snx.unknowns + zg + zd)
 
@@ -83,7 +88,7 @@ def process_sinex(cnn, project, dates, sinex):
 
     stations = rs.dictresult()
 
-    print ' >> Adding DOMES'
+    print(' >> Adding DOMES')
     # add domes
     add_domes(sinex, stations)
 
@@ -103,16 +108,17 @@ def main():
 
     args = parser.parse_args()
 
-    cnn = dbConnection.Cnn("gnss_data.cfg")
+    cnn    = dbConnection.Cnn("gnss_data.cfg")
     Config = pyOptions.ReadOptions("gnss_data.cfg")  # type: pyOptions.ReadOptions
 
-    dates = [pyDate.Date(year=1980, doy=1), pyDate.Date(year=2100, doy=1)]
+    dates = [pyDate.Date(year=1980, doy=1),
+             pyDate.Date(year=2100, doy=1)]
     try:
         dates = process_date(args.date_filter)
     except ValueError as e:
         parser.error(str(e))
 
-    sinex = args.sinex[0]
+    sinex   = args.sinex[0]
     project = args.project[0]
 
     process_sinex(cnn, project, dates, sinex)

@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 """
 Project: Parallel.Archive
 Date: 12/21/17 12:53 PM
@@ -7,51 +9,54 @@ Script to synchronize AWS with OSU's archive database
 Run aws-sync -h for help
 """
 
-import dbConnection
-import pyDate
 import argparse
-import pyOptions
-import pyArchiveStruct
-import pyETM
-import pyRinex
-import pyStationInfo
 import os
 import numpy
-import pyJobServer
-from tqdm import tqdm
 import traceback
 import platform
-import Utils
 from datetime import datetime
 import shutil
 import string
 import random
 from time import time
 
+# deps
+from tqdm import tqdm
+
+# app
+import Utils
+import dbConnection
+import pyDate
+import pyOptions
+import pyArchiveStruct
+import pyETM
+import pyRinex
+import pyStationInfo
+import pyJobServer
+from Utils import file_open, file_write, file_append
+
 
 def tic():
-
     global tt
     tt = time()
 
 
 def toc(text):
-
     global tt
-    print text + ': ' + str(time() - tt)
+    print(text + ': ' + str(time() - tt))
 
 
 class callback_class():
     def __init__(self, pbar):
-        self.apr = None
+        self.apr     = None
         self.stninfo = None
-        self.log = None
-        self.pbar = pbar
+        self.log     = None
+        self.pbar    = pbar
 
     def process_callback(self, args):
-        self.apr = args[0]
+        self.apr     = args[0]
         self.stninfo = args[1]
-        self.log = args[2]
+        self.log     = args[2]
         self.pbar.update(1)
 
 
@@ -236,7 +241,7 @@ def main():
     cnn = dbConnection.Cnn('gnss_data.cfg')
 
     # before attempting anything, check aliases!!
-    print ' >> Checking GAMIT aliases'
+    print(' >> Checking GAMIT aliases')
     check_aliases(cnn)
 
     # initialize the PP job server
@@ -251,7 +256,7 @@ def main():
         ts = range(pyDate.Date(year=2004, doy=20).mjd, pyDate.Date(year=2018, doy=87).mjd, 1)
         ts = [pyDate.Date(mjd=tts) for tts in ts]
         for date in ts:
-            print ' >> Processing ' + str(date)
+            print(' >> Processing ' + str(date))
             pull_rinex(cnn, date, Config, JobServer)
 
         return
@@ -262,7 +267,7 @@ def main():
         pull_rinex(cnn, date, Config, JobServer)
 
     if args.mark_uploaded is not None:
-        print 'Processing %i for day %s' % (len(args.mark_uploaded), date.yyyyddd())
+        print('Processing %i for day %s' % (len(args.mark_uploaded), date.yyyyddd()))
         # mark the list of stations as transferred to the AWS
         mark_uploaded(cnn, date, args.mark_uploaded)
 
@@ -277,7 +282,7 @@ def mark_uploaded(cnn, date, stns):
         # check if valid station
         rs = cnn.query('SELECT * FROM stations WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\'' % (NetworkCode, StationCode))
         if rs.ntuples() == 0:
-            print ' %s.%s is not an existing station' % (NetworkCode, StationCode)
+            print(' %s.%s is not an existing station' % (NetworkCode, StationCode))
             continue
 
         # check if station already marked
@@ -293,7 +298,7 @@ def mark_uploaded(cnn, date, stns):
                       % (NetworkCode, StationCode, StationAlias, date.year, date.doy,
                          datetime.now().strftime('%Y-%m-%d %H:%m:%S')))
         else:
-            print ' %s.%s was already marked' % (NetworkCode, StationCode)
+            print(' %s.%s was already marked' % (NetworkCode, StationCode))
 
 
 def id_generator(size=4, chars=string.ascii_lowercase + string.digits):
@@ -315,14 +320,20 @@ def pull_rinex(cnn, date, Config, JobServer):
 
     for stn in deletes:
         # produce a single file with the deletions that need to occur in the AWS
-        with open('file_ops.log', mode='a') as fid:
-            fid.write('rm %s/%s* # %s.%s not found in stations table with net.stn code declared in aws_sync\n'
-                      % (date.yyyyddd().replace(' ', '/'), stn['StationAlias'], stn['NetworkCode'], stn['StationCode']))
+        file_append('file_ops.log', 
+                    'rm %s/%s* # %s.%s not found in stations table with net.stn code declared in aws_sync\n'
+                    % (date.yyyyddd().replace(' ', '/'),
+                       stn['StationAlias'],
+                       stn['NetworkCode'],
+                       stn['StationCode']))
 
         # delete the records from aws_sync
         cnn.query('DELETE FROM aws_sync WHERE "Year" = %i AND "DOY" = %i AND "NetworkCode" = \'%s\' AND '
                   '"StationCode" = \'%s\''
-                  % (date.year, date.doy, stn['NetworkCode'], stn['StationCode']))
+                  % (date.year,
+                     date.doy,
+                     stn['NetworkCode'],
+                     stn['StationCode']))
 
     # Join aws_sync with stationalias (stationalias is FK-ed to stations).
     # If an entry in aws_sync that has StationCode <> StationAlias has no record in stationalias OR
@@ -340,14 +351,20 @@ def pull_rinex(cnn, date, Config, JobServer):
 
     for stn in deletes:
         # produce a single file with the deletions that need to occur in the AWS
-        with open('file_ops.log', mode='a') as fid:
-            fid.write('rm %s/%s* # alias declared in aws_sync for %s.%s does not match alias in stationalias table\n'
-                      % (date.yyyyddd().replace(' ', '/'), stn['StationAlias'], stn['NetworkCode'], stn['StationCode']))
+        file_append('file_ops.log',
+                    'rm %s/%s* # alias declared in aws_sync for %s.%s does not match alias in stationalias table\n'
+                    % (date.yyyyddd().replace(' ', '/'),
+                       stn['StationAlias'],
+                       stn['NetworkCode'],
+                       stn['StationCode']))
 
         # delete the records from aws_sync
         cnn.query('DELETE FROM aws_sync WHERE "Year" = %i AND "DOY" = %i AND "NetworkCode" = \'%s\' AND '
                   '"StationCode" = \'%s\''
-                  % (date.year, date.doy, stn['NetworkCode'], stn['StationCode']))
+                  % (date.year,
+                     date.doy,
+                     stn['NetworkCode'],
+                     stn['StationCode']))
 
     # check the individual files for this day. All files reported as uploaded should have a match in the rinex_proc
     # table, otherwise this could be a station split or deletion. If that's the case, order their deletion from the AWS
@@ -364,14 +381,20 @@ def pull_rinex(cnn, date, Config, JobServer):
 
     for stn in deletes:
         # produce a single file with the deletions that need to occur in the AWS
-        with open('file_ops.log', mode='a') as fid:
-            fid.write('rm %s/%s* # rinex file for %s.%s could not be found in the rinex_proc table\n'
-                      % (date.yyyyddd().replace(' ', '/'), stn['StationAlias'], stn['NetworkCode'], stn['StationCode']))
+        file_append('file_ops.log',
+                    'rm %s/%s* # rinex file for %s.%s could not be found in the rinex_proc table\n'
+                    % (date.yyyyddd().replace(' ', '/'),
+                       stn['StationAlias'],
+                       stn['NetworkCode'],
+                       stn['StationCode']))
 
         # delete the records from aws_sync
         cnn.query('DELETE FROM aws_sync WHERE "Year" = %i AND "DOY" = %i AND "NetworkCode" = \'%s\' AND '
                   '"StationCode" = \'%s\''
-                  % (date.year, date.doy, stn['NetworkCode'], stn['StationCode']))
+                  % (date.year,
+                     date.doy,
+                     stn['NetworkCode'],
+                     stn['StationCode']))
 
     ####################################################################################################################
     # continue with sync of files
@@ -382,26 +405,29 @@ def pull_rinex(cnn, date, Config, JobServer):
                    'WHERE "ObservationYear" = %i AND "ObservationDOY" = %i AND "Completion" >= 0.3'
                    % (date.year, date.doy))
 
-    rinex = rs.dictresult()
+    rinex    = rs.dictresult()
 
-    pbar = tqdm(total=len(rinex), ncols=80)
+    pbar     = tqdm(total=len(rinex), ncols=80)
 
     metafile = date.yyyy() + '/' + date.ddd() + '/' + date.yyyyddd().replace(' ', '-')
 
-    if not os.path.isdir('./' + date.yyyy() + '/' + date.ddd()):
-        os.makedirs('./' + date.yyyy() + '/' + date.ddd())
-
+    date_subpath = date.yyyy() + '/' + date.ddd()
+    date_path    = './' + date_path
     # following Abel's request, make a subdir for the files
-    if not os.path.isdir('/media/leleiona/aws-files/' + date.yyyy() + '/' + date.ddd()):
-        os.makedirs('/media/leleiona/aws-files/' + date.yyyy() + '/' + date.ddd())
+    lele_path = '/media/leleiona/aws-files/' + date_subpath
+
+    for p in (date_path, lele_path):
+        if not os.path.isdir(p):
+            os.makedirs(p)
 
     # write the header to the .info file
-    with open('./' + metafile + '.info', mode='w') as fid:
-        fid.write('*SITE  Station Name      Session Start      Session Stop       Ant Ht   HtCod  Ant N    Ant E    '
-                  'Receiver Type         Vers                  SwVer  Receiver SN           Antenna Type     Dome   '
-                  'Antenna SN          \n')
+    file_write('./' + metafile + '.info', 
+               '*SITE  Station Name      Session Start      Session Stop       Ant Ht   HtCod  Ant N    Ant E    '
+               'Receiver Type         Vers                  SwVer  Receiver SN           Antenna Type     Dome   '
+               'Antenna SN          \n')
 
-    modules = ('dbConnection', 'pyETM', 'pyDate', 'pyRinex', 'pyStationInfo', 'pyOptions', 'pyArchiveStruct', 'os',
+    modules = ('dbConnection', 'pyETM', 'pyDate', 'pyRinex', 'pyStationInfo',
+               'pyOptions', 'pyArchiveStruct', 'os',
                'numpy', 'traceback', 'platform', 'Utils', 'shutil')
 
     depfuncs = (window_rinex, sigmas_neu2xyz)
@@ -409,7 +435,11 @@ def pull_rinex(cnn, date, Config, JobServer):
     JobServer.create_cluster(rinex_task, depfuncs, output_handle, pbar, modules=modules)
 
     for rnx in rinex:
-        JobServer.submit(rnx['NetworkCode'], rnx['StationCode'], date, rnx['ObservationFYear'], metafile)
+        JobServer.submit(rnx['NetworkCode'],
+                         rnx['StationCode'],
+                         date,
+                         rnx['ObservationFYear'],
+                         metafile)
 
     JobServer.wait()
 
@@ -417,7 +447,7 @@ def pull_rinex(cnn, date, Config, JobServer):
 
     JobServer.close_cluster()
 
-    print 'Done, chau!'
+    print('Done, chau!')
 
 
 def check_aliases(cnn):
@@ -456,14 +486,16 @@ def check_aliases(cnn):
                     if len(chk.getresult()) == 0:
                         # no collision, insert
                         try:
-                            cnn.insert('stationalias', NetworkCode=stn['NetworkCode'], StationCode=stn['StationCode'],
-                                       StationAlias=new_alias)
+                            cnn.insert('stationalias',
+                                       NetworkCode = stn['NetworkCode'],
+                                       StationCode = stn['StationCode'],
+                                       StationAlias = new_alias)
 
-                            print ' -- alias created for %s.%s -> %s' \
-                                  % (stn['NetworkCode'], stn['StationCode'], new_alias)
+                            print(' -- alias created for %s.%s -> %s' \
+                                  % (stn['NetworkCode'], stn['StationCode'], new_alias))
 
                         except dbConnection.dbErrInsert:
-                            print ' -- station %s.%s already has an alias' % (stn['NetworkCode'], stn['StationCode'])
+                            print(' -- station %s.%s already has an alias' % (stn['NetworkCode'], stn['StationCode']))
 
                         break
 
@@ -471,25 +503,26 @@ def check_aliases(cnn):
 def output_handle(job):
 
     if job.result is not None:
-        apr = job.result[0]
-        stninfo = job.result[1]
-        log = job.result[2]
+        apr      = job.result[0]
+        stninfo  = job.result[1]
+        log      = job.result[2]
         metafile = job.result[3]
 
         # write the APR and sigmas
         # writen in ENU not NEU, as specified by Abel
+        meta_path = './' + metafile
         if apr is not None:
-            with open('./' + metafile + '.apr', mode='a') as fid:
-                fid.write(apr + '\n')
+            file_append(meta_path + '.apr',
+                        apr + '\n')
 
         if stninfo is not None:
-            with open('./' + metafile + '.info', mode='a') as fid:
-                fid.write(stninfo + '\n')
+            file_append(meta_path + '.info', 
+                        stninfo + '\n')
 
         # write a log line for debugging
         if log is not None:
-            with open('./' + metafile + '.log', mode='a') as fid:
-                fid.write(log + '\n')
+            file_append(meta_path + '.log', 
+                        log + '\n')
 
     elif job.exception:
         tqdm.write(' -- There were unhandled errors during this batch: ' + job.exception)
@@ -499,10 +532,11 @@ def window_rinex(Rinex, window):
 
     # windows the data:
     # check which side of the earthquake yields more data: window before or after the earthquake
-    if (window.datetime().hour + window.datetime().minute/60.0) < 12:
-        Rinex.window_data(start=window.datetime())
+    dt = window.datetime()
+    if (dt.hour + dt.minute/60.0) < 12:
+        Rinex.window_data(start = dt)
     else:
-        Rinex.window_data(end=window.datetime())
+        Rinex.window_data(end = dt)
 
 
 if __name__ == '__main__':

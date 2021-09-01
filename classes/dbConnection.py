@@ -7,34 +7,38 @@ This class is used to connect to the database and handles inserts, updates and s
 It also handles the error, info and warning messages
 """
 
-import pg
-import pgdb
 import platform
-import ConfigParser
+import configparser
 import inspect
 import re
 from datetime import datetime
 from decimal import Decimal
 
+# deps
+import pg
+import pgdb
 
-class dbErrInsert(Exception):
-    pass
-
-
-class dbErrUpdate(Exception):
-    pass
-
-
-class dbErrConnect(Exception):
-    pass
+# app
+from Utils import file_read_all, file_append
 
 
-class dbErrDelete(Exception):
-    pass
+DB_HOST = 'localhost'
+DB_USER = 'postgres'
+DB_PASS = ''
+DB_NAME = 'gnss_data'
 
 
-class IntegrityError(pg.IntegrityError):
-    pass
+DEBUG=True
+def debug(s):
+    if DEBUG:
+        file_append('/tmp/db.log', "DB: %s\n" % s)
+
+class dbErrInsert (Exception): pass
+class dbErrUpdate (Exception): pass
+class dbErrConnect(Exception): pass
+class dbErrDelete (Exception): pass
+
+class IntegrityError(pg.IntegrityError): pass
 
 
 class Cnn(pg.DB):
@@ -44,53 +48,51 @@ class Cnn(pg.DB):
         # set casting of numeric to floats
         pg.set_typecast('Numeric', float)
 
-        options = {'hostname': 'localhost',
-           'username': 'postgres' ,
-           'password': '' ,
-           'database': 'gnss_data'}
+        options = {'hostname': DB_HOST,
+                   'username': DB_USER,
+                   'password': DB_PASS,
+                   'database': DB_NAME}
 
         self.active_transaction = False
-        self.options = options
+        self.options            = options
+        
         # parse session config file
-        config = ConfigParser.ConfigParser()
-        config.readfp(open(configfile))
+        config = configparser.ConfigParser()
+        config.read_string(file_read_all(configfile))
 
         # get the database config
-        for iconfig, val in dict(config.items('postgres')).iteritems():
-            options[iconfig] = val
+        options.update(dict(config.items('postgres')))
 
         # open connection to server
         err = None
         for i in range(3):
             try:
-                pg.DB.__init__(self, host=options['hostname'],
-                               user=options['username'],
-                               passwd=options['password'],
-                               dbname=options['database'])
+                pg.DB.__init__(self,
+                               host   = options['hostname'],
+                               user   = options['username'],
+                               passwd = options['password'],
+                               dbname = options['database'])
                 # set casting of numeric to floats
                 pg.set_typecast('Numeric', float)
-                if use_float:
-                    pg.set_decimal(float)
-                else:
-                    pg.set_decimal(Decimal)
+                pg.set_decimal(float if use_float else
+                               Decimal)
             except pg.InternalError as e:
                 err = e
-                if 'Operation timed out' in str(e) or 'Connection refused' in str(e):
+                if 'Operation timed out' in str(e) or \
+                   'Connection refused'  in str(e):
                     continue
                 else:
                     raise e
-            except Exception as e:
-                raise e
             else:
                 break
         else:
             raise dbErrConnect(err)
 
         # open a conenction to a cursor
-        self.cursor_conn = pgdb.connect(host=self.options['hostname'],
-                                        user=self.options['username'],
-                                        password=self.options['password'],
-                                        database=self.options['database'])
+        self.cursor_conn = pgdb.connect(host     = options['hostname'],
+                                        user     = options['username'],
+                                        password = options['password'],
+                                        database = options['database'])
 
         self.cursor = self.cursor_conn.cursor()
 
@@ -98,6 +100,7 @@ class Cnn(pg.DB):
         err = None
         for i in range(3):
             try:
+                #print('log-db-query', command, args)
                 rs = pg.DB.query(self, command, *args)
             except ValueError as e:
                 # connection lost, attempt to reconnect
@@ -107,6 +110,9 @@ class Cnn(pg.DB):
                 break
         else:
             raise Exception('dbConnection.query failed after 3 retries. Last error was: ' + str(err))
+
+        debug(" QUERY: command=%r args=%r" % (command, args))
+        # debug(" ->RES: %s" % repr(rs))
 
         return rs
 
@@ -128,26 +134,21 @@ class Cnn(pg.DB):
         else:
             raise Exception('dbConnection.query_float failed after 3 retries. Last error was: ' + str(err))
 
-        if as_dict:
-            recordset = rs.dictresult()
-        else:
-            recordset = rs.getresult()
+        recordset = rs.dictresult() if as_dict else rs.getresult()
 
         pg.set_typecast('Numeric', Decimal)
         pg.set_decimal(Decimal)
 
+        debug("QUERY_FLOAT: command=%s" % repr(command))
+        # debug("      ->RES: %s" % repr(recordset))
         return recordset
 
     def get_columns(self, table):
         tblinfo = self.query('select column_name, data_type from information_schema.columns where table_name=\'%s\''
-                             % table)
+                             % table).dictresult()
 
-        field_dict = dict()
-
-        for field in tblinfo.dictresult():
-            field_dict[field['column_name']] = field['data_type']
-
-        return field_dict
+        return { field['column_name'] : field['data_type']
+                 for field in tblinfo }
 
     def begin_transac(self):
         # do not begin a new transaction with another one active.
@@ -166,9 +167,12 @@ class Cnn(pg.DB):
         self.rollback()
 
     def insert(self, table, row=None, **kw):
+        debug("INSERT: table=%r row=%r kw=%r" % (table,row,kw))
+
         err = None
         for i in range(3):
             try:
+                #print('log-db-insert', table, row, kw)
                 pg.DB.insert(self, table, row, **kw)
             except ValueError as e:
                 # connection lost, attempt to reconnect
@@ -182,6 +186,7 @@ class Cnn(pg.DB):
             raise dbErrInsert('dbConnection.insert failed after 3 retries. Last error was: ' + str(err))
 
     def executemany(self, sql, parameters):
+        debug("EXECUTEMANY: sql=%r parameters=%r" % (sql, parameters))
 
         try:
             self.begin_transac()
@@ -192,9 +197,12 @@ class Cnn(pg.DB):
             raise
 
     def update(self, table, row=None, **kw):
+        debug("UPDATE: table=%r row=%r kw=%r" % (table, row, kw))
+
         err = None
         for i in range(3):
             try:
+                #print('log-db-update', table, row, kw)
                 pg.DB.update(self, table, row, **kw)
             except ValueError as e:
                 # connection lost, attempt to reconnect
@@ -208,9 +216,12 @@ class Cnn(pg.DB):
             raise dbErrUpdate('dbConnection.update failed after 3 retries. Last error was: ' + str(err))
 
     def delete(self, table, row=None, **kw):
+        debug("DELETE: table=%r row=%r kw=%r" % (table, row, kw))
+
         err = None
         for i in range(3):
             try:
+                #print('log-db-delete', table, row, kw)
                 pg.DB.delete(self, table, row, **kw)
             except ValueError as e:
                 # connection lost, attempt to reconnect
@@ -224,12 +235,12 @@ class Cnn(pg.DB):
             raise dbErrDelete('dbConnection.delete failed after 3 retries. Last error was: ' + str(err))
 
     def insert_event(self, event):
+        debug("EVENT: event=%r" % (event.db_dict()))
 
         self.insert('events', event.db_dict())
 
-        return
-
-    def insert_event_bak(self, type, module,desc):
+    def insert_event_bak(self, type, module, desc):
+        debug("EVENT_BAK: type=%r module=%r desc=%r" % (type, module, desc))
 
         # do not insert if record exists
         desc = '%s%s' % (module, desc.replace('\'', ''))
@@ -244,40 +255,25 @@ class Cnn(pg.DB):
         # if warn.ntuples() == 0:
         self.insert('events', EventType=type, EventDescription=desc)
 
-        return
-
     def insert_warning(self, desc):
-        line = inspect.stack()[1][2]
-        caller = inspect.stack()[1][3]
-
-        mod = platform.node()
-
-        module = '[%s:%s(%s)]\n' % (mod, caller, str(line))
-
-        # get the module calling for insert_warning to make clear how is logging this message
-        self.insert_event_bak('warn', module, desc)
+        self.insert_event_bak('warn', _caller_str(), desc)
 
     def insert_error(self, desc):
-        line = inspect.stack()[1][2]
-        caller = inspect.stack()[1][3]
-
-        mod = platform.node()
-
-        module = '[%s:%s(%s)]\n' % (mod, caller, str(line))
-
-        # get the module calling for insert_warning to make clear how is logging this message
-        self.insert_event_bak('error', module, desc)
+        self.insert_event_bak('error', _caller_str(), desc)
 
     def insert_info(self, desc):
-        line = inspect.stack()[1][2]
-        caller = inspect.stack()[1][3]
-
-        mod = platform.node()
-
-        module = '[%s:%s(%s)]\n' % (mod, caller, str(line))
-
-        self.insert_event_bak('info', module, desc)
+        self.insert_event_bak('info', _caller_str(), desc)
 
     def __del__(self):
         if self.active_transaction:
             self.rollback()
+
+
+def _caller_str():
+    # get the module calling to make clear how is logging this message
+    frame = inspect.stack()[2]
+    line   = frame[2]
+    caller = frame[3]
+    
+    return '[%s:%s(%s)]\n' % (platform.node(), caller, str(line))
+

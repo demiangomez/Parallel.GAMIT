@@ -4,14 +4,15 @@ Date: 3/31/17 5:28 PM
 Author: Demian D. Gomez
 """
 
-from pyOptions import ReadOptions
-import ConfigParser
+import configparser
 import os
-import pyBunch
 
+# app
+from pyOptions import ReadOptions
+import pyBunch
+from Utils import file_open
 
 class pyGamitConfigException(Exception):
-
     def __init__(self, value):
         self.value = value
 
@@ -22,48 +23,41 @@ class pyGamitConfigException(Exception):
 class GamitConfiguration(ReadOptions):
 
     def __init__(self, session_config_file, check_config=True):
+        self.gamitopt = {'gnss_data'          : None,
+                         'eop_type'           : 'usno',
+                         'expt_type'          : 'baseline',
+                         'should_iterate'     : 'yes',
+                         'org'                : 'IGN',
+                         'expt'               : 'expt',
+                         'process_defaults'   : None,
+                         'sestbl'             : None,
+                         'solutions_dir'      : None,
+                         'max_cores'          : 1,
+                         'noftp'              : 'yes',
+                         'sigma_floor_h'      : 0.10,
+                         'sigma_floor_v'      : 0.15,
+                         'gamit_remote_local' : ()}
 
-        try:
-            self.gamitopt = dict()
+        self.NetworkConfig = None
+        
+        self.load_session_config(session_config_file, check_config)
+        
+        ReadOptions.__init__(self, self.gamitopt['gnss_data'])  # type: ReadOptions
 
-            self.gamitopt['gnss_data']        = None
-            self.gamitopt['eop_type']         = 'usno'
-            self.gamitopt['expt_type']        = 'baseline'
-            self.gamitopt['should_iterate']   = 'yes'
-            self.gamitopt['org']              = 'IGN'
-            self.gamitopt['expt']             = 'expt'
-            self.gamitopt['process_defaults'] = None
-            self.gamitopt['sestbl']           = None
-            self.gamitopt['solutions_dir']    = None
-            self.gamitopt['max_cores']        = 1
-            self.gamitopt['noftp']            = 'yes'
-            self.gamitopt['sigma_floor_h']    = 0.10
-            self.gamitopt['sigma_floor_v']    = 0.15
-            self.gamitopt['gamit_remote_local'] = ()
-
-            self.NetworkConfig = None
-
-            self.load_session_config(session_config_file, check_config)
-
-            ReadOptions.__init__(self, self.gamitopt['gnss_data'])  # type: ReadOptions
-
-        except Exception:
-            raise
 
     def load_session_config(self, session_config_file, check_config):
-
         try:
             # parse session config file
-            config = ConfigParser.ConfigParser()
-            config.readfp(open(session_config_file))
+            config = configparser.ConfigParser()
+            with file_open(session_config_file) as f:
+                config.read_file(f)
 
             # check that all required items are there and files exist
             if check_config:
                 self.__check_config(config)
 
             # get gamit config items from session config file
-            for iconfig, val in dict(config.items('gamit')).iteritems():
-                self.gamitopt[iconfig] = val
+            self.gamitopt.update(dict(config.items('gamit')))
 
             self.NetworkConfig = pyBunch.Bunch().fromDict(dict(config.items('network')))
 
@@ -77,7 +71,7 @@ class GamitConfiguration(ReadOptions):
             if len(self.gamitopt['expt']) != 4:
                 raise ValueError('The experiment name parameter must be 4 characters long.')
 
-        except ConfigParser.NoOptionError:
+        except configparser.NoOptionError:
             raise
 
     @staticmethod

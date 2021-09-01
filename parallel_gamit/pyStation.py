@@ -5,18 +5,23 @@ Author: Demian D. Gomez
 
 Class that holds the station metadata needed to process in GAMIT
 """
+
+import random
+import string
+import os
+
+# deps
+import numpy as np
+from tqdm import tqdm
+
+# app
 import pyStationInfo
 import pyETM
 import pyBunch
 import pyDate
-import random
-import string
-import os
-import numpy as np
-from tqdm import tqdm
 
 COMPLETION = 0.5
-INTERVAL = 120
+INTERVAL   = 120
 
 
 class pyStationException(Exception):
@@ -52,6 +57,7 @@ class Station(object):
                 self.StationAlias = StationCode  # upon creation, Alias = StationCode
         else:
             self.StationAlias = StationAlias
+
         self.record       = None
         self.etm          = None
         self.StationInfo  = None
@@ -69,13 +75,13 @@ class Station(object):
         if len(rs) != 0:
             self.record = pyBunch.Bunch().fromDict(rs[0])
 
-            self.otl_H = self.record.Harpos_coeff_otl
-            self.lat = self.record.lat
-            self.lon = self.record.lon
+            self.otl_H  = self.record.Harpos_coeff_otl
+            self.lat    = self.record.lat
+            self.lon    = self.record.lon
             self.height = self.record.height
-            self.X = self.record.auto_x
-            self.Y = self.record.auto_y
-            self.Z = self.record.auto_z
+            self.X      = self.record.auto_x
+            self.Y      = self.record.auto_y
+            self.Z      = self.record.auto_z
 
             # get the available dates for the station (RINEX files with conditions to be processed)
             rs = cnn.query(
@@ -88,13 +94,13 @@ class Station(object):
 
             self.good_rinex = [pyDate.Date(year=r['y'], doy=r['d']) for r in rs.dictresult()]
 
-            # create a list of the missing days
-            good_rinex = [d.mjd for d in self.good_rinex]
+            # create a set of the missing days
+            good_rinex = {d.mjd for d in self.good_rinex}
 
             self.missing_rinex = [pyDate.Date(mjd=d) for d in range(dates[0].mjd, dates[1].mjd+1)
                                   if d not in good_rinex]
 
-            self.etm = pyETM.PPPETM(cnn, NetworkCode, StationCode)  # type: pyETM.PPPETM
+            self.etm         = pyETM.PPPETM(cnn, NetworkCode, StationCode)  # type: pyETM.PPPETM
             self.StationInfo = pyStationInfo.StationInfo(cnn, NetworkCode, StationCode)
 
             # DDG: report RINEX files with Completion < 0.5
@@ -123,10 +129,8 @@ class Station(object):
         soln = cnn.query_float('SELECT * FROM gamit_soln WHERE "Project" = \'%s\' AND "Year" = %i AND '
                                '"DOY" = %i AND "NetworkCode" = \'%s\' AND "StationCode" = \'%s\''
                                % (project, date.year, date.doy, self.NetworkCode, self.StationCode))
-        if len(soln):
-            return True
-        else:
-            return False
+        
+        return bool(len(soln))
 
     def generate_alias(self):
         self.StationAlias = self.id_generator()
@@ -144,7 +148,7 @@ class Station(object):
 
     def __hash__(self):
         # to make the object hashable
-        return hash(self.NetworkCode + '.' + self.StationCode)
+        return hash(str(self))
 
     def __str__(self):
         return self.NetworkCode + '.' + self.StationCode
@@ -160,16 +164,16 @@ class StationInstance(object):
 
     def __init__(self, cnn, archive, station, date, GamitConfig):
 
-        self.NetworkCode = station.NetworkCode
-        self.StationCode = station.StationCode
+        self.NetworkCode  = station.NetworkCode
+        self.StationCode  = station.StationCode
         self.StationAlias = station.StationAlias
-        self.lat = station.record.lat
-        self.lon = station.record.lon
-        self.height = station.record.height
-        self.X = station.record.auto_x
-        self.Y = station.record.auto_y
-        self.Z = station.record.auto_z
-        self.otl_H = station.otl_H
+        self.lat          = station.record.lat
+        self.lon          = station.record.lon
+        self.height       = station.record.height
+        self.X            = station.record.auto_x
+        self.Y            = station.record.auto_y
+        self.Z            = station.record.auto_z
+        self.otl_H        = station.otl_H
 
         # save the station information as text
         try:
@@ -183,7 +187,7 @@ class StationInstance(object):
                                                          station.StationCode,
                                                          date).return_stninfo(no_dharp_translate=True)
 
-        self.date = date  # type: pyDate.Date
+        self.date         = date  # type: pyDate.Date
         self.Archive_path = GamitConfig.archive_path
 
         # get the APR and sigmas for this date (let get_xyz_s determine which side of the jump returns, if any)
@@ -204,10 +208,7 @@ class StationInstance(object):
                              '"Year" = %s AND "DOY" = %s'
                              % (self.NetworkCode, self.StationCode, self.date.yyyy(), self.date.ddd()), as_dict=True)
 
-        if len(rs) > 0:
-            self.ppp = rs[0]
-        else:
-            self.ppp = None
+        self.ppp = rs[0] if len(rs) > 0 else None
 
     def GetRinexFilename(self):
 
@@ -298,7 +299,7 @@ class StationCollection(list):
                     # compare again to make sure this name is unique
                     unique = self.compare_aliases(station)
 
-        return
+                tqdm.write('    Station renamed due to name conflict: ' + station.StationAlias)
 
     def compare_aliases(self, station):
 
@@ -397,7 +398,7 @@ class StationCollection(list):
                     self[stn].generate_alias()
 
             except pyStationCollectionException as e:
-                print str(e)
+                print(str(e))
                 pass  # not found in collection
 
     def ismember(self, station):
@@ -442,6 +443,7 @@ if __name__ == '__main__':
     import pyGamitConfig
     import pyArchiveStruct
     import pyGamitSession
+
     cnn = dbConnection.Cnn('gnss_data.cfg')
     GamitConfig = pyGamitConfig.GamitConfiguration('CPC-Ar_session.cfg')
     archive = pyArchiveStruct.RinexStruct(cnn)
@@ -457,14 +459,14 @@ if __name__ == '__main__':
                                      pyDate.Date(year=2020,doy=100),GamitConfig, [s1, s2, s3])
     c = StationCollection()
     a = pycos.unserialize(pycos.serialize(gs))
-    print a
+    print(a)
     b = pycos.unserialize(pycos.serialize(s1))
-    print b
+    print(b)
     c.append(s1)
     c.append(s2)
     c.append(s3)
     c = pycos.unserialize(pycos.serialize(c))
-    print c
+    print(c)
     # c.append(s4)
     # print c
     # c.replace_alias([s1, s2], ['zzz1', 'zzz1'])

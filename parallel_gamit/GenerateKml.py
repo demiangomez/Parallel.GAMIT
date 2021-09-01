@@ -7,28 +7,29 @@ Program to generate a KML with the stations in a project and the stations out of
 """
 
 import argparse
-import dbConnection
-from Utils import process_stnlist
 import os
-from pyGamitConfig import GamitConfiguration
-from tqdm import tqdm
-import simplekml
-import pyStationInfo
-
+import base64
 import datetime as dt
+from io import BytesIO
+
+# deps
 import matplotlib
+
+if not os.environ.get('DISPLAY', None):
+    matplotlib.use('Agg')
+
 import matplotlib.dates as mdates
 from matplotlib.collections import PolyCollection
-from io import BytesIO
-import base64
+from tqdm import tqdm
 import numpy as np
-import pyDate
+import simplekml
 
-if 'DISPLAY' in os.environ.keys():
-    if not os.environ['DISPLAY']:
-        matplotlib.use('Agg')
-else:
-    matplotlib.use('Agg')
+# app 
+import pyDate
+import pyStationInfo
+import dbConnection
+from pyGamitConfig import GamitConfiguration
+from Utils import process_stnlist, stationID
 
 
 def main():
@@ -51,7 +52,7 @@ def main():
 
 def generate_kml(cnn, project, stations):
 
-    stnlist = [s['NetworkCode'] + '.' + s['StationCode'] for s in stations]
+    stnlist = [stationID(s) for s in stations]
 
     tqdm.write('  >> Generating KML for this run (see production directory)...')
 
@@ -65,32 +66,36 @@ def generate_kml(cnn, project, stations):
     folder1 = kml.newfolder(name=project)
     folder2 = kml.newfolder(name='all stations')
 
+    ICON_CIRCLE = 'http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png'
+    ICON_SQUARE = 'http://maps.google.com/mapfiles/kml/shapes/placemark_square.png'
+
     stylec = simplekml.StyleMap()
-    stylec.normalstyle.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png'
+    stylec.normalstyle.iconstyle.icon.href = ICON_CIRCLE
     stylec.normalstyle.labelstyle.scale = 0
 
-    stylec.highlightstyle.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png'
+    stylec.highlightstyle.iconstyle.icon.href = ICON_CIRCLE
     stylec.highlightstyle.labelstyle.scale = 3
 
     styles_ok = simplekml.StyleMap()
-    styles_ok.normalstyle.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/placemark_square.png'
+    styles_ok.normalstyle.iconstyle.icon.href = ICON_SQUARE
     styles_ok.normalstyle.iconstyle.color = 'ff00ff00'
     styles_ok.normalstyle.labelstyle.scale = 0
 
-    styles_ok.highlightstyle.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/placemark_square.png'
+    styles_ok.highlightstyle.iconstyle.icon.href = ICON_SQUARE
     styles_ok.highlightstyle.iconstyle.color = 'ff00ff00'
     styles_ok.highlightstyle.labelstyle.scale = 3
 
     styles_nok = simplekml.StyleMap()
-    styles_nok.normalstyle.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/placemark_square.png'
+    styles_nok.normalstyle.iconstyle.icon.href = ICON_SQUARE
     styles_nok.normalstyle.iconstyle.color = 'ff0000ff'
     styles_nok.normalstyle.labelstyle.scale = 0
 
-    styles_nok.highlightstyle.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/placemark_square.png'
+    styles_nok.highlightstyle.iconstyle.icon.href = ICON_SQUARE
     styles_nok.highlightstyle.iconstyle.color = 'ff0000ff'
     styles_nok.highlightstyle.labelstyle.scale = 3
 
     for stn in tqdm(rs, ncols=80):
+        stn_id = stationID(stn)
 
         count = cnn.query_float('SELECT count(*) as cc FROM rinex_proc WHERE "NetworkCode" = \'%s\' '
                                 'AND "StationCode" = \'%s\''
@@ -119,7 +124,7 @@ def generate_kml(cnn, project, stations):
             DS = 'NA'
             DE = 'NA'
 
-        if stn['NetworkCode'] + '.' + stn['StationCode'] in stnlist:
+        if stn_id in stnlist:
             folder = folder1
             # mark the stations with less than 100 observations or with less than 60% completion (PPP)
             if count[0][0] >= 100 and (float(ppp_s[0][0]) / float(count[0][0]) * 100) >= 60.0:
@@ -128,11 +133,11 @@ def generate_kml(cnn, project, stations):
                 style = styles_nok
         else:
             folder = folder2
-            style = stylec
+            style  = stylec
 
         plt = plot_station_info_rinex(cnn, stn['NetworkCode'], stn['StationCode'], stninfo)
 
-        pt = folder.newpoint(name=stn['NetworkCode'] + '.' + stn['StationCode'], coords=[(stn['lon'], stn['lat'])])
+        pt = folder.newpoint(name=stn_id, coords=[(stn['lon'], stn['lat'])])
         pt.stylemap = style
 
         pt.description = """<strong>%s -> %s</strong> RINEX count: %i PPP soln: %s%%<br><br>
@@ -158,17 +163,19 @@ def plot_station_info_rinex2(cnn, NetworkCode, StationCode, stninfo):
 
     import matplotlib.pyplot as plt
 
-    cats = {"rinex": 1, "stninfo": 2}
-    colormapping = {"rinex": "C0", "stninfo": "C1"}
+    cats = {"rinex": 1, 
+            "stninfo": 2}
+    colormapping = {"rinex": "C0",
+                    "stninfo": "C1"}
 
     data = []
 
     if stninfo.records is not None:
         for record in stninfo.records:
-            if record['DateEnd'].year is not None:
-                data.append((record['DateStart'].datetime(), record['DateEnd'].datetime(), 'stninfo'))
-            else:
-                data.append((record['DateStart'].datetime(), dt.datetime.now(), 'stninfo'))
+            data.append((record['DateStart'].datetime(),
+                         (record['DateEnd'].datetime() if record['DateEnd'].year is not None \
+                          else dt.datetime.now()),
+                         'stninfo'))
 
     rinex = cnn.query_float('SELECT * FROM rinex_proc WHERE "NetworkCode" = \'%s\' '
                             'AND "StationCode" = \'%s\'' % (NetworkCode, StationCode), as_dict=True)
@@ -176,7 +183,7 @@ def plot_station_info_rinex2(cnn, NetworkCode, StationCode, stninfo):
     for r in rinex:
         data.append((r['ObservationSTime'], r['ObservationETime'], 'rinex'))
 
-    verts = []
+    verts  = []
     colors = []
     for d in data:
         v = [(mdates.date2num(d[0]), cats[d[2]] - .4),
@@ -229,10 +236,10 @@ def plot_station_info_rinex(cnn, NetworkCode, StationCode, stninfo):
 
     if stninfo.records is not None:
         for record in stninfo.records:
-            if record['DateEnd'].year is not None:
-                stnfo.append([record['DateStart'].fyear, record['DateEnd'].fyear])
-            else:
-                stnfo.append([record['DateStart'].fyear, pyDate.Date(datetime=dt.datetime.now()).fyear])
+            stnfo.append([record['DateStart'].fyear,
+                          (record['DateEnd'].fyear if record['DateEnd'].year is not None \
+                           else pyDate.Date(datetime=dt.datetime.now()))
+                          ])
 
     rinex = np.array(cnn.query_float('SELECT "ObservationFYear" FROM rinex_proc WHERE "NetworkCode" = \'%s\' '
                                      'AND "StationCode" = \'%s\'' % (NetworkCode, StationCode)))

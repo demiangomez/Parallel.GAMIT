@@ -4,10 +4,7 @@ Date: 4/3/17 6:57 PM
 Author: Demian D. Gomez
 """
 import os
-import datetime
-import pyRinex
-import pySp3
-import pyBrdc
+from datetime import datetime
 import shutil
 import subprocess
 import re
@@ -15,6 +12,16 @@ import glob
 import platform
 import traceback
 
+# app
+import pyRinex
+import pySp3
+import pyBrdc
+from Utils import (file_write, file_open,
+                   file_append, file_readlines,
+                   chmod_exec, stationID)
+
+def now_str():
+    return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
 class GamitTask(object):
 
@@ -37,12 +44,12 @@ class GamitTask(object):
         self.stderr    = ''
         self.p         = None
 
-        with open(os.path.join(self.solution_pwd, 'monitor.log'), 'w') as monitor:
-            monitor.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') +
-                          ' -> GamitTask initialized for %s: %s\n' % (self.params['DirName'], self.date.yyyyddd()))
+        file_write(os.path.join(self.solution_pwd, 'monitor.log'),
+                   now_str() +
+                   ' -> GamitTask initialized for %s: %s\n' % (self.params['DirName'],
+                                                               self.date.yyyyddd()))
 
     def start(self, dirname, year, doy, dry_run=False):
-
         monitor_open = False
 
         try:
@@ -62,23 +69,21 @@ class GamitTask(object):
             # ready to copy the shared solution_dir to pwd
             shutil.copytree(self.solution_pwd, self.pwd, symlinks=True)
 
-            with open(os.path.join(self.pwd, 'monitor.log'), 'a') as monitor:
-
+            with file_open(os.path.join(self.pwd, 'monitor.log'), 'a') as monitor:
                 monitor_open = True
 
-                monitor.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' -> %s %i %i executing on %s\n'
-                              % (dirname, year, doy, platform.node()))
+                def log(s):
+                    monitor.write(now_str() + ' -> ' + s + '\n')
 
-                monitor.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' -> fetching orbits\n')
+                log('%s %i %i executing on %s' % (dirname, year, doy, platform.node()))
+                log('fetching orbits')
 
                 try:
                     Sp3 = pySp3.GetSp3Orbits(self.orbits['sp3_path'], self.date, self.orbits['sp3types'],
                                              self.pwd_igs, True)  # type: pySp3.GetSp3Orbits
 
                 except pySp3.pySp3Exception:
-
-                    monitor.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') +
-                                  ' -> could not find principal orbits, fetching alternative\n')
+                    log('could not find principal orbits, fetching alternative')
 
                     # try alternative orbits
                     if self.options['sp3altrn']:
@@ -91,17 +96,16 @@ class GamitTask(object):
                     # rename file
                     shutil.copyfile(Sp3.file_path, Sp3.file_path.replace(Sp3.type, 'igs'))
 
-                monitor.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' -> fetching broadcast orbits\n')
+                log('fetching broadcast orbits')
 
                 pyBrdc.GetBrdcOrbits(self.orbits['brdc_path'], self.date, self.pwd_brdc,
                                      no_cleanup=True)  # type: pyBrdc.GetBrdcOrbits
 
                 for rinex in self.params['rinex']:
 
-                    monitor.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') +
-                                  ' -> fetching rinex for %s.%s %s %s\n'
-                                  % (rinex['NetworkCode'], rinex['StationCode'], rinex['StationAlias'],
-                                     '{:10.6f} {:11.6f}'.format(rinex['lat'], rinex['lon'])))
+                    log('fetching rinex for %s %s %s'
+                        % (stationID(rinex), rinex['StationAlias'],
+                           '{:10.6f} {:11.6f}'.format(rinex['lat'], rinex['lon'])))
 
                     try:
                         with pyRinex.ReadRinex(rinex['NetworkCode'],
@@ -148,16 +152,14 @@ class GamitTask(object):
                                 Rinex.compress_local_copyto(self.pwd_rinex)
 
                     except (OSError, IOError):
-                        monitor.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') +
-                                      ' -> An error occurred while trying to copy ' +
-                                      rinex['source'] + ' to ' + rinex['destiny'] + ': File skipped.\n')
+                        log('An error occurred while trying to copy ' +
+                            rinex['source'] + ' to ' + rinex['destiny'] + ': File skipped.')
 
                     except (pyRinex.pyRinexException, Exception) as e:
-                        monitor.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') +
-                                      ' -> An error occurred while trying to copy ' +
-                                      rinex['source'] + ': ' + str(e) + '\n')
+                        log('An error occurred while trying to copy ' +
+                            rinex['source'] + ': ' + str(e))
 
-                monitor.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' -> executing GAMIT\n')
+                log('executing GAMIT')
 
                 # create the run script
                 self.create_replace_links()
@@ -187,16 +189,13 @@ class GamitTask(object):
 
                 _, _ = self.p.communicate()
 
-                if self.p.returncode == 0:
-                    self.success = False
-                else:
-                    self.success = True
+                self.success = (self.p.returncode != 0)
 
             # output statistics to the parent to display
             result = self.parse_monitor(self.success)
 
-            with open(os.path.join(self.pwd, 'monitor.log'), 'a') as monitor:
-                monitor.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' -> return to Parallel.GAMIT\n')
+            file_append(os.path.join(self.pwd, 'monitor.log'),
+                        now_str() + ' -> return to Parallel.GAMIT\n')
 
             # no matter the result of the processing, move folder to final destination
             if not dry_run:
@@ -204,7 +203,7 @@ class GamitTask(object):
 
             return result
 
-        except Exception:
+        except:
 
             msg = traceback.format_exc() + '\nProcessing %s date %s on node %s' \
                   % (self.params['NetName'], self.date.yyyyddd(), platform.node())
@@ -212,9 +211,9 @@ class GamitTask(object):
             # DDG: do not attempt to write to monitor.log or do any file operations (maybe permission problem)
             # problem might occur during copytree or rmtree or some other operation before opening monitor.log
             if monitor_open:
-                with open(os.path.join(self.pwd, 'monitor.log'), 'a') as monitor:
-                    monitor.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') +
-                                  ' -> ERROR in pyGamitTask.start()\n%s' % msg)
+                file_append(os.path.join(self.pwd, 'monitor.log'),
+                            now_str() +
+                            ' -> ERROR in pyGamitTask.start()\n%s' % msg)
 
                 # the solution folder exists because it was created by GamitSession to start the processing.
                 # erase it to upload the result
@@ -229,12 +228,24 @@ class GamitTask(object):
                 # output statistics to the parent to display
                 result = self.parse_monitor(False)
             else:
-                result = {'session': '%s %s' % (self.date.yyyyddd(), self.params['DirName']),
-                          'Project': self.params['NetName'], 'subnet': self.params['subnet'],
-                          'Year': self.date.year, 'DOY': self.date.doy,
-                          'FYear': self.date.fyear, 'wl': 0, 'nl': 0, 'nrms': 0, 'relaxed_constrains': '',
-                          'max_overconstrained': '', 'node': platform.node(), 'execution_time': 0, 'execution_date': 0,
-                          'missing': '', 'success': False, 'fatals': []}
+                result = {'session'             : '%s %s' % (self.date.yyyyddd(), self.params['DirName']),
+                          'Project'             : self.params['NetName'],
+                          'subnet'              : self.params['subnet'],
+                          'Year'                : self.date.year,
+                          'DOY'                 : self.date.doy,
+                          'FYear'               : self.date.fyear,
+                          'wl'                  : 0,
+                          'nl'                  : 0,
+                          'nrms'                : 0,
+                          'relaxed_constrains'  : '',
+                          'max_overconstrained' : '',
+                          'node'                : platform.node(),
+                          'execution_time'      : 0,
+                          'execution_date'      : 0,
+                          'missing'             : '',
+                          'success'             : False,
+                          'fatals'              : []
+                          }
 
             result['error'] = msg
 
@@ -245,36 +256,36 @@ class GamitTask(object):
 
         # windows the data:
         # check which side of the earthquake yields more data: window before or after the earthquake
-        if (window.datetime().hour + window.datetime().minute/60.0) < 12:
-            Rinex.window_data(start=window.datetime())
+        dt = window.datetime()
+        if (dt.hour + dt.minute/60.0) < 12:
+            Rinex.window_data(start = dt)
         else:
-            Rinex.window_data(end=window.datetime())
+            Rinex.window_data( end = dt)
+
 
     def parse_monitor(self, success):
-
-        f = open(self.pwd + '/monitor.log', 'r')
-        lines = f.readlines()
-        f.close()
-
+        lines  = file_readlines(self.pwd + '/monitor.log')
         output = ''.join(lines)
 
         try:
-            start_time = datetime.datetime.strptime(
+            start_time = datetime.strptime(
                 re.findall(r'run.sh \((\d+-\d+-\d+ \d+:\d+:\d+)\): Iteration depth: 1',
                            output, re.MULTILINE)[0], '%Y-%m-%d %H:%M:%S')
-        except Exception:
-            start_time = datetime.datetime(2001, 1, 1, 0, 0, 0)
+        except:
+            start_time = datetime(2001, 1, 1, 0, 0, 0)
+
 
         try:
             if success:
-                end_time = datetime.datetime.strptime(
+                end_time = datetime.strptime(
                     re.findall(r'finish.sh \((\d+-\d+-\d+ \d+:\d+:\d+)\): Done processing h-files and generating SINEX.'
                                , output, re.MULTILINE)[0], '%Y-%m-%d %H:%M:%S')
             else:
-                end_time = datetime.datetime.now()
+                end_time = datetime.now()
 
-        except Exception:
-            end_time = datetime.datetime(2001, 1, 1, 0, 0, 0)
+        except:
+            end_time = datetime(2001, 1, 1, 0, 0, 0)
+
 
         try:
             if not success:
@@ -284,19 +295,22 @@ class GamitTask(object):
         except Exception as e:
             fatals = ['Could not retrieve FATALS: ' + str(e)]
 
+
         try:
             iterations = int(re.findall(r'run.sh \(\d+-\d+-\d+ \d+:\d+:\d+\): Iteration depth: (\d+)',
                              output, re.MULTILINE)[-1])
-        except Exception:
+        except:
             iterations = 0
+
 
         try:
             nrms = float(
                 re.findall(r'Prefit nrms:\s+\d+.\d+[eEdD]\+\d+\s+Postfit nrms:\s+(\d+.\d+[eEdD][+-]\d+)', output,
                            re.MULTILINE)[-1])
-        except Exception:
+        except:
             # maybe GAMIT didn't finish
             nrms = 100
+
 
         try:
             updated_apr = re.findall(r' (\w+).*?Updated from', output, re.MULTILINE)[0]
@@ -305,24 +319,27 @@ class GamitTask(object):
             for stn in updated_apr:
                 for rinex in self.params['rinex']:
                     if rinex['StationAlias'].lower() == stn.lower():
-                        upd_stn += [rinex['NetworkCode'] + '.' + rinex['StationCode']]
+                        upd_stn += [stationID(rinex)]
 
             upd_stn = ','.join(upd_stn)
-        except Exception:
+        except:
             # maybe GAMIT didn't finish
             upd_stn = None
 
+
         try:
             wl = float(re.findall(r'WL fixed\s+(\d+.\d+)', output, re.MULTILINE)[0])
-        except Exception:
+        except:
             # maybe GAMIT didn't finish
             wl = 0
 
+
         try:
             nl = float(re.findall(r'NL fixed\s+(\d+.\d+)', output, re.MULTILINE)[0])
-        except Exception:
+        except:
             # maybe GAMIT didn't finish
             nl = 0
+
 
         try:
             oc = re.findall(r'relaxing over constrained stations (\w+.*)', output, re.MULTILINE)[0]
@@ -332,13 +349,14 @@ class GamitTask(object):
             for stn in oc.split(','):
                 for rinex in self.params['rinex']:
                     if rinex['StationAlias'].lower() == stn.lower():
-                        oc_stn += [rinex['NetworkCode'] + '.' + rinex['StationCode']]
+                        oc_stn += [stationID(rinex)]
 
             oc_stn = ','.join(oc_stn)
 
-        except Exception:
+        except:
             # maybe GAMIT didn't finish
             oc_stn = None
+
 
         try:
             max_overconstrained = None
@@ -346,72 +364,74 @@ class GamitTask(object):
 
             if len(overcons) > 0:
                 vals = [float(o[1]) for o in overcons]
-                i = vals.index(max([abs(v) for v in vals]))
-                stn = overcons[i][0]
+                i    = vals.index(max(abs(v) for v in vals))
+                stn  = overcons[i][0]
 
                 for rinex in self.params['rinex']:
                     if rinex['StationAlias'].lower() == stn.lower():
                         # get the real station code
-                        max_overconstrained = rinex['NetworkCode'] + '.' + rinex['StationCode']
-
+                        max_overconstrained = stationID(rinex)
             else:
                 max_overconstrained = None
 
-        except Exception:
+        except:
             # maybe GAMIT didn't finish
             max_overconstrained = None
 
+
         try:
-            ms = re.findall(r'No data for site (\w+)', output, re.MULTILINE)
+            ms = re.findall(r'No data for site (\w+)',   output, re.MULTILINE)
             ds = re.findall(r'.*deleting station (\w+)', output, re.MULTILINE)
             missing_sites = []
             for stn in ms + ds:
                 for rinex in self.params['rinex']:
-                    if rinex['StationAlias'].lower() == stn.lower() \
-                            and rinex['NetworkCode'] + '.' + rinex['StationCode'] not in missing_sites:
+                    if rinex['StationAlias'].lower() == stn.lower() and \
+                       stationID(rinex) not in missing_sites:
                         if stn in ms:
-                            missing_sites += ['(' + rinex['NetworkCode'] + '.' + rinex['StationCode'] + ')']
+                            missing_sites += ['(' + stationID(rinex) + ')']
                         else:
-                            missing_sites += [rinex['NetworkCode'] + '.' + rinex['StationCode']]
+                            missing_sites += [stationID(rinex)]
 
-        except Exception:
+        except:
             # maybe GAMIT didn't finish
             missing_sites = []
 
-        return {'session': '%s %s' % (self.date.yyyyddd(), self.params['DirName']),
-                'Project': self.params['NetName'],
-                'subnet': self.params['subnet'],
-                'Year': self.date.year,
-                'DOY': self.date.doy,
-                'FYear': self.date.fyear,
-                'wl': wl,
-                'nl': nl,
-                'nrms': nrms,
-                'relaxed_constrains': oc_stn,
-                'max_overconstrained': max_overconstrained,
-                'updated_apr': upd_stn,
-                'iterations': iterations,
-                'node': platform.node(),
-                'execution_time': int((end_time - start_time).total_seconds() / 60.0),
-                'execution_date': start_time,
-                'missing': missing_sites,
-                'success': success,
-                'fatals': fatals}
+
+        return {'session'             : '%s %s' % (self.date.yyyyddd(), self.params['DirName']),
+                'Project'             : self.params['NetName'],
+                'subnet'              : self.params['subnet'],
+                'Year'                : self.date.year,
+                'DOY'                 : self.date.doy,
+                'FYear'               : self.date.fyear,
+                'wl'                  : wl,
+                'nl'                  : nl,
+                'nrms'                : nrms,
+                'relaxed_constrains'  : oc_stn,
+                'max_overconstrained' : max_overconstrained,
+                'updated_apr'         : upd_stn,
+                'iterations'          : iterations,
+                'node'                : platform.node(),
+                'execution_time'      : int((end_time - start_time).total_seconds() / 60.0),
+                'execution_date'      : start_time,
+                'missing'             : missing_sites,
+                'success'             : success,
+                'fatals'              : fatals
+                }
+
 
     def finish(self):
-
         try:
             # delete everything inside the processing dir
             shutil.rmtree(self.pwd_brdc)
             shutil.rmtree(self.pwd_igs)
 
             # remove files in tables
-            for ftype in ['*.grid', '*.dat', '*.apr']:
+            for ftype in ('*.grid', '*.dat', '*.apr'):
                 for ff in glob.glob(os.path.join(self.pwd_tables, ftype)):
                     os.remove(ff)
 
             # remove processing files
-            for ftype in ['b*', 'cfmrg*', 'DPH.*', 'eq_rename.*', 'g*', 'k*', 'p*', 'rcvant.*', 'y*']:
+            for ftype in ('b*', 'cfmrg*', 'DPH.*', 'eq_rename.*', 'g*', 'k*', 'p*', 'rcvant.*', 'y*'):
                 for ff in glob.glob(os.path.join(os.path.join(self.pwd, self.date.ddd()), ftype)):
                     os.remove(ff)
 
@@ -433,26 +453,23 @@ class GamitTask(object):
             # remove the remote pwd
             shutil.rmtree(self.pwd)
 
-        except Exception:
-
+        except:
             msg = traceback.format_exc() + '\nProcessing %s date %s on node %s' \
                   % (self.params['NetName'], self.date.yyyyddd(), platform.node())
 
-            with open(os.path.join(self.pwd, 'monitor.log'), 'a') as monitor:
-                monitor.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') +
-                              ' -> ERROR in pyGamitTask.finish()\n%s' % msg)
-
-        return
+            file_append(os.path.join(self.pwd, 'monitor.log'), 
+                        now_str() +
+                        ' -> ERROR in pyGamitTask.finish()\n%s' % msg)
 
     def create_replace_links(self):
         replace_ln_file_path = os.path.join(self.pwd, 'replace_links.sh')
 
         try:
-            replace_ln_file = open(replace_ln_file_path, 'w')
+            replace_ln_file = file_open(replace_ln_file_path, 'w')
         except (OSError, IOError):
             raise Exception('could not open file ' + replace_ln_file_path)
 
-        contents = """#!/bin/bash
+        replace_ln_file.write("""#!/bin/bash
         set -e
         for link; do
             test -h "$link" || continue
@@ -471,12 +488,12 @@ class GamitTask(object):
                 ln -sfv "$reltarget" "$link"
             }
         done
-        """
+        """)
 
-        replace_ln_file.write(contents)
         replace_ln_file.close()
 
-        os.system('chmod +x ' + replace_ln_file_path)
+        chmod_exec(replace_ln_file_path)
+
 
     def create_run_script(self):
 
@@ -493,7 +510,7 @@ class GamitTask(object):
         run_file_path = os.path.join(self.pwd,'run.sh')
 
         try:
-            run_file = open(run_file_path,'w')
+            run_file = file_open(run_file_path, 'w')
         except (OSError, IOError):
             raise Exception('could not open file '+run_file_path)
 
@@ -868,12 +885,13 @@ class GamitTask(object):
         run_file.write(contents)
         run_file.close()
 
-        os.system('chmod +x '+run_file_path)
+        chmod_exec(run_file_path)
+
 
     def create_finish_script(self):
 
         year = self.date.yyyy()
-        doy = self.date.ddd()
+        doy  = self.date.ddd()
 
         # extract the gps week and convert to string
         gpsWeek_str = str(self.date.gpsWeek)
@@ -882,13 +900,13 @@ class GamitTask(object):
         if self.date.gpsWeek < 1000: gpsWeek_str = '0' + gpsWeek_str
 
         # extract the gps week and day of week
-        gps_week = self.date.gpsWeek
+        gps_week     = self.date.gpsWeek
         gps_week_day = self.date.gpsWeekDay
 
         finish_file_path = os.path.join(self.pwd, 'finish.sh')
 
         try:
-            finish_file = open(finish_file_path,'w')
+            finish_file = file_open(finish_file_path,'w')
         except (OSError, IOError):
             raise Exception('could not open file '+finish_file_path)
 
@@ -1030,6 +1048,4 @@ class GamitTask(object):
         finish_file.close()
 
         # add executable permissions
-        os.system('chmod +x '+finish_file_path)
-
-        return
+        chmod_exec(finish_file_path)

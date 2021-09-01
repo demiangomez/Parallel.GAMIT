@@ -1,14 +1,17 @@
 
-import numpy as np
-import dbConnection
-from pyDate import Date
-from tqdm import tqdm
-from Utils import lg2ct
-from Utils import ct2lg
-from pyETM import pi
-import pyETM
 from datetime import datetime
 import json
+
+# deps
+import numpy as np
+from tqdm import tqdm
+
+# app
+import dbConnection
+from pyDate import Date
+from pyETM import pi
+import pyETM
+from Utils import (lg2ct, ct2lg, file_write, stationID, json_converter)
 
 
 def adjust_lsq(A, L, P=None):
@@ -17,20 +20,20 @@ def adjust_lsq(A, L, P=None):
 
     from scipy.stats import chi2
 
-    cst_pass = False
+    cst_pass  = False
     iteration = 0
-    factor = 1
-    So = 1
-    dof = (A.shape[0] - A.shape[1])
-    X1 = chi2.ppf(1 - 0.05 / 2, dof)
-    X2 = chi2.ppf(0.05 / 2, dof)
+    factor    = 1
+    So        = 1
+    dof       = (A.shape[0] - A.shape[1])
+    X1        = chi2.ppf(1 - 0.05 / 2.0, dof)
+    X2        = chi2.ppf(0.05 / 2.0, dof)
 
     s = np.array([])
     v = np.array([])
     C = np.array([])
 
     if P is None:
-        P = np.ones((A.shape[0]))
+        P = np.ones(A.shape[0])
 
     while not cst_pass and iteration <= 10:
 
@@ -96,10 +99,17 @@ def print_residuals(NetworkCode, StationCode, residuals, lat, lon, components=('
 
     r = ''
     for i, c in enumerate(components):
-        r = r + '    %s: ' % c + ' '.join(['%8.4f' % np.multiply(k, 1000) for k in residuals[i]]) + \
-            ' %s: ' % ccomponent[i] + ' '.join(['%8.4f' % np.multiply(k, 1000) for k in cresiduals[i]]) + '\n'
+        r = r + '    %s: ' % c      + ' '.join('%8.4f' % np.multiply(k, 1000) for k in residuals[i]) + \
+            ' %s: ' % ccomponent[i] + ' '.join('%8.4f' % np.multiply(k, 1000) for k in cresiduals[i]) + '\n'
 
     tqdm.write(' -- %s.%s\n' % (NetworkCode, StationCode) + r)
+
+
+def np_array_vertices(a):
+    return np.array(a, dtype=[  #('stn', 'S8'), # used in python 2
+                              ('stn', 'U8'), 
+                              ('x', 'float64'), ('y', 'float64'), ('z', 'float64'),
+                              ('yr', 'i4'), ('dd', 'i4'), ('fy', 'float64')])
 
 
 class Stack(list):
@@ -108,12 +118,12 @@ class Stack(list):
 
         super(Stack, self).__init__()
 
-        self.project = project.lower()
-        self.name = name.lower()
-        self.cnn = cnn
-        self.position_space = None
-        self.velocity_space = None
-        self.periodic_space = None
+        self.project         = project.lower()
+        self.name            = name.lower()
+        self.cnn             = cnn
+        self.position_space  = None
+        self.velocity_space  = None
+        self.periodic_space  = None
         self.transformations = []
 
         if end_date is None:
@@ -121,20 +131,19 @@ class Stack(list):
 
         if redo:
             # if redoing the stack, ignore the contents of the stacks table
-            print ' >> Redoing stack'
+            print(' >> Redoing stack')
 
             self.cnn.query('DELETE FROM stacks WHERE "name" = \'%s\'' % self.name)
 
-            print ' >> Loading GAMIT solutions for project %s...' % project
+            print(' >> Loading GAMIT solutions for project %s...' % project)
 
             gamit_vertices = self.cnn.query_float(
                 'SELECT "NetworkCode" || \'.\' || "StationCode", "X", "Y", "Z", "Year", "DOY", "FYear" '
                 'FROM gamit_soln WHERE "Project" = \'%s\' AND ("Year", "DOY") <= (%i, %i)'
                 'ORDER BY "NetworkCode", "StationCode"' % (project, end_date.year, end_date.doy))
 
-            self.gamit_vertices = np.array(gamit_vertices, dtype=[('stn', 'S8'), ('x', 'float64'), ('y', 'float64'),
-                                                                  ('z', 'float64'), ('yr', 'i4'), ('dd', 'i4'),
-                                                                  ('fy', 'float64')])
+
+            self.gamit_vertices = np_array_vertices(gamit_vertices)
 
             dates = self.cnn.query_float('SELECT "Year", "DOY" FROM gamit_soln WHERE "Project" = \'%s\' '
                                          'AND ("Year", "DOY") <= (%i, %i) '
@@ -153,8 +162,8 @@ class Stack(list):
                 self.append(Polyhedron(self.gamit_vertices, project, d))
 
         else:
-            print ' >> Preserving the existing stack ' + name
-            print ' >> Determining differences between stack %s and GAMIT solutions for project %s...' % (name, project)
+            print(' >> Preserving the existing stack ' + name)
+            print(' >> Determining differences between stack %s and GAMIT solutions for project %s...' % (name, project))
 
             # build a dates vector
             dates = self.cnn.query_float('SELECT "Year", "DOY" FROM stacks WHERE "name" = \'%s\' '
@@ -197,7 +206,7 @@ class Stack(list):
                 'ORDER BY "NetworkCode", "StationCode"'
                 % (project, project, name, project, name, end_date.year, end_date.doy))
 
-            print ' >> Loading pre-existing stack %s' % name
+            print(' >> Loading pre-existing stack %s' % name)
 
             # load the vertices that were different
             gamit_vertices = self.cnn.query_float(
@@ -213,13 +222,9 @@ class Stack(list):
                 'ORDER BY "NetworkCode", "StationCode"'
                 % (project, project, name, project, end_date.year, end_date.doy))
 
-            self.stack_vertices = np.array(stack_vertices, dtype=[('stn', 'S8'), ('x', 'float64'), ('y', 'float64'),
-                                                                  ('z', 'float64'), ('yr', 'i4'), ('dd', 'i4'),
-                                                                  ('fy', 'float64')])
 
-            self.gamit_vertices = np.array(gamit_vertices, dtype=[('stn', 'S8'), ('x', 'float64'), ('y', 'float64'),
-                                                                  ('z', 'float64'), ('yr', 'i4'), ('dd', 'i4'),
-                                                                  ('fy', 'float64')])
+            self.stack_vertices = np_array_vertices(stack_vertices)
+            self.gamit_vertices = np_array_vertices(gamit_vertices)
 
             self.stations = self.cnn.query_float('SELECT "NetworkCode", "StationCode" FROM stacks '
                                                  'WHERE "name" = \'%s\' AND ("Year", "DOY") <= (%i, %i) '
@@ -255,7 +260,12 @@ class Stack(list):
         for poly in self:
             p = poly.vertices[poly.vertices['stn'] == stnstr]
             if p.size:
-                ts.append([p['x'][0], p['y'][0], p['z'][0], p['yr'][0], p['dd'][0], p['fy'][0]])
+                ts.append([p['x'][0],
+                           p['y'][0],
+                           p['z'][0],
+                           p['yr'][0],
+                           p['dd'][0],
+                           p['fy'][0]])
 
         return np.array(ts)
 
@@ -264,13 +274,13 @@ class Stack(list):
         Estimates the trajectory models for all stations in the stack
         :return:
         """
-        print ' >> Calculating ETMs for %s...' % self.name
+        print(' >> Calculating ETMs for %s...' % self.name)
 
         for s in tqdm(self.stations, ncols=160, desc=self.name, disable=None):
 
             ts = self.get_station(s['NetworkCode'], s['StationCode'])
             try:
-                tqdm.postfix = s['NetworkCode'] + '.' + s['StationCode']
+                tqdm.postfix = stationID(s)
 
                 ts = pyETM.GamitSoln(self.cnn, ts, s['NetworkCode'], s['StationCode'], self.project)
 
@@ -298,7 +308,7 @@ class Stack(list):
             for s in target_periods.keys():
                 # check that the stations have not one or both periods with NaNs
                 if not np.isnan(target_periods[s]['365.250']['n'][0]) and \
-                        not np.isnan(target_periods[s]['182.625']['n'][0]):
+                   not np.isnan(target_periods[s]['182.625']['n'][0]):
                     use_stations.append(s)
 
             tqdm.write(' >> Inheriting periodic components...')
@@ -325,7 +335,7 @@ class Stack(list):
         f_vector = []
 
         for freq in frequencies:
-            f_vector += [f for f in freq['frequencies']]
+            f_vector += list(freq['frequencies'])
 
         f_vector = np.array(list(set(f_vector)))
 
@@ -369,7 +379,7 @@ class Stack(list):
                 # terms from the parent frame
                 for k in range(2):
                     for f in q['freq']:
-                        t = target_periods['%s.%s' % (p['NetworkCode'], p['StationCode'])]['%.3f' % (1 / f)]
+                        t = target_periods[stationID(p)]['%.3f' % (1 / f)]
                         n += [t['n'][k]]
                         e += [t['e'][k]]
                         u += [t['u'][k]]
@@ -379,8 +389,8 @@ class Stack(list):
                 # no inheritance: make a vector of current periodic terms to be removed as common modes
                 params = np.array(q['params'])
 
-            params = params.reshape((3, params.shape[0] / 3))
-            param_count = params.shape[1] / 2
+            params      = params.reshape((3, params.shape[0] // 3))
+            param_count = params.shape[1] // 2
 
             print_residuals(p['NetworkCode'], p['StationCode'], params, p['lat'], p['lon'])
 
@@ -395,7 +405,7 @@ class Stack(list):
                 oz[f_vector == f, s] = params[2, i:i + param_count + 1:param_count]
 
         # build the design matrix using the stations involved in inheritance or all stations if no inheritance
-        sql_where = ','.join(["'" + stn['NetworkCode'] + '.' + stn['StationCode'] + "'" for stn in etm_objects])
+        sql_where = ','.join(["'%s'" % stationID(stn) for stn in etm_objects])
 
         x = self.cnn.query_float('SELECT 0, -auto_z*1e-9, auto_y*1e-9, 1, 0, 0, auto_x*1e-9 FROM stations WHERE '
                                  '"NetworkCode" || \'.\' || "StationCode" '
@@ -417,9 +427,9 @@ class Stack(list):
         solution_vector = []
 
         # vector to display down-weighted stations
-        st = dict()
-        st['stn'] = [s['NetworkCode'] + '.' + s['StationCode'] for s in etm_objects]
-        xyzstn = ['X-%s' % ss for ss in st['stn']] + ['Y-%s' % ss for ss in st['stn']] + \
+        st = { 'stn' :  [stationID(s) for s in etm_objects] }
+        xyzstn = ['X-%s' % ss for ss in st['stn']] + \
+                 ['Y-%s' % ss for ss in st['stn']] + \
                  ['Z-%s' % ss for ss in st['stn']]
 
         # loop through the frequencies
@@ -433,10 +443,10 @@ class Stack(list):
                 # c = np.linalg.lstsq(A, L, rcond=-1)[0]
 
                 tqdm.write(' -- Transformation for %s(2 * pi * 1/%.2f) : %s'
-                           % (cs.__name__, np.divide(1., freq), ' '.join(['%7.4f' % cc for cc in c])) +
+                           % (cs.__name__, np.divide(1., freq), ' '.join('%7.4f' % cc for cc in c)) +
                            ' wrms: %.3f it: %i\n' % (wrms * 1000, it) +
                            '    Down-weighted station components: %s'
-                           % ' '.join(['%s' % ss for ss in np.array(xyzstn)[np.logical_not(index)]]))
+                           % ' '.join('%s' % ss for ss in np.array(xyzstn)[np.logical_not(index)]))
 
                 # save the transformation parameters to output to json file
                 solution_vector.append(['%s(2 * pi * 1/%.2f)' % (cs.__name__, np.divide(1., freq)), c.tolist()])
@@ -446,12 +456,9 @@ class Stack(list):
                                                        (cs.__name__, np.divide(1., freq)), disable=None):
 
                     # subtract the inverted common modes
-                    poly.vertices['x'] = poly.vertices['x'] - cs(2 * pi * freq * 365.25 * poly.date.fyear) * \
-                                         np.dot(poly.ax(scale=True), c)
-                    poly.vertices['y'] = poly.vertices['y'] - cs(2 * pi * freq * 365.25 * poly.date.fyear) * \
-                                         np.dot(poly.ay(scale=True), c)
-                    poly.vertices['z'] = poly.vertices['z'] - cs(2 * pi * freq * 365.25 * poly.date.fyear) * \
-                                         np.dot(poly.az(scale=True), c)
+                    poly.vertices['x'] -= cs(2 * pi * freq * 365.25 * poly.date.fyear) * np.dot(poly.ax(scale=True), c)
+                    poly.vertices['y'] -= cs(2 * pi * freq * 365.25 * poly.date.fyear) * np.dot(poly.ay(scale=True), c)
+                    poly.vertices['z'] -= cs(2 * pi * freq * 365.25 * poly.date.fyear) * np.dot(poly.az(scale=True), c)
 
         tqdm.write(' -- Reporting periodic residuals (in mm) after %s\n'
                    '       365.25  182.62  365.25  182.62  \n'
@@ -487,7 +494,7 @@ class Stack(list):
                 # terms from the parent frame
                 for k in range(2):
                     for f in q['freq']:
-                        t = target_periods['%s.%s' % (p['NetworkCode'], p['StationCode'])]['%.3f' % (1 / f)]
+                        t = target_periods[stationID(p)]['%.3f' % (1 / f)]
                         n += [t['n'][k]]
                         e += [t['e'][k]]
                         u += [t['u'][k]]
@@ -498,8 +505,8 @@ class Stack(list):
                 residuals = np.array(q['params'])
 
             # reshape the array to NEU
-            residuals = residuals.reshape((3, residuals.shape[0] / 3))
-            param_count = residuals.shape[1] / 2
+            residuals   = residuals.reshape((3, residuals.shape[0] // 3))
+            param_count = residuals.shape[1] // 2
 
             print_residuals(p['NetworkCode'], p['StationCode'], residuals, p['lat'], p['lon'])
 
@@ -514,13 +521,14 @@ class Stack(list):
                 rz[f_vector == f, s] = residuals[2, i:i + param_count + 1:param_count]
 
         # save the position space residuals
-        self.periodic_space = {'stations': {'codes': [p['NetworkCode'] + '.' + p['StationCode'] for p in etm_objects],
-                                            'latlon': [[p['lat'], p['lon']] for p in etm_objects]},
-                               'frequencies': f_vector.tolist(),
-                               'components': ['sin', 'cos'],
-                               'residuals_before_alignment': np.array([ox, oy, oz]).tolist(),
-                               'residuals_after_alignment': np.array([rx, ry, rz]).tolist(),
-                               'helmert_transformations': solution_vector,
+        self.periodic_space = {'stations': {'codes' : [stationID(p)         for p in etm_objects],
+                                            'latlon': [[p['lat'], p['lon']] for p in etm_objects]
+                                            },
+                               'frequencies'                : f_vector.tolist(),
+                               'components'                 : ['sin', 'cos'],
+                               'residuals_before_alignment' : np.array([ox, oy, oz]).tolist(),
+                               'residuals_after_alignment'  : np.array([rx, ry, rz]).tolist(),
+                               'helmert_transformations'    : solution_vector,
                                'comments': 'Periodic space transformation. Each residual component (X, Y, Z) '
                                            'stored as X[freq, station, component]. Frequencies, stations, and '
                                            'components ordered as in respective elements.'}
@@ -530,21 +538,27 @@ class Stack(list):
     def align_spaces(self, target_dict):
 
         # get the list of stations to use during the alignment
-        use_stations = target_dict.keys()
+        use_stations = list(target_dict.keys())
 
         # reference date used to align the stack
         # epochs SHOULD all be the same. Get first item and then the epoch
-        ref_date = Date(fyear=target_dict.values()[0]['epoch'])
+
+        ref_date = Date(fyear=next(iter(target_dict.values()))['epoch'])
 
         # convert the target dict to a list
         target_list = []
-        stack_list = []
+        stack_list  = []
 
         tqdm.write(' >> Aligning coordinate space...')
         for stn in use_stations:
             if not np.isnan(target_dict[stn]['x']):
-                target_list.append((stn, target_dict[stn]['x'], target_dict[stn]['y'], target_dict[stn]['z'],
-                                    ref_date.year, ref_date.doy, ref_date.fyear))
+                target_list.append((stn,
+                                    target_dict[stn]['x'],
+                                    target_dict[stn]['y'],
+                                    target_dict[stn]['z'],
+                                    ref_date.year,
+                                    ref_date.doy,
+                                    ref_date.fyear))
                 # get the ETM coordinate for this station
                 net = stn.split('.')[0]
                 ssn = stn.split('.')[1]
@@ -553,15 +567,13 @@ class Stack(list):
                 etm = pyETM.GamitETM(self.cnn, net, ssn, gamit_soln=ts)
                 stack_list += etm.get_etm_soln_list()
 
-        c_array = np.array(stack_list, dtype=[('stn', 'S8'), ('x', 'float64'), ('y', 'float64'),
-                                              ('z', 'float64'), ('yr', 'i4'), ('dd', 'i4'),
-                                              ('fy', 'float64')])
+
+        c_array = np_array_vertices(stack_list)
+
         comb = Polyhedron(c_array, 'etm', ref_date)
 
         # build a target polyhedron from the target_list
-        vertices = np.array(target_list, dtype=[('stn', 'S8'), ('x', 'float64'), ('y', 'float64'),
-                                                ('z', 'float64'), ('yr', 'i4'), ('dd', 'i4'),
-                                                ('fy', 'float64')])
+        vertices = np_array_vertices(target_list)
 
         target = Polyhedron(vertices, 'target_frame', ref_date)
 
@@ -578,8 +590,8 @@ class Stack(list):
         tqdm.write(' -- Reporting coordinate space residuals (in mm) before and after frame alignment\n'
                    '         Before   After |     Before   After  ')
         # format r_before and r_after to satisfy the required print_residuals format
-        r_before = r_before.reshape(3, r_before.shape[0] / 3).transpose()
-        r_after = r_after.reshape(3, r_after.shape[0] / 3).transpose()
+        r_before = r_before.reshape(3, r_before.shape[0] // 3).transpose()
+        r_after  = r_after .reshape(3,  r_after.shape[0] // 3).transpose()
 
         residuals = np.stack((r_before, r_after), axis=2)
 
@@ -595,12 +607,13 @@ class Stack(list):
             print_residuals(n, s, residuals[i], lla[0], lla[1], ['X', 'Y', 'Z'])
 
         # save the position space residuals
-        self.position_space = {'stations': {'codes': a_stn.tolist(), 'latlon': stn_lla},
-                               'residuals_before_alignment': r_before.tolist(),
-                               'residuals_after_alignment': r_after.tolist(),
-                               'reference_date': ref_date,
-                               'helmert_transformation': comb.helmert.tolist(),
-                               'comments': 'No scale factor estimated.'}
+        self.position_space = {'stations': {'codes'  : a_stn.tolist(),
+                                            'latlon' : stn_lla},
+                               'residuals_before_alignment' : r_before.tolist(),
+                               'residuals_after_alignment'  : r_after.tolist(),
+                               'reference_date'             : ref_date,
+                               'helmert_transformation'     : comb.helmert.tolist(),
+                               'comments'                   : 'No scale factor estimated.'}
 
         for poly in tqdm(self, ncols=160, desc=' -- Applying coordinate space transformation', disable=None):
             if poly.date != ref_date:
@@ -649,12 +662,12 @@ class Stack(list):
                                      % (p['NetworkCode'], p['StationCode'], self.name), as_dict=True)[0]
 
             params = np.array(q['params'])
-            params = params.reshape((3, params.shape[0] / 3))
+            params = params.reshape((3, params.shape[0] // 3))
             # first item, i.e. params[:][0] in array is position
             # second item is velocity, which is what we are interested in
             v = np.array(lg2ct(params[0, 1], params[1, 1], params[2, 1], p['lat'], p['lon'])).flatten()
             # put the residuals in an array
-            td = target_dict['%s.%s' % (p['NetworkCode'], p['StationCode'])]
+            td = target_dict[stationID(p)]
             dvx[s] = v[0] - np.array(td['vx'])
             dvy[s] = v[1] - np.array(td['vy'])
             dvz[s] = v[2] - np.array(td['vz'])
@@ -667,16 +680,16 @@ class Stack(list):
 
         c, _, _, _, wrms, _, it = adjust_lsq(A, L)
 
-        tqdm.write(' -- Velocity space transformation:   ' + ' '.join(['%7.4f' % cc for cc in c]) +
+        tqdm.write(' -- Velocity space transformation:   ' + ' '.join('%7.4f' % cc for cc in c) +
                    ' wrms: %.3f it: %i' % (wrms * 1000, it))
 
         # loop through all the polyhedrons
         for poly in tqdm(self, ncols=160, desc=' -- Applying velocity space transformation', disable=None):
             t = np.repeat(poly.date.fyear - ref_date.fyear, poly.Ax.shape[0])
 
-            poly.vertices['x'] = poly.vertices['x'] - t * np.dot(poly.ax(scale=scale), c)
-            poly.vertices['y'] = poly.vertices['y'] - t * np.dot(poly.ay(scale=scale), c)
-            poly.vertices['z'] = poly.vertices['z'] - t * np.dot(poly.az(scale=scale), c)
+            poly.vertices['x'] -= t * np.dot(poly.ax(scale=scale), c)
+            poly.vertices['y'] -= t * np.dot(poly.ay(scale=scale), c)
+            poly.vertices['z'] -= t * np.dot(poly.az(scale=scale), c)
 
         tqdm.write(' -- Reporting velocity space residuals (in mm/yr) before and after frame alignment\n'
                    '         Before   After |     Before   After  ')
@@ -701,13 +714,14 @@ class Stack(list):
                                      'AND "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND stack = \'%s\''
                                      % (p['NetworkCode'], p['StationCode'], self.name), as_dict=True)[0]
 
+
             params = np.array(q['params'])
-            params = params.reshape((3, params.shape[0] / 3))
+            params = params.reshape((3, params.shape[0] // 3))
             # first item, i.e. params[:][0] in array is position
             # second item is velocity, which is what we are interested in
             v = np.array(lg2ct(params[0, 1], params[1, 1], params[2, 1], p['lat'], p['lon'])).flatten()
             # put the residuals in an array
-            td = target_dict['%s.%s' % (p['NetworkCode'], p['StationCode'])]
+            td = target_dict[stationID(p)]
             dvxa[s] = v[0] - np.array(td['vx'])
             dvya[s] = v[1] - np.array(td['vy'])
             dvza[s] = v[2] - np.array(td['vz'])
@@ -720,7 +734,7 @@ class Stack(list):
                             ['X', 'Y', 'Z'])
 
         # save the position space residuals
-        self.velocity_space = {'stations': {'codes': [p['NetworkCode'] + '.' + p['StationCode'] for p in etm_objects],
+        self.velocity_space = {'stations': {'codes' : [stationID(p)         for p in etm_objects],
                                             'latlon': [[p['lat'], p['lon']] for p in etm_objects]},
                                'residuals_before_alignment':
                                    np.column_stack((dvx.flatten(), dvy.flatten(), dvz.flatten())).tolist(),
@@ -744,7 +758,7 @@ class Stack(list):
             scale_z = ''
 
         # build the design matrix using the stations involved in inheritance or all stations if no inheritance
-        sql_where = ','.join(["'" + stn['NetworkCode'] + '.' + stn['StationCode'] + "'" for stn in stations])
+        sql_where = ','.join("'%s'" % stationID(stn) for stn in stations)
 
         x = self.cnn.query_float('SELECT 0, -auto_z*1e-9, auto_y*1e-9, 1, 0, 0%s FROM stations WHERE '
                                  '"NetworkCode" || \'.\' || "StationCode" '
@@ -777,46 +791,62 @@ class Stack(list):
             if not poly.aligned_at_init:
                 # this polyhedron was missing when we initialized the objects
                 # thus, this is a new stack or this polyhedron has been added: save it!
-                try:
-                    self.cnn.executemany('INSERT INTO stacks ("Project", "NetworkCode", "StationCode", "X", "Y", "Z", '
-                                         '"FYear", "Year", "DOY", sigmax, sigmay, sigmaz, name) VALUES '
-                                         '(%s, %s, %s, %f, %f, %f, %f, %i, %i, 0.000, 0.000, 0.000, %s)',
-                                         [(self.project, vert['stn'].split('.')[0], vert['stn'].split('.')[1],
-                                           float(vert['x']), float(vert['y']), float(vert['z']), float(vert['fy']),
-                                           int(vert['yr']), int(vert['dd']), self.name)
-                                          for vert in poly.vertices])
-                except (dbConnection.dbErrInsert, dbConnection.IntegrityError):
-                    # the element already exists in the database (polyhedron already aligned)
-                    pass
+                for vert in poly.vertices:
+                    self.cnn.insert('stacks',
+                                    Project     = self.project,
+                                    NetworkCode = vert['stn'].split('.')[0],
+                                    StationCode = vert['stn'].split('.')[1],
+                                    X           = float(vert['x']),
+                                    Y           = float(vert['y']),
+                                    Z           = float(vert['z']),
+                                    sigmax      = 0.00,
+                                    sigmay      = 0.00,
+                                    sigmaz      = 0.00,
+                                    FYear       = float(vert['fy']),
+                                    Year        = int(vert['yr']),
+                                    DOY         = int(vert['dd']),
+                                    name        = self.name)
+                # try:
+                #     self.cnn.executemany('INSERT INTO stacks ("Project", "NetworkCode", "StationCode", "X", "Y", "Z", '
+                #                          '"FYear", "Year", "DOY", sigmax, sigmay, sigmaz, name) VALUES '
+                #                          '(%s, %s, %s, %f, %f, %f, %f, %i, %i, 0.000, 0.000, 0.000, %s)',
+                #                          [(self.project, vert['stn'].split('.')[0], vert['stn'].split('.')[1],
+                #                            float(vert['x']), float(vert['y']), float(vert['z']), float(vert['fy']),
+                #                            int(vert['yr']), int(vert['dd']), self.name)
+                #                           for vert in poly.vertices])
+                # except (dbConnection.dbErrInsert, dbConnection.IntegrityError):
+                #     # the element already exists in the database (polyhedron already aligned)
+                #     pass
 
     def to_json(self, json_file):
-        json_dump = dict()
-        json_dump['position_space'] = self.position_space
-        json_dump['velocity_space'] = self.velocity_space
-        json_dump['periodic_space'] = self.periodic_space
-        json_dump['transformations'] = self.transformations
+        file_write(json_file, 
+                   json.dumps({ 'position_space'  : self.position_space,
+                                'velocity_space'  : self.velocity_space,
+                                'periodic_space'  : self.periodic_space,
+                                'transformations' : self.transformations },
+                              indent=4, sort_keys=False, default=json_converter))
 
-        with open(json_file, 'w') as f:
-            json.dump(json_dump, f, indent=4, sort_keys=False)
-
-
-class Polyhedron(object):
+class Polyhedron:
     def __init__(self, vertices, project, date, rot=True, aligned=False):
 
-        self.project = project
-        self.date = date
-        self.aligned = aligned
+        self.project         = project
+        self.date            = date
+        self.aligned         = aligned
         # declare a property that provides information about the state of the polyhedron at initialization
         self.aligned_at_init = aligned
-        self.helmert = None
-        self.wrms = None
-        self.stations_used = None
-        self.iterations = None
-        self.rot = rot
+        self.helmert         = None
+        self.wrms            = None
+        self.stations_used   = None
+        self.iterations      = None
+        self.down_frac       = None
+        self.downweighted    = None
+        self.down_comps      = None
+        self.rot             = rot
         # initialize the vertices of the polyhedron
         # self.vertices = [v for v in vertices if v[5] == date.year and v[6] == date.doy]
 
-        self.vertices = vertices[np.logical_and(vertices['yr'] == date.year, vertices['dd'] == date.doy)]
+        self.vertices = vertices[np.logical_and(vertices['yr'] == date.year, 
+                                                vertices['dd'] == date.doy)]
         # sort using network code station code to make sure that intersect (in align) will get the data in the correct
         # order, otherwise the differences in X Y Z don't make sense...
         self.vertices.sort(order='stn')
@@ -918,23 +948,31 @@ class Polyhedron(object):
             # invert
             c, _, index, v, wrms, P, it = adjust_lsq(A, r)
 
+            xyzstn = ['X-%s' % ss for ss in st['stn']] + \
+                     ['Y-%s' % ss for ss in st['stn']] + \
+                     ['Z-%s' % ss for ss in st['stn']]
+
             self.helmert = c
             self.wrms = wrms
             self.stations_used = len(intersect)
             self.iterations = it
 
-            if verbose:
-                xyzstn = ['X-%s' % ss for ss in st['stn']] + ['Y-%s' % ss for ss in st['stn']] + \
-                         ['Z-%s' % ss for ss in st['stn']]
+            self.downweighted = np.sum(np.logical_not(index))
+            self.down_frac    = np.divide(np.sum(np.logical_not(index)), len(intersect) * 3)
+            self.down_comps   = ' '.join('%s' % ss for ss in np.array(xyzstn)[np.logical_not(index)])
 
+            if verbose:
                 tqdm.write(' -- T: %s iterations: %i wrms: %.1f stations used: %i\n'
                            '    Down-weighted station components: %s'
-                           % (' '.join(['%7.4f' % cc for cc in self.helmert]), it, wrms * 1000, self.stations_used,
-                              ' '.join(['%s' % ss for ss in np.array(xyzstn)[np.logical_not(index)]])))
+                           % (' '.join('%7.4f' % cc for cc in self.helmert), 
+                              it, 
+                              wrms * 1000, 
+                              self.stations_used,
+                              ' '.join('%s' % ss for ss in np.array(xyzstn)[np.logical_not(index)])))
         else:
             c = helmert
             if verbose:
-                tqdm.write(' -- T: %s -> externally provided' % (' '.join(['%7.4f' % cc for cc in self.helmert])))
+                tqdm.write(' -- T: %s -> externally provided' % (' '.join('%7.4f' % cc for cc in self.helmert)))
 
         # apply result to everyone
         x = np.dot(np.concatenate((self.ax(scale), self.ay(scale), self.az(scale)), axis=0),
@@ -967,16 +1005,23 @@ class Polyhedron(object):
             # for debugging
             # tqdm.write(' -- None found in helmert for polyhedron %s' % self.date.yyyyddd())
 
-        return {'date': str(self.date), 'wrms': self.wrms, 'stations_used': self.stations_used,
-                'iterations': self.iterations, 'helmert': self.helmert.tolist()}
+        return {'date'                    : str(self.date),
+                'fyear'                   : self.date.fyear,
+                'wrms'                    : self.wrms,
+                'stations_used'           : self.stations_used,
+                'iterations'              : self.iterations,
+                'helmert'                 : self.helmert.tolist(),
+                'downweighted'            : self.downweighted,
+                'downweighted_fraction'   : self.down_frac,
+                'downweighted_components' : self.down_comps
+                }
 
 
 class Combination(Polyhedron):
     def __init__(self, polyhedrons):
 
         # get the mean epoch
-        date = [poly.date.mjd for poly in polyhedrons]
-        date = Date(mjd=np.mean(date))
+        date = Date(mjd = np.mean([poly.date.mjd for poly in polyhedrons]))
 
         # get the set of stations
         stn = []
@@ -997,8 +1042,7 @@ class Combination(Polyhedron):
 
             poly.append((s, np.mean(v['x']), np.mean(v['y']), np.mean(v['z']), date.year, date.doy, date.fyear))
 
-        pp = np.array(poly, dtype=[('stn', 'S8'), ('x', 'float64'), ('y', 'float64'), ('z', 'float64'),
-                                   ('yr', 'i4'), ('dd', 'i4'), ('fy', 'float64')])
+        pp = np_array_vertices(poly)
 
         super(Combination, self).__init__(pp, polyhedrons[0].project, date)
 
@@ -1009,7 +1053,7 @@ def main():
 
     stack = Stack(cnn, 'igs-sirgas', redo=True)
 
-    for i in tqdm(range(1, len(stack)), ncols=160, disable=None):
+    for i in tqdm(list(range(1, len(stack))), ncols=160, disable=None):
         stack[i].align(stack[i - 1])
 
     net = 'igs'
@@ -1025,5 +1069,4 @@ def main():
 
 
 if __name__ == '__main__':
-
     main()

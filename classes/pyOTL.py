@@ -1,5 +1,5 @@
 """
-Project: Parallel.Archive
+project: Parallel.Archive
 Date: 02/16/2017
 Author: Demian D. Gomez
 
@@ -8,8 +8,12 @@ Ocean loading coefficients class. It runs and reads grdtab (from GAMIT).
 
 import os
 import uuid
+
+# app
 import pyRunWithRetry
 import pyEvents
+from Utils import file_read_all
+
 
 class pyOTLException(Exception):
     def __init__(self, value):
@@ -20,30 +24,30 @@ class pyOTLException(Exception):
 
 class OceanLoading():
 
-    def __init__(self,StationCode,grdtab,otlgrid,x=None,y=None,z=None):
+    def __init__(self, StationCode, grdtab, otlgrid, x=None, y=None, z=None):
 
         self.x = None
         self.y = None
         self.z = None
 
-        self.rootdir = os.path.join('production', 'otl_calc')
         # generate a unique id for this instance
-        self.rootdir = os.path.join(self.rootdir, str(uuid.uuid4()))
+        self.rootdir     = os.path.join('production', 'otl_calc', str(uuid.uuid4()))
         self.StationCode = StationCode
 
         try:
             # create a production folder to analyze the rinex file
             if not os.path.exists(self.rootdir):
                 os.makedirs(self.rootdir)
-        except Exception as excep:
+        except:
             # could not create production dir! FATAL
             raise
 
         # verify of link to otl.grid exists
-        if not os.path.isfile(os.path.join(self.rootdir, 'otl.grid')):
+        grid_path = os.path.join(self.rootdir, 'otl.grid')
+        if not os.path.isfile(grid_path):
             # should be configurable
             try:
-                os.symlink(otlgrid, os.path.join(self.rootdir, 'otl.grid'))
+                os.symlink(otlgrid, grid_path)
             except Exception as e:
                 raise pyOTLException(e)
 
@@ -53,53 +57,49 @@ class OceanLoading():
             self.grdtab = grdtab
 
         if not (x is None and y is None and z is None):
-            self.x = x; self.y = y; self.z = z
-        return
+            self.x = x
+            self.y = y
+            self.z = z
 
     def calculate_otl_coeff(self,x=None,y=None,z=None):
 
         if not self.x and (x is None or y is None or z is None):
             raise pyOTLException('Cartesian coordinates not initialized and not provided in calculate_otl_coef')
-        else:
-            if not self.x:
-                self.x = x
-            if not self.y:
-                self.y = y
-            if not self.z:
-                self.z = z
 
-            cmd = pyRunWithRetry.RunCommand(self.grdtab + ' ' + str(self.x) + ' ' + str(self.y) + ' ' + str(self.z) + ' ' + self.StationCode, 5, self.rootdir)
-            out,err = cmd.run_shell()
+        if not self.x:
+            self.x = x
+        if not self.y:
+            self.y = y
+        if not self.z:
+            self.z = z
 
-            if err or os.path.isfile(os.path.join(self.rootdir, 'GAMIT.fatal')) and not os.path.isfile(os.path.join(self.rootdir, 'harpos.' + self.StationCode)):
-                if err:
-                    raise pyOTLException('grdtab returned an error: ' + err)
-                else:
-                    with open(os.path.join(self.rootdir, 'GAMIT.fatal'), 'r') as fileio:
-                        raise pyOTLException('grdtab returned an error:\n' +  fileio.read())
-            else:
-                # open otl file
-                with open(os.path.join(self.rootdir, 'harpos.' + self.StationCode), 'r') as fileio:
-                    return fileio.read()
+        out, err = pyRunWithRetry.RunCommand(self.grdtab +
+                                             ' ' + str(self.x) + ' ' + str(self.y) +
+                                             ' ' + str(self.z) + ' ' + self.StationCode,
+                                             5,
+                                             self.rootdir).run_shell()
+        if err:
+            raise pyOTLException('grdtab returned an error: ' + err)
+
+        fatal_path  = os.path.join(self.rootdir, 'GAMIT.fatal')
+        harpos_path = os.path.join(self.rootdir, 'harpos.' + self.StationCode)
+
+        if os.path.isfile(fatal_path) and not os.path.isfile(harpos_path):
+            raise pyOTLException('grdtab returned an error:\n' + file_read_all(fatal_path))
+
+        # open otl file
+        return file_read_all(harpos_path)
 
     def __del__(self):
-        if os.path.isfile(os.path.join(self.rootdir, 'GAMIT.status')):
-            os.remove(os.path.join(self.rootdir, 'GAMIT.status'))
-
-        if os.path.isfile(os.path.join(self.rootdir, 'GAMIT.fatal')):
-            os.remove(os.path.join(self.rootdir, 'GAMIT.fatal'))
-
-        if os.path.isfile(os.path.join(self.rootdir, 'grdtab.out')):
-            os.remove(os.path.join(self.rootdir, 'grdtab.out'))
-
-        if os.path.isfile(os.path.join(self.rootdir, 'harpos.' + self.StationCode)):
-            os.remove(os.path.join(self.rootdir, 'harpos.' + self.StationCode))
-
-        if os.path.isfile(os.path.join(self.rootdir, 'otl.grid')):
-            os.remove(os.path.join(self.rootdir, 'otl.grid'))
-
-        if os.path.isfile(os.path.join(self.rootdir, 'ufile.' + self.StationCode)):
-            os.remove(os.path.join(self.rootdir, 'ufile.' + self.StationCode))
+        for f in ('GAMIT.status',
+                  'GAMIT.fatal',
+                  'grdtab.out',
+                  'harpos.' + self.StationCode,
+                  'otl.grid',
+                  'ufile.' + self.StationCode):
+            f = os.path.join(self.rootdir, f)
+            if os.path.isfile(f):
+                os.remove(f)
 
         if os.path.isdir(self.rootdir):
             os.rmdir(self.rootdir)

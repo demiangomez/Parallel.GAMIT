@@ -18,18 +18,18 @@ class Event(dict):
 
         dict.__init__(self)
 
-        self['EventDate'] = datetime.datetime.now()
-        self['EventType'] = 'info'
+        self['EventDate']   = datetime.datetime.now()
+        self['EventType']   = 'info'
         self['NetworkCode'] = None
         self['StationCode'] = None
-        self['Year'] = None
-        self['DOY'] = None
+        self['Year']        = None
+        self['DOY']         = None
         self['Description'] = ''
-        self['node'] = platform.node()
-        self['stack'] = None
+        self['node']        = platform.node()
+        self['stack']       = None
 
         module = inspect.getmodule(inspect.stack()[1][0])
-        stack = traceback.extract_stack()[0:-2]
+        stack  = traceback.extract_stack()[0:-2]
 
         if module is None:
             self['module'] = inspect.stack()[1][3]  # just get the calling module
@@ -50,6 +50,8 @@ class Event(dict):
         else:
             self['stack'] = None
 
+        
+
     def db_dict(self):
         # remove any invalid chars that can cause problems in the database
         # also, remove the timestamp so that we use the default now() in the databasae
@@ -58,16 +60,18 @@ class Event(dict):
         val.pop('EventDate')
 
         for key in val:
-            if type(val[key]) is str:
-                val[key] = re.sub(r'[^\x00-\x7f]+', '', val[key])
-                val[key] = val[key].replace('\'', '"')
-                val[key] = re.sub(r'BASH.*', '', val[key])
-                val[key] = re.sub(r'PSQL.*', '', val[key])
+            s = val[key]
+            if type(s) is str:
+                s = re.sub(r'[^\x00-\x7f]+', '', s)
+                s = s.replace('\'', '"')
+                s = re.sub(r'BASH.*', '', s)
+                s = re.sub(r'PSQL.*', '', s)
+                val[key] = s
 
         return val
 
     def __repr__(self):
-        return 'pyEvent.Event('+str(self['Description'])+')'
+        return 'pyEvent.Event(%s)' % str(self['Description'])
 
     def __str__(self):
         return str(self['Description'])

@@ -27,6 +27,8 @@ PG and PP require the following dependencies:
 - Python version > 2.7.13
 - GAMIT-GLOBK: although PP does not use GAMIT to process data, it relies on grdtab, otl.grid and sh_rx2apr to obtain the ocean loading coefficients and station coordinates (when PPP fails to process a station-day). Bare in mind that sh_rx2apr needs the following dependencies to run in a computer without GAMIT installed: svdiff, svpos, tform, sh_rx2apr, doy
 - gfzrnx: RINEX quality check and conversion tool which supports RINEX 3.
+- teqc: the good-old RINEX quality check tool
+- RinSum: one of the programs of GPSTk found in http://www.gpstk.org/bin/view/Documentation/WebHome
 - pygressql: Python interface to connect to Postgres
 - tqdm: a Python progress bar to show the processing progress
 - rnx2crx: RINEX to CRINEX
@@ -40,4 +42,3 @@ PG and PP require the following dependencies:
 - scandir
 - Neicio: the USGS NEIC Python interface and its dependencies found in https://github.com/usgs/neicio
 
-We are currently working on translating the code from python 2.7.x to python 3. We will include an installation script and provide with more documentation (there is none at the moment!).

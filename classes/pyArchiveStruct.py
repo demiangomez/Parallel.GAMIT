@@ -11,8 +11,12 @@ declared directory structure and {stmn}{doy}{session}.{year}d.Z, respectively)
 
 import os
 import sys
-import scandir
 import re
+
+# deps
+import scandir
+
+# app
 import pyDate
 import pyOptions
 import pyEvents
@@ -20,7 +24,7 @@ import Utils
 import pyRinex
 import pyRinexName
 from pyRinexName import RinexNameFormat
-
+from Utils import file_try_remove
 
 class RinexStruct(object):
 
@@ -29,19 +33,14 @@ class RinexStruct(object):
         self.cnn = cnn
 
         # read the structure definition table
-        levels = cnn.query('SELECT rinex_tank_struct.*, keys.* FROM rinex_tank_struct '
-                           'LEFT JOIN keys ON keys."KeyCode" = rinex_tank_struct."KeyCode" ORDER BY "Level"')
-        self.levels = levels.dictresult()
+        self.levels = cnn.query('SELECT rinex_tank_struct.*, keys.* FROM rinex_tank_struct '
+                                'LEFT JOIN keys ON keys."KeyCode" = rinex_tank_struct."KeyCode" '
+                                'ORDER BY "Level"').dictresult()
 
-        keys = cnn.query('SELECT * FROM keys')
-        self.keys = keys.dictresult()
-
+        self.keys     = cnn.query('SELECT * FROM keys').dictresult()
         # read the station and network tables
-        networks = cnn.query('SELECT * FROM networks')
-        self.networks = networks.dictresult()
-
-        stations = cnn.query('SELECT * FROM stations')
-        self.stations = stations.dictresult()
+        self.networks = cnn.query('SELECT * FROM networks').dictresult()
+        self.stations = cnn.query('SELECT * FROM stations').dictresult()
 
         self.Config = pyOptions.ReadOptions('gnss_data.cfg')
 
@@ -62,16 +61,16 @@ class RinexStruct(object):
         if rinexobj is not None:
             record = rinexobj.record
 
-        copy_succeeded = False
+        copy_succeeded  = False
         archived_crinex = ''
 
         # check if record exists in the database
-        if not self.get_rinex_record(NetworkCode=record['NetworkCode'],
-                                     StationCode=record['StationCode'],
-                                     ObservationYear=record['ObservationYear'],
-                                     ObservationDOY=record['ObservationDOY'],
-                                     Interval=record['Interval'],
-                                     Completion=float('%.3f' % record['Completion'])):
+        if not self.get_rinex_record(NetworkCode     = record['NetworkCode'],
+                                     StationCode     = record['StationCode'],
+                                     ObservationYear = record['ObservationYear'],
+                                     ObservationDOY  = record['ObservationDOY'],
+                                     Interval        = record['Interval'],
+                                     Completion      = float('%.3f' % record['Completion'])):
             # no record, proceed
 
             # check if we need to perform any rinex operations. We might be inserting a new record, but it may just be
@@ -91,10 +90,12 @@ class RinexStruct(object):
                     # a rinexobj was passed, copy it into the archive.
 
                     path2archive = os.path.join(self.Config.archive_path,
-                                                self.build_rinex_path(record['NetworkCode'], record['StationCode'],
+                                                self.build_rinex_path(record['NetworkCode'],
+                                                                      record['StationCode'],
                                                                       record['ObservationYear'],
                                                                       record['ObservationDOY'],
-                                                                      with_filename=False, rinexobj=rinexobj))
+                                                                      with_filename = False,
+                                                                      rinexobj = rinexobj))
 
                     # copy fixed version into the archive (in case another session exists for RINEX v2)
                     archived_crinex = rinexobj.compress_local_copyto(path2archive)
@@ -121,22 +122,22 @@ class RinexStruct(object):
                                         record['Completion'],
                                         record['Filename']))
 
-                    event = pyEvents.Event(Description='A new RINEX was added to the archive: %s' % record['Filename'],
-                                           NetworkCode=record['NetworkCode'],
-                                           StationCode=record['StationCode'],
-                                           Year=record['ObservationYear'],
-                                           DOY=record['ObservationDOY'])
+                    event = pyEvents.Event(Description = 'A new RINEX was added to the archive: %s' % record['Filename'],
+                                           NetworkCode = record['NetworkCode'],
+                                           StationCode = record['StationCode'],
+                                           Year        = record['ObservationYear'],
+                                           DOY         = record['ObservationDOY'])
                 else:
-                    event = pyEvents.Event(Description='Archived CRINEX file %s added to the database.' %
+                    event = pyEvents.Event(Description = 'Archived CRINEX file %s added to the database.' %
                                                        record['Filename'],
-                                           NetworkCode=record['NetworkCode'],
-                                           StationCode=record['StationCode'],
-                                           Year=record['ObservationYear'],
-                                           DOY=record['ObservationDOY'])
+                                           NetworkCode = record['NetworkCode'],
+                                           StationCode = record['StationCode'],
+                                           Year        = record['ObservationYear'],
+                                           DOY         = record['ObservationDOY'])
 
                 self.cnn.insert_event(event)
 
-            except Exception:
+            except:
                 self.cnn.rollback_transac()
 
                 if rinexobj and copy_succeeded:
@@ -161,23 +162,22 @@ class RinexStruct(object):
             self.cnn.begin_transac()
             # propagate the deletes
             # check if this rinex file is the file that was processed and used for solutions
+            where_station = '"NetworkCode" = \'%s\' AND "StationCode" = \'%s\'' % (record['NetworkCode'], record['StationCode'])
             rs = self.cnn.query(
-                    'SELECT * FROM rinex_proc WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND '
-                    '"ObservationYear" = %i AND "ObservationDOY" = %i'
-                    % (record['NetworkCode'], record['StationCode'],
-                       record['ObservationYear'], record['ObservationDOY']))
+                    'SELECT * FROM rinex_proc WHERE %s AND "ObservationYear" = %i AND "ObservationDOY" = %i'
+                    % (where_station,
+                       record['ObservationYear'],
+                       record['ObservationDOY']))
 
             if rs.ntuples() > 0:
                 self.cnn.query(
-                    'DELETE FROM gamit_soln WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND '
-                    '"Year" = %i AND "DOY" = %i'
-                    % (record['NetworkCode'], record['StationCode'],
+                    'DELETE FROM gamit_soln WHERE %s AND "Year" = %i AND "DOY" = %i'
+                    % (where_station,
                        record['ObservationYear'], record['ObservationDOY']))
 
                 self.cnn.query(
-                    'DELETE FROM ppp_soln WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND '
-                    '"Year" = %i AND "DOY" = %i'
-                    % (record['NetworkCode'], record['StationCode'],
+                    'DELETE FROM ppp_soln WHERE %s AND "Year" = %i AND "DOY" = %i'
+                    % (where_station,
                        record['ObservationYear'], record['ObservationDOY']))
 
             # get the filename
@@ -189,9 +189,9 @@ class RinexStruct(object):
 
             # delete the rinex record
             self.cnn.query(
-                'DELETE FROM rinex WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND '
-                '"ObservationYear" = %i AND "ObservationDOY" = %i AND "Filename" = \'%s\''
-                % (record['NetworkCode'], record['StationCode'], record['ObservationYear'],
+                'DELETE FROM rinex WHERE %s AND "ObservationYear" = %i AND "ObservationDOY" = %i AND "Filename" = \'%s\''
+                % (where_station,
+                   record['ObservationYear'],
                    record['ObservationDOY'], record['Filename']))
 
             if os.path.isfile(rinex_path):
@@ -212,18 +212,17 @@ class RinexStruct(object):
                               'so no deletion was performed. See next events for reason.' % (record['Filename'])
 
             # insert an event
-            event = pyEvents.Event(
-                Description=description,
-                NetworkCode=record['NetworkCode'],
-                StationCode=record['StationCode'],
-                EventType='info',
-                Year=record['ObservationYear'],
-                DOY=record['ObservationDOY'])
+            event = pyEvents.Event(Description = description,
+                                   NetworkCode = record['NetworkCode'],
+                                   StationCode = record['StationCode'],
+                                   EventType   = 'info',
+                                   Year        = record['ObservationYear'],
+                                   DOY         = record['ObservationDOY'])
 
             self.cnn.insert_event(event)
 
             self.cnn.commit_transac()
-        except Exception:
+        except:
             self.cnn.rollback_transac()
             raise
 
@@ -244,7 +243,7 @@ class RinexStruct(object):
         :return: a dictionary will the records matching the provided parameters
         """
 
-        if any(param in ['Interval', 'Completion', 'Filename'] for param in kwargs.keys()):
+        if any(param in ('Interval', 'Completion', 'Filename') for param in kwargs.keys()):
             table = 'rinex'
         else:
             table = 'rinex_proc'
@@ -256,10 +255,10 @@ class RinexStruct(object):
         # parse args
         for key in kwargs:
 
-            if key not in [field for field in fields.keys()]:
+            if key not in fields.keys():
                 raise ValueError('Parameter ' + key + ' is not a field in table ' + table)
 
-            if key is not 'ObservationFYear':
+            elif key is not 'ObservationFYear':
                 # avoid FYear due to round off problems
                 arg = kwargs[key]
 
@@ -270,37 +269,36 @@ class RinexStruct(object):
                     psql += ['"%s" = %f' % (key, arg)]
 
         sql = 'SELECT * FROM %s ' % table
-        sql += 'WHERE ' + ' AND '.join(psql) if psql else ''
+        if psql:
+            sql += 'WHERE ' + ' AND '.join(psql)
 
         return self.cnn.query(sql).dictresult()
 
     def scan_archive_struct(self, rootdir, progress_bar=None):
-
         self.archiveroot = rootdir
 
-        rnx = []
+        rnx      = []
         path2rnx = []
-        fls = []
+        fls      = []
         for path, _, files in scandir.walk(rootdir):
             for file in files:
+                file_path = os.path.join(path, file)
+                crinex    = file_path.rsplit(rootdir + '/')[1]
                 if progress_bar is not None:
-                    progress_bar.set_postfix(crinex=os.path.join(path, file).rsplit(rootdir+'/')[1])
+                    progress_bar.set_postfix(crinex = crinex)
                     progress_bar.update()
 
                 try:
-                    _ = RinexNameFormat(file)
+                    RinexNameFormat(file) # except if invalid
                     # only add valid rinex files (now allows the full range)
                     fls.append(file)
-                    rnx.append(os.path.join(path, file).rsplit(rootdir+'/')[1])
-                    path2rnx.append(os.path.join(path, file))
+                    rnx.append(crinex)
+                    path2rnx.append(file_path)
 
                 except pyRinexName.RinexNameException:
-                    if file.endswith('DS_Store') or file[0:2] == '._':
+                    if file.endswith('DS_Store') or file.startswith('._'):
                         # delete the stupid mac files
-                        try:
-                            os.remove(os.path.join(path, file))
-                        except Exception:
-                            sys.exc_clear()
+                        file_try_remove(file_path)
 
         return rnx, path2rnx, fls
 
@@ -309,23 +307,20 @@ class RinexStruct(object):
         # same as scan archive struct but looks for station info files
         self.archiveroot = rootdir
 
-        stninfo = []
+        stninfo      = []
         path2stninfo = []
         for path, dirs, files in scandir.walk(rootdir):
             for file in files:
+                file_path = os.path.join(path, file)
                 if file.endswith(".info"):
                     # only add valid rinex compressed files
-                    stninfo.append(os.path.join(path,file).rsplit(rootdir+'/')[1])
-                    path2stninfo.append(os.path.join(path,file))
-                else:
-                    if file.endswith('DS_Store') or file[0:2] == '._':
-                        # delete the stupid mac files
-                        try:
-                            os.remove(os.path.join(path, file))
-                        except Exception:
-                            sys.exc_clear()
+                    stninfo.append(file_path.rsplit(rootdir+'/')[1])
+                    path2stninfo.append(file_path)
+                elif file.endswith('DS_Store') or file.startswith('._'):
+                    # delete the stupid mac files
+                    file_try_remove(file_path)
 
-        return stninfo,path2stninfo
+        return stninfo, path2stninfo
 
     def build_rinex_path(self, NetworkCode, StationCode, ObservationYear, ObservationDOY,
                          with_filename=True, filename=None, rinexobj=None):
@@ -347,13 +342,8 @@ class RinexStruct(object):
         if not rinexobj:
             # not an insertion (user wants the rinex path of existing file)
             # build the levels struct
-            sql_list = []
-            for level in self.levels:
-                sql_list.append('"' + level['rinex_col_in'] + '"')
-
-            sql_list.append('"Filename"')
-
-            sql_string = ", ".join(sql_list)
+            sql_string = ", ".join(['"' + level['rinex_col_in'] + '"'
+                                    for level in self.levels] + ['"Filename"'])
 
             if filename:
                 filename = RinexNameFormat(filename).to_rinex_format(pyRinexName.TYPE_RINEX)
@@ -370,28 +360,27 @@ class RinexStruct(object):
                     '\' AND "StationCode" = \'' + StationCode + '\' AND "ObservationYear" = ' + str(
                         ObservationYear) + ' AND "ObservationDOY" = ' + str(ObservationDOY))
 
-            if rs.ntuples() != 0:
-                field = rs.dictresult()[0]
-                keys = []
-                for level in self.levels:
-                    keys.append(str(field[level['rinex_col_in']]).zfill(level['TotalChars']))
-
-                if with_filename:
-                    rnx_name = RinexNameFormat(field['Filename'])
-                    # database stores rinex, we want crinez
-                    return "/".join(keys) + "/" + rnx_name.to_rinex_format(pyRinexName.TYPE_CRINEZ)
-                else:
-                    return "/".join(keys)
-            else:
+            if not rs.ntuples():
                 return None
+
+            field = rs.dictresult()[0]
+            path = "/".join(str(field[level['rinex_col_in']]).zfill(level['TotalChars'])
+                            for level in self.levels)
+
+            if with_filename:
+                rnx_name = RinexNameFormat(field['Filename'])
+                # database stores rinex, we want crinez
+                return path + "/" + rnx_name.to_rinex_format(pyRinexName.TYPE_CRINEZ)
+            else:
+                return path
+
         else:
             # new file (get the path where it's supposed to go)
             keys = []
             for level in self.levels:
+                kk = str(rinexobj.record[level['rinex_col_in']])
                 if level['isnumeric'] == '1':
-                    kk = str(rinexobj.record[level['rinex_col_in']]).zfill(level['TotalChars'])
-                else:
-                    kk = str(rinexobj.record[level['rinex_col_in']])
+                    kk = kk.zfill(level['TotalChars'])
 
                 if len(kk) != level['TotalChars']:
                     raise ValueError('Invalid record \'%s\' for key \'%s\'' % (kk, level['KeyCode']))
@@ -399,16 +388,16 @@ class RinexStruct(object):
                 keys += [kk]
 
             path = '/'.join(keys)
-            valid, _ = self.parse_archive_keys(os.path.join(path, rinexobj.crinez),
-                                               tuple([item['KeyCode'] for item in self.levels]))
-
-            if valid:
-                if with_filename:
-                    return os.path.join(path, rinexobj.crinez)
-                else:
-                    return path
-            else:
+            crinez_path = os.path.join(path, rinexobj.crinez)
+            valid, _ = self.parse_archive_keys(crinez_path, 
+                                               tuple(item['KeyCode'] for item in self.levels))
+            if not valid:
                 raise ValueError('Invalid path result: %s' % path)
+
+            elif with_filename:
+                return crinez_path
+            else:
+                return path
 
     def parse_archive_keys(self, path_filename, key_filter=()):
         """
@@ -422,7 +411,7 @@ class RinexStruct(object):
         keys_out = dict()
 
         try:
-            path = os.path.dirname(path_filename).split('/')
+            path     = os.path.dirname(path_filename).split('/')
             filename = os.path.basename(path_filename)
 
             # check the number of levels in path parts against the number of expected levels
@@ -431,14 +420,11 @@ class RinexStruct(object):
 
             # now look in the different levels to match more data (or replace filename keys)
             for key in self.levels:
-
-                if len(path[key['Level'] - 1]) != key['TotalChars']:
+                path_l = path[key['Level'] - 1]
+                if len(path_l) != key['TotalChars']:
                     return False, {}
 
-                if key['isnumeric'] == '1':
-                    keys_out[key['KeyCode']] = int(path[key['Level'] - 1])
-                else:
-                    keys_out[key['KeyCode']] = path[key['Level'] - 1].lower()
+                keys_out[key['KeyCode']] = int(path_l) if key['isnumeric'] == '1' else path_l.lower()
 
             if not filename.endswith('.info'):
 
@@ -446,16 +432,18 @@ class RinexStruct(object):
 
                 # fill in all the possible keys_out using the crinex file info
                 keys_out['station'] = fileparts.StationCode
-                keys_out['doy'] = fileparts.date.doy
+                keys_out['doy']     = fileparts.date.doy
                 keys_out['session'] = fileparts.session
-                keys_out['year'] = fileparts.date.year
+                keys_out['year']    = fileparts.date.year
 
                 # check date is valid and also fill day and month keys_out
-                keys_out['day'] = fileparts.date.day
+                keys_out['day']   = fileparts.date.day
                 keys_out['month'] = fileparts.date.month
 
-                return True, {key: keys_out[key] for key in keys_out.keys() if key in key_filter}
+                return True, {key: keys_out[key] 
+                              for key in keys_out.keys()
+                              if key in key_filter}
 
-        except Exception:
+        except:
             return False, {}
 

@@ -4,31 +4,35 @@ Date: Mar-31-2017
 Author: Demian D. Gomez
 """
 
-from pyGamitSession import GamitSession
-import numpy as np
-from scipy.spatial import ConvexHull
-from scipy.spatial import Delaunay
-from Utils import smallestN_indices
-import sklearn.cluster as cluster
-from scipy.spatial import distance
-from tqdm import tqdm
 from datetime import datetime
 import time
+
+# deps
+from tqdm import tqdm
+import numpy as np
+from sklearn.cluster import k_means
+from scipy.spatial import (ConvexHull,
+                           Delaunay,
+                           distance)
+
+# app
+from pyGamitSession import GamitSession
+from Utils import smallestN_indices
+
+
 BACKBONE_NET = 40
-NET_LIMIT = 40
+NET_LIMIT    = 40
 SUBNET_LIMIT = 35
-MAX_DIST = 5000
-MIN_DIST = 20
+MAX_DIST     = 5000
+MIN_DIST     = 20
 
 
 def tic():
-
     global tt
     tt = time.time()
 
 
 def toc(text):
-
     global tt
     tqdm.write(text + ': ' + str(time.time() - tt))
 
@@ -45,10 +49,10 @@ class Network(object):
 
     def __init__(self, cnn, archive, GamitConfig, stations, date, check_stations=None, ignore_missing=False):
 
-        self.name = GamitConfig.NetworkConfig.network_id.lower()
-        self.org = GamitConfig.gamitopt['org']
+        self.name        = GamitConfig.NetworkConfig.network_id.lower()
+        self.org         = GamitConfig.gamitopt['org']
         self.GamitConfig = GamitConfig
-        self.date = date
+        self.date        = date
 
         # find out if this project-day has been processed before
         db_subnets = cnn.query_float('SELECT * FROM gamit_subnets '
@@ -63,7 +67,7 @@ class Network(object):
                                                                       self.name, date.yyyyddd()))
 
             # sub-network already exist, put information in lists
-            dba_stn = [stn for net in db_subnets for stn in net['stations']]
+            dba_stn   = [stn   for net in db_subnets for stn   in net['stations']]
             dba_alias = [alias for net in db_subnets for alias in net['alias']]
 
             # make the necessary changes to the stations aliases (so they match those in the database)
@@ -99,15 +103,16 @@ class Network(object):
                         # ignore_missing is turned off OR station is part of the check stations, then verify
                         # the solution is in the database. Otherwise, skip the station
                         if stn in stn_active and \
-                                (not ignore_missing or stn in chk_active):
-                            if not stations[stn].check_gamit_soln(cnn, self.name, date):
-                                # stations is in the database but there was no solution for this day, rerun
-                                cnn.delete('gamit_stats', Project=self.name, Year=self.date.year, DOY=self.date.doy,
+                           (not ignore_missing or stn in chk_active) and \
+                           not stations[stn].check_gamit_soln(cnn, self.name, date):
+                            # stations is in the database but there was no solution for this day, rerun
+
+                            for table in ('gamit_stats', 'gamit_subnets'):
+                                cnn.delete(table, Project=self.name, Year=self.date.year, DOY=self.date.doy,
                                            subnet=subnet['subnet'])
-                                cnn.delete('gamit_subnets', Project=self.name, Year=self.date.year, DOY=self.date.doy,
-                                           subnet=subnet['subnet'])
-                                tqdm.write(' -- %s in sub-network %s%02i did not produce a solution and will be '
-                                           'reprocessed' % (stn, self.org, subnet['subnet']))
+
+                            tqdm.write(' -- %s in sub-network %s%02i did not produce a solution and will be '
+                                       'reprocessed' % (stn, self.org, subnet['subnet']))
 
         else:
             tqdm.write(' >> %s %s %s -> Creating network clusters' % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
@@ -135,13 +140,13 @@ class Network(object):
         subnet_count = int(np.ceil(float(float(stn_count) / float(SUBNET_LIMIT))))
 
         if float(stn_count) > net_limit:
-            centroids, labels, _ = cluster.k_means(points, subnet_count)
+            centroids, labels, _ = k_means(points, subnet_count)
 
             # array for centroids
             cc = np.array([]).reshape((0, 3))
 
             # array for labels
-            ll = np.zeros(points.shape[0])
+            ll    = np.zeros(points.shape[0])
             ll[:] = np.nan
 
             # index
@@ -150,8 +155,9 @@ class Network(object):
             merge = []
 
             for i in range(len(centroids)):
+                labels_len = len([la for la in labels if la == i])
 
-                if len([la for la in labels if la == i]) > SUBNET_LIMIT:
+                if labels_len > SUBNET_LIMIT:
                     # rerun this cluster to make it smaller
                     tpoints = points[labels == i]
                     # make a selection of the stations
@@ -160,7 +166,7 @@ class Network(object):
                     tclusters = self.make_clusters(tpoints, tstations, SUBNET_LIMIT)
                     # save the ouptput
                     tcentroids = tclusters['centroids']
-                    tlabels = tclusters['labels']
+                    tlabels    = tclusters['labels']
 
                     for j in range(len(tcentroids)):
                         # don't do anything with empty centroids
@@ -168,11 +174,11 @@ class Network(object):
                             cc, ll, save_i = self.save_cluster(points, tpoints[tlabels == j], cc,
                                                                tcentroids[j], ll, save_i)
 
-                elif 0 < len([la for la in labels if la == i]) <= 3:
+                elif 0 < labels_len <= 3:
                     # this subnet is made of only two elements: merge to closest subnet
                     merge.append(i)
 
-                elif len([la for la in labels if la == i]) == 0:
+                elif labels_len == 0:
                     # nothing to do if length == 0
                     pass
 
@@ -207,7 +213,7 @@ class Network(object):
                         idx = np.unravel_index(np.argmin(dist), dist.shape)
                         # move the "row" station to closest subnetwork
                         cc_p = cc[np.arange(len(cc)) != i]  # all centroids but the centroid we are working with (i)
-                        dc = distance.cdist(np.array([pp[idx[0]]]), cc_p) / 1e3
+                        dc   = distance.cdist(np.array([pp[idx[0]]]), cc_p) / 1e3
 
                         min_centroid = np.argmin(dc, axis=1)
 
@@ -217,7 +223,7 @@ class Network(object):
                         ll[np.where(ll == i)[0][idx[0]]] = centroid_index
 
                         # calculate again without this point
-                        pp = points[ll == i]
+                        pp   = points[ll == i]
                         dist = distance.cdist(pp, pp) / 1e3
                         # remove zeros
                         dist[dist == 0] = np.inf
@@ -227,10 +233,9 @@ class Network(object):
             ll = np.zeros(len(stations))
 
         # put everything in a dictionary
-        clusters = dict()
-        clusters['centroids'] = cc
-        clusters['labels'] = ll
-        clusters['stations'] = []
+        clusters = { 'centroids'  : cc,
+                     'labels'     : ll,
+                     'stations'   : [] }
 
         for l in range(len(clusters['centroids'])):
             clusters['stations'].append([s for i, s in zip(ll.tolist(), stations) if i == l])
@@ -253,7 +258,7 @@ class Network(object):
 
         # get centroids and lables
         centroids = clusters['centroids']
-        labels = clusters['labels']
+        labels    = clusters['labels']
 
         # calculate distance between centroids
         dist = distance.cdist(centroids, centroids) / 1e3
@@ -387,12 +392,16 @@ class Network(object):
         :param date: date to be processed
         :return: a list of stations that make up the core network or empty is no need to split the processing
         """
-        if len(stations) > NET_LIMIT:
+        if len(stations) <= NET_LIMIT:
+            return []
+        else:
             # this session will require be split into more than one subnet
 
-            points = np.array([[stn.record.lat, stn.record.lon] for stn in stations.get_active_stations(date)])
+            active_stations = stations.get_active_stations(date)
 
-            stn_candidates = [stn for stn in stations.get_active_stations(date)]
+            points = np.array([[stn.record.lat, stn.record.lon] for stn in active_stations])
+
+            stn_candidates = list(active_stations)
 
             # create a convex hull
             hull = ConvexHull(points)
@@ -409,36 +418,31 @@ class Network(object):
                 mean_ll = np.mean(points, axis=0)
 
                 # find the closest stations to the centroid
-                centroid = int(np.argmin(np.sum(np.abs(points[mask]-mean_ll), axis=1)))
+                centroid = int(np.argmin(np.sum(np.abs(points[mask] - mean_ll), axis=1)))
 
                 core_network += [stn_candidates[centroid]]
 
             return core_network
 
-        else:
-
-            return []
-
     @staticmethod
     def recover_subnets(db_subnets, stations):
         # this method does not update the labels because they are not used
         # labels are only used to tie station
-        clusters = dict()
-        # init the centroids array
-        clusters['centroids'] = []
-        clusters['labels'] = []
-        clusters['stations'] = []
+        clusters = {'centroids': [],
+                    'labels'   : [],
+                    'stations' : []}
 
         backbone = []
-        ties = []
+        ties     = []
 
         # check if there is more than one sub-network
         if len(db_subnets) == 1:
             # single network reported as sub-network zero
             # no backbone and no ties, single network processing
-            clusters['centroids'] = np.array([db_subnets[0]['centroid']])
-            clusters['labels'] = np.zeros(len(stations))
-            clusters['stations'].append(stations)
+            clusters = {'centroids': np.array([db_subnets[0]['centroid']]),
+                        'labels'   : np.zeros(len(stations)),
+                        'stations' : [stations]
+                        }
         else:
             # multiple sub-networks: 0 contains the backbone; 1 contains cluster 1; 2 contains...
             for subnet in db_subnets[1:]:
@@ -469,8 +473,8 @@ class Network(object):
             clusters['labels'] = np.zeros(len(clusters['stations'][0]))
 
             # because a station was added, delete the gamit_stats record to force reprocessing
-            cnn.delete('gamit_stats', Project=self.name, Year=self.date.year, DOY=self.date.doy, subnet=0)
-            cnn.delete('gamit_subnets', Project=self.name, Year=self.date.year, DOY=self.date.doy, subnet=0)
+            for table in ('gamit_stats', 'gamit_subnets'):
+                cnn.delete(table, Project=self.name, Year=self.date.year, DOY=self.date.doy, subnet=0)
 
             tqdm.write(' -- %s was not originally in the processing, will be added to sub-network %s00'
                        % (add_station.netstn, self.org))
@@ -486,8 +490,8 @@ class Network(object):
             # can add the station to this sub-network
             clusters['stations'][min_i].append(add_station)
             # because a station was added, delete the gamit_stats and subnets record to force reprocessing
-            cnn.delete('gamit_stats', Project=self.name, Year=self.date.year, DOY=self.date.doy, subnet=min_i + 1)
-            cnn.delete('gamit_subnets', Project=self.name, Year=self.date.year, DOY=self.date.doy, subnet=min_i + 1)
+            for table in ('gamit_stats', 'gamit_subnets'):
+                cnn.delete(table, Project=self.name, Year=self.date.year, DOY=self.date.doy, subnet=min_i + 1)
 
             tqdm.write(' -- %s was not originally in the processing, will be added to sub-network %s%02i'
                        % (add_station.netstn, self.org, min_i + 1))

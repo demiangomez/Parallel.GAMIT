@@ -4,45 +4,52 @@ Date: 3/31/17 6:33 PM
 Author: Demian D. Gomez
 """
 
-import pyGamitConfig
 import sys
+import os
+import math
+import shutil
+import argparse
+import glob
+import logging
+import time
+import threading
+from datetime import datetime
+
+# deps
+from tqdm import tqdm
+import simplekml
+
+# app
+import pyGamitConfig
 import pyDate
 import Utils
-import os
-from tqdm import tqdm
 import pyGamitTask
 import pyGlobkTask
 import pyGamitSession
-from pyNetwork import Network
 import dbConnection
-import math
-import shutil
-from math import ceil
-import argparse
-import glob
 import pyJobServer
 import pyParseZTD
-from Utils import process_date
-from Utils import process_stnlist
-from Utils import parseIntSet
-from Utils import indent
-from pyStation import Station
-from pyStation import StationCollection
-from pyETM import pyETMException
 import pyArchiveStruct
-import logging
-import simplekml
-import time
-import threading
-import datetime
+from pyETM import pyETMException
+from pyNetwork import Network
+from pyStation import (Station,
+                       StationCollection)
+from Utils import (process_date,
+                   process_stnlist,
+                   parseIntSet,
+                   indent,
+                   file_append,
+                   stationID
+                   )
+
 
 
 class DbAlive(object):
     def __init__(self, cnn, increment):
-        self.next_t = time.time()
-        self.done = False
+        self.next_t    = time.time()
+        self.done      = False
         self.increment = increment
-        self.cnn = cnn
+        self.cnn       = cnn
         self.run()
 
     def run(self):
@@ -61,7 +68,7 @@ def print_summary(stations, sessions, dates):
     print('')
     print(' >> Summary of stations in this project')
     print(' -- Selected stations (%i):' % (len(stations)))
-    Utils.print_columns([item.NetworkCode + '.' + item.StationCode for item in stations])
+    Utils.print_columns([stationID(item) for item in stations])
 
     min_stn = 99999
     min_date = pyDate.Date(year=1980, doy=1)
@@ -75,37 +82,38 @@ def print_summary(stations, sessions, dates):
 
     # output a summary of the missing days per station:
     print('')
-    sys.stdout.write(' >> Summary of data per station (' + unichr(0x258C) + ' = 1 DOY)\n')
+    sys.stdout.write(' >> Summary of data per station (' + chr(0x258C) + ' = 1 DOY)\n')
 
-    if (dates[1] - dates[0]) / 2. > 120:
-        cut_len = int(ceil((dates[1] - dates[0])/4.))
+    if (dates[1] - dates[0]) / 2.0 > 120:
+        cut_len = int(math.ceil((dates[1] - dates[0])/4.0))
     else:
         cut_len = dates[1] - dates[0]
 
     for stn in stations:
         # make a group per year
-        for year in sorted(set([d.year for d in stn.good_rinex])):
+        for year in sorted(set(d.year for d in stn.good_rinex)):
 
-            sys.stdout.write('\n -- %s.%s:\n' % (stn.NetworkCode, stn.StationCode))
+            sys.stdout.write('\n -- %s:\n' % stationID(stn))
 
-            missing_dates = [m.doy for m in stn.missing_rinex if m.year == year]
-            p_doys = [m.doy for m in stn.good_rinex if m.year == year]
+            missing_dates = set(m.doy for m in stn.missing_rinex if m.year == year)
+            p_doys        = [m.doy for m in stn.good_rinex    if m.year == year]
 
             sys.stdout.write('\n%i:\n    %03i>' % (year, p_doys[0]))
 
             for i, doy in enumerate(zip(p_doys[0:-1:2], p_doys[1::2])):
 
-                if doy[0] not in missing_dates and doy[1] not in missing_dates:
-                    sys.stdout.write(unichr(0x2588))
+                if doy[0] in missing_dates:
+                    if doy[1] in missing_dates:
+                        c = ' '
+                    else:
+                        c = chr(0x2590)
+                else:
+                    if doy[1] in missing_dates:
+                        c = chr(0x258C)
+                    else:
+                        c = chr(0x2588)
 
-                elif doy[0] not in missing_dates and doy[1] in missing_dates:
-                    sys.stdout.write(unichr(0x258C))
-
-                elif doy[0] in missing_dates and doy[1] not in missing_dates:
-                    sys.stdout.write(unichr(0x2590))
-
-                elif doy[0] in missing_dates and doy[1] in missing_dates:
-                    sys.stdout.write(' ')
+                sys.stdout.write(c)
 
                 if i + 1 == cut_len:
                     sys.stdout.write('<%03i\n' % doy[0])
@@ -113,10 +121,10 @@ def print_summary(stations, sessions, dates):
 
             if len(p_doys) % 2 != 0:
                 # last one missing
-                if p_doys[-1] not in missing_dates:
-                    sys.stdout.write(unichr(0x258C))
-                elif p_doys[-1] in missing_dates:
+                if p_doys[-1] in missing_dates:
                     sys.stdout.write(' ')
+                else:
+                    sys.stdout.write(chr(0x258C))
 
                 if cut_len < len(p_doys):
                     sys.stdout.write('< %03i\n' % (p_doys[-1]))
@@ -133,31 +141,19 @@ def purge_solution(pwd, project, date):
     cnn = dbConnection.Cnn('gnss_data.cfg')
 
     # delete the main solution dir (may be entire GAMIT run or combination directory)
-    if os.path.isdir(os.path.join(pwd, project)):
-        shutil.rmtree(os.path.join(pwd, project))
+    project_path = os.path.join(pwd, project)
+    if os.path.isdir(project_path):
+        shutil.rmtree(project_path)
 
     # possible subnetworks
-    for sub in glob.glob(os.path.join(pwd, project + '.*')):
+    for sub in glob.glob(project_path +  '.*'):
         shutil.rmtree(sub)
 
     # now remove the database entries
-    cnn.query('DELETE FROM gamit_soln_excl WHERE "Year" = %i AND "DOY" = %i '
-              'AND "Project" = \'%s\'' % (date.year, date.doy, project))
-
-    cnn.query('DELETE FROM stacks WHERE "Year" = %i AND "DOY" = %i '
-              'AND "Project" = \'%s\'' % (date.year, date.doy, project))
-
-    cnn.query('DELETE FROM gamit_soln WHERE "Year" = %i AND "DOY" = %i '
-              'AND "Project" = \'%s\'' % (date.year, date.doy, project))
-
-    cnn.query('DELETE FROM gamit_stats WHERE "Year" = %i AND "DOY" = %i '
-              'AND "Project" = \'%s\'' % (date.year, date.doy, project))
-
-    cnn.query('DELETE FROM gamit_subnets WHERE "Year" = %i AND "DOY" = %i '
-              'AND "Project" = \'%s\'' % (date.year, date.doy, project))
-
-    cnn.query('DELETE FROM gamit_ztd WHERE "Year" = %i AND "DOY" = %i  '
-              'AND "Project" = \'%s\'' % (date.year, date.doy, project))
+    for table in ('gamit_soln_excl', 'stacks', 'gamit_soln', 'gamit_stats',
+                  'gamit_subnets', 'gamit_ztd'):
+        cnn.query('DELETE FROM %s WHERE "Year" = %i AND "DOY" = %i '
+                  'AND "Project" = \'%s\'' % (table, date.year, date.doy, project))
 
     cnn.close()
 
@@ -175,7 +171,6 @@ def purge_solutions(JobServer, args, dates, GamitConfig):
         JobServer.create_cluster(purge_solution, progress_bar=pbar, modules=modules)
 
         for date in dates:
-
             # base dir for the GAMIT session directories
             pwd = GamitConfig.gamitopt['solutions_dir'].rstrip('/') + '/' + date.yyyy() + '/' + date.ddd()
 
@@ -191,10 +186,11 @@ def purge_solutions(JobServer, args, dates, GamitConfig):
 def station_list(cnn, stations, dates):
 
     stations = process_stnlist(cnn, stations)
-    stn_obj = StationCollection()
+    stn_obj  = StationCollection()
 
     # use the connection to the db to get the stations
-    for Stn in tqdm(sorted(stations), ncols=80, disable=None):
+    for Stn in tqdm(sorted(stations, key = lambda s : (s['NetworkCode'], s['StationCode'])), 
+                    ncols=80, disable=None):
 
         NetworkCode = Stn['NetworkCode']
         StationCode = Stn['StationCode']
@@ -207,20 +203,20 @@ def station_list(cnn, stations, dates):
                dates[1].yyyy() + ', ' + dates[1].ddd()))
 
         if rs.ntuples() > 0:
-            tqdm.write(' -- %s.%s -> adding...' % (NetworkCode, StationCode))
+            tqdm.write(' -- %s -> adding...' % stationID(Stn))
             try:
                 stn_obj.append(Station(cnn, NetworkCode, StationCode, dates))
             except pyETMException:
-                tqdm.write('    %s.%s -> station exists, but there was a problem initializing ETM.'
-                           % (NetworkCode, StationCode))
+                tqdm.write('    %s -> station exists, but there was a problem initializing ETM.'
+                           % stationID(Stn))
         else:
-            tqdm.write(' -- %s.%s -> no data for requested time window' % (NetworkCode, StationCode))
+            tqdm.write(' -- %s -> no data for requested time window' % stationID(Stn))
 
     return stn_obj
 
 
 def print_datetime():
-    return datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
 
 def main():
@@ -229,13 +225,17 @@ def main():
 
     parser.add_argument('session_cfg', type=str, nargs=1, metavar='session.cfg',
                         help="Filename with the session configuration to run Parallel.GAMIT")
+
     parser.add_argument('-d', '--date', type=str, nargs=2, metavar='{date}',
                         help="Date range to process. Can be specified in yyyy/mm/dd yyyy_doy wwww-d format")
+
     parser.add_argument('-dp', '--date_parser', type=str, nargs=2, metavar='{year} {doys}',
                         help="Parse date using ranges and commas (e.g. 2018 1,3-6). "
                              "Cannot cross year boundaries")
+
     parser.add_argument('-e', '--exclude', type=str, nargs='+', metavar='{station}',
                         help="List of stations to exclude from this processing (e.g. -e igm1 lpgs vbca)")
+
     parser.add_argument('-c', '--check_mode', type=str, nargs='+', metavar='{station}',
                         help="Check station(s) mode. If station(s) are not present in the GAMIT polyhedron, "
                              "(i.e. the RINEX file(s) were missing at the time of the processing) Parallel.GAMIT will "
@@ -245,16 +245,21 @@ def main():
                              "solution. Station list provided in the cfg is ignored in this mode. Therefore, changes "
                              "in the station list will not produce any changes in network configuration. Purge not "
                              "allowed when using this mode. (Syntax: -c igm1 lpgs rms.vbca)")
+
     parser.add_argument('-i', '--ignore_missing', action='store_true',
                         help="When using check mode or processing existing sessions, ignore missing stations. In other "
                              "words, do not try to reprocess sessions that have missing solutions.")
+
     parser.add_argument('-p', '--purge', action='store_true', default=False,
                         help="Purge year doys from the database and directory structure and re-run the solution.")
+
     parser.add_argument('-dry', '--dry_run', action='store_true',
                         help="Generate the directory structures (locally) but do not run GAMIT. "
                              "Output is left in the production directory.")
+
     parser.add_argument('-kml', '--create_kml', action='store_true',
                         help="Create a KML with everything processed in this run.")
+
     parser.add_argument('-np', '--noparallel', action='store_true', help="Execute command without parallelization.")
 
     args = parser.parse_args()
@@ -268,14 +273,14 @@ def main():
             year = int(args.date_parser[0])
             doys = parseIntSet(args.date_parser[1])
 
-            if any([doy for doy in doys if doy < 1]):
+            if any(doy for doy in doys if doy < 1):
                 parser.error('DOYs cannot start with zero. Please selected a DOY range between 1-365/366')
 
             if 366 in doys:
                 if year % 4 != 0:
                     parser.error('Year ' + str(year) + ' is not a leap year: DOY 366 does not exist.')
 
-            dates = [pyDate.Date(year=year, doy=i) for i in doys]
+            dates  = [pyDate.Date(year=year, doy=i) for i in doys]
             drange = [dates[0], dates[-1]]
         else:
             drange = process_date(args.date, missing_input=None)
@@ -296,10 +301,10 @@ def main():
     print(' >> Checking GAMIT tables for requested config and year, please wait...')
 
     JobServer = pyJobServer.JobServer(GamitConfig,
-                                      check_gamit_tables=(pyDate.Date(year=drange[1].year, doy=drange[1].doy),
-                                                          GamitConfig.gamitopt['eop_type']),
-                                      run_parallel=not args.noparallel,
-                                      software_sync=GamitConfig.gamitopt['gamit_remote_local'])
+                                      check_gamit_tables = (pyDate.Date(year=drange[1].year, doy=drange[1].doy),
+                                                           GamitConfig.gamitopt['eop_type']),
+                                      run_parallel = not args.noparallel,
+                                      software_sync = GamitConfig.gamitopt['gamit_remote_local'])
 
     # to exclude stations, append them to GamitConfig.NetworkConfig with a - in front
     exclude = args.exclude
@@ -319,18 +324,14 @@ def main():
     else:
         check_stations = StationCollection()
 
-    if args.dry_run is not None:
-        dry_run = args.dry_run
-    else:
-        dry_run = False
+    dry_run = False if args.dry_run is None else args.dry_run
 
     if not dry_run and not len(check_stations):
         # ignore if calling a dry run
         # purge solutions if requested
         purge_solutions(JobServer, args, dates, GamitConfig)
-    else:
-        if args.purge:
-            tqdm.write(' >> Dry run or check mode activated. Cannot purge solutions in these modes.')
+    elif args.purge:
+        tqdm.write(' >> Dry run or check mode activated. Cannot purge solutions in these modes.')
 
     # run the job server
     sessions = ExecuteGamit(cnn, JobServer, GamitConfig, stations, check_stations, args.ignore_missing, dates,
@@ -353,21 +354,23 @@ def generate_kml(dates, sessions, GamitConfig):
     kml = simplekml.Kml()
 
     # define styles
+    ICON = 'http://maps.google.com/mapfiles/kml/shapes/placemark_square.png'
+
     styles_stn = simplekml.StyleMap()
-    styles_stn.normalstyle.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/placemark_square.png'
-    styles_stn.normalstyle.iconstyle.color = 'ff00ff00'
-    styles_stn.normalstyle.labelstyle.scale = 0
-    styles_stn.highlightstyle.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/placemark_square.png'
-    styles_stn.highlightstyle.iconstyle.color = 'ff00ff00'
-    styles_stn.highlightstyle.labelstyle.scale = 2
+    styles_stn.normalstyle.iconstyle.icon.href    = ICON
+    styles_stn.normalstyle.iconstyle.color        = 'ff00ff00'
+    styles_stn.normalstyle.labelstyle.scale       = 0
+    styles_stn.highlightstyle.iconstyle.icon.href = ICON
+    styles_stn.highlightstyle.iconstyle.color     = 'ff00ff00'
+    styles_stn.highlightstyle.labelstyle.scale    = 2
 
     styles_tie = simplekml.StyleMap()
-    styles_tie.normalstyle.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/placemark_square.png'
-    styles_tie.normalstyle.iconstyle.color = 'ff0000ff'
-    styles_tie.normalstyle.labelstyle.scale = 0
-    styles_tie.highlightstyle.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/placemark_square.png'
-    styles_tie.highlightstyle.iconstyle.color = 'ff0000ff'
-    styles_tie.highlightstyle.labelstyle.scale = 2
+    styles_tie.normalstyle.iconstyle.icon.href    = ICON
+    styles_tie.normalstyle.iconstyle.color        = 'ff0000ff'
+    styles_tie.normalstyle.labelstyle.scale       = 0
+    styles_tie.highlightstyle.iconstyle.icon.href = ICON
+    styles_tie.highlightstyle.iconstyle.color     = 'ff0000ff'
+    styles_tie.highlightstyle.labelstyle.scale    = 2
 
     for date in tqdm(dates, ncols=80, disable=None):
 
@@ -409,7 +412,7 @@ def ParseZTD(project, dates, Sessions, GamitConfig, JobServer):
     pbar = tqdm(total=len(dates), disable=None, desc=' >> Zenith total delay parsing', ncols=100)
 
     JobServer.create_cluster(run_parse_ztd, (pyParseZTD.ParseZtdTask, pyGamitSession.GamitSession),
-                             parse_ztd_callback, pbar, modules=modules)
+                             job_callback, pbar, modules=modules)
 
     # parse and insert one day at the time, otherwise, the process becomes too slow for long runs
     for date in dates:
@@ -436,7 +439,7 @@ def ExecuteGlobk(cnn, JobServer, GamitConfig, sessions, dates):
     pbar = tqdm(total=len(dates), disable=None, desc=' >> GLOBK combinations completion', ncols=100)
 
     JobServer.create_cluster(run_globk, (pyGlobkTask.Globk, pyGamitSession.GamitSession),
-                             globk_callback, progress_bar=pbar, modules=modules)
+                             job_callback, progress_bar=pbar, modules=modules)
 
     for date in dates:
         pwd = GamitConfig.gamitopt['solutions_dir'].rstrip('/') + '/' + date.yyyy() + '/' + date.ddd()
@@ -459,14 +462,17 @@ def ExecuteGlobk(cnn, JobServer, GamitConfig, sessions, dates):
                 # check the database to see that the solution was successful
                 rn = cnn.query_float('SELECT * from gamit_stats WHERE "Project" = \'%s\' AND "Year" = %i AND '
                                      '"DOY" = %i AND "subnet" = %i'
-                                     % (GamitSession.NetName, GamitSession.date.year, GamitSession.date.doy,
+                                     % (GamitSession.NetName, 
+                                        GamitSession.date.year, 
+                                        GamitSession.date.doy,
                                         GamitSession.subnet if GamitSession.subnet is not None else 0))
                 # if fatal == 0:
                 if not len(rn):
                     Fatal = True
                     tqdm.write(' >> GAMIT FATAL found in monitor of session %s %s (or no monitor.log file). '
                                'This combined solution will not be added to the database.'
-                               % (GamitSession.date.yyyyddd(), GamitSession.DirName))
+                               % (GamitSession.date.yyyyddd(), 
+                                  GamitSession.DirName))
                     break
 
         if not Fatal:
@@ -519,10 +525,9 @@ def gamit_callback(job):
                            '    > Failed to complete. Check monitor.log:\n%s'
                            % (print_datetime(), result['session'], indent('\n'.join(result['fatals']), 4)))
                 # write FATAL to file
-                f = open('FATAL.log', 'a')
-                f.write('ON %s session %s -> FATAL: Failed to complete. Check monitor.log\n%s\n'
-                        % (print_datetime(), result['session'], indent('\n'.join(result['fatals']), 4)))
-                f.close()
+                file_append('FATAL.log',
+                            'ON %s session %s -> FATAL: Failed to complete. Check monitor.log\n%s\n'
+                            % (print_datetime(), result['session'], indent('\n'.join(result['fatals']), 4)))
         else:
             tqdm.write(' -- %s Error in session %s message from node follows -> \n%s'
                        % (print_datetime(), result['session'], result['error']))
@@ -532,20 +537,7 @@ def gamit_callback(job):
                    % (print_datetime(), job.ip_addr, job.exception))
 
 
-def globk_callback(job):
-
-    result = job.result
-
-    if result is not None:
-        for e in result:
-            tqdm.write(e)
-    else:
-        tqdm.write(' -- %s Fatal error on node %s message from node follows -> \n%s'
-                   % (print_datetime(), job.ip_addr, job.exception))
-
-
-def parse_ztd_callback(job):
-
+def job_callback(job):
     result = job.result
 
     if result is not None:
@@ -574,33 +566,34 @@ def run_globk(globk_task, project, date):
               % (project, date.year, date.doy))
 
     # insert polyherdon in gamit_soln table
-    for key, value in polyhedron.iteritems():
+    for key, value in polyhedron.items():
         if '.' in key:
             try:
+                sqrt_variance = math.sqrt(variance)
                 cnn.insert('gamit_soln',
-                           NetworkCode=key.split('.')[0],
-                           StationCode=key.split('.')[1],
-                           Project=project,
-                           Year=date.year,
-                           DOY=date.doy,
-                           FYear=date.fyear,
-                           X=value.X,
-                           Y=value.Y,
-                           Z=value.Z,
-                           sigmax=value.sigX * math.sqrt(variance),
-                           sigmay=value.sigY * math.sqrt(variance),
-                           sigmaz=value.sigZ * math.sqrt(variance),
-                           sigmaxy=value.sigXY * math.sqrt(variance),
-                           sigmaxz=value.sigXZ * math.sqrt(variance),
-                           sigmayz=value.sigYZ * math.sqrt(variance),
-                           VarianceFactor=variance)
+                           NetworkCode    = key.split('.')[0],
+                           StationCode    = key.split('.')[1],
+                           Project        = project,
+                           Year           = date.year,
+                           DOY            = date.doy,
+                           FYear          = date.fyear,
+                           X              = value.X,
+                           Y              = value.Y,
+                           Z              = value.Z,
+                           sigmax         = value.sigX  * sqrt_variance,
+                           sigmay         = value.sigY  * sqrt_variance,
+                           sigmaz         = value.sigZ  * sqrt_variance,
+                           sigmaxy        = value.sigXY * sqrt_variance,
+                           sigmaxz        = value.sigXZ * sqrt_variance,
+                           sigmayz        = value.sigYZ * sqrt_variance,
+                           VarianceFactor = variance)
             except dbConnection.dbErrInsert as e:
                 # tqdm.write('    --> Error inserting ' + key + ' -> ' + str(e))
                 pass
         else:
             err.append(' -- %s Error while combining with GLOBK -> Invalid key found in session %s -> %s '
                        'polyhedron in database may be incomplete.'
-                       % (datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), date.yyyyddd(), key))
+                       % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), date.yyyyddd(), key))
     cnn.close()
     return err
 
@@ -639,7 +632,7 @@ def ExecuteGamit(cnn, JobServer, GamitConfig, stations, check_stations, ignore_m
         tqdm.write(' -- %s %i GAMIT sessions to submit (%i already processed)'
                    % (print_datetime(),
                       len([sess for sess in net_object.sessions if not sess.ready]),
-                      len([sess for sess in net_object.sessions if sess.ready])))
+                      len([sess for sess in net_object.sessions if     sess.ready])))
 
     pbar = tqdm(total=len(sessions), disable=None, desc=' >> GAMIT sessions completion', ncols=100)
     # create the cluster for the run
@@ -655,16 +648,17 @@ def ExecuteGamit(cnn, JobServer, GamitConfig, stations, check_stations, ignore_m
             # tqdm.write(' >> %s Done task' % (datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
             JobServer.submit(task, task.params['DirName'], task.date.year, task.date.doy, dry_run)
 
-            tqdm.write(' -- %s %s %s %s%02i -> Submitting for processing'
-                       % (print_datetime(),
-                          GamitSession.NetName, GamitSession.date.yyyyddd(), GamitSession.org,
-                          GamitSession.subnet if GamitSession.subnet is not None else 0))
+            msg = 'Submitting for processing'
         else:
+            msg = 'Session already processed'
             pbar.update()
-            tqdm.write(' -- %s %s %s %s%02i -> Session already processed'
-                       % (print_datetime(),
-                          GamitSession.NetName, GamitSession.date.yyyyddd(), GamitSession.org,
-                          GamitSession.subnet if GamitSession.subnet is not None else 0))
+
+        tqdm.write(' -- %s %s %s %s%02i -> %s' % (print_datetime(),
+                                                  GamitSession.NetName,
+                                                  GamitSession.date.yyyyddd(),
+                                                  GamitSession.org,
+                                                  GamitSession.subnet if GamitSession.subnet is not None else 0, 
+                                                  msg))
 
     if create_kml:
         # generate a KML of the sessions

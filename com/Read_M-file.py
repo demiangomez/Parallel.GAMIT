@@ -1,28 +1,39 @@
+#!/usr/bin/env python
+
 """
 Project: Parallel.Archive
 Date: 02/16/2017
 Author: Demian D. Gomez
 """
 
+import os
+
+# deps
 from scipy.io import FortranFile
 import numpy as np
-import os
+
+
 
 # sequentially read the parameters needed to open the file
 f = open('/home/demian/Desktop/temp/msirga.127', 'rb')
-f.seek(24, os.SEEK_SET)
+pos=24
+f.seek(pos, os.SEEK_SET)
 params = np.fromfile(f, dtype='i4', count=1)[0]
 
-f.seek(24 + 4 + 20*params + 2*4*params + 2*8*params, os.SEEK_SET)
+pos+=4 + 20*params + 2*4*params + 2*8*params
+f.seek(pos, os.SEEK_SET)
 nsat = np.fromfile(f, dtype='i4', count=1)[0]
 
-f.seek(24 + 4 + 20*params + 2*4*params + 2*8*params + 4 + 4*nsat, os.SEEK_SET)
+pos+=4 + 4*nsat
+f.seek(pos, os.SEEK_SET)
 nsite = np.fromfile(f, dtype='i4', count=1)[0]
 
-f.seek(24 + 4 + 20*params + 2*4*params + 2*8*params + 4 + 4*nsat + 4 + 12*nsite, os.SEEK_SET)
+pos+=4 + 12*nsite
+f.seek(pos, os.SEEK_SET)
 nrfile = np.fromfile(f, dtype='i4', count=1)[0]
 
-f.seek(24 + 4 + 20*params + 2*4*params + 2*8*params + 4 + 4*nsat + 4 + 12*nsite + 4 + 16*nrfile, os.SEEK_SET)
+pos+=4 + 16*nrfile
+f.seek(pos, os.SEEK_SET)
 ntfile = np.fromfile(f, dtype='i4', count=1)[0]
 
 f.close()
