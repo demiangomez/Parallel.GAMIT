@@ -135,7 +135,7 @@ class DRA(list):
 
 def main():
 
-    parser = argparse.ArgumentParser(description='GNSS time series stacker')
+    parser = argparse.ArgumentParser(description='GNSS daily repetitivities analysis (DRA)')
 
     parser.add_argument('project', type=str, nargs=1, metavar='{project name}',
                         help="Specify the project name used to process the GAMIT solutions in Parallel.GAMIT.")
@@ -145,6 +145,10 @@ def main():
 
     parser.add_argument('-w', '--plot_window', nargs='+', metavar='date',
                         help='Date window range to plot. Can be specified in yyyy/mm/dd yyyy_doy  wwww-d format')
+    parser.add_argument('-hist', '--histogram', action='store_true',
+                        help="Plot a histogram of the daily repetitivities")
+    parser.add_argument('-v', '--verbose', action='store_true',
+                        help="Provide additional information during the alignment process (for debugging purposes)")
 
     parser.add_argument('-v', '--verbose', action='store_true',
                         help="Provide additional information during the alignment process (for debugging purposes)")
@@ -211,18 +215,20 @@ def main():
 
                     etm = pyETM.DailyRep(cnn, NetworkCode, StationCode, False, False, dra_ts)
 
-                    etm.plot(pngfile='%s/%s.%s_DRA.png' % (path_plot, NetworkCode, StationCode),
-                             plot_missing=False, t_win=pdates)
-                    
-                    # etm.plot_hist(pngfile='%s/%s.%s_DRA_hist.png' % (path_plot, NetworkCode, StationCode))
-                    # save the wrms
-                    wrms_n.append(etm.factor[0] * 1000)
-                    wrms_e.append(etm.factor[1] * 1000)
-                    wrms_u.append(etm.factor[2] * 1000)
+                    if etm.A is not None:
+                        etm.plot(pngfile='%s/%s.%s_DRA.png' % (project + '_dra', NetworkCode, StationCode),
+                                 plot_missing=False, t_win=pdates)
+                        if args.histogram:
+                            etm.plot_hist(pngfile='%s/%s.%s_DRA_hist.png' %
+                                                  (project + '_dra', NetworkCode, StationCode))
 
+                        # save the wrms
+                        wrms_n.append(etm.factor[0] * 1000)
+                        wrms_e.append(etm.factor[1] * 1000)
+                        wrms_u.append(etm.factor[2] * 1000)
 
             except Exception as e:
-                tqdm.write(' -->' + str(e))
+                tqdm.write(' --> while working on %s.%s' % (NetworkCode, StationCode) + '\n' + traceback.format_exc())
 
     wrms_n = np.array(wrms_n)
     wrms_e = np.array(wrms_e)
@@ -256,7 +262,6 @@ def main():
     ax = axis[0][1]
     ax.hist(wrms_n[wrms_n <= 8], 40, alpha=0.75, facecolor='blue')
     ax.grid(True)
-    ax.set_xlim(0, 8)
     ax.set_ylabel('# stations')
     ax.set_xlabel('WRMS misfit N [mm]')
     ax.set_title('Daily repetitivities NEU')
@@ -282,5 +287,6 @@ def main():
     plt.close()
 
 
+    ax.set_xlim(0, 8)
 if __name__ == '__main__':
     main()

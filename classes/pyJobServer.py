@@ -238,6 +238,7 @@ class JobServer:
 
             self.cluster.wait()
 
+
             # create a delay to allow propagation of the result
             # <nah> @todo aca si job es None bug, y no está claro si con el wait() el
             # delay es realmente necesario / delay arbitrario sin reintentos?
@@ -258,6 +259,7 @@ class JobServer:
         :param run_parallel: override the configuration in gnss_data.cfg
         :param software_sync: list of strings with remote and local paths of software to be synchronized
         """
+        print('nahuel-check', check_gamit_tables)
         self.check_gamit_tables = check_gamit_tables
         self.software_sync      = software_sync
 

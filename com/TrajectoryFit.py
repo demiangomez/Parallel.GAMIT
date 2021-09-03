@@ -22,6 +22,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.basemap import Basemap
 import simplekml
 from scipy.interpolate import griddata
+import json
 
 # app
 import dbConnection
@@ -331,7 +332,7 @@ def process_postseismic(cnn, stnlist, force_stnlist, stack, interseimic_filename
                                   indent    = 4,
                                   sort_keys = False))
             # only check everything is station not included in the force list
-            #if stn not in force_stnlist:
+            # if stn not in force_stnlist:
 
         except pyETM.pyETMException as e:
             tqdm.write(' -- %s: %s' % (stn_id, str(e)))

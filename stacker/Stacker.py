@@ -82,6 +82,8 @@ def callback_handler(job):
 
     global etm_vertices
 
+    #print("NAH-RESULT %s" % repr(job.result))
+
     if job.exception:
         tqdm.write(' -- Fatal error on node %s message from node follows -> \n%s' % (job.ip_addr, job.exception))
     elif job.result is not None:
