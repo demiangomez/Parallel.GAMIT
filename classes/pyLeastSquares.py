@@ -6,8 +6,11 @@ Author: Demian D. Gomez
 module for robust least squares operations
 """
 
+# deps
 import numpy as np
 from scipy.stats import chi2
+
+# app
 from Utils import ct2lg
 
 def robust_lsq(A, P, L, max_iter=10, gcc=True, limit=2.5, lat=0, lon=0):
@@ -29,8 +32,8 @@ def robust_lsq(A, P, L, max_iter=10, gcc=True, limit=2.5, lat=0, lon=0):
 
     # lists to store the variables of each component
     nsig = [None, None, None]
-    v = [None, None, None]
-    C = [None, None, None]
+    v    = [None, None, None]
+    C    = [None, None, None]
 
     while not cst_pass and iteration <= max_iter:
 

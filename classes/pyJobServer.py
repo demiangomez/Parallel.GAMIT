@@ -3,16 +3,18 @@ Project: Parallel.PPP
 Date: 9/13/17 6:30 PM
 Author: Demian D. Gomez
 
-This module handles the cluster nodes and checks all the necessary dependencies before sending jobs to each node
+This module handles the cluster nodes and checks all the necessary dependencies
+before sending jobs to each node
 """
 
 import time
+
+# deps
+from tqdm import tqdm
 import dispy
 import dispy.httpd
-from tqdm import tqdm
 
 DELAY = 10
-
 
 def test_node(check_gamit_tables=None, software_sync=()):
     # test node: function that makes sure that all required packages and tools are present in the nodes
@@ -22,29 +24,41 @@ def test_node(check_gamit_tables=None, software_sync=()):
     import sys
 
     def check_tab_file(tabfile, date):
-
         if os.path.isfile(tabfile):
             # file exists, check contents
-            with open(tabfile, 'r') as luntab:
-                lines = luntab.readlines()
-                tabdate = pyDate.Date(mjd=lines[-1].split()[0])
-                if tabdate < date:
-                    return ' -- %s: Last entry in %s is %s but processing %s' \
-                           % (platform.node(), tabfile, tabdate.yyyyddd(), date.yyyyddd())
+            with open(tabfile, 'rt', encoding='utf-8', errors='ignore') as f:
+                lines = f.readlines()
 
+            tabdate = pyDate.Date(mjd=lines[-1].split()[0])
+            if tabdate < date:
+                return ' -- %s: Last entry in %s is %s but processing %s' \
+                       % (platform.node(), tabfile, tabdate.yyyyddd(), date.yyyyddd())
+            return []
         else:
             return ' -- %s: Could not find file %s' % (platform.node(), tabfile)
 
-        return []
 
     # BEFORE ANYTHING! check the python version
     version = sys.version_info
-    if version.major > 2 or version.minor < 7 or (version.micro < 12 and version.minor <= 7):
-        return ' -- %s: Incorrect Python version: %i.%i.%i. Recommended version >= 2.7.12' \
+    # if version.major > 2 or version.minor < 7 or (version.micro < 12 and version.minor <= 7):
+    #     return ' -- %s: Incorrect Python version: %i.%i.%i. Recommended version >= 2.7.12' \
+    #            % (platform.node(), version.major, version.minor, version.micro)
+    if version.major < 3:
+        return ' -- %s: Incorrect Python version: %i.%i.%i. Recommended version >= 3.0.0' \
                % (platform.node(), version.major, version.minor, version.micro)
 
-    # start importing the modeles needed
+    # start importing the modules needed
     try:
+        import shutil
+        import datetime
+        import time
+        import uuid
+        import traceback
+        # deps
+        import numpy
+        import pg
+        import dirsync
+        # app
         import pyRinex
         import dbConnection
         import pyStationInfo
@@ -54,21 +68,14 @@ def test_node(check_gamit_tables=None, software_sync=()):
         import pyOptions
         import Utils
         import pyOTL
-        import shutil
-        import datetime
-        import time
-        import uuid
         import pySp3
-        import traceback
-        import numpy
         import pyETM
         import pyRunWithRetry
         import pyDate
-        import pg
-        import dirsync
 
-    except Exception:
+    except:
         return ' -- %s: Problem found while importing modules:\n%s' % (platform.node(), traceback.format_exc())
+
 
     try:
         if len(software_sync) > 0:
@@ -80,14 +87,14 @@ def test_node(check_gamit_tables=None, software_sync=()):
                     s = source_dest.split(',')[0].strip()
                     d = source_dest.split(',')[1].strip()
 
-                    print '    -- Synchronizing %s -> %s' % (s, d)
+                    print('    -- Synchronizing %s -> %s' % (s, d))
 
                     updated = sync(s, d, 'sync', purge=True, create=True)
 
                     for f in updated:
-                        print '    -- Updated %s' % f
+                        print('    -- Updated %s' % f)
 
-    except Exception:
+    except:
         return ' -- %s: Problem found while synchronizing software:\n%s ' % (platform.node(), traceback.format_exc())
 
     # continue with a test SQL connection
@@ -100,16 +107,18 @@ def test_node(check_gamit_tables=None, software_sync=()):
         if int(pg.version[0]) < 5:
             return ' -- %s: Incorrect PyGreSQL version!: %s' % (platform.node(), pg.version)
 
-    except Exception:
+    except:
         return ' -- %s: Problem found while connecting to postgres:\n%s ' % (platform.node(), traceback.format_exc())
+
 
     # make sure we can create the production folder
     try:
         test_dir = os.path.join('production/node_test')
         if not os.path.exists(test_dir):
             os.makedirs(test_dir)
-    except Exception:
+    except:
         return ' -- %s: Could not create production folder:\n%s ' % (platform.node(), traceback.format_exc())
+
 
     # test
     try:
@@ -123,57 +132,46 @@ def test_node(check_gamit_tables=None, software_sync=()):
             return ' -- %s: Could not reach repository path %s' % (platform.node(), Config.repository)
 
         # pick a test date to replace any possible parameters in the config file
-        date = pyDate.Date(year=2010,doy=1)
-    except Exception:
+        date = pyDate.Date(year=2010, doy=1)
+
+    except:
         return ' -- %s: Problem while reading config file and/or testing archive access:\n%s' \
                % (platform.node(), traceback.format_exc())
 
+
     try:
         brdc = pyBrdc.GetBrdcOrbits(Config.brdc_path, date, test_dir)
-    except Exception:
+    except:
         return ' -- %s: Problem while testing the broadcast ephemeris archive (%s) access:\n%s' \
                % (platform.node(), Config.brdc_path, traceback.format_exc())
 
+
     try:
         sp3 = pySp3.GetSp3Orbits(Config.sp3_path, date, Config.sp3types, test_dir)
-    except Exception:
+    except:
         return ' -- %s: Problem while testing the sp3 orbits archive (%s) access:\n%s' \
                % (platform.node(), Config.sp3_path, traceback.format_exc())
 
-    # check that all executables and GAMIT bins are in the path
-    list_of_prgs = ['crz2rnx', 'crx2rnx', 'rnx2crx', 'rnx2crz', 'RinSum', 'teqc', 'svdiff', 'svpos', 'tform',
-                    'sh_rx2apr', 'doy', 'RinEdit', 'sed', 'compress']
 
-    for prg in list_of_prgs:
+    # check that all executables and GAMIT bins are in the path
+    for prg in ('crz2rnx', 'crx2rnx', 'rnx2crx', 'rnx2crz',
+                'RinSum', 'teqc', 'svdiff', 'svpos', 'tform',
+                'sh_rx2apr', 'doy', 'RinEdit', 'sed', 'compress'):
         with pyRunWithRetry.command('which ' + prg) as run:
             run.run()
             if run.stdout == '':
                 return ' -- %s: Could not find path to %s' % (platform.node(), prg)
 
     # check grdtab and ppp from the config file
-    if not os.path.isfile(Config.options['grdtab']):
-        return ' -- %s: Could not find grdtab in %s' % (platform.node(), Config.options['grdtab'])
+    for opt in ('grdtab', 'otlgrid', 'ppp_exe'):
+        path = Config.options[opt]
+        if not os.path.isfile(path):
+            return ' -- %s: Could not find %s in %s' % (platform.node(), opt, path)
 
-    if not os.path.isfile(Config.options['otlgrid']):
-        return ' -- %s: Could not find otlgrid in %s' % (platform.node(), Config.options['otlgrid'])
-
-    if not os.path.isfile(Config.options['ppp_exe']):
-        return ' -- %s: Could not find ppp_exe in %s' % (platform.node(), Config.options['ppp_exe'])
-
-    if not os.path.isfile(os.path.join(Config.options['ppp_path'],'gpsppp.stc')):
-        return ' -- %s: Could not find gpsppp.stc in %s' % (platform.node(), Config.options['ppp_path'])
-
-    if not os.path.isfile(os.path.join(Config.options['ppp_path'],'gpsppp.svb_gps_yrly')):
-        return ' -- %s: Could not find gpsppp.svb_gps_yrly in %s' % (platform.node(), Config.options['ppp_path'])
-
-    if not os.path.isfile(os.path.join(Config.options['ppp_path'],'gpsppp.flt')):
-        return ' -- %s: Could not find gpsppp.flt in %s' % (platform.node(), Config.options['ppp_path'])
-
-    if not os.path.isfile(os.path.join(Config.options['ppp_path'],'gpsppp.stc')):
-        return ' -- %s: Could not find gpsppp.stc in %s' % (platform.node(), Config.options['ppp_path'])
-
-    if not os.path.isfile(os.path.join(Config.options['ppp_path'],'gpsppp.met')):
-        return ' -- %s: Could not find gpsppp.met in %s' % (platform.node(), Config.options['ppp_path'])
+    ppp_path = Config.options['ppp_path']
+    for f in ('gpsppp.stc', 'gpsppp.svb_gps_yrly', 'gpsppp.flt', 'gpsppp.stc', 'gpsppp.met'):
+        if not os.path.isfile(os.path.join(ppp_path, f)):
+            return ' -- %s: Could not find %s in %s' % (platform.node(), f, ppp_path)
 
     for frame in Config.options['frames']:
         if not os.path.isfile(frame['atx']):
@@ -185,54 +183,29 @@ def test_node(check_gamit_tables=None, software_sync=()):
         date = check_gamit_tables[0]
         eop  = check_gamit_tables[1]
 
-        gg = os.path.expanduser('~/gg')
+        gg     = os.path.expanduser('~/gg')
         tables = os.path.expanduser('~/gg/tables')
 
         if not os.path.isdir(gg):
             return ' -- %s: Could not GAMIT installation dir (gg)' % (platform.node())
 
-        if not os.path.isdir(tables):
+        elif not os.path.isdir(tables):
             return ' -- %s: Could not GAMIT tables dir (gg)' % (platform.node())
 
-        # luntab
-        luntab = os.path.join(tables, 'luntab.' + date.yyyy() + '.J2000')
-
-        result = check_tab_file(luntab, date)
-
-        if result:
-            return result
-
-        # soltab
-        soltab = os.path.join(tables, 'soltab.' + date.yyyy() + '.J2000')
-
-        result = check_tab_file(soltab, date)
-
-        if result:
-            return result
-
-        # ut
-        ut = os.path.join(tables, 'ut1.' + eop)
-
-        result = check_tab_file(ut, date)
-
-        if result:
-            return result
-
-        # leapseconds
-
-        # vmf1
-
-        # pole
-        pole = os.path.join(tables, 'pole.' + eop)
-
-        result = check_tab_file(pole, date)
-
-        if result:
-            return result
+        for t_name in ('luntab.' + date.yyyy() + '.J2000',
+                       'soltab.' + date.yyyy() + '.J2000',
+                       'ut1.' + eop,
+                       # leapseconds
+                       # vmf1
+                       'pole.' + eop
+                       ): 
+            result = check_tab_file(os.path.join(tables, t_name), date)
+            if result:
+                return result
 
         # fes_cmc consistency
 
-    return ' -- %s: Test passed!' % (platform.node())
+    return ' -- %s: Test passed!' % platform.node()
 
 
 def setup(modules):
@@ -240,12 +213,12 @@ def setup(modules):
     function to import modules in the nodes
     :return: 0
     """
-    print ' >> Initializing node...'
+    print(' >> Initializing node...')
     for module in modules:
         module_obj = __import__(module)
         # create a global object containing our module
         globals()[module] = module_obj
-        print ' >> Importing module %s' % module
+        print(' >> Importing module %s' % module)
 
     return 0
 
@@ -255,22 +228,27 @@ class JobServer:
     def check_cluster(self, status, node, job):
 
         if status == dispy.DispyNode.Initialized:
-            print ' -- Checking node %s (%i CPUs)...' % (node.name, node.avail_cpus)
+            print(' -- Checking node %s (%i CPUs)...' % (node.name, node.avail_cpus))
             # test node to make sure everything works
-            self.cluster.send_file('gnss_data.cfg', node)
 
-            j = self.cluster.submit_node(node, self.check_gamit_tables, self.software_sync)
+
+            self.cluster.send_file('gnss_data.cfg', node)
+            
+            job = self.cluster.submit_node(node, self.check_gamit_tables, self.software_sync)
 
             self.cluster.wait()
 
             # create a delay to allow propagation of the result
-            tt = time.time()
-            while j is None and time.time() - tt < 2:
-                pass
+            # <nah> @todo aca si job es None bug, y no está claro si con el wait() el
+            # delay es realmente necesario / delay arbitrario sin reintentos?
+            start_t = time.time()
+            while job is None and (time.time() - start_t) < 2:
+                time.sleep(0.05)
 
-            self.result.append(j.result)
+            self.result.append(job.result)
 
             self.nodes.append(node)
+
 
     def __init__(self, Config, check_gamit_tables=None, run_parallel=True, software_sync=()):
         """
@@ -281,42 +259,44 @@ class JobServer:
         :param software_sync: list of strings with remote and local paths of software to be synchronized
         """
         self.check_gamit_tables = check_gamit_tables
-        self.software_sync = software_sync
+        self.software_sync      = software_sync
 
-        self.nodes = []
-        self.result = []
-        self.jobs = []
-        self.run_parallel = Config.run_parallel if run_parallel else False
-        self.verbose = False
-        self.close = False
+        self.nodes        = []
+        self.result       = []
+        self.jobs         = []
+        self.run_parallel = Config.run_parallel and run_parallel
+        self.verbose      = False
+        self.close        = False
         # variable with ip address for multi-homed systems
-        self.ip_address = Config.options['ip_address']
+        self.ip_address   = Config.options['ip_address']
 
         # vars to store the http_server and the progress bar (if needed)
         self.progress_bar = None
-        self.http_server = None
-        self.callback = None
-        self.function = None
-        self.modules = []
+        self.http_server  = None
+        self.callback     = None
+        self.function     = None
+        self.modules      = []
 
-        print " ==== Starting JobServer(dispy) ===="
+        print(" ==== Starting JobServer(dispy) ====")
 
         # check that the run_parallel option is activated
         if self.run_parallel:
-            if Config.options['node_list'] is None:
+            node_list = Config.options['node_list']
+            if node_list is None or not node_list.strip():
                 # no explicit list, find all
                 servers = ['*']
             else:
                 # use the provided explicit list of nodes
-                if Config.options['node_list'].strip() == '':
-                    servers = ['*']
-                else:
-                    servers = filter(None, list(Config.options['node_list'].split(',')))
+                servers = [n for n in Config.options['node_list'].split(',') if n]
 
             # initialize the cluster
             # if explicitly declared, then we might have a multi-homed computer system
-            self.cluster = dispy.JobCluster(test_node, servers, recover_file='pg.dat', pulse_interval=60,
-                                            cluster_status=self.check_cluster, ip_addr=self.ip_address)
+            self.cluster = dispy.JobCluster(test_node,
+                                            servers, 
+                                            recover_file='pg.dat', 
+                                            pulse_interval = 60,
+                                            cluster_status = self.check_cluster,
+                                            ip_addr        = self.ip_address)
 
             # discover the available nodes
             self.cluster.discover_nodes(servers)
@@ -326,49 +306,52 @@ class JobServer:
 
             # if no nodes were found, stop
             if not len(self.nodes):
-                print ' >> No nodes could be found. Check ip_address in gnss_data.cfg if cluster has more than one ' \
-                      'Ethernet card and check the node_list to make sure you have the correct IP addresses.'
+                print(' >> No nodes could be found. Check ip_address in gnss_data.cfg if cluster has more than one ' \
+                      'Ethernet card and check the node_list to make sure you have the correct IP addresses.')
                 # terminate execution if problems were found
                 self.cluster.close()
                 exit()
-
-            stop = False
 
             for r in self.result:
                 if 'Test passed!' not in r:
-                    print r
-                    stop = True
-
-            if stop:
-                print ' >> Errors were encountered during initialization. Check messages.'
-                # terminate execution if problems were found
-                self.cluster.close()
-                exit()
+                    print(r)
+                    print(' >> Errors were encountered during initialization. Check messages.')
+                    # terminate execution if problems were found
+                    self.cluster.close()
+                    exit()
 
             self.cluster.close()
         else:
-            print ' >> Parallel processing deactivated by user'
+            print(' >> Parallel processing deactivated by user')
             r = test_node(check_gamit_tables)
             if 'Test passed!' not in r:
-                print r
-                print ' >> Errors were encountered during initialization. Check messages.'
+                print(r)
+                print(' >> Errors were encountered during initialization. Check messages.')
                 exit()
+
 
     def create_cluster(self, function, deps=(), callback=None, progress_bar=None, verbose=False, modules=()):
 
-        self.jobs = []
+        self.jobs     = []
         self.callback = callback
         self.function = function
-        self.verbose = verbose
-        self.close = True
+        self.verbose  = verbose
+        self.close    = True
 
         if self.run_parallel:
 
             # DDG: NodeAllocate is used to pass the arguments to setup during node initialization
-            self.cluster = dispy.JobCluster(function, [dispy.NodeAllocate(node.ip_addr, setup_args=(modules,))
-                                                       for node in self.nodes], list(deps),
-                                            callback, self.cluster_status, pulse_interval=60, setup=setup,
-                                            loglevel=dispy.logger.CRITICAL, reentrant=True, ip_addr=self.ip_address)
+            self.cluster = dispy.JobCluster(function,
+                                            [dispy.NodeAllocate(node.ip_addr, setup_args=(modules,))
+                                             for node in self.nodes],
+                                            list(deps),
+                                            callback,
+                                            self.cluster_status,
+                                            pulse_interval = 60,
+                                            setup          = setup,
+                                            loglevel       = dispy.logger.CRITICAL,
+                                            reentrant      = True,
+                                            ip_addr        = self.ip_address)
 
             self.http_server = dispy.httpd.DispyHTTPServer(self.cluster, poll_sec=2)
 
@@ -376,6 +359,7 @@ class JobServer:
             time.sleep(DELAY)
 
         self.progress_bar = progress_bar
+
 
     def submit(self, *args):
         """
@@ -387,7 +371,7 @@ class JobServer:
             self.jobs.append(self.cluster.submit(*args))
         else:
             # if no parallel was invoked, execute the procedure manually
-            if self.callback is not None:
+            if self.callback:
                 job = dispy.DispyJob(None, args, ())
                 try:
                     job.result = self.function(*args)
@@ -412,7 +396,8 @@ class JobServer:
                 time.sleep(DELAY)
             except KeyboardInterrupt:
                 for job in self.jobs:
-                    if job.status in (dispy.DispyJob.Running, dispy.DispyJob.Created):
+                    if job.status in (dispy.DispyJob.Running,
+                                      dispy.DispyJob.Created):
                         self.cluster.cancel(job)
                 self.cluster.shutdown()
 
@@ -421,6 +406,7 @@ class JobServer:
             tqdm.write('')
             self.http_server.shutdown()
             self.cleanup()
+
 
     def cluster_status(self, status, node, job):
 
@@ -432,30 +418,35 @@ class JobServer:
             # test node to make sure everything works
             self.cluster.send_file('gnss_data.cfg', node)
             self.nodes.append(node)
-            return
 
-        if job is not None:
-            if status == dispy.DispyJob.Finished and self.verbose:
-                tqdm.write(' -- Job %i finished successfully' % job.id)
+        elif job is not None:
+            J = dispy.DispyJob
+            if status == J.Finished:
+                if self.verbose:
+                    tqdm.write(' -- Job %i finished successfully' % job.id)
 
-            elif status == dispy.DispyJob.Abandoned:
+            elif status == J.Abandoned:
                 # always print abandoned jobs
                 tqdm.write(' -- Job %04i (%s) was reported as abandoned at node %s -> resubmitting'
                            % (job.id, str(job.args), node.name))
 
-            elif status == dispy.DispyJob.Created and self.verbose:
-                tqdm.write(' -- Job %i has been created' % job.id)
+            elif status == J.Created:
+                if self.verbose:
+                    tqdm.write(' -- Job %i has been created' % job.id)
 
-            elif status == dispy.DispyJob.Terminated:
+            elif status == J.Terminated:
                 tqdm.write(' -- Job %04i has been terminated with the following exception: ' % job.id)
                 tqdm.write(str(job.exception))
 
-            elif status == dispy.DispyJob.Cancelled:
+            elif status == J.Cancelled:
                 tqdm.write(' -- Job %04i has been cancelled with the following exception: ' % job.id)
                 tqdm.write(str(job.exception))
 
-            if status in (dispy.DispyJob.Finished, dispy.DispyJob.Terminated) and self.progress_bar is not None:
-                self.progress_bar.update()
+            #
+            if status in (J.Finished,
+                          J.Terminated):
+                if self.progress_bar is not None:
+                    self.progress_bar.update()
 
     def cleanup(self):
         if self.run_parallel and self.close:

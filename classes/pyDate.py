@@ -8,10 +8,9 @@ Class that handles all the date conversions betweem different systems and format
 
 """
 
-import math
+from math import floor
 from datetime import datetime
 from json import JSONEncoder
-
 
 def _default(self, obj):
     return getattr(obj.__class__, "to_json", _default.default)(obj)
@@ -56,7 +55,7 @@ def yeardoy2fyear(year,doy,hour=12,minute=0,second=0):
 
 def fyear2yeardoy(fyear):
 
-    year = math.floor(fyear)
+    year = floor(fyear)
     fractionOfyear = fyear - year
 
     if year % 4 == 0:
@@ -64,13 +63,13 @@ def fyear2yeardoy(fyear):
     else:
         days = 365
 
-    doy = math.floor(days*fractionOfyear)+1
-    hh = (days*fractionOfyear - math.floor(days*fractionOfyear))*24.
-    hour = math.floor(hh)
-    mm = (hh - math.floor(hh))*60.
-    minute = math.floor(mm)
-    ss = (mm - math.floor(mm))*60.
-    second = math.floor(ss)
+    doy    = floor(days*fractionOfyear)+1
+    hh     = (days*fractionOfyear - floor(days*fractionOfyear))*24.
+    hour   = floor(hh)
+    mm     = (hh - floor(hh))*60.
+    minute = floor(mm)
+    ss     = (mm - floor(mm))*60.
+    second = floor(ss)
 
     return int(year),int(doy), int(hour), int(minute), int(second)
 
@@ -85,18 +84,18 @@ def date2doy(year,month,day,hour=12,minute=0,second=0):
 
     # localized days of year
     if year % 4 == 0:
-        lday = [0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335, 366]
+        lday = (0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335, 366)
     else:
-        lday =  [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365]
+        lday = (0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365)
 
     # compute the day of year
-    doy=lday[month - 1]+day
+    doy = lday[month - 1]+day
 
     # finally, compute fractional year
     fyear = yeardoy2fyear(year,doy,hour,minute,second)
 
     # that's a [w]rap
-    return doy,fyear
+    return doy, fyear
 
 
 def doy2date(year,doy):
@@ -106,9 +105,7 @@ def doy2date(year,doy):
     doy  = int(doy)
 
     # make note of leap year or not
-    isLeapYear=False
-    if year % 4 == 0:
-        isLeapYear=True
+    isLeapYear = (year % 4 == 0)
 
     # make note of valid doy for year
     mxd = 365
@@ -120,13 +117,12 @@ def doy2date(year,doy):
         raise pyDateException('day of year input is invalid')
 
     # localized days
-    if not isLeapYear:
-        fday = [1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335]
-        lday = [31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365]
-
     if isLeapYear:
-        fday = [1, 32, 61, 92, 122, 153, 183, 214, 245, 275, 306, 336]
-        lday = [31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335, 366]
+        fday = (1, 32, 61, 92, 122, 153, 183, 214, 245, 275, 306, 336)
+        lday = (31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335, 366)
+    else:
+        fday = (1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335)
+        lday = (31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365)
 
     # compute the month
     for i in range(0,12):
@@ -152,15 +148,15 @@ def date2gpsDate(year,month,day):
         year  -=  1
 
     ut  = (day % 1) *24.
-    day = math.floor(day)
+    day = floor(day)
 
-    julianDay =   math.floor( 365.25 * year )              \
-                + math.floor( 30.6001 * ( month + 1. ) )   \
+    julianDay =   floor( 365.25 * year )              \
+                + floor( 30.6001 * ( month + 1. ) )   \
                 + day                                      \
                 + ut/24.                                   \
                 + 1720981.5
 
-    gpsWeek    = math.floor((julianDay - 2444244.5)/7.)
+    gpsWeek    = floor((julianDay - 2444244.5)/7.)
     gpsWeekDay = (julianDay - 2444244.5) % 7
 
     # that's a [w]rap
@@ -184,19 +180,19 @@ def mjd2date(mjd):
 
     jd = mjd + 2400000.5
 
-    ijd = math.floor(jd + 0.5)
+    ijd = floor(jd + 0.5)
 
     a = ijd + 32044.
-    b = math.floor((4. * a + 3.) / 146097.)
-    c = a - math.floor((b * 146097.) / 4.)
+    b = floor((4. * a + 3.) / 146097.)
+    c = a - floor((b * 146097.) / 4.)
 
-    d = math.floor((4. * c + 3.) / 1461.)
-    e = c - math.floor((1461. * d) / 4.)
-    m = math.floor((5. * e + 2.) / 153.)
+    d = floor((4. * c + 3.) / 1461.)
+    e = c - floor((1461. * d) / 4.)
+    m = floor((5. * e + 2.) / 153.)
 
-    day   = e - math.floor((153. * m + 2.) / 5.) + 1.
-    month = m + 3. - 12. * math.floor(m / 10.)
-    year  = b * 100. + d - 4800. + math.floor(m / 10.)
+    day   = e - floor((153. * m + 2.) / 5.) + 1.
+    month = m + 3. - 12. * floor(m / 10.)
+    year  = b * 100. + d - 4800. + floor(m / 10.)
 
     return int(year),int(month),int(day)
 
@@ -272,32 +268,32 @@ class Date(object):
                 self.second = arg
             elif key == 'datetime':  # DDG 03-28-2017: handle conversion from datetime to pyDate
                 if isinstance(arg, datetime):
-                    self.day = arg.day
-                    self.month = arg.month
-                    self.year = arg.year
-                    self.hour = arg.hour
+                    self.day    = arg.day
+                    self.month  = arg.month
+                    self.year   = arg.year
+                    self.hour   = arg.hour
                     self.minute = arg.minute
                     self.second = arg.second
                 else:
-                    raise pyDateException('invalid type for ' + key + '\n')
+                    raise pyDateException('invalid type for %s\n' % key)
             elif key == 'stninfo':  # DDG: handle station information records
 
                 self.from_stninfo = True
 
-                if isinstance(arg, str) or isinstance(arg, unicode):
+                if isinstance(arg, str):
                     self.year, self.doy, self.hour, self.minute, self.second = parse_stninfo(arg)
                 elif isinstance(arg, datetime):
-                    self.day = arg.day
-                    self.month = arg.month
-                    self.year = arg.year
-                    self.hour = arg.hour
+                    self.day    = arg.day
+                    self.month  = arg.month
+                    self.year   = arg.year
+                    self.hour   = arg.hour
                     self.minute = arg.minute
                     self.second = arg.second
                 elif arg is None:
                     # ok to receive a None argument from the database due to 9999 999 00 00 00 records
                     break
                 else:
-                    raise pyDateException('invalid type ' + str(type(arg)) + ' for ' + key + '\n')
+                    raise pyDateException('invalid type %s for %s\n' % (str(type(arg)), key))
             else:
                 raise pyDateException('unrecognized input arg: '+key+'\n')
 
@@ -363,10 +359,11 @@ class Date(object):
             # compute the gps date
             self.gpsWeek, self.gpsWeekDay = date2gpsDate(self.year, self.month, self.day)
 
-        else:
-            if not self.from_stninfo:
-                # if empty Date object from a station info, it means that it should be printed as 9999 999 00 00 00
-                raise pyDateException('not enough independent input args to compute full date')
+        elif not self.from_stninfo:
+            # if empty Date object from a station info, it means that it should be printed as 9999 999 00 00 00
+            raise pyDateException('not enough independent input args to compute full date')
+        
+
 
     def strftime(self):
         return self.datetime().strftime('%Y-%m-%d %H:%M:%S')
@@ -375,10 +372,14 @@ class Date(object):
         if self.from_stninfo:
             return {'stninfo': str(self)}
         else:
-            return {'year': self.year, 'doy': self.doy, 'hour': self.hour, 'minute': self.minute, 'second': self.second}
+            return {'year'  : self.year,
+                    'doy'   : self.doy, 
+                    'hour'  : self.hour, 
+                    'minute': self.minute,
+                    'second': self.second}
 
     def __repr__(self):
-        return 'pyDate.Date(' + str(self.year) + ', ' + str(self.doy) + ')'
+        return 'pyDate.Date(%s,%s)' % (str(self.year), str(self.doy))
 
     def __str__(self):
         if self.year is None:
@@ -386,85 +387,66 @@ class Date(object):
         else:
             return '%04i %03i %02i %02i %02i' % (self.year, self.doy, self.hour, self.minute, self.second)
 
-    def __lt__(self, date):
-
+    def __check_cmp(self, date):
         if not isinstance(date, Date):
-            raise pyDateException('type: ' + str(type(date)) + ' invalid. Can only compare pyDate.Date objects')
+            raise pyDateException('type: %s invalid. Can only compare pyDate.Date objects' % str(type(date)))
 
+    def __lt__(self, date):
+        self.__check_cmp(date)
         return self.fyear < date.fyear
 
     def __le__(self, date):
-
-        if not isinstance(date, Date):
-            raise pyDateException('type: ' + str(type(date)) + ' invalid. Can only compare pyDate.Date objects')
-
+        self.__check_cmp(date)
         return self.fyear <= date.fyear
 
     def __gt__(self, date):
-
-        if not isinstance(date, Date):
-            raise pyDateException('type: ' + str(type(date)) + ' invalid. Can only compare pyDate.Date objects')
-
+        self.__check_cmp(date)
         return self.fyear > date.fyear
 
     def __ge__(self, date):
-
-        if not isinstance(date, Date):
-            raise pyDateException('type: ' + str(type(date)) + ' invalid.  Can only compare pyDate.Date objects')
-
+        self.__check_cmp(date)
         return self.fyear >= date.fyear
 
     def __eq__(self, date):
-
-        if not isinstance(date, Date):
-            raise pyDateException('type: ' + str(type(date)) + ' invalid.  Can only compare pyDate.Date objects')
-
+        self.__check_cmp(date)
         return self.mjd == date.mjd
 
     def __ne__(self, date):
-
-        if not isinstance(date, Date):
-            raise pyDateException('type: ' + str(type(date)) + ' invalid.  Can only compare pyDate.Date objects')
-
+        self.__check_cmp(date)
         return self.mjd != date.mjd
 
     def __add__(self, ndays):
-
         if not isinstance(ndays, int):
-            raise pyDateException('type: ' + str(type(ndays)) + ' invalid.  Can only add integer number of days')
+            raise pyDateException('type: %s invalid.  Can only add integer number of days' % str(type(ndays)))
 
         return Date(mjd=self.mjd+ndays)
 
     def __sub__(self, ndays):
-
-        if not (isinstance(ndays, int) or isinstance(ndays, Date)):
-            raise pyDateException('type: ' + str(type(ndays)) + ' invalid. Can only subtract integer number of days')
-
         if isinstance(ndays, int):
             return Date(mjd=self.mjd - ndays)
-        else:
+        elif isinstance(ndays, Date):
             return self.mjd - ndays.mjd
+        else:
+            raise pyDateException('type: %s invalid. Can only subtract integer number of days' % str(type(ndays)))
 
     def __hash__(self):
         # to make the object hashable
         return hash(self.fyear)
 
     def ddd(self):
-        doystr = str(self.doy)
-        return "0"*(3-len(doystr))+doystr
+        return str(self.doy).zfill(3)
 
     def yyyy(self):
         return '%04i' % self.year
 
     def wwww(self):
-        weekstr = str(self.gpsWeek)
-        return '0'*(4-len(weekstr))+weekstr
+        return str(self.gpsWeek).zfill(4)
 
     def wwwwd(self):
-        return self.wwww()+str(self.gpsWeekDay)
+        return self.wwww() + str(self.gpsWeekDay)
 
     def yyyymmdd(self):
-        return str(self.year)+'/'+str(self.month)+'/'+str(self.day)
+        return "%s/%s/%s" % (str(self.year), str(self.month), str(self.day))
 
     def yyyyddd(self):
         return '%4i %03i' % (int(self.year), int(self.doy))

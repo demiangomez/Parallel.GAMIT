@@ -5,11 +5,15 @@ Date: 6/18/20 14:28
 Author: Demian D. Gomez
 """
 
+# deps
 import numpy as np
+from scipy.stats import chi2
+
+# app
 from pyETM import Polynomial
 from pyETM import Periodic
 from pyDate import Date
-from scipy.stats import chi2
+
 
 LIMIT = 2.5
 

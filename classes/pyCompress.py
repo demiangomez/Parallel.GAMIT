@@ -14,17 +14,13 @@ class Compress():
 
     def __init__(self,file,dest):
 
-        pymagic = magic.Magic(uncompress=False)
-
+        pymagic  = magic.Magic(uncompress=False)
         filetype = pymagic.from_file(file)
 
         if 'zip archive' in filetype.lower():
-
             file = zipfile.ZipFile(file)
             file.extractall(dest)
 
         elif 'gzip' in filetype.lower():
-
-            f = gzip.open(dest)
-            sp3file = f.read()
-            f.close()
+            with gzip.open(dest, 'rt', encoding='utf8', errors='ignore') as f:
+                sp3file = f.read()

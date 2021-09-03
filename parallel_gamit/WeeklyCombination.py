@@ -5,21 +5,23 @@ Author: Demian D. Gomez
 """
 
 import argparse
-import dbConnection
-import Utils
-import pyDate
 import os
-from shutil import copyfile
-from shutil import move
-from shutil import rmtree
-from Utils import split_string
+from shutil import copyfile, move, rmtree
 import glob
 import subprocess
-import snxParse
-import pyGamitConfig
 import re
 import random
 import string
+
+# deps
+
+# app
+import dbConnection
+import Utils
+import pyDate
+import snxParse
+import pyGamitConfig
+from Utils import split_string, file_open, file_readlines, stationID, chmod_exec
 
 
 def replace_in_sinex(sinex, observations, unknowns, new_val):
@@ -31,8 +33,9 @@ def replace_in_sinex(sinex, observations, unknowns, new_val):
  SAMPLING INTERVAL (SECONDS)           30
 """ % (new_val, observations - new_val)
 
-    with open(os.path.basename(os.path.splitext(sinex)[0]) + '_MOD.snx', 'w') as nsnx:
-        with open(sinex) as osnx:
+    snx_path = os.path.basename(os.path.splitext(sinex)[0]) + '_MOD.snx'
+    with file_open(snx_path, 'w') as nsnx:
+        with file_open(sinex, 'r') as osnx:
             for line in osnx:
                 if ' NUMBER OF UNKNOWNS%22i' % unknowns in line:
                     # empty means local directory! LA RE PU...
@@ -42,7 +45,7 @@ def replace_in_sinex(sinex, observations, unknowns, new_val):
 
     # rename file
     os.remove(sinex)
-    os.renames(os.path.basename(os.path.splitext(sinex)[0]) + '_MOD.snx', sinex)
+    os.renames(snx_path, sinex)
 
 
 def add_domes(sinex, stations):
@@ -69,7 +72,7 @@ def process_sinex(cnn, project, dates, sinex):
                          'GROUP BY "Year", "DOY"'
                          % (project, dates[0].first_epoch('fyear'), dates[1].last_epoch('fyear'), stnlist))
 
-    zg = sum([s[0] for s in zg])
+    zg = sum(s[0] for s in zg)
 
     zd = cnn.query_float('SELECT count("ZTD") + %i as implicit FROM gamit_ztd '
                          'WHERE "Date" BETWEEN \'%s\' AND \'%s\' '
@@ -77,7 +80,7 @@ def process_sinex(cnn, project, dates, sinex):
 
     zd = zd[0][0]
 
-    print ' >> Adding NUMBER OF UNKNOWNS: %i (previous value: %i)' % (zd, snx.unknowns)
+    print(' >> Adding NUMBER OF UNKNOWNS: %i (previous value: %i)' % (zd, snx.unknowns))
 
     replace_in_sinex(sinex, snx.observations, snx.unknowns, snx.unknowns + zg + zd)
 
@@ -88,7 +91,7 @@ def process_sinex(cnn, project, dates, sinex):
 
     stations = rs.dictresult()
 
-    print ' >> Adding DOMES'
+    print(' >> Adding DOMES')
     # add domes
     add_domes(sinex, stations)
 
@@ -101,14 +104,14 @@ class GlobkException(Exception):
         return repr(self.value)
 
 
-class Globk(object):
+class Globk:
 
     def __init__(self, pwd_comb, org, glx_list, gpsweek, gpsweekday, sites):
 
         self.pwd_comb = pwd_comb
-        self.stdout = None
-        self.stderr = None
-        self.p = None
+        self.stdout   = None
+        self.stderr   = None
+        self.p        = None
 
         # try to create the folder
         if not os.path.exists(pwd_comb):
@@ -116,16 +119,16 @@ class Globk(object):
 
         # see if there is any FATAL in the sessions to be combined
         for glx in glx_list:
+            dst_filename = pwd_comb + '/' + org + glx['gpsweek'] + '.GLX'
             if glx['file'].endswith('gz'):
-                os.system('gunzip -k -c ' + glx['file'] + ' > ' + pwd_comb + '/' + org + glx['gpsweek'] + '.GLX')
+                os.system('gunzip -k -c ' + glx['file'] + ' > ' + dst_filename)
             else:
-                copyfile(glx['file'], pwd_comb + '/' + org + glx['gpsweek'] + '.GLX')
+                copyfile(glx['file'], dst_filename)
 
         self.create_combination_script(org, gpsweek, gpsweekday, sites)
         self.execute()
 
     def execute(self):
-
         # loop through the folders and execute the script
         self.p = subprocess.Popen('./globk.sh', shell=False, stdout=subprocess.PIPE,
                                   stderr=subprocess.PIPE, cwd=self.pwd_comb)
@@ -133,14 +136,11 @@ class Globk(object):
         self.stdout, self.stderr = self.p.communicate()
 
         # check if any files where not used
-        f = open(os.path.join(self.pwd_comb + '/globk.log'), 'r')
-        out = f.readlines()
-        f.close()
-
+        out   = file_readlines(os.path.join(self.pwd_comb + '/globk.log'))
         error = re.findall(r'.*will not be used', ''.join(out))
         if error:
-            print ' >> WARNING!'
-            print '\n'.join(error)
+            print(' >> WARNING!')
+            print('\n'.join(error))
 
     def create_combination_script(self, org, gpsweek, gpsweekday, sites):
 
@@ -148,8 +148,8 @@ class Globk(object):
         run_file_path = os.path.join(self.pwd_comb, 'globk.sh')
 
         try:
-            run_file = open(run_file_path, 'w')
-        except Exception:
+            run_file = file_open(run_file_path, 'w')
+        except:
             raise GlobkException('could not open file '+run_file_path)
 
         sites = split_string(sites, 80)
@@ -228,9 +228,7 @@ class Globk(object):
         run_file.close()
 
         # add executable permissions
-        os.system('chmod +x '+run_file_path)
-
-        return
+        chmod_exec(run_file_path)
 
 
 def id_generator(size=4, chars=string.ascii_lowercase + string.digits):
@@ -248,7 +246,8 @@ def main():
     parser.add_argument('-s', '--session_config', type=str, nargs=1, metavar='session.cfg',
                         help="Filename with the session configuration to run Parallel.GAMIT")
 
-    parser.add_argument('-w', '--gpsweek', nargs=1, help="GPS week to combine.")
+    parser.add_argument('-w', '--gpsweek', nargs=1,
+                        help="GPS week to combine.")
 
     parser.add_argument('-e', '--exclude', type=str, nargs='+', metavar='station',
                         help="List of stations to exclude (e.g. -e igm1 lpgs vbca)")
@@ -261,7 +260,7 @@ def main():
     date_s = pyDate.Date(gpsWeek=int(args.gpsweek[0]), gpsWeekDay=0)
     date_e = pyDate.Date(gpsWeek=int(args.gpsweek[0]), gpsWeekDay=6)
 
-    print ' >> Working with GPS week ' + args.gpsweek[0] + ' (%s to %s)' % (date_s.yyyyddd(), date_e.yyyyddd())
+    print(' >> Working with GPS week ' + args.gpsweek[0] + ' (%s to %s)' % (date_s.yyyyddd(), date_e.yyyyddd()))
 
     exclude = args.exclude
     if exclude is not None:
@@ -277,17 +276,17 @@ def main():
     for i in range(len(stnlist) - 1):
         for j in range(i + 1, len(stnlist)):
             if stnlist[i]['StationCode'] == stnlist[j]['StationCode']:
-                print 'During station selection, two identical station codes were found. Please remove one and ' \
-                      'try again.'
+                print('During station selection, two identical station codes were found. '
+                      'Please remove one and try again.')
                 exit()
 
     GamitConfig = pyGamitConfig.GamitConfiguration(args.session_config[0])  # type: pyGamitConfig.GamitConfiguration
 
     project = GamitConfig.NetworkConfig.network_id.lower()
-    org = GamitConfig.gamitopt['org']
+    org     = GamitConfig.gamitopt['org']
 
-    print ' >> REMINDER: To automatically remove outliers during the weekly combination, first run DRA.py to analyze ' \
-          'the daily repetitivities'
+    print(' >> REMINDER: To automatically remove outliers during the weekly combination, '
+          'first run DRA.py to analyze the daily repetitivities')
 
     soln_pwd = GamitConfig.gamitopt['solutions_dir']
 
@@ -296,34 +295,33 @@ def main():
         os.makedirs('production/globk')
 
     # check if week folder exists
-    if os.path.exists('production/globk/' + args.gpsweek[0]):
-        rmtree('production/globk/' + args.gpsweek[0])
+    globk_pwd = 'production/globk/' + args.gpsweek[0]
+    if os.path.exists(globk_pwd):
+        rmtree(globk_pwd)
 
     # create the directory
-    os.makedirs('production/globk/' + args.gpsweek[0])
-
-    globk_pwd = 'production/globk/' + args.gpsweek[0]
+    os.makedirs(globk_pwd)
 
     glx_list = []
 
     # make a list of the h files that need to be combined
     for day in range(0, 7):
-        date = pyDate.Date(gpsWeek=int(args.gpsweek[0]), gpsWeekDay=day)
+        date = pyDate.Date(gpsWeek    = int(args.gpsweek[0]),
+                           gpsWeekDay = day)
 
-        soln_dir = os.path.join(soln_pwd, date.yyyy() + '/' + date.ddd() + '/' + project + '/glbf')
+        soln_dir = os.path.join(soln_pwd, "%s/%s/%s/glbf" % (date.yyyy(), date.ddd(), project))
 
         if os.path.exists(soln_dir):
             glx = glob.glob(os.path.join(soln_dir, '*.GLX.*'))
-            if len(glx) > 0:
-                glx_list.append({'file': glx[0], 'gpsweek': date.wwwwd()})
-            else:
+            if not glx:
                 glx = glob.glob(os.path.join(soln_dir, '*.glx'))
-                glx_list.append({'file': glx[0], 'gpsweek': date.wwwwd()})
+                
+            glx_list.append({'file': glx[0], 'gpsweek': date.wwwwd()})
 
     # create the earthquakes.txt file to remove outliers
-    with open(globk_pwd + '/eq_rename.txt', 'w') as fd:
-        rename = []
-        remove = []
+    with file_open(globk_pwd + '/eq_rename.txt', 'w') as fd:
+        rename   = []
+        remove   = []
         use_site = []
         fd.write('# LIST OF OUTLIERS DETECTED BY DRA\n')
         for stn in stnlist:
@@ -358,11 +356,10 @@ def main():
                 date = pyDate.Date(year=m['Year'], doy=m['DOY'])
                 # check on each day to see if alias agrees with station code
                 for i, s in enumerate(m['stations']):
-                    if s.split('.')[1] != m['alias'][i] and \
-                            s == stn['NetworkCode'] + '.' + stn['StationCode']:
+                    if s.split('.')[1] != m['alias'][i] and s == stationID(stn):
 
-                        print ' -- %s alias for %s.%s = %s: renaming' \
-                              % (date.yyyyddd(), stn['NetworkCode'], stn['StationCode'], m['alias'][i])
+                        print(' -- %s alias for %s = %s: renaming' \
+                              % (date.yyyyddd(), stationID(stn), m['alias'][i]))
 
                         # change the name of the station to the original name
                         rename.append(' rename %s_gps %s_dup %-20s %s %02i %02i 0 0 %s %02i %02i 24 0\n' %
@@ -370,7 +367,7 @@ def main():
                                        date.month, date.day, date.yyyy()[2:], date.month, date.day))
                         use_site.append('%s_dup' % stn['StationCode'])
 
-                    elif s not in [st['NetworkCode'] + '.' + st['StationCode'] for st in stnlist]:
+                    elif s not in [stationID(st) for st in stnlist]:
                         # print ' -- Removing %s: not selected' % s
                         # just in case, remove any other occurrences of this station code
                         remove.append(' rename %s_gps %s_xcl %-20s %s %02i %02i 0 0 %s %02i %02i 24 0\n' %
@@ -384,12 +381,13 @@ def main():
         fd.write('# LIST OF STATIONS TO BE RENAMED\n')
         fd.write(''.join(rename))
 
-    print ' >> Converting to SINEX the daily solutions'
+    print(' >> Converting to SINEX the daily solutions')
 
     for day, glx in enumerate(glx_list):
-        date = pyDate.Date(gpsWeek=int(args.gpsweek[0]), gpsWeekDay=day)
+        date = pyDate.Date(gpsWeek    = int(args.gpsweek[0]),
+                           gpsWeekDay = day)
 
-        print ' -- Working on %s' % date.wwwwd()
+        print(' -- Working on %s' % date.wwwwd())
         # delete the existing GLX files
         for ff in glob.glob(globk_pwd + '/*.GLX'):
             os.remove(ff)
@@ -406,11 +404,10 @@ def main():
         os.remove(ff)
     # ready to pass list to globk object
     Globk(globk_pwd, org, glx_list, date_s.wwww(), 7, ' '.join(set(use_site)))
-    print ' >> Formatting the SINEX file'
+    print(' >> Formatting the SINEX file')
 
     process_sinex(cnn, project, [date_s, date_e], globk_pwd + '/' + org + date_s.wwww() + '7.snx')
 
 if __name__ == '__main__':
-
     main()
 

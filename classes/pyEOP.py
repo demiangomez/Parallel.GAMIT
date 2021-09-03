@@ -35,7 +35,7 @@ class GetEOP(pyProducts.OrbitalProduct):
             try:
                 pyProducts.OrbitalProduct.__init__(self, sp3archive, date, self.eop_filename, copyto)
                 self.eop_path = self.file_path
-                self.type = sp3type
+                self.type     = sp3type
                 break
 
             except pyProducts.pyProductsExceptionUnreasonableDate:
@@ -59,5 +59,3 @@ class GetEOP(pyProducts.OrbitalProduct):
             raise pyEOPException(
                 'Could not find a valid earth orientation parameters file for gps week ' + date.wwww() +
                 ' using any of the provided sp3 types')
-
-        return

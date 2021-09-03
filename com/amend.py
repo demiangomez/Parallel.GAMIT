@@ -1,25 +1,32 @@
+#!/usr/bin/env python
+
 """
 Project:
 Date: 10/27/17 12:40 PM
 Author: Demian D. Gomez
 """
 
+import os
+import traceback
+import platform
+import datetime
+
+# deps
+from tqdm import tqdm
+
+# app
 import dbConnection
 import pyOptions
 import pyArchiveStruct
 import pyRinex
-import os
-import pyJobServer
-from tqdm import tqdm
-import traceback
-import platform
-import datetime
 import pyDate
+import pyJobServer
+from Utils import file_append
 
 class callback_class():
     def __init__(self, pbar):
         self.errors = None
-        self.pbar = pbar
+        self.pbar   = pbar
 
     def callbackfunc(self, args):
         msg = args
@@ -40,7 +47,7 @@ def verify_rinex_date_multiday(date, rinexinfo, Config):
         for rnx in rinexinfo.multiday_rnx_list:
             rnxlist.append(rnx.rinex)
             # some other file, move it to the repository
-            retry_folder = os.path.join(Config.repository_data_in_retry, 'multidays_found/' + rnx.date.yyyy() + '/' + rnx.date.ddd())
+            retry_folder = os.path.join(Config.repository_data_in_retry, 'multidays_found/%s/%s' % (rnx.date.yyyy(), rnx.date.ddd()))
             rnx.compress_local_copyto(retry_folder)
 
         # remove crinex from archive
@@ -49,16 +56,17 @@ def verify_rinex_date_multiday(date, rinexinfo, Config):
         return False
 
     # compare the date of the rinex with the date in the archive
-    if not date == rinexinfo.date:
+    elif not date == rinexinfo.date:
         # move the file out of the archive because it's in the wrong spot (wrong folder, wrong name, etc)
         # let pyArchiveService fix the issue
-        retry_folder = os.path.join(Config.repository_data_in_retry, 'wrong_date_found/' +  date.yyyy() + '/' + date.ddd())
+        retry_folder = os.path.join(Config.repository_data_in_retry, 'wrong_date_found/%s/%s' % (date.yyyy(), date.ddd()))
         # move the crinex out of the archive
         rinexinfo.move_origin_file(retry_folder)
 
         return False
 
-    return True
+    else:
+        return True
 
 
 def UpdateRecord(rinex, path):
@@ -67,9 +75,12 @@ def UpdateRecord(rinex, path):
     Config = pyOptions.ReadOptions('gnss_data.cfg')
 
     try:
-        rnxobj = pyRinex.ReadRinex(rinex['NetworkCode'], rinex['StationCode'], path)
+        rnxobj = pyRinex.ReadRinex(rinex['NetworkCode'],
+                                   rinex['StationCode'],
+                                   path)
 
-        date = pyDate.Date(year=rinex['ObservationYear'], doy=rinex['ObservationDOY'])
+        date = pyDate.Date(year = rinex['ObservationYear'],
+                           doy  = rinex['ObservationDOY'])
 
         if not verify_rinex_date_multiday(date, rnxobj, Config):
             cnn.begin_transac()
@@ -109,36 +120,37 @@ def output_handle(callback):
     # function to print any error that are encountered during parallel execution
     for msg in messages:
         if msg:
-            f = open('errors_amend.log','a')
-            f.write('ON ' + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' an unhandled error occurred:\n')
-            f.write(msg + '\n')
-            f.write('END OF ERROR =================== \n\n')
-            f.close()
-
+            file_append('errors_amend.log',
+                        'ON ' + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' an unhandled error occurred:\n' +
+                        msg + '\n' +
+                        'END OF ERROR =================== \n\n')
     return []
 
-cnn = dbConnection.Cnn('gnss_data.cfg')
+cnn     = dbConnection.Cnn('gnss_data.cfg')
 options = pyOptions.ReadOptions('gnss_data.cfg')
 
 JobServer = pyJobServer.JobServer(options)
-archive = pyArchiveStruct.RinexStruct(cnn)
+archive   = pyArchiveStruct.RinexStruct(cnn)
 
 for table in ['rinex']:
 
-    print " >> Processing " + table
+    print(" >> Processing " + table)
 
     tbl = cnn.query('SELECT * FROM ' + table + ' WHERE "Completion" is null')
 
     rnx = tbl.dictresult()
 
     callback = []
-    pbar = tqdm(total=len(rnx), ncols=80)
+    pbar     = tqdm(total=len(rnx), ncols=80)
 
     depfuncs = (verify_rinex_date_multiday,)
-    modules = ('pyRinex', 'dbConnection', 'traceback', 'platform', 'pyDate', 'pyOptions', 'pyArchiveStruct')
+    modules  = ('pyRinex', 'dbConnection', 'traceback', 'platform', 'pyDate', 'pyOptions', 'pyArchiveStruct')
 
     for rinex in rnx:
-        path = archive.build_rinex_path(rinex['NetworkCode'], rinex['StationCode'], rinex['ObservationYear'], rinex['ObservationDOY'])
+        path = archive.build_rinex_path(rinex['NetworkCode'],
+                                        rinex['StationCode'],
+                                        rinex['ObservationYear'],
+                                        rinex['ObservationDOY'])
 
         rfile = os.path.join(options.archive_path, path)
 
@@ -161,5 +173,5 @@ for table in ['rinex']:
     output_handle(callback)
 
 
-print '\n'
+print('\n')
 JobServer.job_server.print_stats()

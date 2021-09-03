@@ -3,33 +3,35 @@ Project: Parallel.PPP
 Date: 2/21/17 3:34 PM
 Author: Demian D. Gomez
 
-Python wrapper for PPP. It runs the NRCAN PPP and loads the information from the summary file. Can be used without a
-database connection, except for PPPSpatialCheck
+Python wrapper for PPP. It runs the NRCAN PPP and loads the information from
+the summary file. Can be used without a database connection, except for 
+PPPSpatialCheck
 
 """
-from shutil import copyfile
-from shutil import rmtree
-from Utils import lg2ct
-from Utils import ecef2lla
-from Utils import determine_frame
+from shutil import copyfile, rmtree
 from math import isnan
-from pyDate import Date
+import os
+import uuid
+import re
+
+# deps
+import numpy
+
+# app
 import pyRinex
-import pyRunWithRetry
 import pySp3
 import pyEOP
 import pyClk
-import os
-import uuid
-import numpy
 import pyEvents
-import re
+import pyRunWithRetry
+from pyDate import Date
+from Utils import lg2ct, ecef2lla, determine_frame, file_write, file_readlines
 
 
 def find_between(s, first, last):
     try:
         start = s.index(first) + len(first)
-        end = s.index(last, start)
+        end   = s.index(last, start)
         return s[start:end]
     except ValueError:
         return ""
@@ -44,36 +46,20 @@ class pyRunPPPException(Exception):
         return str(self.value)
 
 
-class pyRunPPPExceptionCoordConflict(pyRunPPPException):
-    pass
-
-
-class pyRunPPPExceptionTooFewAcceptedObs(pyRunPPPException):
-    pass
-
-
-class pyRunPPPExceptionNaN(pyRunPPPException):
-    pass
-
-
-class pyRunPPPExceptionZeroProcEpochs(pyRunPPPException):
-    pass
-
-
-class pyRunPPPExceptionEOPError(pyRunPPPException):
-    pass
+class pyRunPPPExceptionCoordConflict    (pyRunPPPException): pass
+class pyRunPPPExceptionTooFewAcceptedObs(pyRunPPPException): pass
+class pyRunPPPExceptionNaN              (pyRunPPPException): pass
+class pyRunPPPExceptionZeroProcEpochs   (pyRunPPPException): pass
+class pyRunPPPExceptionEOPError         (pyRunPPPException): pass
 
 
 class PPPSpatialCheck:
 
     def __init__(self, lat=None, lon=None, h=None, epoch=None):
-
         self.lat   = lat
         self.lon   = lon
         self.h     = h
         self.epoch = epoch
-
-        return
 
     def verify_spatial_coherence(self, cnn, StationCode, search_in_new=False):
         # checks the spatial coherence of the resulting coordinate
@@ -131,15 +117,15 @@ class PPPSpatialCheck:
 
             return False, [], stn
 
-        if len(stn_match) == 1 and stn_match[0]['StationCode'] == StationCode:
-            # one match, same name (return a dictionary)
-            return True, stn_match, []
+        elif len(stn_match) == 1:
+            if stn_match[0]['StationCode'] == StationCode:
+                # one match, same name (return a dictionary)
+                return True, stn_match, []
+            else:
+                # one match, not the same name (return a list, not a dictionary)
+                return False, stn_match, []
 
-        if len(stn_match) == 1 and stn_match[0]['StationCode'] != StationCode:
-            # one match, not the same name (return a list, not a dictionary)
-            return False, stn_match, []
-
-        if len(stn_match) > 1:
+        elif len(stn_match) > 1:
             # more than one match, same name
             # this is most likely a station that got moved a few meters and renamed
             # or a station that just got renamed.
@@ -176,39 +162,39 @@ class RunPPP(PPPSpatialCheck):
 
         self.ppp_version = None
 
-        self.file_summary = None
-        self.proc_parameters = None
+        self.file_summary        = None
+        self.proc_parameters     = None
         self.observation_session = None
         self.coordinate_estimate = None
-        self.clock_estimates = None
+        self.clock_estimates     = None
 
         # DDG: do not allow clock interpolation before May 1 2001
         self.clock_interpolation = clock_interpolation if rinexobj.date > Date(year=2001, month=5, day=1) else False
 
-        self.frame     = None
-        self.atx       = None
-        self.x         = None
-        self.y         = None
-        self.z         = None
-        self.lat       = None
-        self.lon       = None
-        self.h         = None
-        self.sigmax    = None
-        self.sigmay    = None
-        self.sigmaz    = None
-        self.sigmaxy   = None
-        self.sigmaxz   = None
-        self.sigmayz   = None
-        self.clock_phase = None
+        self.frame             = None
+        self.atx               = None
+        self.x                 = None
+        self.y                 = None
+        self.z                 = None
+        self.lat               = None
+        self.lon               = None
+        self.h                 = None
+        self.sigmax            = None
+        self.sigmay            = None
+        self.sigmaz            = None
+        self.sigmaxy           = None
+        self.sigmaxz           = None
+        self.sigmayz           = None
+        self.clock_phase       = None
         self.clock_phase_sigma = None
-        self.phase_drift = None
+        self.phase_drift       = None
         self.phase_drift_sigma = None
-        self.clock_rms = None
-        self.clock_rms_number = None
-        self.hash      = hash
+        self.clock_rms         = None
+        self.clock_rms_number  = None
+        self.hash              = hash
 
         self.processed_obs = None
-        self.rejected_obs = None
+        self.rejected_obs  = None
 
         self.orbit_type = None
         self.orbits1    = None
@@ -228,8 +214,9 @@ class RunPPP(PPPSpatialCheck):
 
         self.rootdir = os.path.join('production', 'ppp')
 
-        fieldnames = ['NetworkCode', 'StationCode', 'X', 'Y', 'Z', 'Year', 'DOY', 'ReferenceFrame', 'sigmax', 'sigmay',
-                      'sigmaz', 'sigmaxy', 'sigmaxz', 'sigmayz', 'hash']
+        fieldnames = ('NetworkCode', 'StationCode', 'X', 'Y', 'Z', 'Year', 'DOY',
+                      'ReferenceFrame', 'sigmax', 'sigmay',
+                      'sigmaz', 'sigmaxy', 'sigmaxz', 'sigmayz', 'hash')
 
         self.record = dict.fromkeys(fieldnames)
 
@@ -253,7 +240,9 @@ class RunPPP(PPPSpatialCheck):
             try:
                 self.get_orbits(self.sp3types)
 
-            except (pySp3.pySp3Exception, pyClk.pyClkException, pyEOP.pyEOPException):
+            except (pySp3.pySp3Exception,
+                    pyClk.pyClkException,
+                    pyEOP.pyEOPException):
 
                 if sp3altrn:
                     self.get_orbits(self.sp3altrn)
@@ -270,124 +259,105 @@ class RunPPP(PPPSpatialCheck):
             if self.rinex.interval < 15 and decimate:
                 self.rinex.decimate(30)
 
-            copyfile(self.rinex.rinex_path, os.path.join(self.rootdir, self.rinex.rinex))
+            copyfile(self.rinex.rinex_path,
+                     os.path.join(self.rootdir, self.rinex.rinex))
 
         else:
-            raise pyRunPPPException('The file ' + self.rinex.rinex_path + ' could not be found. PPP was not executed.')
-
-        return
+            raise pyRunPPPException('The file ' + self.rinex.rinex_path +
+                                    ' could not be found. PPP was not executed.')
 
     def copyfiles(self):
         # prepare all the files required to run PPP
+        files = ('gpsppp.stc', 'gpsppp.svb_gnss_yrly', 'gpsppp.flt', 'gpsppp.stc')
         if self.apply_met:
-            copyfile(os.path.join(self.ppp_path, 'gpsppp.met'), os.path.join(self.rootdir, 'gpsppp.met'))
+            files = ('gpsppp.met',) + files
 
-        copyfile(os.path.join(self.ppp_path, 'gpsppp.stc'), os.path.join(self.rootdir, 'gpsppp.stc'))
-        copyfile(os.path.join(self.ppp_path, 'gpsppp.svb_gnss_yrly'),
-                 os.path.join(self.rootdir, 'gpsppp.svb_gnss_yrly'))
-        copyfile(os.path.join(self.ppp_path, 'gpsppp.flt'), os.path.join(self.rootdir, 'gpsppp.flt'))
-        copyfile(os.path.join(self.ppp_path, 'gpsppp.stc'), os.path.join(self.rootdir, 'gpsppp.stc'))
-        copyfile(os.path.join(self.atx), os.path.join(self.rootdir, os.path.basename(self.atx)))
+        for f in files:
+            copyfile(os.path.join(self.ppp_path, f),
+                     os.path.join(self.rootdir,  f))
 
-        return
+        copyfile(os.path.join(self.atx),
+                 os.path.join(self.rootdir, os.path.basename(self.atx)))
 
     def write_otl(self):
+        file_write(os.path.join(self.rootdir, self.rinex.StationCode + '.olc'),
+                   self.otl_coeff)
 
-        otl_file = open(os.path.join(self.rootdir, self.rinex.StationCode + '.olc'), 'w')
-        otl_file.write(self.otl_coeff)
-        otl_file.close()
-
-        return
 
     def config_session(self):
 
         options = self.options
 
         # create the def file
-        def_file = open(os.path.join(self.rootdir, 'gpsppp.def'), 'w')
+        file_write(os.path.join(self.rootdir, 'gpsppp.def'), 
+                   "'LNG' 'ENGLISH'\n"
+                   "'TRF' 'gpsppp.trf'\n"
+                   "'SVB' 'gpsppp.svb_gnss_yrly'\n"
+                   "'PCV' '%s'\n"
+                   "'FLT' 'gpsppp.flt'\n"
+                   "'OLC' '%s.olc'\n"
+                   "'MET' 'gpsppp.met'\n"
+                   "'ERP' '%s'\n"
+                   "'GSD' '%s'\n"
+                   "'GSD' '%s'\n"
+                   % (os.path.basename(self.atx),
+                      self.rinex.StationCode,
+                      self.eop_file,
+                      options['institution'],
+                      options['info']))
 
-        def_file_cont = ("'LNG' 'ENGLISH'\n"
-                         "'TRF' 'gpsppp.trf'\n"
-                         "'SVB' 'gpsppp.svb_gnss_yrly'\n"
-                         "'PCV' '%s'\n"
-                         "'FLT' 'gpsppp.flt'\n"
-                         "'OLC' '%s.olc'\n"
-                         "'MET' 'gpsppp.met'\n"
-                         "'ERP' '%s'\n"
-                         "'GSD' '%s'\n"
-                         "'GSD' '%s'\n"
-                         % (os.path.basename(self.atx),
-                            self.rinex.StationCode,
-                            self.eop_file,
-                            options['institution'],
-                            options['info']))
+        file_write(os.path.join(self.rootdir, 'commands.cmd'),
+                   "' UT DAYS OBSERVED                      (1-45)'               1\n"
+                   "' USER DYNAMICS         (1=STATIC,2=KINEMATIC)'               %s\n"
+                   "' OBSERVATION TO PROCESS         (1=COD,2=C&P)'               2\n"
+                   "' FREQUENCY TO PROCESS        (1=L1,2=L2,3=L3)'               3\n"
+                   "' SATELLITE EPHEMERIS INPUT     (1=BRD ,2=SP3)'               2\n"
+                   "' SATELLITE PRODUCT (1=NO,2=Prc,3=RTCA,4=RTCM)'               2\n"
+                   "' SATELLITE CLOCK INTERPOLATION   (1=NO,2=YES)'               %s\n"
+                   "' IONOSPHERIC GRID INPUT          (1=NO,2=YES)'               1\n"
+                   "' SOLVE STATION COORDINATES       (1=NO,2=YES)'               2\n"
+                   "' SOLVE TROP. (1=NO,2-5=RW MM/HR) (+100=grad) '             105\n"
+                   "' BACKWARD SUBSTITUTION           (1=NO,2=YES)'               1\n"
+                   "' REFERENCE SYSTEM            (1=NAD83,2=ITRF)'               2\n"
+                   "' COORDINATE SYSTEM(1=ELLIPSOIDAL,2=CARTESIAN)'               2\n"
+                   "' A-PRIORI PSEUDORANGE SIGMA               (m)'           2.000\n"
+                   "' A-PRIORI CARRIER PHASE SIGMA             (m)'           0.015\n"
+                   "' LATITUDE  (ddmmss.sss,+N) or ECEF X      (m)'          0.0000\n"
+                   "' LONGITUDE (ddmmss.sss,+E) or ECEF Y      (m)'          0.0000\n"
+                   "' HEIGHT (m)                or ECEF Z      (m)'          0.0000\n"
+                   "' ANTENNA HEIGHT                           (m)'          %6.4f\n"
+                   "' CUTOFF ELEVATION                       (deg)'          10.000\n"
+                   "' GDOP CUTOFF                                 '          20.000\n"
+                   % ('1' if not self.kinematic else '2', '1'
+                      if not self.clock_interpolation else '2', self.antH))
 
-        def_file.write(def_file_cont)
-        def_file.close()
+        file_write(os.path.join(self.rootdir, 'input.inp'), 
+                   "%s\n"
+                   "commands.cmd\n"
+                   "0 0\n"
+                   "0 0\n"
+                   "orbits/%s\n"
+                   "orbits/%s\n"
+                   "orbits/%s\n"
+                   "orbits/%s\n"
+                   % (self.rinex.rinex,
+                      self.orbits1.sp3_filename,
+                      self.clocks1.clk_filename,
+                      self.orbits2.sp3_filename,
+                      self.clocks2.clk_filename))
 
-        cmd_file = open(os.path.join(self.rootdir, 'commands.cmd'), 'w')
-
-        cmd_file_cont = ("' UT DAYS OBSERVED                      (1-45)'               1\n"
-                         "' USER DYNAMICS         (1=STATIC,2=KINEMATIC)'               %s\n"
-                         "' OBSERVATION TO PROCESS         (1=COD,2=C&P)'               2\n"
-                         "' FREQUENCY TO PROCESS        (1=L1,2=L2,3=L3)'               3\n"
-                         "' SATELLITE EPHEMERIS INPUT     (1=BRD ,2=SP3)'               2\n"
-                         "' SATELLITE PRODUCT (1=NO,2=Prc,3=RTCA,4=RTCM)'               2\n"
-                         "' SATELLITE CLOCK INTERPOLATION   (1=NO,2=YES)'               %s\n"
-                         "' IONOSPHERIC GRID INPUT          (1=NO,2=YES)'               1\n"
-                         "' SOLVE STATION COORDINATES       (1=NO,2=YES)'               2\n"
-                         "' SOLVE TROP. (1=NO,2-5=RW MM/HR) (+100=grad) '             105\n"
-                         "' BACKWARD SUBSTITUTION           (1=NO,2=YES)'               1\n"
-                         "' REFERENCE SYSTEM            (1=NAD83,2=ITRF)'               2\n"
-                         "' COORDINATE SYSTEM(1=ELLIPSOIDAL,2=CARTESIAN)'               2\n"
-                         "' A-PRIORI PSEUDORANGE SIGMA               (m)'           2.000\n"
-                         "' A-PRIORI CARRIER PHASE SIGMA             (m)'           0.015\n"
-                         "' LATITUDE  (ddmmss.sss,+N) or ECEF X      (m)'          0.0000\n"
-                         "' LONGITUDE (ddmmss.sss,+E) or ECEF Y      (m)'          0.0000\n"
-                         "' HEIGHT (m)                or ECEF Z      (m)'          0.0000\n"
-                         "' ANTENNA HEIGHT                           (m)'          %6.4f\n"
-                         "' CUTOFF ELEVATION                       (deg)'          10.000\n"
-                         "' GDOP CUTOFF                                 '          20.000\n"
-                         % ('1' if not self.kinematic else '2', '1'
-                            if not self.clock_interpolation else '2', self.antH))
-
-        cmd_file.write(cmd_file_cont)
-
-        cmd_file.close()
-
-        inp_file = open(os.path.join(self.rootdir, 'input.inp'), 'w')
-
-        inp_file_cont = ("%s\n"
-                         "commands.cmd\n"
-                         "0 0\n"
-                         "0 0\n"
-                         "orbits/%s\n"
-                         "orbits/%s\n"
-                         "orbits/%s\n"
-                         "orbits/%s\n"
-                         % (self.rinex.rinex,
-                            self.orbits1.sp3_filename,
-                            self.clocks1.clk_filename,
-                            self.orbits2.sp3_filename,
-                            self.clocks2.clk_filename))
-
-        inp_file.write(inp_file_cont)
-
-        inp_file.close()
-
-        return
 
     def get_orbits(self, type):
 
         options = self.options
 
-        orbits1 = pySp3.GetSp3Orbits(options['sp3'], self.rinex.date, type, os.path.join(self.rootdir, 'orbits'), True)
-        orbits2 = pySp3.GetSp3Orbits(options['sp3'], self.rinex.date + 1, type, 
-                                     os.path.join(self.rootdir, 'orbits'), True)
+        orbits_path = os.path.join(self.rootdir, 'orbits')
+        
+        orbits1 = pySp3.GetSp3Orbits(options['sp3'], self.rinex.date,     type, orbits_path, True)
+        orbits2 = pySp3.GetSp3Orbits(options['sp3'], self.rinex.date + 1, type, orbits_path, True)
 
-        clocks1 = pyClk.GetClkFile(options['sp3'], self.rinex.date, type, os.path.join(self.rootdir, 'orbits'), True)
-        clocks2 = pyClk.GetClkFile(options['sp3'], self.rinex.date + 1, type,
-                                   os.path.join(self.rootdir, 'orbits'), True)
+        clocks1 = pyClk.GetClkFile(  options['sp3'], self.rinex.date,     type, orbits_path, True)
+        clocks2 = pyClk.GetClkFile(  options['sp3'], self.rinex.date + 1, type, orbits_path, True)
 
         try:
             eop_file = pyEOP.GetEOP(options['sp3'], self.rinex.date, type, self.rootdir)
@@ -396,11 +366,11 @@ class RunPPP(PPPSpatialCheck):
             # no eop, continue with out one
             eop_file = 'dummy.eop'
 
-        self.orbits1 = orbits1
-        self.orbits2 = orbits2
-        self.clocks1 = clocks1
-        self.clocks2 = clocks2
-        self.eop_file = eop_file
+        self.orbits1    = orbits1
+        self.orbits2    = orbits2
+        self.clocks1    = clocks1
+        self.clocks2    = clocks2
+        self.eop_file   = eop_file
         # get the type of orbit
         self.orbit_type = orbits1.type
 
@@ -444,9 +414,9 @@ class RunPPP(PPPSpatialCheck):
     def get_clock(section, kinematic):
         # DDG: TODO -> read if ms or ns and scale output accordingly
         try:
-            clock_phase = re.findall(r'Clock Phase\s*\([nm]s\)\s*:\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)', section)[0]
+            clock_phase = re.findall(r'Clock Phase\s*\([nm]s\)\s*:\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)',     section)[0]
             phase_drift = re.findall(r'Phase Drift\s*\([nm]s/day\)\s*:\s*(-?\d+\.\d+)\s*(-?\d+\.\d+)', section)[0]
-            clock_resid = re.findall(r'RMS residuals\s*\([nm]s\)\s*:\s*(-?\d+\.\d+)\s*(\d+)', section)[0]
+            clock_resid = re.findall(r'RMS residuals\s*\([nm]s\)\s*:\s*(-?\d+\.\d+)\s*(\d+)',          section)[0]
 
         except IndexError:
             clock_phase = [0, 0]
@@ -454,8 +424,8 @@ class RunPPP(PPPSpatialCheck):
             clock_resid = [0, 0]
 
         return float(clock_phase[0]), float(clock_phase[1]), \
-            float(phase_drift[0]), float(phase_drift[1]), \
-            float(clock_resid[0]), int(clock_resid[1])
+               float(phase_drift[0]), float(phase_drift[1]), \
+               float(clock_resid[0]), int(clock_resid[1])
 
     @staticmethod
     def get_sigmas(section, kinematic):
@@ -482,7 +452,8 @@ class RunPPP(PPPSpatialCheck):
             sy, syz      = re.findall(r'Y\(m\)\s+(-?\d+\.\d+|[nN]a[nN]|\*+)\s+(-?\d+\.\d+|[nN]a[nN]|\*+)', section)[0]
             sz           = re.findall(r'Z\(m\)\s+(-?\d+\.\d+|[nN]a[nN]|\*+)', section)[0]
 
-            if '*' in sx or '*' in sy or '*' in sz or '*' in sxy or '*' in sxz or '*' in syz:
+            if '*' in sx  or '*' in sy  or '*' in sz or \
+               '*' in sxy or '*' in sxz or '*' in syz:
                 raise pyRunPPPExceptionNaN('Sigmas are NaN')
             else:
                 sx = float(sx)
@@ -492,7 +463,8 @@ class RunPPP(PPPSpatialCheck):
                 sxz = float(sxz)
                 syz = float(syz)
 
-        if isnan(sx) or isnan(sy) or isnan(sz) or isnan(sxy) or isnan(sxz) or isnan(syz):
+        if isnan(sx)  or isnan(sy)  or isnan(sz) or \
+           isnan(sxy) or isnan(sxz) or isnan(syz):
             raise pyRunPPPExceptionNaN('Sigmas are NaN')
 
         return sx, sy, sz, sxy, sxz, syz
@@ -506,49 +478,30 @@ class RunPPP(PPPSpatialCheck):
 
         if kinematic:
             rejected = re.findall(r'Number of epochs rejected\s+\:\s+(\d+)', section)
-
-            if len(rejected) > 0:
-                rejected = int(rejected[0])
-            else:
-                rejected = 0
         else:
             # processed = re.findall('Number of observations processed\s+\:\s+(\d+)', section)[0]
-
             rejected = re.findall(r'Number of observations rejected\s+\:\s+(\d+)', section)
 
-            if len(rejected) > 0:
-                rejected = int(rejected[0])
-            else:
-                rejected = 0
+        if len(rejected) > 0:
+            rejected = int(rejected[0])
+        else:
+            rejected = 0
 
-        return int(processed), int(rejected)
+        return int(processed), rejected
 
     @staticmethod
     def check_phase_center(section):
-
-        if len(re.findall(r'Antenna phase center.+NOT AVAILABLE', section)) > 0:
-            return False
-        else:
-            return True
+        return not len(re.findall(r'Antenna phase center.+NOT AVAILABLE', section)) > 0
 
     @staticmethod
     def check_otl(section):
-
-        if len(re.findall(r'Ocean loading coefficients.+NOT FOUND', section)) > 0:
-            return False
-        else:
-            return True
+        return not len(re.findall(r'Ocean loading coefficients.+NOT FOUND', section)) > 0
 
     @staticmethod
     def check_eop(section):
         pole = re.findall(r'Pole X\s+.\s+(-?\d+\.\d+|[nN]a[nN])\s+(-?\d+\.\d+|[nN]a[nN])', section)
-        if len(pole) > 0:
-            if type(pole[0]) is tuple and 'nan' not in pole[0][0].lower():
-                return True
-            else:
-                return False
-        else:
-            return True
+        return len(pole) <= 0 or \
+            (type(pole[0]) is tuple and 'nan' not in pole[0][0].lower())
 
     @staticmethod
     def get_frame(section):
@@ -565,27 +518,34 @@ class RunPPP(PPPSpatialCheck):
         else:
             self.ppp_version = self.ppp_version[0]
 
-        self.file_summary = self.get_text(self.summary, 'SECTION 1.', 'SECTION 2.')
-        self.proc_parameters = self.get_text(self.summary, 'SECTION 2. ', ' SECTION 3. ')
+        self.file_summary        = self.get_text(self.summary,
+                                                 'SECTION 1.',
+                                                 'SECTION 2.')
+        self.proc_parameters     = self.get_text(self.summary,
+                                                 'SECTION 2. ',
+                                                 ' SECTION 3. ')
         self.observation_session = self.get_text(self.summary,
-                                                 '3.2 Observation Session', '3.3 Coordinate estimates')
+                                                 '3.2 Observation Session',
+                                                 '3.3 Coordinate estimates')
         self.coordinate_estimate = self.get_text(self.summary,
-                                                 '3.3 Coordinate estimates', '3.4 Coordinate differences ITRF')
-        self.clock_estimates = self.get_text(self.summary,
-                                             '3.5 Receiver clock estimates', '3.6 Observation rejection table')
+                                                 '3.3 Coordinate estimates',
+                                                 '3.4 Coordinate differences ITRF')
+        self.clock_estimates     = self.get_text(self.summary,
+                                                 '3.5 Receiver clock estimates',
+                                                 '3.6 Observation rejection table')
+        if self.strict:
+            if not self.check_phase_center(self.proc_parameters):
+                raise pyRunPPPException(
+                    'Error while running PPP: could not find the antenna and radome in antex file. '
+                    'Check RINEX header for formatting issues in the ANT # / TYPE field. RINEX header follows:\n' + ''.join(
+                        self.rinex.get_header()))
 
-        if self.strict and not self.check_phase_center(self.proc_parameters):
-            raise pyRunPPPException(
-                'Error while running PPP: could not find the antenna and radome in antex file. '
-                'Check RINEX header for formatting issues in the ANT # / TYPE field. RINEX header follows:\n' + ''.join(
-                    self.rinex.get_header()))
-
-        if self.strict and not self.check_otl(self.proc_parameters):
-            raise pyRunPPPException(
-                'Error while running PPP: could not find the OTL coefficients. '
-                'Check RINEX header for formatting issues in the APPROX ANT POSITION field. If APR is too far from OTL '
-                'coordinates (declared in the HARPOS or BLQ format) NRCAN will reject the coefficients. '
-                'OTL coefficients record follows:\n' + self.otl_coeff)
+            if not self.check_otl(self.proc_parameters):
+                raise pyRunPPPException(
+                    'Error while running PPP: could not find the OTL coefficients. '
+                    'Check RINEX header for formatting issues in the APPROX ANT POSITION field. If APR is too far from OTL '
+                    'coordinates (declared in the HARPOS or BLQ format) NRCAN will reject the coefficients. '
+                    'OTL coefficients record follows:\n' + self.otl_coeff)
 
         if not self.check_eop(self.file_summary):
             raise pyRunPPPExceptionEOPError('EOP returned NaN in Pole XYZ.')
@@ -604,20 +564,31 @@ class RunPPP(PPPSpatialCheck):
         # FRAME now comes from the startup process, where the function Utils.determine_frame is called
         # self.frame = self.get_frame(self.coordinate_estimate)
 
-        self.x, self.y, self.z = self.get_xyz(self.coordinate_estimate)
+        self.x, self.y, self.z     = self.get_xyz(self.coordinate_estimate)
         self.lat, self.lon, self.h = ecef2lla([self.x, self.y, self.z])
 
-        self.sigmax, self.sigmay, self.sigmaz, \
-            self.sigmaxy, self.sigmaxz, self.sigmayz = self.get_sigmas(self.coordinate_estimate, self.kinematic)
+        self.sigmax,  \
+        self.sigmay,  \
+        self.sigmaz,  \
+        self.sigmaxy, \
+        self.sigmaxz, \
+        self.sigmayz = self.get_sigmas(self.coordinate_estimate, self.kinematic)
 
-        self.clock_phase, self.clock_phase_sigma, \
-            self.phase_drift, self.phase_drift_sigma, \
-            self.clock_rms, self.clock_rms_number = self.get_clock(self.clock_estimates, self.kinematic)
+        self.clock_phase,       \
+        self.clock_phase_sigma, \
+        self.phase_drift,       \
+        self.phase_drift_sigma, \
+        self.clock_rms,         \
+        self.clock_rms_number = self.get_clock(self.clock_estimates, self.kinematic)
 
         # not implemented in PPP: apply NE offset if is NOT zero
-        if self.rinex.antOffsetN != 0.0 or self.rinex.antOffsetE != 0.0:
-            dx, dy, dz = lg2ct(numpy.array(self.rinex.antOffsetN), numpy.array(self.rinex.antOffsetE),
-                               numpy.array([0]), self.lat, self.lon)
+        if self.rinex.antOffsetN != 0.0 or \
+           self.rinex.antOffsetE != 0.0:
+            
+            dx, dy, dz = lg2ct(numpy.array(self.rinex.antOffsetN),
+                               numpy.array(self.rinex.antOffsetE),
+                               numpy.array([0]),
+                               self.lat, self.lon)
             # reduce coordinates
             self.x -= dx[0]
             self.y -= dy[0]
@@ -630,8 +601,7 @@ class RunPPP(PPPSpatialCheck):
             # DDG: handle the error found in PPP (happens every now and then)
             # Fortran runtime error: End of file
             for i in range(2):
-                cmd = pyRunWithRetry.RunCommand(self.ppp, 60, self.rootdir, 'input.inp')
-                out, err = cmd.run_shell()
+                out, err = pyRunWithRetry.RunCommand(self.ppp, 60, self.rootdir, 'input.inp').run_shell()
 
                 if '*END - NORMAL COMPLETION' not in out:
 
@@ -645,13 +615,9 @@ class RunPPP(PPPSpatialCheck):
                     else:
                         return False, msg
                 else:
-                    f = open(os.path.join(self.rootdir, self.rinex.rinex[:-3] + 'sum'), 'r')
-                    self.out = f.readlines()
-                    f.close()
-
-                    f = open(os.path.join(self.rootdir, self.rinex.rinex[:-3] + 'pos'), 'r')
-                    self.pos = f.readlines()
-                    f.close()
+                    path = os.path.join(self.rootdir, self.rinex.rinex[:-3])
+                    self.out = file_readlines(path + 'sum')
+                    self.pos = file_readlines(path + 'pos')
                     break
 
         except pyRunWithRetry.RunCommandWithRetryExeception as e:
@@ -680,58 +646,57 @@ class RunPPP(PPPSpatialCheck):
                     # problem with EOP!
                     if self.eop_file != 'dummy.eop':
                         self.eop_file = 'dummy.eop'
-                        self.config_session()
                     else:
                         raise
 
-                except (pyRunPPPExceptionNaN, pyRunPPPExceptionTooFewAcceptedObs, pyRunPPPExceptionZeroProcEpochs):
+                except (pyRunPPPExceptionNaN,
+                        pyRunPPPExceptionTooFewAcceptedObs,
+                        pyRunPPPExceptionZeroProcEpochs):
                     # Nan in the result
                     if not self.kinematic:
                         # first retry, turn to kinematic mode
                         self.kinematic = True
-                        self.config_session()
-                    elif self.kinematic and self.rinex.date.fyear >= 2001.33287 and not self.clock_interpolation:
+
+                    elif self.rinex.date.fyear >= 2001.33287 and not self.clock_interpolation:
                         # date has to be > 2001 May 1 (SA deactivation date)
                         self.clock_interpolation = True
-                        self.config_session()
-                    elif self.kinematic and self.sp3altrn and self.orbit_type not in self.sp3altrn:
+
+                    elif self.sp3altrn and self.orbit_type not in self.sp3altrn:
                         # second retry, kinematic and alternative orbits (if exist)
                         self.get_orbits(self.sp3altrn)
-                        self.config_session()
+
                     else:
                         # it didn't work in kinematic mode either! raise error
                         raise
-            else:
+            elif self.sp3altrn and self.orbit_type not in self.sp3altrn:
                 # maybe a bad orbit, fall back to alternative
-                if self.sp3altrn and self.orbit_type not in self.sp3altrn:
-                    self.get_orbits(self.sp3altrn)
-                    self.config_session()
-                else:
-                    raise pyRunPPPException(message)
+                self.get_orbits(self.sp3altrn)
+            else:
+                raise pyRunPPPException(message)
+
+            # reconfig and try again
+            self.config_session()
 
         self.load_record()
 
-        return
 
     def load_record(self):
 
-        self.record['NetworkCode'] = self.rinex.NetworkCode
-        self.record['StationCode'] = self.rinex.StationCode
-        self.record['X'] = self.x
-        self.record['Y'] = self.y
-        self.record['Z'] = self.z
-        self.record['Year'] = self.rinex.date.year
-        self.record['DOY'] =self.rinex.date.doy
+        self.record['NetworkCode']    = self.rinex.NetworkCode
+        self.record['StationCode']    = self.rinex.StationCode
+        self.record['X']              = self.x
+        self.record['Y']              = self.y
+        self.record['Z']              = self.z
+        self.record['Year']           = self.rinex.date.year
+        self.record['DOY']            = self.rinex.date.doy
         self.record['ReferenceFrame'] = self.frame
-        self.record['sigmax'] = self.sigmax
-        self.record['sigmay'] = self.sigmay
-        self.record['sigmaz'] = self.sigmaz
-        self.record['sigmaxy'] = self.sigmaxy
-        self.record['sigmaxz'] = self.sigmaxz
-        self.record['sigmayz'] = self.sigmayz
-        self.record['hash']    = self.hash
-
-        return
+        self.record['sigmax']         = self.sigmax
+        self.record['sigmay']         = self.sigmay
+        self.record['sigmaz']         = self.sigmaz
+        self.record['sigmaxy']        = self.sigmaxy
+        self.record['sigmaxz']        = self.sigmaxz
+        self.record['sigmayz']        = self.sigmayz
+        self.record['hash']           = self.hash
 
     def cleanup(self):
         if os.path.isdir(self.rootdir) and self.erase:

@@ -1,14 +1,11 @@
+#!/usr/bin/env python
 """
 Project:
 Date: 10/10/17 3:07 PM
 Author: Demian D. Gomez
 """
 
-import pyOptions
 import argparse
-import dbConnection
-import pyStationInfo
-import pyDate
 import curses
 from curses import panel
 import curses.ascii
@@ -17,11 +14,18 @@ from collections import OrderedDict
 import traceback
 import re
 
-cnn = dbConnection.Cnn('gnss_data.cfg')
-Config = pyOptions.ReadOptions("gnss_data.cfg")  # type: pyOptions.ReadOptions
+# app
+import pyOptions
+import dbConnection
+import pyStationInfo
+import pyDate
+
+
+cnn       = dbConnection.Cnn('gnss_data.cfg')
+Config    = pyOptions.ReadOptions("gnss_data.cfg")  # type: pyOptions.ReadOptions
 selection = 0
-stn = None
-records = []
+stn       = None
+records   = []
 
 
 class _Textbox(Textbox):
@@ -66,7 +70,7 @@ class _Textbox(Textbox):
             Textbox.do_command(self,curses.KEY_BACKSPACE)
             self.win.refresh()
             return 1
-        if ch == 27:
+        elif ch == 27:
             Textbox.gather(self)
             return -1
         return Textbox.do_command(self, ch)
@@ -82,17 +86,17 @@ class Menu(object):
         panel.update_panels()
 
         self.position = 0
-        self.items = items
+        self.items    = items
         if type == 'edit':
             self.items.append({'field': 'Save and exit', 'function': 'save_changes'})
         else:
             self.items.append({'field': 'Exit', 'function': 'exit'})
 
-        self.title = title
-        self.type = type
+        self.title         = title
+        self.type          = type
         self.edited_fields = dict()
-        self.record_index = record_index
-        self.cnn = cnn
+        self.record_index  = record_index
+        self.cnn           = cnn
 
     def navigate(self, n):
         self.position += n
@@ -141,14 +145,13 @@ class Menu(object):
                 elif self.position < len(self.items) - 1 and self.type != 'edit':
                     self.items[self.position]['function'](self)
 
+                elif self.position == len(self.items) - 1:
+                    # save changes
+                    if save_changes(self):
+                        break
                 else:
-                    if self.position == len(self.items) - 1:
-                        # save changes
-                        if save_changes(self):
-                            break
-                    else:
-                        # enter edit mode
-                        self.enter_edit_mode()
+                    # enter edit mode
+                    self.enter_edit_mode()
 
             elif key == curses.KEY_UP:
                 self.navigate(-1)
@@ -215,11 +218,11 @@ class Menu(object):
         self.window.clear()
 
     def validate(self, edit_field):
-
-        if self.items[self.position]['field'] in ['DateStart', 'DateEnd']:
+        fname = self.items[self.position]['field']
+        if fname in ('DateStart', 'DateEnd'):
             # VALIDATE THE date strings
             try:
-                if edit_field.strip() == '' and self.items[self.position]['field'] == 'DateEnd':
+                if edit_field.strip() == '' and fname == 'DateEnd':
                     edit_field = str(pyDate.Date(stninfo=None))
                 else:
                     # if success, then reformat the datetime
@@ -229,7 +232,7 @@ class Menu(object):
                 self.ShowError('Invalid station information datetime format!')
                 return False
 
-        elif self.items[self.position]['field'] == 'AntennaCode':
+        elif fname == 'AntennaCode':
             rs = self.cnn.query('SELECT * FROM antennas WHERE "AntennaCode" = \'%s\'' % (edit_field.upper()))
 
             if rs.ntuples() == 0:
@@ -238,7 +241,7 @@ class Menu(object):
             else:
                 edit_field = rs.dictresult()[0]['AntennaCode']
 
-        elif self.items[self.position]['field'] == 'ReceiverCode':
+        elif fname == 'ReceiverCode':
             rs = self.cnn.query('SELECT * FROM receivers WHERE "ReceiverCode" = \'%s\'' % (edit_field.upper()))
 
             if rs.ntuples() == 0:
@@ -247,7 +250,7 @@ class Menu(object):
             else:
                 edit_field = rs.dictresult()[0]['ReceiverCode']
 
-        elif self.items[self.position]['field'] in ['AntennaEast', 'AntennaNorth', 'AntennaHeight']:
+        elif fname in ('AntennaEast', 'AntennaNorth', 'AntennaHeight'):
             # field has to be numeric
             try:
                 _ = float(edit_field)
@@ -256,33 +259,30 @@ class Menu(object):
                 self.ShowError('Value must be numeric!')
                 return False
 
-        elif self.items[self.position]['field'] == 'ReceiverFirmware':
+        elif fname == 'ReceiverFirmware':
             # field has to be numeric
             if (not (re.findall(r'^\d+[.]?\d*[DEde+-]?\d*$', edit_field)
                     or edit_field in ('-', '--', '---', '----', '-----'))) or len(edit_field) > 5:
                 self.ShowError('Receiver Firmware format must be one of these: d.d-d, d.d+d, dEd, d.d, or five '
                                'dashes (-----)')
                 return False
+            elif edit_field in ('-', '--', '---', '----', '-----'):
+                edit_field = '-----'
             else:
-                if edit_field in ('-', '--', '---', '----', '-----'):
-                    edit_field = '-----'
-                else:
-                    edit_field = edit_field.upper()
+                edit_field = edit_field.upper()
 
-        elif self.items[self.position]['field'] == 'HeightCode':
+        elif fname == 'HeightCode':
 
-            if not edit_field.upper() in ['DHTGP', 'DHPAB', 'SLBDN', 'SLBCR', 'SLTEP', 'DHBCR', 'SLHGP',
-                                          'SLTGN', 'DHARP', 'SLBCE']:
-                self.ShowError('Value must be one of the following: ' + ' '.join(['DHTGP', 'DHPAB', 'SLBDN', 'SLBCR',
-                                                                                  'SLTEP', 'DHBCR', 'SLHGP', 'SLTGN',
-                                                                                  'DHARP', 'SLBCE']))
+            FIELDS = ('DHTGP', 'DHPAB', 'SLBDN', 'SLBCR', 'SLTEP', 'DHBCR', 'SLHGP', 'SLTGN', 'DHARP', 'SLBCE')
+            if not edit_field.upper() in FIELDS:
+                self.ShowError('Value must be one of the following: ' + ' '.join(FIELDS))
                 return False
             else:
                 edit_field = edit_field.upper()
         else:
             edit_field = edit_field.upper()
 
-        self.edited_fields[self.items[self.position]['field']] = edit_field
+        self.edited_fields[fname]          = edit_field
         self.items[self.position]['value'] = edit_field
         return True
 
@@ -303,22 +303,21 @@ def save_changes(menu):
     global StnInfo
 
     # check if there are any changes
-    if len(menu.edited_fields.keys()) > 0:
+    if menu.edited_fields.keys():
 
-        record = dict()
-        record['NetworkCode'] = stn['NetworkCode']
-        record['StationCode'] = stn['StationCode']
+        record = {'NetworkCode': stn['NetworkCode'],
+                  'StationCode': stn['StationCode']}
 
         for item in menu.items[0:-1]:
-            if item['field'] in menu.edited_fields.keys():
-                record[item['field']] = menu.edited_fields[item['field']]
+            fname = item['field']
+            if fname in list(menu.edited_fields.keys()):
+                record[fname] = menu.edited_fields[fname]
             else:
-                record[item['field']] = item['value']
+                record[fname] = item['value']
 
-            if item['field'] in ['DateStart', 'DateEnd']:
-
-                if item['field'] == 'DateEnd' and item['value'].strip() == '':
-                    record[item['field']] = None
+            if fname in ('DateStart', 'DateEnd'):
+                if fname == 'DateEnd' and item['value'].strip() == '':
+                    record[fname] = None
 
         # convert the dictionary into a valid StationInfoRecord object
         record = pyStationInfo.StationInfoRecord(stn['NetworkCode'], stn['StationCode'], record)
@@ -373,24 +372,24 @@ def selection_main_menu(menu):
         # insert new record
         record = OrderedDict()
 
-        record['DateStart'] = ''
-        record['DateEnd'] = ''
-        record['AntennaHeight'] = '0.000' if stninfo is None else stninfo['AntennaHeight']
-        record['HeightCode'] = 'DHARP' if stninfo is None else stninfo['HeightCode']
-        record['AntennaNorth'] = '0.000' if stninfo is None else stninfo['AntennaNorth']
-        record['AntennaEast'] = '0.000' if stninfo is None else stninfo['AntennaEast']
-        record['ReceiverCode'] = '' if stninfo is None else stninfo['ReceiverCode']
-        record['ReceiverVers'] = '' if stninfo is None else stninfo['ReceiverVers']
+        record['DateStart']        = ''
+        record['DateEnd']          = ''
+        record['AntennaHeight']    = '0.000' if stninfo is None else stninfo['AntennaHeight']
+        record['HeightCode']       = 'DHARP' if stninfo is None else stninfo['HeightCode']
+        record['AntennaNorth']     = '0.000' if stninfo is None else stninfo['AntennaNorth']
+        record['AntennaEast']      = '0.000' if stninfo is None else stninfo['AntennaEast']
+        record['ReceiverCode']     = '' if stninfo is None else stninfo['ReceiverCode']
+        record['ReceiverVers']     = '' if stninfo is None else stninfo['ReceiverVers']
         record['ReceiverFirmware'] = '' if stninfo is None else stninfo['ReceiverFirmware']
-        record['ReceiverSerial'] = '' if stninfo is None else stninfo['ReceiverSerial']
-        record['AntennaCode'] = '' if stninfo is None else stninfo['AntennaCode']
-        record['RadomeCode'] = '' if stninfo is None else stninfo['RadomeCode']
-        record['AntennaSerial'] = '' if stninfo is None else stninfo['AntennaSerial']
-        record['Comments'] = ''
+        record['ReceiverSerial']   = '' if stninfo is None else stninfo['ReceiverSerial']
+        record['AntennaCode']      = '' if stninfo is None else stninfo['AntennaCode']
+        record['RadomeCode']       = '' if stninfo is None else stninfo['RadomeCode']
+        record['AntennaSerial']    = '' if stninfo is None else stninfo['AntennaSerial']
+        record['Comments']         = ''
 
         new_record = []
 
-        for field, value in record.iteritems():
+        for field, value in record.items():
             new_record.append({'field': field, 'value': str(value)})
 
         # new_record = sorted(new_record, key=lambda k: k['field'])
@@ -406,8 +405,6 @@ def selection_main_menu(menu):
     menu.items = get_records()
     menu.items += [{'field': 'Insert new station information record', 'function': selection_main_menu}]
     menu.items += [{'field': 'Exit', 'function': 'exit'}]
-
-    return
 
 
 def edit_record(position):
@@ -431,32 +428,31 @@ def get_fields(position):
     # specific order as requested Eric
     record2 = OrderedDict()
 
-    record2['DateStart'] = ''
-    record2['DateEnd'] = ''
-    record2['AntennaHeight'] = '0.000'
-    record2['HeightCode'] = 'DHARP'
-    record2['AntennaNorth'] = '0.000'
-    record2['AntennaEast'] = '0.000'
-    record2['ReceiverCode'] = ''
-    record2['ReceiverVers'] = ''
+    record2['DateStart']        = ''
+    record2['DateEnd']          = ''
+    record2['AntennaHeight']    = '0.000'
+    record2['HeightCode']       = 'DHARP'
+    record2['AntennaNorth']     = '0.000'
+    record2['AntennaEast']      = '0.000'
+    record2['ReceiverCode']     = ''
+    record2['ReceiverVers']     = ''
     record2['ReceiverFirmware'] = ''
-    record2['ReceiverSerial'] = ''
-    record2['AntennaCode'] = ''
-    record2['RadomeCode'] = ''
-    record2['AntennaSerial'] = ''
-    record2['Comments'] = ''
+    record2['ReceiverSerial']   = ''
+    record2['AntennaCode']      = ''
+    record2['RadomeCode']       = ''
+    record2['AntennaSerial']    = ''
+    record2['Comments']         = ''
 
     for key in record2.keys():
         record2[key] = record[key]
 
     record = record2
 
-    for field, value in record.iteritems():
+    for field, value in record.items():
         if field not in ['NetworkCode', 'StationCode']:
-            if type(value) is str:
-                out.append({'field': field, 'value': value})
-            else:
-                out.append({'field': field, 'value': str(value)})
+            out.append({'field' : field,
+                        'value' : (value if type(value) is str else str(value))
+                        })
 
     return out  # sorted(out, key=lambda k: k['field'])
 
@@ -466,7 +462,7 @@ class MyApp(object):
     def __init__(self, stdscreen):
 
         curses.init_pair(1, curses.COLOR_GREEN, curses.COLOR_BLACK)
-        curses.init_pair(2, curses.COLOR_RED, curses.COLOR_WHITE)
+        curses.init_pair(2, curses.COLOR_RED,   curses.COLOR_WHITE)
         curses.init_pair(2, curses.COLOR_GREEN, curses.COLOR_BLACK)
 
         global screen
@@ -486,7 +482,7 @@ class MyApp(object):
 
 if __name__ == '__main__':
 
-    parser = argparse.ArgumentParser(description='Plot ETM for stations in the database')
+    parser = argparse.ArgumentParser(description='Edit Stations info in the database')
 
     parser.add_argument('stn', type=str, nargs=1, help="Station name given in net.stnm format.")
 
@@ -503,10 +499,10 @@ if __name__ == '__main__':
             'SELECT * FROM stations WHERE "StationCode" = \'%s\' ORDER BY "NetworkCode", "StationCode"' % stn)
 
     if rs.ntuples() == 0:
-        print 'ERROR: Station code not found!'
+        print('ERROR: Station code not found!')
         exit()
     elif rs.ntuples() > 1:
-        print 'ERROR: More than one station found! Use net.stnm instead of stnm'
+        print('ERROR: More than one station found! Use net.stnm instead of stnm')
         exit()
     else:
         stn = rs.dictresult()[0]

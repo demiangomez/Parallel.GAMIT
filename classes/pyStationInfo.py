@@ -6,14 +6,19 @@ Author: Demian D. Gomez
 
 import struct
 import datetime
-import pyDate
 import zlib
+import re
+from json import JSONEncoder
+
+# deps
+import numpy as np
+
+# app
+import dbConnection
+import pyDate
 import pyBunch
 import pyEvents
-import re
-import numpy as np
-import dbConnection
-from json import JSONEncoder
+from Utils import struct_unpack, file_readlines, crc32, stationID
 
 
 def _default(self, obj):
@@ -42,32 +47,32 @@ class StationInfoRecord(pyBunch.Bunch):
 
         pyBunch.Bunch.__init__(self)
 
-        self.NetworkCode = NetworkCode
-        self.StationCode = StationCode
-        self.ReceiverCode = ''
-        self.ReceiverSerial = None
+        self.NetworkCode      = NetworkCode
+        self.StationCode      = StationCode
+        self.ReceiverCode     = ''
+        self.ReceiverSerial   = None
         self.ReceiverFirmware = None
-        self.AntennaCode = ''
-        self.AntennaSerial = None
-        self.AntennaHeight = 0
-        self.AntennaNorth = 0
-        self.AntennaEast = 0
-        self.HeightCode = ''
-        self.RadomeCode = ''
-        self.DateStart = None
-        self.DateEnd = None
-        self.ReceiverVers = None
-        self.Comments = None
-        self.hash = None
+        self.AntennaCode      = ''
+        self.AntennaSerial    = None
+        self.AntennaHeight    = 0
+        self.AntennaNorth     = 0
+        self.AntennaEast      = 0
+        self.HeightCode       = ''
+        self.RadomeCode       = ''
+        self.DateStart        = None
+        self.DateEnd          = None
+        self.ReceiverVers     = None
+        self.Comments         = None
+        self.hash             = None
 
         if record is not None:
             self.parse_station_record(record)
 
         # create a hash record using the station information
         # use only the information that can actually generate a change in the antenna position
-        self.hash = zlib.crc32('%.4f %.4f %.4f %s %s %s %s' %
-                               (self.AntennaNorth, self.AntennaEast, self.AntennaHeight, self.HeightCode,
-                                self.AntennaCode, self.RadomeCode, self.ReceiverCode))
+        self.hash = crc32('%.4f %.4f %.4f %s %s %s %s' %
+                          (self.AntennaNorth, self.AntennaEast, self.AntennaHeight, self.HeightCode,
+                           self.AntennaCode, self.RadomeCode, self.ReceiverCode))
 
         # self.record_format = ' %-4s  %-16s  %-19s%-19s%7.4f  %-5s  %7.4f  %7.4f  %-20s  ' \
         #                      '%-20s  %5s  %-20s  %-15s  %-5s  %-20s'
@@ -76,31 +81,29 @@ class StationInfoRecord(pyBunch.Bunch):
                              '{:20.20}  {:>5.5}  {:20.20}  {:15.15}  {:5.5}  {:20.20}'
 
     def database(self):
+        r = {}
 
-        fieldnames = ['StationCode', 'NetworkCode', 'DateStart', 'DateEnd', 'AntennaHeight', 'HeightCode',
-                      'AntennaNorth', 'AntennaEast', 'ReceiverCode', 'ReceiverVers', 'ReceiverFirmware',
-                      'ReceiverSerial', 'AntennaCode', 'RadomeCode', 'AntennaSerial', 'Comments']
+        for field in ('StationCode', 'NetworkCode', 'DateStart', 'DateEnd',
+                      'AntennaHeight', 'HeightCode', 'AntennaNorth', 'AntennaEast',
+                      'ReceiverCode', 'ReceiverVers', 'ReceiverFirmware', 'ReceiverSerial',
+                      'AntennaCode', 'RadomeCode', 'AntennaSerial', 'Comments'):
 
-        return_fields = dict()
-
-        for field in fieldnames:
             if field == 'DateStart':
-                return_fields[field] = self[field].datetime()
+                r[field] = self[field].datetime()
             elif field == 'DateEnd':
                 if self[field].year is None:
-                    return_fields[field] = None
+                    r[field] = None
                 else:
-                    return_fields[field] = self[field].datetime()
+                    r[field] = self[field].datetime()
             else:
-                return_fields[field] = self[field]
+                r[field] = self[field]
 
-        return return_fields
+        return r
 
     def to_json(self):
-
         fields = self.database()
         fields['DateStart'] = str(self.DateStart)
-        fields['DateEnd'] = str(self.DateEnd)
+        fields['DateEnd']   = str(self.DateEnd)
 
         return fields
 
@@ -108,25 +111,25 @@ class StationInfoRecord(pyBunch.Bunch):
 
         if isinstance(record, str):
 
-            fieldnames = ['StationCode', 'StationName', 'DateStart', 'DateEnd', 'AntennaHeight', 'HeightCode',
+            fieldnames = ('StationCode', 'StationName', 'DateStart', 'DateEnd', 'AntennaHeight', 'HeightCode',
                           'AntennaNorth', 'AntennaEast', 'ReceiverCode', 'ReceiverVers', 'ReceiverFirmware',
-                          'ReceiverSerial', 'AntennaCode', 'RadomeCode', 'AntennaSerial']
+                          'ReceiverSerial', 'AntennaCode', 'RadomeCode', 'AntennaSerial')
 
-            fieldwidths = (
-            1, 6, 18, 19, 19, 9, 7, 9, 9, 22, 22, 7, 22, 17, 7, 20)  # negative widths represent ignored padding fields
+            fieldwidths = (1, 6, 18, 19, 19, 9, 7, 9, 9, 22, 22, 7, 22, 17, 7, 20)  # negative widths represent ignored padding fields
             fmtstring = ' '.join('{}{}'.format(abs(fw), 'x' if fw < 0 else 's') for fw in fieldwidths)
 
             fieldstruct = struct.Struct(fmtstring)
-            parse = fieldstruct.unpack_from
 
             if record[0] == ' ' and len(record) >= 77:
-                record = dict(zip(fieldnames, map(str.strip, parse(record.ljust(fieldstruct.size))[1:])))
+                record = dict(zip(fieldnames, map(str.strip,
+                                                  struct_unpack(fieldstruct,
+                                                                record.ljust(fieldstruct.size))[1:])))
             else:
                 return
 
-        for key in self.keys():
+        for key in list(self.keys()):
             try:
-                if key == 'AntennaNorth' or key == 'AntennaEast' or key == 'AntennaHeight':
+                if key in ('AntennaNorth', 'AntennaEast', 'AntennaHeight'):
                     self[key] = float(record[key])
                 else:
                     self[key] = record[key]
@@ -136,23 +139,31 @@ class StationInfoRecord(pyBunch.Bunch):
 
         try:
             # if initializing with a RINEX record, some of these may not exist in the dictionary
-            self.DateStart = pyDate.Date(stninfo=record['DateStart'])
-            self.DateEnd = pyDate.Date(stninfo=record['DateEnd'])
+            self.DateStart   = pyDate.Date(stninfo = record['DateStart'])
+            self.DateEnd     = pyDate.Date(stninfo = record['DateEnd'])
             self.StationCode = record['StationCode'].lower()
         except KeyError:
             pass
 
     def __repr__(self):
-        return 'pyStationInfo.StationInfoRecord(' + str(self) + ')'
+        return 'pyStationInfo.StationInfoRecord(%s)' % str(self) 
 
     def __str__(self):
 
-        return self.record_format.format(self.StationCode.upper(), '', str(self.DateStart), str(self.DateEnd),
-                                         self.AntennaHeight, self.HeightCode,
-                                         self.AntennaNorth, self.AntennaEast,
-                                         self.ReceiverCode, self.ReceiverVers,
-                                         self.ReceiverFirmware, self.ReceiverSerial,
-                                         self.AntennaCode, self.RadomeCode,
+        return self.record_format.format(self.StationCode.upper(),
+                                         '',
+                                         str(self.DateStart),
+                                         str(self.DateEnd),
+                                         self.AntennaHeight,
+                                         self.HeightCode,
+                                         self.AntennaNorth,
+                                         self.AntennaEast,
+                                         self.ReceiverCode,
+                                         self.ReceiverVers,
+                                         self.ReceiverFirmware,
+                                         self.ReceiverSerial,
+                                         self.AntennaCode,
+                                         self.RadomeCode,
                                          self.AntennaSerial)
 
 
@@ -164,11 +175,11 @@ class StationInfo(object):
     def __init__(self, cnn, NetworkCode=None, StationCode=None, date=None, allow_empty=False, h_tolerance=0):
 
         self.record_count = 0
-        self.NetworkCode = NetworkCode
-        self.StationCode = StationCode
-        self.allow_empty = allow_empty
-        self.date = None
-        self.records = []
+        self.NetworkCode  = NetworkCode
+        self.StationCode  = StationCode
+        self.allow_empty  = allow_empty
+        self.date         = None
+        self.records      = []
         self.currentrecord = StationInfoRecord(NetworkCode, StationCode)
 
         self.header = '*SITE  Station Name      Session Start      Session Stop       Ant Ht   HtCod  Ant N    ' \
@@ -190,18 +201,18 @@ class StationInfo(object):
                     for record in self.records:
 
                         DateStart = record['DateStart'].datetime()
-                        DateEnd = record['DateEnd'].datetime()
+                        DateEnd   = record['DateEnd'].datetime()
 
                         # make the gap-tolerant comparison
-                        if DateStart - datetime.timedelta(hours=h_tolerance) <= pDate <= \
-                                DateEnd + datetime.timedelta(hours=h_tolerance):
+                        tolerance = datetime.timedelta(hours=h_tolerance)
+                        if DateStart - tolerance <= pDate <= DateEnd + tolerance:
                             # found the record that corresponds to this date
                             self.currentrecord = record
                             break
 
                     if self.currentrecord.DateStart is None:
                         raise pyStationInfoException('Could not find a matching station.info record for ' +
-                                                     NetworkCode + '.' + StationCode + ' ' +
+                                                     stationID(self) + ' ' +
                                                      date.yyyymmdd() + ' (' + date.yyyyddd() + ')')
 
     def load_stationinfo_records(self):
@@ -216,7 +227,7 @@ class StationInfo(object):
                 # allow no station info if explicitly requested by the user.
                 # Purpose: insert a station info for a new station!
                 raise pyStationInfoException('Could not find ANY valid station info entry for ' +
-                                             self.NetworkCode + '.' + self.StationCode)
+                                             stationID(self))
             self.record_count = 0
             return False
         else:
@@ -238,8 +249,7 @@ class StationInfo(object):
             stninfo = stninfo_file_list
         else:
             # a file is comming in
-            with open(stninfo_file_list, 'r') as fileio:
-                stninfo = fileio.readlines()
+            stninfo = file_readlines(stninfo_file_list)
 
         records = []
         for line in stninfo:
@@ -278,9 +288,10 @@ class StationInfo(object):
 
                 return record
             else:
-                raise pyStationInfoHeightCodeNotFound('%s.%s: %s -> Could not translate height code %s to DHARP. '
+                raise pyStationInfoHeightCodeNotFound('%s: %s -> Could not translate height code %s to DHARP. '
                                                       'Check the height codes table.'
-                                                      % (self.NetworkCode, self.StationCode, record.AntennaCode,
+                                                      % (stationID(self),
+                                                         record.AntennaCode,
                                                          record.HeightCode))
 
     def return_stninfo(self, record=None, no_dharp_translate=False):
@@ -315,9 +326,8 @@ class StationInfo(object):
         """
         stninfo_lines = self.return_stninfo(record=record).split('\n')
 
-        stninfo_lines = [' %s.%s [...] %s' % (self.NetworkCode.upper(), l[1:110], l[160:]) for l in stninfo_lines]
-
-        return '\n'.join(stninfo_lines)
+        return '\n'.join(' %s.%s [...] %s' % (self.NetworkCode.upper(), l[1:110], l[160:])
+                         for l in stninfo_lines)
 
     def overlaps(self, qrecord):
 
@@ -325,13 +335,13 @@ class StationInfo(object):
         overlaps = []
 
         q_start = qrecord['DateStart'].datetime()
-        q_end = qrecord['DateEnd'].datetime()
+        q_end   = qrecord['DateEnd']  .datetime()
 
         if self.records:
             for record in self.records:
 
                 r_start = record['DateStart'].datetime()
-                r_end = record['DateEnd'].datetime()
+                r_end   = record['DateEnd'].datetime()
 
                 earliest_end = min(q_end, r_end)
                 latest_start = max(q_start, r_start)
@@ -344,7 +354,8 @@ class StationInfo(object):
     def DeleteStationInfo(self, record):
 
         event = pyEvents.Event(Description=record['DateStart'].strftime() +
-                               ' has been deleted:\n' + str(record), StationCode=self.StationCode,
+                               ' has been deleted:\n' + str(record),
+                               StationCode=self.StationCode,
                                NetworkCode=self.NetworkCode)
 
         self.cnn.insert_event(event)
@@ -355,7 +366,7 @@ class StationInfo(object):
     def UpdateStationInfo(self, record, new_record):
 
         # avoid problems with trying to insert records from other stations. Force this NetworkCode
-        record['NetworkCode'] = self.NetworkCode
+        record    ['NetworkCode'] = \
         new_record['NetworkCode'] = self.NetworkCode
 
         if self.NetworkCode and self.StationCode:
@@ -369,8 +380,10 @@ class StationInfo(object):
                     # it's overlapping with another record, raise error
 
                     raise pyStationInfoException('Record %s -> %s overlaps with existing station.info records: %s -> %s'
-                                                 % (str(record['DateStart']), str(record['DateEnd']),
-                                                    str(overlap['DateStart']), str(overlap['DateEnd'])))
+                                                 % (str(record['DateStart']),
+                                                    str(record['DateEnd']),
+                                                    str(overlap['DateStart']),
+                                                    str(overlap['DateEnd'])))
 
             # insert event (before updating to save all information)
             event = pyEvents.Event(Description=record['DateStart'].strftime() +
@@ -386,8 +399,10 @@ class StationInfo(object):
             if new_record['DateStart'] != record['DateStart']:
                 self.cnn.query('UPDATE stationinfo SET "DateStart" = \'%s\' '
                                'WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "DateStart" = \'%s\'' %
-                               (new_record['DateStart'].strftime(), self.NetworkCode,
-                                self.StationCode, record['DateStart'].strftime()))
+                               (new_record['DateStart'].strftime(),
+                                self.NetworkCode,
+                                self.StationCode,
+                                record['DateStart'].strftime()))
 
             self.cnn.update('stationinfo', new_record.database(), NetworkCode=self.NetworkCode,
                             StationCode=self.StationCode, DateStart=new_record['DateStart'].datetime())
@@ -424,7 +439,8 @@ class StationInfo(object):
                                 'UPDATE stationinfo SET "DateStart" = \'%s\' WHERE "NetworkCode" = \'%s\' '
                                 'AND "StationCode" = \'%s\' AND "DateStart" = \'%s\'' %
                                 (record['DateStart'].strftime(),
-                                 self.NetworkCode, self.StationCode,
+                                 self.NetworkCode,
+                                 self.StationCode,
                                  self.records[0]['DateStart'].strftime()))
 
                             # insert event
@@ -497,7 +513,8 @@ class StationInfo(object):
                 self.load_stationinfo_records()
             else:
                 raise pyStationInfoException('Record %s -> %s already exists in station.info' %
-                                             (str(record['DateStart']), str(record['DateEnd'])))
+                                             (str(record['DateStart']), 
+                                              str(record['DateEnd'])))
         else:
             raise pyStationInfoException('Cannot insert record without initializing pyStationInfo '
                                          'with NetworkCode and StationCode')
@@ -513,8 +530,8 @@ class StationInfo(object):
 
         RecSerial = rnx['ReceiverSerial']
         AntSerial = rnx['AntennaSerial']
-        AntHeig = rnx['AntennaOffset']
-        RadCode = rnx['AntennaDome']
+        AntHeig   = rnx['AntennaOffset']
+        RadCode   = rnx['AntennaDome']
         StartDate = rnx['ObservationSTime']
 
         stninfo = []
@@ -529,19 +546,19 @@ class StationInfo(object):
                 if count > ignore:
                     Vers = rnx['ReceiverFw'][:22]
 
-                    record = StationInfoRecord(self.NetworkCode, self.StationCode, rnx)
-                    record.DateStart = pyDate.Date(datetime=StartDate)
-                    record.DateEnd = pyDate.Date(datetime=rnxtbl[i-count]['ObservationETime'])
-                    record.HeightCode = 'DHARP'
-                    record.ReceiverVers = Vers[:5]
+                    record                  = StationInfoRecord(self.NetworkCode, self.StationCode, rnx)
+                    record.DateStart        = pyDate.Date(datetime=StartDate)
+                    record.DateEnd          = pyDate.Date(datetime=rnxtbl[i-count]['ObservationETime'])
+                    record.HeightCode       = 'DHARP'
+                    record.ReceiverVers     = Vers[:5]
                     record.ReceiverFirmware = '-----'
 
                     stninfo.append(str(record))
 
                     RecSerial = rnx['ReceiverSerial']
                     AntSerial = rnx['AntennaSerial']
-                    AntHeig = rnx['AntennaOffset']
-                    RadCode = rnx['AntennaDome']
+                    AntHeig   = rnx['AntennaOffset']
+                    RadCode   = rnx['AntennaDome']
                     StartDate = rnxtbl[i - count + 1]['ObservationSTime']
                     count = 0
             elif RecSerial == rnx['ReceiverSerial'] and AntSerial == rnx['AntennaSerial'] and \
@@ -550,10 +567,10 @@ class StationInfo(object):
                 count = 0
 
         # insert the last record with 9999
-        record = StationInfoRecord(self.NetworkCode, self.StationCode, None)
-        record.DateStart = pyDate.Date(datetime=StartDate)
-        record.DateEnd = pyDate.Date(stninfo=None)
-        record.HeightCode = 'DHARP'
+        record                  = StationInfoRecord(self.NetworkCode, self.StationCode, None)
+        record.DateStart        = pyDate.Date(datetime=StartDate)
+        record.DateEnd          = pyDate.Date(stninfo=None)
+        record.HeightCode       = 'DHARP'
         record.ReceiverFirmware = '-----'
 
         stninfo.append(str(record))
@@ -565,35 +582,16 @@ class StationInfo(object):
 
     @staticmethod
     def records_are_equal(record1, record2):
+        return (record1['ReceiverCode']   == record2['ReceiverCode']   and 
+                record1['ReceiverSerial'] == record2['ReceiverSerial'] and 
+                record1['AntennaCode']    == record2['AntennaCode']    and 
+                record1['AntennaSerial']  == record2['AntennaSerial']  and
+                record1['AntennaHeight']  == record2['AntennaHeight']  and
+                record1['AntennaNorth']   == record2['AntennaNorth']   and 
+                record1['AntennaEast']    == record2['AntennaEast']    and 
+                record1['HeightCode']     == record2['HeightCode']     and
+                record1['RadomeCode']     == record2['RadomeCode'])
 
-        if record1['ReceiverCode'] != record2['ReceiverCode']:
-            return False
-
-        if record1['ReceiverSerial'] != record2['ReceiverSerial']:
-            return False
-
-        if record1['AntennaCode'] != record2['AntennaCode']:
-            return False
-
-        if record1['AntennaSerial'] != record2['AntennaSerial']:
-            return False
-
-        if record1['AntennaHeight'] != record2['AntennaHeight']:
-            return False
-
-        if record1['AntennaNorth'] != record2['AntennaNorth']:
-            return False
-
-        if record1['AntennaEast'] != record2['AntennaEast']:
-            return False
-
-        if record1['HeightCode'] != record2['HeightCode']:
-            return False
-
-        if record1['RadomeCode'] != record2['RadomeCode']:
-            return False
-
-        return True
 
     def __eq__(self, stninfo):
 
@@ -601,31 +599,14 @@ class StationInfo(object):
             raise pyStationInfoException('type: ' + str(type(stninfo))
                                          + ' is invalid. Can only compare pyStationInfo.StationInfo objects')
 
-        if self.currentrecord.AntennaCode != stninfo.currentrecord.AntennaCode:
-            return False
-
-        if self.currentrecord.AntennaHeight != stninfo.currentrecord.AntennaHeight:
-            return False
-
-        if self.currentrecord.AntennaNorth != stninfo.currentrecord.AntennaNorth:
-            return False
-
-        if self.currentrecord.AntennaEast != stninfo.currentrecord.AntennaEast:
-            return False
-
-        if self.currentrecord.AntennaSerial != stninfo.currentrecord.AntennaSerial:
-            return False
-
-        if self.currentrecord.ReceiverCode != stninfo.currentrecord.ReceiverCode:
-            return False
-
-        if self.currentrecord.ReceiverSerial != stninfo.currentrecord.ReceiverSerial:
-            return False
-
-        if self.currentrecord.RadomeCode != stninfo.currentrecord.RadomeCode:
-            return False
-
-        return True
+        return (self.currentrecord.AntennaCode    == stninfo.currentrecord.AntennaCode    and
+                self.currentrecord.AntennaHeight  == stninfo.currentrecord.AntennaHeight  and
+                self.currentrecord.AntennaNorth   == stninfo.currentrecord.AntennaNorth   and 
+                self.currentrecord.AntennaEast    == stninfo.currentrecord.AntennaEast    and 
+                self.currentrecord.AntennaSerial  == stninfo.currentrecord.AntennaSerial  and
+                self.currentrecord.ReceiverCode   == stninfo.currentrecord.ReceiverCode   and 
+                self.currentrecord.ReceiverSerial == stninfo.currentrecord.ReceiverSerial and
+                self.currentrecord.RadomeCode     == stninfo.currentrecord.RadomeCode)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.records = None

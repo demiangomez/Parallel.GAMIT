@@ -7,33 +7,40 @@ Program to generate a KML with the stations in a project and the stations out of
 """
 
 import argparse
-import dbConnection
-from Utils import process_stnlist
-from pyGamitConfig import GamitConfiguration
 import time
-import matplotlib.pyplot as plt
-import sklearn.cluster as cluster
-import seaborn as sns
-import numpy as np
-from Utils import ll2sphere_xyz
-from Utils import ecef2lla
+import sys
+
+
+# deps
+from tqdm import tqdm
 from scipy.spatial import SphericalVoronoi
 from scipy.spatial import Delaunay
 from scipy.spatial import distance
-from pyVoronoi import calculate_surface_area_of_a_spherical_Voronoi_polygon
-from pyStation import Station
-from tqdm import tqdm
-from pyETM import pyETMException
-import sys
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+import sklearn.cluster as cluster
+
+
+# app
+import dbConnection
+from Utils import process_stnlist
+from pyGamitConfig import GamitConfiguration
 from pyDate import Date
 import pyNetwork
 import pyArchiveStruct
 from pyParallelGamit import generate_kml
+from pyETM import pyETMException
+from pyVoronoi import calculate_surface_area_of_a_spherical_Voronoi_polygon
+from pyStation import Station
+from Utils import ll2sphere_xyz
+from Utils import ecef2lla
+
 
 BACKBONE_NET = 60
-NET_LIMIT = 40
-MAX_DIST = 5000
-MIN_DIST = 20
+NET_LIMIT    = 40
+MAX_DIST     = 5000
+MIN_DIST     = 20
 
 
 def station_list(cnn, NetworkConfig, dates):
@@ -165,7 +172,7 @@ def backbone_delauney(points, type='regional'):
     mask = np.ones(points.shape[0], dtype=np.bool)
 
     while len(points[mask]) > BACKBONE_NET:
-        print len(points[mask]), max_dist
+        print(len(points[mask]), max_dist)
         n_mask = mask.copy()
         removed = True
 
@@ -202,7 +209,7 @@ def backbone_network(vstations, points, stns, ties):
 
     # get xyz of the stations
     pc = ll2sphere_xyz(ties)
-    print pc
+    print(pc)
     while len(pc[flt]) - BACKBONE_NET > 0:
         # calculate the spherical voronoi
         sv = SphericalVoronoi(pc[flt], radius=6371000, threshold=1e-9)
@@ -214,10 +221,10 @@ def backbone_network(vstations, points, stns, ties):
 
         sv.sort_vertices_of_regions()
 
-        area = np.zeros(len(sv.regions))
+        area   = np.zeros(len(sv.regions))
         weight = np.zeros(len(sv.regions))
         for i, region in enumerate(sv.regions):
-            area[i] = calculate_surface_area_of_a_spherical_Voronoi_polygon(sv.vertices[region], 6371)
+            area[i]   = calculate_surface_area_of_a_spherical_Voronoi_polygon(sv.vertices[region], 6371)
             weight[i] = 0.3 * area[i]  # also needs the stations weight (to do)
 
         # rank stations by weight
@@ -228,7 +235,7 @@ def backbone_network(vstations, points, stns, ties):
         # remove the first one on the list
         flt[np.where(flt)[0][minw[0]]] = False
 
-        print 'iterating %i' % len(pc[flt])
+        print('iterating %i' % len(pc[flt]))
 
     plot_v(pc[flt], sv)
     return flt
@@ -259,7 +266,7 @@ def plot_v(pc, sv):
 
     for region in sv.regions:
         random_color = colors.rgb2hex(np.random.rand(3))
-        polygon = Poly3DCollection([sv.vertices[region]], alpha=1.0)
+        polygon      = Poly3DCollection([sv.vertices[region]], alpha=1.0)
         polygon.set_color(random_color)
         ax.add_collection3d(polygon)
     set_axes_equal(ax)
@@ -279,11 +286,11 @@ def set_axes_equal(ax):
     y_limits = ax.get_ylim3d()
     z_limits = ax.get_zlim3d()
 
-    x_range = abs(x_limits[1] - x_limits[0])
+    x_range  = abs(x_limits[1] - x_limits[0])
     x_middle = np.mean(x_limits)
-    y_range = abs(y_limits[1] - y_limits[0])
+    y_range  = abs(y_limits[1] - y_limits[0])
     y_middle = np.mean(y_limits)
-    z_range = abs(z_limits[1] - z_limits[0])
+    z_range  = abs(z_limits[1] - z_limits[0])
     z_middle = np.mean(z_limits)
 
     # The plot bounding box is a sphere in the sense of the infinity
@@ -320,7 +327,7 @@ def tie_subnetworks(vstations, centroids, labels, points, stns):
                 # also, allow a 4th tie to a network if ties[c] is only 1
                 if (ties[n] < 3 or ties[c] < 2) and n != c:
                     # to link to this neighbor, it has to have less then 3 ties. Otherwise continue to bext
-                    print 'working on net ' + str(c) + ' - ' + str(n)
+                    print('working on net ' + str(c) + ' - ' + str(n))
 
                     # get all stations from current subnet and dist to each station of neighbor n
                     sd = distance.cdist(points[labels == c], points[labels == n]) / 1e3
@@ -336,7 +343,7 @@ def tie_subnetworks(vstations, centroids, labels, points, stns):
                         s = smallestN_indices(sd, 1)[0]
                         # ONLY ALLOW TIES BETWEEN MIN_DIST AND MAX_DIST
                         if MIN_DIST <= sd[s[0], s[1]] <= MAX_DIST:
-                            print ' pair: ' + st1[s[0]] + ' - ' + st2[s[1]] + ' ( %.1f' % sd[s[0], s[1]] + ' km)'
+                            print(' pair: ' + st1[s[0]] + ' - ' + st2[s[1]] + ' ( %.1f' % sd[s[0], s[1]] + ' km)')
                             tie_c += [st2[s[1]]]
                             tie_n += [st1[s[0]]]
                             sd[s[0], :] = np.inf
@@ -356,7 +363,7 @@ def tie_subnetworks(vstations, centroids, labels, points, stns):
                         vstations[n] += tie_n
                         vties[n] += tie_n
                     else:
-                        print ' no suitable ties found between these two networks'
+                        print(' no suitable ties found between these two networks')
 
                 if ties[c] == 3:
                     # if current subnet already has 3 ties, continue to next one
@@ -407,8 +414,8 @@ def make_clusters(points, p_filter=None):
             tcentroids, tlabels = make_clusters(tpoints, labels == i)
 
             if p_filter is None:
-                print ' >> calling make_clusters recursively on %i' % i
-                print ' -- divided into %i' % len(tcentroids)
+                print(' >> calling make_clusters recursively on %i' % i)
+                print(' -- divided into %i' % len(tcentroids))
 
             for j in range(len(tcentroids)):
                 # don't do anything with empty centroids
@@ -454,7 +461,7 @@ def make_clusters(points, p_filter=None):
                 idx = np.unravel_index(np.argmin(dist), dist.shape)
                 # move the "row" station to closest subnetwork
                 cc_p = cc[np.arange(len(cc)) != i]  # all centroids but the centroid we are working with (i)
-                dc = distance.cdist(np.array([pp[idx[0]]]), cc_p) / 1e3
+                dc   = distance.cdist(np.array([pp[idx[0]]]), cc_p) / 1e3
 
                 min_centroid = np.argmin(dc, axis=1)
 
@@ -464,7 +471,7 @@ def make_clusters(points, p_filter=None):
                 ll[np.where(ll == i)[0][idx[0]]] = centroid_index
 
                 # calculate again without this point
-                pp = points[ll == i]
+                pp   = points[ll == i]
                 dist = distance.cdist(pp, pp) / 1e3
                 # remove zeros
                 dist[dist == 0] = np.inf
@@ -485,10 +492,11 @@ def save_cluster(all_points, c_points, cc, centroid, ll, save_i):
 
 def plot_clusters(data, algorithm, args, kwds):
     start_time = time.time()
-    labels = algorithm(*args, **kwds).fit_predict(data)
-    end_time = time.time()
-    palette = sns.color_palette('deep', np.unique(labels).max() + 1)
-    colors = [palette[x] if x >= 0 else (0.0, 0.0, 0.0) for x in labels]
+    labels     = algorithm(*args, **kwds).fit_predict(data)
+    end_time   = time.time()
+    palette    = sns.color_palette('deep', np.unique(labels).max() + 1)
+    colors     = [palette[x] if x >= 0 else (0.0, 0.0, 0.0) for x in labels]
+
     plt.scatter(data.T[0], data.T[1], c=colors, **plot_kwds)
     frame = plt.gca()
     frame.axes.get_xaxis().set_visible(False)

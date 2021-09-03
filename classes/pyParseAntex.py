@@ -3,25 +3,23 @@ Project: Parallel.Archive
 Date: 2/25/17 7:15 PM
 Author: Demian D. Gomez
 """
+from Utils import file_readlines
 
 class ParseAntexFile():
 
     def __init__(self,filename):
+        antex = file_readlines(filename)
 
-        try:
-            with open(filename, 'r') as fileio:
-                antex = fileio.readlines()
-        except:
-            raise
-
-        self.Antennas = []
-        self.Radomes  = []
+        antennas = set()
+        radomes  = set()
 
         for line in antex:
-            if 'TYPE / SERIAL NO' in line and len(line.split()) <= 6:
-                self.Antennas.append(line.split()[0])
-                self.Radomes.append (line.split()[1])
+            if 'TYPE / SERIAL NO' in line:
+                fields = line.split()
+                if len(fields) <= 6:
+                    antennas.add(fields[0])
+                    radomes.add (fields[1])
 
         # make a unique list
-        self.Antennas = list(set(self.Antennas))
-        self.Radomes  = list(set(self.Radomes))
+        self.Antennas = list(antennas)
+        self.Radomes  = list(radomes)

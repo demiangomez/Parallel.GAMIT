@@ -1,17 +1,23 @@
+#!/usr/bin/env python
+
 """
 Project: Mike's APRs into db
 Date: 1/19/18 8:37 PM
 Author: Demian D. Gomez
 """
+
+# deps
+import pg
 import hdf5storage
 import numpy as np
+
+# app
 import dbConnection
 import pyDate
-import pg
 
 def main():
 
-    print ' >> Loading g08d APRs...'
+    print(' >> Loading g08d APRs...')
     mat = hdf5storage.loadmat('PRIORS_from_g08d.mat')
 
     # stn_index = np.where(mat['pv_stnm'] == rnx['NetworkCode'].uppper() + '_' + rnx['StationCode'].upper())[0][0]
@@ -23,7 +29,9 @@ def main():
         NetworkCode = stnm[0].split('_')[0].lower()
         StationCode = stnm[0].split('_')[1].lower()
 
-        print ' -- inserting ' + NetworkCode + '.' + StationCode
+        station_id = NetworkCode + '.' + StationCode
+
+        print(' -- inserting ' + station_id)
 
         if cnn.query('SELECT * FROM stations WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\'' % (NetworkCode, StationCode)).ntuples() != 0:
             # get the rows for this station
@@ -36,7 +44,7 @@ def main():
                 date = pyDate.Date(fyear=fyear)
 
                 if enu[0][i] < 10:
-                    # print ' -- ' + NetworkCode + '.' + StationCode  + ' ' + date.yyyyddd()
+                    # print ' -- ' + station_id  + ' ' + date.yyyyddd()
                     # actual sigma value, otherwise it's a super unconstrained (should not be inserted)
                     try:
                         cnn.query('INSERT INTO apr_coords '
@@ -46,10 +54,10 @@ def main():
                                    xyz[0][i], xyz[1][i], xyz[2][i],
                                    enu[0][i], enu[1][i], enu[2][i]))
                     except pg.IntegrityError:
-                        print ' -- ' + NetworkCode + '.' + StationCode + ' ' + date.yyyyddd() + ' already exists!'
+                        print(' -- ' + station_id + ' ' + date.yyyyddd() + ' already exists!')
 
         else:
-            print ' -- COULD NOT FIND STATION ' + NetworkCode + '.' + StationCode
+            print(' -- COULD NOT FIND STATION ' + station_id)
 
 if __name__ == '__main__':
     main()

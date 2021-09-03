@@ -1,10 +1,15 @@
+#!/usr/bin/env python
 
+import os
+
+# deps
+from tqdm import tqdm
+
+# app
 import dbConnection
 import pyJobServer
 import pyOptions
 import pyArchiveStruct
-import os
-from tqdm import tqdm
 import pyRinex
 
 
@@ -61,7 +66,9 @@ def main():
 
     for rnx in rinex:
 
-        filename = archive.build_rinex_path(rnx['NetworkCode'], rnx['StationCode'], rnx['ObservationYear'],
+        filename = archive.build_rinex_path(rnx['NetworkCode'],
+                                            rnx['StationCode'],
+                                            rnx['ObservationYear'],
                                             rnx['ObservationDOY'],
                                             filename=rnx['Filename'])
 
@@ -87,3 +94,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
