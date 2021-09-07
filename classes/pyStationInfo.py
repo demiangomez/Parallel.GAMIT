@@ -155,16 +155,16 @@ class StationInfoRecord(pyBunch.Bunch):
                                          str(self.DateStart),
                                          str(self.DateEnd),
                                          self.AntennaHeight,
-                                         self.HeightCode,
+                                         str(self.HeightCode),
                                          self.AntennaNorth,
                                          self.AntennaEast,
-                                         self.ReceiverCode,
-                                         self.ReceiverVers,
-                                         self.ReceiverFirmware,
-                                         self.ReceiverSerial,
-                                         self.AntennaCode,
-                                         self.RadomeCode,
-                                         self.AntennaSerial)
+                                         str(self.ReceiverCode),
+                                         str(self.ReceiverVers),
+                                         str(self.ReceiverFirmware),
+                                         str(self.ReceiverSerial),
+                                         str(self.AntennaCode),
+                                         str(self.RadomeCode),
+                                         str(self.AntennaSerial))
 
 
 class StationInfo(object):
@@ -591,7 +591,6 @@ class StationInfo(object):
                 record1['AntennaEast']    == record2['AntennaEast']    and 
                 record1['HeightCode']     == record2['HeightCode']     and
                 record1['RadomeCode']     == record2['RadomeCode'])
-
 
     def __eq__(self, stninfo):
 

@@ -2,15 +2,11 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="a64c3a05-b10f-4d88-bc8d-bee6a190e9d3" name="Default" comment="">
-      <change beforePath="$PROJECT_DIR$/../classes/dbConnection.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/dbConnection.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../classes/pyEvents.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/pyEvents.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../classes/pyJobServer.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/pyJobServer.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../com/TrajectoryFit.py" beforeDir="false" afterPath="$PROJECT_DIR$/../com/TrajectoryFit.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit/pyStation.py" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/pyStation.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../INSTALL.md" beforeDir="false" afterPath="$PROJECT_DIR$/../INSTALL.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classes/pyStationInfo.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/pyStationInfo.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/Parallel.GAMIT.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/Parallel.GAMIT.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Stacker.py" beforeDir="false" afterPath="$PROJECT_DIR$/Stacker.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pyDRA.py" beforeDir="false" afterPath="$PROJECT_DIR$/pyDRA.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pyStack.py" beforeDir="false" afterPath="$PROJECT_DIR$/pyStack.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -36,7 +32,7 @@
   </component>
   <component name="PropertiesComponent">
     <property name="SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
-    <property name="last_opened_file_path" value="$PROJECT_DIR$/../com" />
+    <property name="last_opened_file_path" value="$USER_HOME$/Parallel.GAMIT/venv" />
     <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable" />
   </component>
   <component name="RecentsManager">
@@ -175,31 +171,12 @@
     </option>
     <option name="oldMeFiltersMigrated" value="true" />
   </component>
-  <component name="WindowStateProjectService">
-    <state x="100" y="125" width="1720" height="806" key="DiffContextDialog" timestamp="1595215454038">
-      <screen x="0" y="27" width="1920" height="1004" />
-    </state>
-    <state x="100" y="125" width="1720" height="806" key="DiffContextDialog/0.27.1920.1004/1920.0.1366.768@0.27.1920.1004" timestamp="1595215454038" />
-    <state x="449" y="163" key="SettingsEditor" timestamp="1588200464596">
-      <screen x="0" y="27" width="1920" height="1004" />
-    </state>
-    <state x="449" y="163" key="SettingsEditor/0.27.1920.1004/1920.0.1366.768@0.27.1920.1004" timestamp="1588200464596" />
-    <state x="529" y="182" width="1098" height="522" key="find.popup" timestamp="1595188636176">
-      <screen x="0" y="27" width="1920" height="1004" />
-    </state>
-    <state x="529" y="182" width="1098" height="522" key="find.popup/0.27.1920.1004/1920.0.1366.768@0.27.1920.1004" timestamp="1595188636176" />
-    <state x="623" y="245" width="672" height="678" key="search.everywhere.popup" timestamp="1595220212266">
-      <screen x="0" y="27" width="1920" height="1004" />
-    </state>
-    <state x="623" y="245" width="672" height="678" key="search.everywhere.popup/0.27.1920.1004/1920.0.1366.768@0.27.1920.1004" timestamp="1595220212266" />
-    <state x="623" y="245" width="672" height="678" key="search.everywhere.popup/0.27.1920.1004@0.27.1920.1004" timestamp="1591971624448" />
-  </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
       <breakpoints>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/../com/AlterETM.py</url>
-          <line>1</line>
+          <line>2</line>
           <option name="timeStamp" value="1" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
