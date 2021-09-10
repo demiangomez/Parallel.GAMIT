@@ -12,6 +12,7 @@ import shutil
 import snxParse
 from Utils import file_open, chmod_exec, stationID
 
+
 class GlobkException(Exception):
     def __init__(self, value):
         self.value = value
@@ -22,7 +23,7 @@ class GlobkException(Exception):
 
 class Globk(object):
 
-    def __init__(self, pwd_comb, date, Sessions):
+    def __init__(self, pwd_comb, date, Sessions, net_type='regional'):
         self.polyhedron     = None
         self.VarianceFactor = None
         self.date           = date
@@ -37,6 +38,7 @@ class Globk(object):
         self.p              = None
         self.polyhedron     = None
         self.variance       = None
+        self.net_type       = net_type
 
     def linktables(self, year, eop_type):
         script_path = os.path.join(self.pwd_comb, 'link_tables.sh')
@@ -110,7 +112,7 @@ class Globk(object):
 
             # data product file names
             OUT_FILE=%s%s%s;
-
+            
             # mk solutions directory for prt files etc
             [ ! -d tables ] && mkdir tables
 
@@ -127,11 +129,19 @@ class Globk(object):
             echo " out_glb ../file.GLX"                                                  >> globk.cmd
             echo " in_pmu pmu.usno"                                                      >> globk.cmd
             echo " descript Daily combination of global and regional solutions"          >> globk.cmd
-            echo "# activate for global network merge"                                   >> globk.cmd
-            echo "# apr_wob    10 10  10 10 "                                            >> globk.cmd
-            echo "# apr_ut1    10 10        "                                            >> globk.cmd
+            """ % (org, org, gpsWeek_str, str(date.gpsWeekDay))
+
+            if self.net_type == 'global':
+                contents += \
+                """
+                echo "# activated for global network merge"                                  >> globk.cmd
+                echo " apr_wob    10 10  10 10 "                                             >> globk.cmd
+                echo " apr_ut1    10 10        "                                             >> globk.cmd
+                echo " apr_svs all 0.05 0.05 0.05 0.005 0.005 0.005 0.01 0.01 0.00 0.01 FR"  >> globk.cmd
+                """
+            contents += \
+            """
             echo " max_chii  1. 0.6"                                                     >> globk.cmd
-            echo "# apr_svs all 0.05 0.05 0.05 0.005 0.005 0.005 0.01 0.01 0.00 0.01 FR" >> globk.cmd
             echo " apr_site  all 1 1 1 0 0 0"                                            >> globk.cmd
             echo " apr_atm   all 1 1 1"                                                  >> globk.cmd
 
@@ -189,7 +199,7 @@ class Globk(object):
             gzip --force *.glx
             gzip --force *.GLX
 
-            """ % (org, org, gpsWeek_str, str(date.gpsWeekDay))
+            """
 
             run_file.write(contents)
             # all done

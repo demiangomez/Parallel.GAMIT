@@ -16,6 +16,7 @@ import dispy.httpd
 
 DELAY = 10
 
+
 def test_node(check_gamit_tables=None, software_sync=()):
     # test node: function that makes sure that all required packages and tools are present in the nodes
     import traceback
@@ -36,7 +37,6 @@ def test_node(check_gamit_tables=None, software_sync=()):
             return []
         else:
             return ' -- %s: Could not find file %s' % (platform.node(), tabfile)
-
 
     # BEFORE ANYTHING! check the python version
     version = sys.version_info
@@ -76,7 +76,6 @@ def test_node(check_gamit_tables=None, software_sync=()):
     except:
         return ' -- %s: Problem found while importing modules:\n%s' % (platform.node(), traceback.format_exc())
 
-
     try:
         if len(software_sync) > 0:
             # synchronize directories listed in the src and dst arguments
@@ -110,7 +109,6 @@ def test_node(check_gamit_tables=None, software_sync=()):
     except:
         return ' -- %s: Problem found while connecting to postgres:\n%s ' % (platform.node(), traceback.format_exc())
 
-
     # make sure we can create the production folder
     try:
         test_dir = os.path.join('production/node_test')
@@ -118,7 +116,6 @@ def test_node(check_gamit_tables=None, software_sync=()):
             os.makedirs(test_dir)
     except:
         return ' -- %s: Could not create production folder:\n%s ' % (platform.node(), traceback.format_exc())
-
 
     # test
     try:
@@ -138,13 +135,11 @@ def test_node(check_gamit_tables=None, software_sync=()):
         return ' -- %s: Problem while reading config file and/or testing archive access:\n%s' \
                % (platform.node(), traceback.format_exc())
 
-
     try:
         brdc = pyBrdc.GetBrdcOrbits(Config.brdc_path, date, test_dir)
     except:
         return ' -- %s: Problem while testing the broadcast ephemeris archive (%s) access:\n%s' \
                % (platform.node(), Config.brdc_path, traceback.format_exc())
-
 
     try:
         sp3 = pySp3.GetSp3Orbits(Config.sp3_path, date, Config.sp3types, test_dir)
@@ -152,11 +147,10 @@ def test_node(check_gamit_tables=None, software_sync=()):
         return ' -- %s: Problem while testing the sp3 orbits archive (%s) access:\n%s' \
                % (platform.node(), Config.sp3_path, traceback.format_exc())
 
-
     # check that all executables and GAMIT bins are in the path
     for prg in ('crz2rnx', 'crx2rnx', 'rnx2crx', 'rnx2crz',
-                'RinSum', 'teqc', 'svdiff', 'svpos', 'tform',
-                'sh_rx2apr', 'doy', 'RinEdit', 'sed', 'compress'):
+                'gfzrnx_lx', 'svdiff', 'svpos', 'tform',
+                'sh_rx2apr', 'doy', 'sed', 'compress'):
         with pyRunWithRetry.command('which ' + prg) as run:
             run.run()
             if run.stdout == '':
@@ -231,13 +225,11 @@ class JobServer:
             print(' -- Checking node %s (%i CPUs)...' % (node.name, node.avail_cpus))
             # test node to make sure everything works
 
-
             self.cluster.send_file('gnss_data.cfg', node)
             
             job = self.cluster.submit_node(node, self.check_gamit_tables, self.software_sync)
 
             self.cluster.wait()
-
 
             # create a delay to allow propagation of the result
             # <nah> @todo aca si job es None bug, y no está claro si con el wait() el
@@ -249,7 +241,6 @@ class JobServer:
             self.result.append(job.result)
 
             self.nodes.append(node)
-
 
     def __init__(self, Config, check_gamit_tables=None, run_parallel=True, software_sync=()):
         """
@@ -331,7 +322,6 @@ class JobServer:
                 print(' >> Errors were encountered during initialization. Check messages.')
                 exit()
 
-
     def create_cluster(self, function, deps=(), callback=None, progress_bar=None, verbose=False, modules=()):
 
         self.jobs     = []
@@ -361,7 +351,6 @@ class JobServer:
             time.sleep(DELAY)
 
         self.progress_bar = progress_bar
-
 
     def submit(self, *args):
         """
@@ -408,7 +397,6 @@ class JobServer:
             tqdm.write('')
             self.http_server.shutdown()
             self.cleanup()
-
 
     def cluster_status(self, status, node, job):
 

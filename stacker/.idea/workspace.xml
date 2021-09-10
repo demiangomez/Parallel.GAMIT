@@ -3,9 +3,9 @@
   <component name="ChangeListManager">
     <list default="true" id="a64c3a05-b10f-4d88-bc8d-bee6a190e9d3" name="Default" comment="">
       <change beforePath="$PROJECT_DIR$/../INSTALL.md" beforeDir="false" afterPath="$PROJECT_DIR$/../INSTALL.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../classes/pyStationInfo.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/pyStationInfo.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/Parallel.GAMIT.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/Parallel.GAMIT.iml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classes/pyJobServer.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/pyJobServer.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../parallel_gamit/pyGlobkTask.py" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/pyGlobkTask.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../parallel_gamit/pyParallelGamit.py" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/pyParallelGamit.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />

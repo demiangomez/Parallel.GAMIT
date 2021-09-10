@@ -441,6 +441,8 @@ def ExecuteGlobk(cnn, JobServer, GamitConfig, sessions, dates):
     JobServer.create_cluster(run_globk, (pyGlobkTask.Globk, pyGamitSession.GamitSession),
                              job_callback, progress_bar=pbar, modules=modules)
 
+    net_type = GamitConfig.NetworkConfig.type
+
     for date in dates:
         pwd = GamitConfig.gamitopt['solutions_dir'].rstrip('/') + '/' + date.yyyy() + '/' + date.ddd()
 
@@ -479,7 +481,7 @@ def ExecuteGlobk(cnn, JobServer, GamitConfig, sessions, dates):
             # folder where the combination (or final solution if single network) should be written to
             pwd_comb = os.path.join(pwd, project + '/glbf')
             # globk combination object
-            globk = pyGlobkTask.Globk(pwd_comb, date, GlobkComb)
+            globk = pyGlobkTask.Globk(pwd_comb, date, GlobkComb, net_type)
             JobServer.submit(globk, project, date)
 
     JobServer.wait()
