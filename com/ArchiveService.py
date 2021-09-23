@@ -739,7 +739,8 @@ def main():
                 total=len(files_list), ncols=160, unit='crz', disable=None)
 
     # dependency functions
-    depfuncs = (check_rinex_timespan_int, write_error, error_handle, insert_data, verify_rinex_multiday)
+    depfuncs = (check_rinex_timespan_int, write_error, error_handle, insert_data, verify_rinex_multiday, file_append,
+                file_try_remove)
     # import modules
     JobServer.create_cluster(process_crinex_file,
                              depfuncs,

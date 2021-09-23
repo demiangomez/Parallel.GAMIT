@@ -78,7 +78,8 @@ class RinexNameFormat(object):
                 self.data_type          = None
                 self.date               = Date(year=check_year(self.year), doy=int(self.doy))
             else:
-                self.StationCode        = parts[0][0:4]
+                # DDG: lowercase station code to match the default station name conventions
+                self.StationCode        = parts[0][0:4].lower()
                 self.monument           = parts[0][4:5]
                 self.receiver           = parts[0][5:6]
                 self.country            = parts[0][6:]

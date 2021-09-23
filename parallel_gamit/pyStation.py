@@ -162,7 +162,7 @@ class Station(object):
 
 class StationInstance(object):
 
-    def __init__(self, cnn, archive, station, date, GamitConfig):
+    def __init__(self, cnn, archive, station, date, GamitConfig, is_tie=False):
 
         self.NetworkCode  = station.NetworkCode
         self.StationCode  = station.StationCode
@@ -174,6 +174,8 @@ class StationInstance(object):
         self.Y            = station.record.auto_y
         self.Z            = station.record.auto_z
         self.otl_H        = station.otl_H
+        # save in the station instance if it was intended as a tie station or not
+        self.is_tie       = is_tie
 
         # save the station information as text
         try:
@@ -220,7 +222,8 @@ class StationInstance(object):
                 'lat'         : self.lat,
                 'lon'         : self.lon,
                 'height'      : self.height,
-                'jump'        : self.Window}
+                'jump'        : self.Window,
+                'is_tie'      : self.is_tie}
 
     def GetApr(self):
         x = self.Apr

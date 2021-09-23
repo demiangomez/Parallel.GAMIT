@@ -71,7 +71,7 @@ class ParseZtdTask(object):
             atmzen.sort(order=['stn', 'y', 'm', 'd', 'h', 'mm'])
 
             # get the stations in the processing
-            stations = [stn.decode() for stn in numpy.unique(atmzen['stn'])]
+            stations = [str(stn) for stn in numpy.unique(atmzen['stn'])]
 
             cnn.query('DELETE FROM gamit_ztd WHERE "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i'
                       % (self.project.lower(), self.date.year, self.date.doy))
@@ -82,9 +82,8 @@ class ParseZtdTask(object):
                 # careful, don't do anything if there is no data for this station-day
                 if zd.size > 0:
                     # find the unique knots
-                    knots = [k.decode() for k in
-                             numpy.unique(numpy.array([zd['y'], zd['m'], zd['d'], zd['h'], zd['mm']]).transpose(),
-                                          axis=0)]
+                    knots = numpy.unique(numpy.array([zd['y'], zd['m'], zd['d'], zd['h'], zd['mm']]).transpose(),
+                                         axis=0)
                     # average over the existing records
                     for d in knots:
                         rows = zd[numpy.logical_and.reduce((zd['y']  == d[0],

@@ -103,9 +103,9 @@ class GamitTask(object):
 
                 for rinex in self.params['rinex']:
 
-                    log('fetching rinex for %s %s %s'
+                    log('fetching rinex for %s %s %s %s'
                         % (stationID(rinex), rinex['StationAlias'],
-                           '{:10.6f} {:11.6f}'.format(rinex['lat'], rinex['lon'])))
+                           '{:10.6f} {:11.6f}'.format(rinex['lat'], rinex['lon']), 'tie' if rinex['is_tie'] else ''))
 
                     try:
                         with pyRinex.ReadRinex(rinex['NetworkCode'],

@@ -2,11 +2,25 @@
 Project: Parallel.GAMIT
 Date: Mar-31-2017
 Author: Demian D. Gomez
+
+pom170921: Added new global subnet methods.
+pom210921:
+- Added comments
+- Changed the brackets around the dist variable, instead of checking the truth of dist it was checking that the list
+  contained a value instead. Should fix far away stations from being added.
+- Added a distance check to the tie station assignment. Only stations within 1 Earth radius linear distance will be
+  added to the ties.
+- When checking for stations that weren’t assigned to a subnet, I mistakenly included the backbone stations which caused
+  duplicate entries in some subnets.
+pom220921:
+- Changed 'if not iterate or len(points) <= BACKBONE_NET:' to 'if not iterate or len(points[n_mask]) <= BACKBONE_NET:'
+  so only the masked stations are counted when comparing against the desired number of backbone stations.
+- Added the geocenter to the backbone delaunay triangulation.
 """
 
 from datetime import datetime
 import time
-
+import copy
 # deps
 from tqdm import tqdm
 import numpy as np
@@ -20,12 +34,12 @@ from pyGamitSession import GamitSession
 from Utils import smallestN_indices
 
 
-BACKBONE_NET = 40
+BACKBONE_NET = 45
 NET_LIMIT    = 40
 SUBNET_LIMIT = 35
 MAX_DIST     = 5000
 MIN_DIST     = 20
-
+MIN_SUBNET   = 10
 
 def tic():
     global tt
@@ -117,22 +131,301 @@ class Network(object):
         else:
             tqdm.write(' >> %s %s %s -> Creating network clusters' % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                                                                       self.name, date.yyyyddd()))
+            if GamitConfig.NetworkConfig['type'] == 'regional':
+                # create station clusters
+                # cluster centroids will be used later to tie the networks
+                clusters = self.make_clusters(stations.get_active_coordinates(date), stn_active)
 
-            # create station clusters
-            # cluster centroids will be used later to tie the networks
-            clusters = self.make_clusters(stations.get_active_coordinates(date), stn_active)
+                if len(clusters['stations']) > 1:
+                    # get the ties between subnetworks
+                    ties = self.tie_subnetworks(stations.get_active_coordinates(date), clusters, stn_active)
 
-            if len(clusters['stations']) > 1:
-                # get the ties between subnetworks
-                ties = self.tie_subnetworks(stations.get_active_coordinates(date), clusters, stn_active)
-
-                # build the backbone network
-                backbone = self.backbone_delauney(stations.get_active_coordinates(date), stn_active)
+                    # build the backbone network
+                    backbone = self.backbone_delauney(stations.get_active_coordinates(date), stn_active)
+                else:
+                    ties = []
+                    backbone = []
             else:
-                ties = []
-                backbone = []
-
+                backbone = self.backbone_delauney(stations.get_active_coordinates(date), stn_active)
+                subnets = self.subnets_delaunay(backbone, stations.get_active_coordinates(date), stn_active)
+                clusters, ties = self.global_sel(subnets, stn_active)
         self.sessions = self.create_gamit_sessions(cnn, archive, clusters, backbone, ties, date)
+
+    @staticmethod
+    def global_sel(subnets, stn_active):
+        """
+        inputs:
+        subnets: list of dict with keys 'centroid', 'ties', 'stations', 'cent_stns', 'net_num'
+        stn_active: StationCollection, all active stations on the given day.
+
+        outputs:
+        clusters: dict with keys: 'centroids', 'labels', 'stations'
+        ties: list of lists with Station objects
+
+        Explanation:
+        loops through each delaunay subnet, splits it into N sub-subnets (based on number of non-tie stations) then loops
+        through each non-tie station to find the the sub-subnet centroid it is furthest from and adds that non-tie station
+        to that sub-subnet. After adding to that sub-subnet, the sub-subnet centroid is adjusted to include the newly added
+        non-tie station. Loop continues until all stations have been assigned a sub-subnet. Then those sub-subnets are added
+        to the 'networks' list. Inspired by the global_sel GAMIT routine.
+        :return:
+        """
+        # Initialize intermediate variables.
+        networks = list()
+        net_num = 0
+
+        # Loop over the list of subnets to break down into smaller subnets.
+        for sn in subnets:
+            # Initialize variables for the loop
+            # nsubs: number of subnetworks to break into.
+            # nrefs: number of reference stations (ties) for each sub-subnet
+            # nstns: number of non-tie stations
+            # stn_persub: number of stations per sub-subnetwork (including ties)
+            # allstns: a useful array containing all the non-tie stations in the subnet
+            # refxyz: an np.ndarray of the xyz coordinates for the tie stations.
+            nsubs = int(np.ceil(float(float(len(sn['stns'])) / float(SUBNET_LIMIT))))
+            nrefs = len(sn['vertices']) + len(sn['ties'])
+            nstns = len(sn['stns'])
+            stn_persub = nstns // 2 + nrefs
+            allstns = np.array(sn['stns'])
+            refxyz = np.zeros((nrefs, 3))
+            # Loop over the tie stations (vertices of Delaunay triangle and tie stations) to assign X,Y,Z coordinates.
+            for n, r in enumerate(sn['vertices'] + list(sn['ties'])):
+                refxyz[n, ::] = [r.X, r.Y, r.Z]
+            # Initialize the sub-subnets as dicts and update the total subnetwork number for that day.
+            subs = list()
+            for i in range(nsubs):
+                subs.append({'centroid': np.mean(refxyz, axis=0), 'ties': list(sn['ties']) + sn['vertices'],
+                             'stations': list(), 'cent_stns': refxyz.copy(), 'net_num': net_num})
+                net_num = net_num + 1
+            # Loop over the non-tie stations in that subnet and initialize the xyz position as an np.ndarray and the
+            # distance as an np.ndarray with length of the number of sub-subnets in this subnet.
+            for s in allstns:
+                spos = np.array([s.X, s.Y, s.Z])
+                sdist = np.zeros((nsubs))
+                # Loop over the sub-subnets and find the distance from the station to the sub-subnet centroid.
+                for n, net in enumerate(subs):
+                    # If there are already the maximum number of stations in a sub-subnet then skip that sub-subnet.
+                    if len(net['cent_stns']) >= stn_persub:
+                        continue
+                    ncent = np.mean(net['cent_stns'], axis=0)
+                    sdist[n] = np.linalg.norm(spos - ncent)
+                # Find the sub-subnet centroid that is furthest away from the station and add the station to that
+                # sub-subnet
+                maxnet = np.argmax(sdist)
+                subs[maxnet]['cent_stns'] = np.vstack((subs[maxnet]['cent_stns'], spos))
+                subs[maxnet]['stations'].append(s)
+            # Add those sub-subnets to the list of all sub-subnets
+            networks.extend(subs)
+        # Create variables for use in the create_gamit_sessions routine.
+        # Convert stn_active from a StationCollection to a list.
+        stn_list = [s for s in stn_active]
+        # Initialize the station to subnet number mapping.
+        labels = np.zeros(len(stn_active))
+        # Create a list of lists that contain the tie stations for the subnet at the elements index.
+        ties = [n['ties'] for n in networks]
+        # Loop over the subnets.
+        for n in networks:
+            # Get the centroid defined by ALL stations in that subnet (ties and vertices included)
+            n['centroids'] = np.mean(n['cent_stns'], axis=0)
+            # Loop over the stations assigned to that subnet.
+            for s in n['stations']:
+                # Find the element id (index) of the station and add change the label value at that same index to the
+                # subnet number.
+                idx = stn_list.index(s)
+                labels[idx] = n['net_num']
+        # Create an np.ndarray of the network centroids (only defined by the vertices).
+        centroids = np.vstack([n['centroids'] for n in networks])
+        # Create a list of lists containing the non-tie, non-vertex stations in each subnet.
+        stations = [n['stations'] for n in networks]
+        # Assign to the clusters variable for input to the create_gamit_sessions routine.
+        clusters = {'centroids': centroids, 'labels': labels, 'stations': stations}
+        return clusters, ties
+
+    @staticmethod
+    def subnets_delaunay(backbone, points, stations):
+        """
+        Explanation:
+        Given a backbone network, xyz coordinates of stations and a list of station objects, return a list of
+        subnetworks bound by triangles with backbone stations as vertices.
+
+        Algorithm:
+        Create a new Delaunay triangulation with the backbone stations and the geocenter. Find the (3) backbone stations
+        defining open tetrahedron faces. Go through each point/station and see which of the open faces (triangles)
+        it is contained by.
+
+        :param backbone: list or stationcollection of the backbone stations for that day.
+        :param points: list of all station coordinates in xyz for that day.
+        :param stations: list or stationcollection with all available stations for a given day.
+        :return:
+        """
+        # Create a list of station aliases from the stations object.
+        stnnames = list()
+        for n, s in enumerate(stations):
+            stnnames.append(s.StationAlias)
+        # Collect the backbone stations XYZ coordinates into an np.ndarray.
+        backxyz = np.zeros((len(backbone), 3))
+        for n, s in enumerate(backbone):
+            backxyz[n, 0] = s.X
+            backxyz[n, 1] = s.Y
+            backxyz[n, 2] = s.Z
+        # Add the geocenter (0,0,0) to the backbone station coordinate array.
+        backxyz = np.vstack([backxyz, np.zeros((1, 3))])
+        # Create a copy of the backbone object (otherwise it gets overwritten).
+        mbackbone = backbone.copy()
+        # Create a dummy Station object for the geocenter. Coordinates don't have to be defined since the backxyz object
+        # uses the geocenter in it already.
+        geocenter = copy.deepcopy(backbone[0])
+        geocenter.StationCode = 'geoc'
+        geocenter.NetworkCode = 'nan'
+        mbackbone.append(geocenter)
+        # Generate a Delaunay triangulation of the backbone + geocenter.
+        d_xyz = Delaunay(backxyz)
+        # Get the Station objects from the backbone network that were used in the triangulation into the correct order.
+        # Since we're dealing with tetrahedrons there are 4 stations defining the vertices so it can get a bit
+        # complicated when trying to organize the station names and coordinates
+        bbstns = np.array(mbackbone)[d_xyz.simplices]
+        # Also organize the xyz coordinates of the vertices of each tetrahedron in the triangulation.
+        verts = backxyz[d_xyz.simplices]
+        # Get the neighbors object.
+        neighbors = d_xyz.neighbors
+        # Initialize return variable and the subnet label.
+        subnets = list()
+        lab = 0
+        # Loop over each tetrahedron in the triangulation.
+        for zstn in zip(bbstns, verts, neighbors):
+            # Get the stations, xyz coordinates and neighbors (corollary for open faces) defining the tetrahedron.
+            stn, vert, neigh = zstn
+            # Find out how many open faces are on the tetrahedron. Since we are including the geocenter, most
+            # tetrahedrons should include that station so there should be just 1 open face defined by 3 backbone
+            # stations.
+            open_faces = neigh.tolist().count(-1)
+            # If there aren't any open faces move onto the next tetrahedron.
+            if open_faces == 0:
+                continue
+            # Loop through the open faces.
+            for nv in range(open_faces):
+                # Initialize variable to pick out the stations defining the open face.
+                vind = [True] * 4
+                # Get the index of the first open face in the tetrahedron.
+                find = neigh.tolist().index(-1)
+                # Set the open face neighbor to 0 so it doesn't get selected again in the next loop.
+                neigh[find] = 0
+                # Set the station in the tetrahedron opposite the open face to false so it doesn't get added to the
+                # subnet vertices.
+                vind[find] = False
+                # Initialize the subnet object.
+                subnet_ref = dict()
+                # Add the label to the subnet object.
+                subnet_ref['label'] = lab
+                lab = lab + 1
+                # Add the Station objects defining the vertices for the open face triangle.
+                subnet_ref['vertices'] = stn[vind].tolist()
+                # Add the XYZ coordinates of the open face vertices.
+                subnet_ref['coords'] = np.array(vert[vind, ::])
+                # Initialize the list to contain the stations contained within the triangle.
+                subnet_ref['stns'] = list()
+                # Initialize the set containing the tie stations (defined later).
+                subnet_ref['ties'] = set()
+                # Add the subnet to the list of subnets.
+                subnets.append(subnet_ref)
+        # Start a loop over all the subnets to find out what the tie stations should be.
+        for sn in subnets:
+            # Loop over all the subnets again.
+            for sn2 in subnets:
+                # If a vertex of sn is in the list of vertices for sn2 then set the list entry to True. We want to find
+                # out which triangles share a vertex so we can add all of that triangles vertices to the ties variable.
+                a = [True if x.StationAlias in [y.StationAlias for y in sn2['vertices']] else False
+                     for x in sn['vertices']]
+                # If at least 1 vertex is common between subnets sn and sn2 but not all of them (that would be the
+                # same subnet) then continue.
+                if np.any(a) and not np.all(a):
+                    # Loop over the vertices in the subnet sn2 and add them to the ties for the subnet sn as long as the
+                    # vertex isn't already in subnet sn vertices.
+                    for y in sn2['vertices']:
+                        if y in sn['vertices'] or y == geocenter:
+                            continue
+                        cent = np.mean(sn['coords'], axis=0)
+                        dist = np.linalg.norm([y.X, y.Y, y.Z] - cent) / 6371e3
+                        if dist <= 1:
+                            sn['ties'].add(y)
+        # Now start a loop over all the stations available for that day to find out which subnet they should be added
+        # to.
+        for stn in stations:
+            # Skip if the station is in the backbone network.
+            if stn in mbackbone:
+                continue
+            # Get the stations xyz coordinates into an np.ndarray.
+            P = np.array([stn.X, stn.Y, stn.Z])
+            # Loop over all the subnets and find which subnet contains the station in XYZ coordinates.
+            for subnet in subnets:
+                if stn in list(subnet['ties']) + subnet['vertices']:
+                    continue
+                # Begin algorithm...
+                # Explanation of the algorithm here:
+                # https://math.stackexchange.com/questions/544946/determine-if-projection-of-3d-point-onto-plane-is-within-a-triangle
+                reftri1 = subnet['coords']
+                P1 = reftri1[0, :]
+                P2 = reftri1[1, :]
+                P3 = reftri1[2, :]
+                u = P2 - P1
+                v = P3 - P1
+                w = P - P1
+                dists = np.linalg.norm(P - np.mean(reftri1, axis=0)) < (1 * 6371e3)
+                n = np.cross(u, v)
+                nhat = n / np.linalg.norm(n) ** 2
+                gamma = np.dot(np.cross(u, w), nhat)
+                beta = np.dot(np.cross(w, v), nhat)
+                alpha = 1 - gamma - beta
+                intri = np.all([(0 <= alpha) & (alpha <= 1), (0 <= beta) & (beta <= 1), (0 <= gamma) & (gamma <= 1)])
+                # End algorithm...
+                # If the station is contained by that subnet then add it to that subnet and stop looping over the
+                # subnets. That way each station only belongs to one subnet.
+                if intri and dists:
+                    subnet['stns'].append(stn)
+                    break
+        # Get rid of subnets with less than MIN_SUBNET stations inside of it
+        mask = np.ones(len(subnets), dtype=bool)
+        for n, s in enumerate(subnets):
+            if len(s['stns']) >= MIN_SUBNET:
+                continue
+            mask[n] = False
+        subnets = np.array(subnets)[mask].tolist()
+        # If the number of stations added to subnets isn't equal to the number of points...
+        if sum([len(x['stns']) for x in subnets]) != len(points):
+            a = list()
+            # Get a list of all the stations added to any subnet.
+            for x in subnets:
+                for y in x['stns']:
+                    a.append(y)
+            b = set(a)
+            c = list()
+            # Find out which stations weren't added to a subnet.
+            for x in stations:
+                if x not in b:
+                    c.append(x)
+            # Loop over the stations not already added to a subnet.
+            for s in c:
+                if s in mbackbone:
+                    continue
+                # Initialize list for the distance to different subnets.
+                nearness = list()
+                # Loop over the subnets and find out how far away the station is from the subnet centroid defined by
+                # the vertices.
+                for sub in subnets:
+                    reftri1 = sub['coords']
+                    P = np.array([s.X, s.Y, s.Z])
+                    centroid = np.mean(reftri1, axis=0)
+                    dist = np.linalg.norm(P - centroid)
+                    nearness.append(dist)
+                # Pick out the closest subnet and add the station to that subnet.
+                mindist = np.argmin(nearness)
+                subnets[mindist]['stns'].append(s)
+            # Check again that all points were assigned to a subnet, raise an error if they weren't.
+            if sum([len(x['stns']) for x in subnets]) != len(points) - len(backbone):
+                raise ValueError('Not all stations put into subnets.')
+        # Return the list of subnet dicts.
+        return subnets
 
     def make_clusters(self, points, stations, net_limit=NET_LIMIT):
 
@@ -337,14 +630,19 @@ class Network(object):
 
     @staticmethod
     def backbone_delauney(points, stations):
-
+        stations2 = [stn for stn in stations]
+        geocenter = copy.deepcopy(stations2[0])
+        geocenter.NetworkCode = 'nan'
+        geocenter.StationCode = 'geoc'
+        stations2.append(geocenter)
+        points = np.vstack((points, np.zeros((1, 3))))
         dt = Delaunay(points)
 
         # start distance to remove stations
         max_dist = 5
 
         # create a mask with all the stations
-        mask = np.ones(points.shape[0], dtype=np.bool)
+        mask = np.ones(points.shape[0], dtype=bool)
 
         while len(points[mask]) > BACKBONE_NET:
             # make a copy of the mask
@@ -381,7 +679,8 @@ class Network(object):
             max_dist = max_dist * 2
 
         backbone = [s for i, s in enumerate(stations) if mask[i]]
-
+        if geocenter in backbone:
+            backbone.pop(geocenter)
         return backbone
 
     @staticmethod

@@ -80,7 +80,7 @@ class GamitSession(object):
 
         # do the same with ties
         for stn in ties:
-            station_instances += [StationInstance(cnn, archive, stn, date, GamitConfig)]
+            station_instances += [StationInstance(cnn, archive, stn, date, GamitConfig, is_tie=True)]
 
         self.StationInstances = station_instances
 
@@ -395,20 +395,22 @@ $$\n""" % (self.Config.options['otlmodel']))
         styles_stn = simplekml.StyleMap()
         styles_stn.normalstyle.iconstyle.icon.href    = ICON_SQUARE
         styles_stn.normalstyle.iconstyle.color        = 'ff00ff00'
+        styles_stn.normalstyle.iconstyle.scale        = 4
         styles_stn.normalstyle.labelstyle.scale       = 0
         styles_stn.highlightstyle.iconstyle.icon.href = ICON_SQUARE
         styles_stn.highlightstyle.iconstyle.color     = 'ff00ff00'
-        styles_stn.highlightstyle.iconstyle.scale     = 2
+        styles_stn.highlightstyle.iconstyle.scale     = 5
         styles_stn.highlightstyle.labelstyle.scale    = 2
 
         styles_tie = simplekml.StyleMap()
         styles_tie.normalstyle.iconstyle.icon.href    = ICON_SQUARE
         styles_tie.normalstyle.iconstyle.color        = 'ff0000ff'
+        styles_tie.normalstyle.iconstyle.scale        = 4
         styles_tie.normalstyle.labelstyle.scale       = 0
         styles_tie.highlightstyle.iconstyle.icon.href = ICON_SQUARE
         styles_tie.highlightstyle.iconstyle.color     = 'ff0000ff'
-        styles_tie.highlightstyle.iconstyle.scale     = 2
-        styles_tie.highlightstyle.labelstyle.scale    = 2
+        styles_tie.highlightstyle.iconstyle.scale     = 5
+        styles_tie.highlightstyle.labelstyle.scale    = 3
 
         folder_net = kml.newfolder(name=self.DirName)
 

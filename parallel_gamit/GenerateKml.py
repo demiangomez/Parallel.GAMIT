@@ -71,28 +71,32 @@ def generate_kml(cnn, project, stations):
 
     stylec = simplekml.StyleMap()
     stylec.normalstyle.iconstyle.icon.href = ICON_CIRCLE
+    stylec.normalstyle.iconstyle.scale = 4
     stylec.normalstyle.labelstyle.scale = 0
 
     stylec.highlightstyle.iconstyle.icon.href = ICON_CIRCLE
+    stylec.highlightstyle.iconstyle.scale = 5
     stylec.highlightstyle.labelstyle.scale = 3
 
     styles_ok = simplekml.StyleMap()
     styles_ok.normalstyle.iconstyle.icon.href = ICON_SQUARE
     styles_ok.normalstyle.iconstyle.color = 'ff00ff00'
+    styles_ok.normalstyle.iconstyle.scale = 4
     styles_ok.normalstyle.labelstyle.scale = 0
 
     styles_ok.highlightstyle.iconstyle.icon.href = ICON_SQUARE
     styles_ok.highlightstyle.iconstyle.color = 'ff00ff00'
-    styles_ok.highlightstyle.labelstyle.scale = 3
+    styles_ok.highlightstyle.labelstyle.scale = 5
 
     styles_nok = simplekml.StyleMap()
     styles_nok.normalstyle.iconstyle.icon.href = ICON_SQUARE
     styles_nok.normalstyle.iconstyle.color = 'ff0000ff'
+    styles_nok.normalstyle.iconstyle.scale = 4
     styles_nok.normalstyle.labelstyle.scale = 0
 
     styles_nok.highlightstyle.iconstyle.icon.href = ICON_SQUARE
     styles_nok.highlightstyle.iconstyle.color = 'ff0000ff'
-    styles_nok.highlightstyle.labelstyle.scale = 3
+    styles_nok.highlightstyle.labelstyle.scale = 5
 
     for stn in tqdm(rs, ncols=80):
         stn_id = stationID(stn)
