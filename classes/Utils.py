@@ -95,7 +95,7 @@ def parse_crinex_rinex_filename(filename):
 
 
 
-def _increment_filename(filename, rnx_ver=2):
+def _increment_filename(filename):
     """
     Returns a generator that yields filenames with a counter. This counter
     is placed before the file extension, and incremented with every iteration.
@@ -125,48 +125,45 @@ def _increment_filename(filename, rnx_ver=2):
     #  2) a "counter" - the integer which is incremented
     #  3) an "extension" - the file extension
 
-    if rnx_ver < 3:
-        sessions = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] + [chr(x) for x in range(ord('a'), ord('z')+1)]
+    sessions = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] + [chr(x) for x in range(ord('a'), ord('z')+1)]
 
-        path      = os.path.dirname(filename)
-        filename  = os.path.basename(filename)
-        fileparts = parse_crinex_rinex_filename(filename)
+    path      = os.path.dirname(filename)
+    filename  = os.path.basename(filename)
+    fileparts = parse_crinex_rinex_filename(filename)
 
-        if not fileparts:
-            raise ValueError('Invalid file naming convention: {}'.format(filename))
+    if not fileparts:
+        raise ValueError('Invalid file naming convention: {}'.format(filename))
 
-        # Check if there's a counter in the filename already - if not, start a new
-        # counter at 0.
-        value = 0
+    # Check if there's a counter in the filename already - if not, start a new
+    # counter at 0.
+    value = 0
 
-        filename = os.path.join(path, '%s%03i%s.%02i%s' % (fileparts[0].lower(),
-                                                           int(fileparts[1]),
-                                                           sessions[value],
-                                                           int(fileparts[3]),
-                                                           fileparts[4]))
+    filename = os.path.join(path, '%s%03i%s.%02i%s' % (fileparts[0].lower(),
+                                                       int(fileparts[1]),
+                                                       sessions[value],
+                                                       int(fileparts[3]),
+                                                       fileparts[4]))
 
-        # The counter is just an integer, so we can increment it indefinitely.
-        while True:
-            if value == 0:
-                yield filename
+    # The counter is just an integer, so we can increment it indefinitely.
+    while True:
+        if value == 0:
+            yield filename
 
-            value += 1
+        value += 1
 
-            if value == len(sessions):
-                raise ValueError('Maximum number of sessions reached: %s%03i%s.%02i%s'
-                                 % (fileparts[0].lower(),
-                                    int(fileparts[1]),
-                                    sessions[value-1],
-                                    int(fileparts[3]),
-                                    fileparts[4]))
+        if value == len(sessions):
+            raise ValueError('Maximum number of sessions reached: %s%03i%s.%02i%s'
+                             % (fileparts[0].lower(),
+                                int(fileparts[1]),
+                                sessions[value-1],
+                                int(fileparts[3]),
+                                fileparts[4]))
 
-            yield os.path.join(path, '%s%03i%s.%02i%s' % (fileparts[0].lower(),
-                                                          int(fileparts[1]),
-                                                          sessions[value],
-                                                          int(fileparts[3]),
-                                                          fileparts[4]))
-    else:
-        yield filename
+        yield os.path.join(path, '%s%03i%s.%02i%s' % (fileparts[0].lower(),
+                                                      int(fileparts[1]),
+                                                      sessions[value],
+                                                      int(fileparts[3]),
+                                                      fileparts[4]))
 
 
 def copyfile(src, dst, rnx_ver=2):
@@ -194,10 +191,14 @@ def copyfile(src, dst, rnx_ver=2):
         pass
 
     # Keep trying to copy the file until it works
-    dst_gen = _increment_filename(dst, rnx_ver)
+    if rnx_ver < 3:
+        # only use this method for RINEX 2
+        # RINEX 3 files should have distinct names as a default if the files are different
+        dst_gen = _increment_filename(dst)
 
     while True:
-        dst = next(dst_gen)
+        if rnx_ver < 3:
+            dst = next(dst_gen)
 
         # Check if there is a file at the destination location
         if os.path.exists(dst):
@@ -210,6 +211,7 @@ def copyfile(src, dst, rnx_ver=2):
                 # DDG: if the rinex version is == 3 and the files have the same name:
                 # 1) if dst size is < than src, replace file
                 # 2) if dst size is > than src, do nothing
+                # for RINEX 2 files, loop over and find a different filename
                 if rnx_ver >= 3:
                     if os.path.getsize(src) > os.path.getsize(dst):
                         os.remove(dst)
@@ -223,6 +225,9 @@ def copyfile(src, dst, rnx_ver=2):
             if do_copy_op(src, dst):
                 # If we get to this point, then the write has succeeded
                 return dst
+            else:
+                if rnx_ver >= 3:
+                    raise OSError('Problem while copying RINEX 3 file: ' + dst)
 
 
 def do_copy_op(src, dst):
@@ -385,6 +390,37 @@ def ecef2lla(ecefArr):
     return numpy.array([lat]), numpy.array([lon]), numpy.array([alt])
 
 
+def process_date_str(arg, allow_days=False):
+
+    rdate = pyDate.Date(datetime=datetime.now())
+
+    try:
+        if '.' in arg:
+            rdate = pyDate.Date(fyear=float(arg))
+        elif '_' in arg:
+            rdate = pyDate.Date(year=int(arg.split('_')[0]),
+                                doy=int(arg.split('_')[1]))
+        elif '/' in arg:
+            rdate = pyDate.Date(year=int(arg.split('/')[0]),
+                                month=int(arg.split('/')[1]),
+                                day=int(arg.split('/')[2]))
+        elif '-' in arg:
+            rdate = pyDate.Date(gpsWeek=int(arg.split('-')[0]),
+                                gpsWeekDay=int(arg.split('-')[1]))
+        elif len(arg) > 0:
+            if allow_days:
+                rdate = pyDate.Date(datetime=datetime.now()) - int(arg)
+            else:
+                raise ValueError('Invalid input date: allow_days was set to False.')
+
+    except Exception as e:
+        raise ValueError('Could not decode input date (valid entries: '
+                         'fyear, yyyy_ddd, yyyy/mm/dd, gpswk-wkday). '
+                         'Error while reading the date start/end parameters: ' + str(e))
+
+    return rdate
+
+
 def process_date(arg, missing_input='fill', allow_days=True):
     # function to handle date input from PG.
     # Input: arg = arguments from command line
@@ -400,29 +436,7 @@ def process_date(arg, missing_input='fill', allow_days=True):
 
     if arg:
         for i, arg in enumerate(arg):
-            try:
-                if '.' in arg:
-                    dates[i] = pyDate.Date(fyear=float(arg))
-                elif '_' in arg:
-                    dates[i] = pyDate.Date(year = int(arg.split('_')[0]), 
-                                           doy =  int(arg.split('_')[1]))
-                elif '/' in arg:
-                    dates[i] = pyDate.Date(year  = int(arg.split('/')[0]),
-                                           month = int(arg.split('/')[1]),
-                                           day   = int(arg.split('/')[2]))
-                elif '-' in arg:
-                    dates[i] = pyDate.Date(gpsWeek    = int(arg.split('-')[0]),
-                                           gpsWeekDay = int(arg.split('-')[1]))
-                elif len(arg) > 0:
-                    if allow_days and i == 0:
-                        dates[i] = pyDate.Date(datetime = now) - int(arg)
-                    else:
-                        raise ValueError('Invalid input date: allow_days was set to False.')
-
-            except Exception as e:
-                raise ValueError('Could not decode input date (valid entries: '
-                                 'fyear, yyyy_ddd, yyyy/mm/dd, gpswk-wkday). '
-                                 'Error while reading the date start/end parameters: ' + str(e))
+            dates[i] = process_date_str(arg, allow_days)
 
     return tuple(dates)
 
@@ -551,11 +565,11 @@ def parseIntSet(nputstr=""):
     selection = []
     invalid   = []
     # tokens are comma separated values
-    tokens    = [x.strip() for x in nputstr.split(',')]
+    tokens    = [x.strip() for x in nputstr.split(';')]
     for i in tokens:
         if len(i) > 0:
             if i[:1] == "<":
-                i = "1-%s"%(i[1:])
+                i = "1-%s" % (i[1:])
         try:
             # typically tokens are plain old integers
             selection.append(int(i))
@@ -698,22 +712,27 @@ def crc32(s):
 def file_open(path, mode='r'):
     return open(path, mode+'t', encoding='utf-8', errors='ignore')
 
+
 def file_write(path, data):
     with file_open(path, 'w') as f:
         f.write(data)
-        
+
+
 def file_append(path, data):
     with file_open(path, 'a') as f:
         f.write(data)
-    
+
+
 def file_readlines(path):
     with file_open(path) as f:
         return f.readlines()
 
+
 def file_read_all(path):
     with file_open(path) as f:
         return f.read()
-    
+
+
 def file_try_remove(path):
     try:
         os.remove(path)

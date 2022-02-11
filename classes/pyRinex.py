@@ -573,9 +573,10 @@ class ReadRinex(RinexRecord):
 
 
     def ConvertRinex(self, to_version):
+        # only available to convert from 3 -> 2
         try:
             # most programs still don't support RINEX 3 (partially implemented in this code)
-            # convert to RINEX 2.11 using RinEdit
+            # convert to RINEX 2.11 using gfzrnx_lx
             cmd = pyRunWithRetry.RunCommand('gfzrnx_lx -finp %s -fout %s.t -vo %i -f'
                                             % (self.rinex, self.rinex, to_version), 15, self.rootdir)
 
@@ -591,10 +592,9 @@ class ReadRinex(RinexRecord):
 
             # if all ok, move converted file to rinex_path
             os.remove(self.rinex_path)
-            move(result_path,
-                 self.rinex_path)
+            move(result_path, self.rinex_path)
             # change version
-            self.rinex_version = 2.11 
+            self.rinex_version = to_version
 
             self.log_event('Origin file was RINEX 3 -> Converted to 2.11')
 
@@ -623,8 +623,6 @@ class ReadRinex(RinexRecord):
             # catch the timeout except and pass it as a pyRinexException
             raise pyRinexException(str(e))
 
-
-
     def RunGfzrnx(self):
         # run Gfzrnx to get file information
         cmd = pyRunWithRetry.RunCommand('gfzrnx_lx -finp %s -fout %s.log -meta medium:json'
@@ -651,17 +649,18 @@ class ReadRinex(RinexRecord):
         """
         RinexRecord.__init__(self, NetworkCode, StationCode)
 
-        self.no_cleanup  = no_cleanup
-        self.origin_file = None
-        self.local_copy  = None
-        self.rootdir     = None
+        self.no_cleanup     = no_cleanup
+        self.allow_multiday = allow_multiday
+        self.origin_file    = None
+        self.local_copy     = None
+        self.rootdir        = None
 
         # check that the rinex file name is valid!
         try:
             self.rinex_name_format = pyRinexName.RinexNameFormat(origin_file)
-        except pyRinexName.RinexNameException:
+        except pyRinexName.RinexNameException as e:
             raise pyRinexException('File name does not follow the RINEX(Z)/CRINEX(Z) naming convention: %s'
-                                   % (os.path.basename(origin_file)))
+                                   % (os.path.basename(origin_file))) from e
 
         self.create_temp_dirs()
 
@@ -1255,7 +1254,6 @@ class ReadRinex(RinexRecord):
                 new_header = self.insert_comment(new_header, 'PREV ANT DOME: ' + self.antDome)
                 self.antDome = NewValues['RadomeCode']
 
-
         if (NewValues['AntennaHeight'] != self.antOffset or
             NewValues['AntennaNorth']  != self.antOffsetN or
             NewValues['AntennaEast']   != self.antOffsetE):
@@ -1291,8 +1289,6 @@ class ReadRinex(RinexRecord):
             self.x = float(x)
             self.y = float(y)
             self.z = float(z)
-
-
 
         new_header = self.replace_record(new_header, 'APPROX POSITION XYZ', (self.x, self.y, self.z))
 

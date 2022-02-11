@@ -141,14 +141,20 @@ class PPPSpatialCheck:
 
 
 class RunPPP(PPPSpatialCheck):
-    def __init__(self, rinexobj, otl_coeff, options, sp3types, sp3altrn, antenna_height, strict=True, apply_met=True,
+    def __init__(self, in_rinex, otl_coeff, options, sp3types, sp3altrn, antenna_height, strict=True, apply_met=True,
                  kinematic=False, clock_interpolation=False, hash=0, erase=True, decimate=True):
 
-        assert isinstance(rinexobj, pyRinex.ReadRinex)
+        assert isinstance(in_rinex, pyRinex.ReadRinex)
 
         # DDG: if RINEX 3 version, convert to RINEX 2 (no PPP support)
-        if rinexobj.rinex_version >= 3:
+        if in_rinex.rinex_version >= 3:
+            # DDG: make a new object and convert to RINEX 3 to leave the other one untouched
+            rinexobj = pyRinex.ReadRinex(in_rinex.NetworkCode, in_rinex.StationCode, in_rinex.origin_file,
+                                         no_cleanup=in_rinex.no_cleanup, allow_multiday=in_rinex.allow_multiday)
             rinexobj.ConvertRinex(2)
+        else:
+            # file is in RINEX 2 format, use file as is
+            rinexobj = in_rinex
 
         PPPSpatialCheck.__init__(self)
 

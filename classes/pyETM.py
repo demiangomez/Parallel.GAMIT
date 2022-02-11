@@ -327,7 +327,6 @@ class PppSoln:
                           VERSION)
 
 
-
 class GamitSoln:
     """"class to extract the GAMIT polyhedrons from the database"""
 
@@ -468,8 +467,9 @@ class JumpTable:
             if jump:
                 dt = np.max(t[jump.design[:, -1] != 0]) - \
                      np.min(t[jump.design[:, -1] != 0])
+                # check for minimum data of coseismic jumps + decays
                 if (jump.p.jump_type == CO_SEISMIC_JUMP_DECAY and
-                    (dt < 1 and np.count_nonzero(jump.design[:, -1]) / 365.25 < 0.5)):
+                   (dt < 1 and np.count_nonzero(jump.design[:, -1]) / 365.25 < 0.5)):
                     # was a jump and decay, leave the jump
                     jump.p.jump_type = CO_SEISMIC_JUMP
 
@@ -481,8 +481,18 @@ class JumpTable:
                     jump.design = jump.eval(t)
                     jump.rehash()
 
-        # for j in self.table:
-        #    print j
+        # get the coseismic and coseismic decay jumps
+        jcs = [j for j in self.table if (j.p.jump_type == CO_SEISMIC_JUMP_DECAY
+               or j.p.jump_type == CO_SEISMIC_DECAY) and j.fit is True]
+        if len(jcs) > 1:
+            for j, i in zip(jcs[0:], jcs[1:]):
+                j.constrain_years = (i.min_date - j.min_date)
+                j.constrain_data_points = np.count_nonzero(t[np.logical_and(t > j.min_date, t < i.min_date)])
+            jcs[-1].constrain_years = t.max() - jcs[-1].min_date
+            jcs[-1].constrain_data_points = np.count_nonzero(t[np.logical_and(t > jcs[-1].min_date, t < t.max())])
+        elif len(jcs) == 1:
+            jcs[0].constrain_years = (t.max() - jcs[0].min_date)
+            jcs[0].constrain_data_points = np.count_nonzero(t[np.logical_and(t > jcs[0].min_date, t < t.max())])
 
         self.constrains = np.array([])
 
@@ -696,7 +706,7 @@ class Jump(EtmFunction):
             self.design = np.array([])
 
         if not np.any(self.design) or np.all(self.design):
-            # a valid jump only has some rows == 1 in the design table,
+            # a valid jump only has some rows == 1 in the design matrix,
             # not all rows (all rows produces a singular matrix)
             self.design = np.array([])
             self.fit = False
@@ -801,7 +811,6 @@ class Jump(EtmFunction):
     def __repr__(self):
         return 'pyPPPETM.Jump(%s)' % str(self) 
 
-
     def __check_cmp(self, jump):
         if not isinstance(jump, Jump):
             raise pyETMException('type: '+str(type(jump))+' invalid.  Can only compare Jump objects')
@@ -830,7 +839,8 @@ class Jump(EtmFunction):
 class CoSeisJump(Jump):
 
     def __init__(self, NetworkCode, StationCode, soln, t, date, relaxation, metadata,
-                 dtype=CO_SEISMIC_JUMP_DECAY, magnitude=0., action='A', fit=True):
+                 dtype=CO_SEISMIC_JUMP_DECAY, magnitude=0., action='A', fit=True, postseismic=None):
+        # postseismic input is a dictionary with 'relaxation': [T0, T1, ...] and 'a': amplitude[T0, T1, ...][N, E, U]
 
         # super-class initialization
         Jump.__init__(self, NetworkCode, StationCode, soln, t, date, metadata, dtype, action, fit)
@@ -840,15 +850,26 @@ class CoSeisJump(Jump):
 
         if date.fyear < t.min():
             self.p.jump_type = CO_SEISMIC_DECAY
+            # save the minimum date validity
+            self.min_date = t.min()
         else:
             self.p.jump_type = dtype
+            # save the minimum date validity
+            self.min_date = date.fyear
 
         # new feature informs the magnitude of the event in the plot
         self.magnitude = magnitude
 
+        # constrain_years saves how many years of data constrains this jump
+        # filled by JumpTable
+        self.constrain_years = None
+
+        # if post-seismic component is passed, then subtract from the data
+        self.postseismic = np.zeros((3, t.shape[0]))
+
         if not self.fit and fit:
-            # came back from init with empty design matrix (fit = false) and originally fit was True.
-            # May be a jump before t.min()
+            # came back from init with empty design matrix (self.fit = false) and originally fit was True.
+            # Maybe a jump before t.min()
             # assign just the decay
             self.p.jump_type = CO_SEISMIC_DECAY
             # put fit back to original state
@@ -910,7 +931,7 @@ class CoSeisJump(Jump):
                 # if decay only, return hl
                 return hl
 
-        # @todo posible bug returning None?
+        # @todo possible bug returning None?
 
     def __str__(self):
         return Jump.__str__(self) + ', relax=' + str(self.p.relaxation)
@@ -1529,9 +1550,11 @@ class ETM:
         logger.info('Creating ETM object for %s' % stn_id)
 
         # save the function objects
-        self.Linear   = Polynomial(cnn, soln.NetworkCode, soln.StationCode, self.soln, self.soln.t, interseismic=interseismic)
+        self.Linear   = Polynomial(cnn, soln.NetworkCode, soln.StationCode, self.soln, self.soln.t,
+                                   interseismic=interseismic)
         self.Periodic =   Periodic(cnn, soln.NetworkCode, soln.StationCode, self.soln, self.soln.t, FitPeriodic)
-        self.Jumps    =  JumpTable(cnn, soln.NetworkCode, soln.StationCode, self.soln, self.soln.t, FitEarthquakes, FitGenericJumps)
+        self.Jumps    =  JumpTable(cnn, soln.NetworkCode, soln.StationCode, self.soln, self.soln.t, FitEarthquakes,
+                                   FitGenericJumps)
 
         # calculate the hash value for this station
         # now hash also includes the timestamp of the last time pyETM was modified.
@@ -1629,11 +1652,14 @@ class ETM:
                     self.Periodic.load_parameters(params=self.C, sigmas=self.S)
 
                     # determine if any jumps are unrealistic
+                    # DDG Feb-7-2022: to determine if a jump is unrealistic, we check that the postseismic deformation
+                    # is > 1 meter in amplitude. This value is a priori and a study should be done to determine a better
+                    # estimate of what this value should be.
                     for jump in self.Jumps.table:
                         if jump.fit and \
                            jump.p.jump_type in (CO_SEISMIC_JUMP_DECAY, 
                                                 CO_SEISMIC_DECAY) and \
-                           np.any(np.abs(jump.p.params[:, -jump.nr:]) > 0.5):
+                           np.any(np.abs(jump.p.params[:, -jump.nr:]) > 1):
                             # unrealistic, remove
                             jump.remove_from_fit()
                             do_again = True
@@ -1684,18 +1710,21 @@ class ETM:
 
     def save_excluded_soln(self, cnn):
 
-        for date, f, r in zip(self.soln.date,
-                              np.logical_and(np.logical_and(self.F[0], self.F[1]), self.F[2]),
-                              np.sqrt(np.sum(np.square(self.R), axis=0))):
+        # only save if something to save
+        if self.F.size > 0:
+            for date, f, r in zip(self.soln.date,
+                                  np.logical_and(np.logical_and(self.F[0], self.F[1]), self.F[2]),
+                                  np.sqrt(np.sum(np.square(self.R), axis=0))):
 
-            if not cnn.query_float('SELECT * FROM gamit_soln_excl WHERE "NetworkCode" = \'%s\' AND '
-                                   '"StationCode" = \'%s\' AND "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i'
-                                   % (self.NetworkCode, self.StationCode, self.soln.stack_name, date.year, date.doy)) \
-                    and not f:
+                if not cnn.query_float('SELECT * FROM gamit_soln_excl WHERE "NetworkCode" = \'%s\' AND '
+                                       '"StationCode" = \'%s\' AND "Project" = \'%s\' AND "Year" = %i AND "DOY" = %i'
+                                       % (self.NetworkCode, self.StationCode, self.soln.stack_name,
+                                          date.year, date.doy)) \
+                        and not f:
 
-                cnn.query('INSERT INTO gamit_soln_excl ("NetworkCode", "StationCode", "Project", "Year", "DOY", '
-                          'residual) VALUES (\'%s\', \'%s\', \'%s\', %i ,%i, %.4f)'
-                          % (self.NetworkCode, self.StationCode, self.soln.stack_name, date.year, date.doy, r))
+                    cnn.query('INSERT INTO gamit_soln_excl ("NetworkCode", "StationCode", "Project", "Year", "DOY", '
+                              'residual) VALUES (\'%s\', \'%s\', \'%s\', %i ,%i, %.4f)'
+                              % (self.NetworkCode, self.StationCode, self.soln.stack_name, date.year, date.doy, r))
 
     def save_parameters(self, cnn):
         # only save the parameters when they've been estimated, not when loaded from database
@@ -1888,7 +1917,7 @@ class ETM:
             # plt.show()
             fileio.seek(0)  # rewind to beginning of file
             plt.close()
-            return base64.b64encode(fileio.getvalue())
+            return base64.b64encode(fileio.getvalue()).decode()
         else:
             self.f       = f
             self.picking = False
@@ -1931,7 +1960,7 @@ class ETM:
             self.picking = False
             self.f.canvas.mpl_disconnect(self.cid)
 
-    def plot_hist(self, pngfile=None):
+    def plot_hist(self, pngfile=None, fileio=None):
 
         import matplotlib.pyplot as plt
         import matplotlib.mlab as mlab
@@ -2045,11 +2074,18 @@ class ETM:
             #plt.title(r'$\mathrm{Histogram\ of\ residuals (mm):}\ \mu=%.3f,\ \sigma=%.3f$' % (mu*1000, sigma*1000))
             #plt.grid(True)
 
-            if not pngfile:
-                plt.show()
-            else:
+            if pngfile is not None:
                 plt.savefig(pngfile)
-            plt.close()
+                plt.close()
+            elif fileio is not None:
+                plt.savefig(fileio, format='png')
+                # plt.show()
+                fileio.seek(0)  # rewind to beginning of file
+                plt.close()
+                return base64.b64encode(fileio.getvalue())
+            else:
+                plt.show()
+                plt.close()
 
     @staticmethod
     def autoscale_y(ax, margin=0.1):
@@ -2135,7 +2171,6 @@ class ETM:
             
             ax.plot((jump.date.fyear, jump.date.fyear), ax.get_ylim(),
                     c, **({'color':color} if color else {}))
-                
 
     def todictionary(self, time_series=False, model=False):
         # convert the ETM adjustment into a dictionary
@@ -2463,7 +2498,6 @@ class ETM:
 
         P = Ai.get_p(constrains=True)
 
-
         for _ in range(11):
             W = np.sqrt(P)
 
@@ -2503,7 +2537,6 @@ class ETM:
             else:
                 break # cst_pass = True
 
-            
         # make sure there are no values below eps. Otherwise matrix becomes singular
         P[P < np.finfo(np.float).eps] = 1e-6
 
@@ -2559,6 +2592,7 @@ class ETM:
         filt = self.F[0] * self.F[1] * self.F[2]
         return [(self.NetworkCode, self.StationCode, pyDate.Date(mjd=mjd))
                 for mjd in self.soln.mjd[~filt]]
+
 
 class PPPETM(ETM):
 

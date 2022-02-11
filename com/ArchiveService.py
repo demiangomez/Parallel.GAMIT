@@ -35,7 +35,7 @@ import argparse
 from tqdm import tqdm
 
 # app
-from Utils import file_append, file_try_remove
+from Utils import file_append, file_try_remove, file_open
 import pyJobServer
 import pyEvents
 import pyProducts
@@ -740,7 +740,7 @@ def main():
 
     # dependency functions
     depfuncs = (check_rinex_timespan_int, write_error, error_handle, insert_data, verify_rinex_multiday, file_append,
-                file_try_remove)
+                file_try_remove, file_open)
     # import modules
     JobServer.create_cluster(process_crinex_file,
                              depfuncs,

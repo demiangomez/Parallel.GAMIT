@@ -43,6 +43,7 @@ def check_year(year):
 
     return year
 
+
 class RinexNameException(Exception):
     def __init__(self, value):
         self.value = value
@@ -131,12 +132,11 @@ class RinexNameFormat(object):
             
             # @todo must raise RinexNameException here?
 
-
     def filename_base(self):
         if self.version < 3:
             return self.StationCode + self.doy + self.session + '.' + self.year
         else:
-            return self.StationCode + self.monument + self.receiver + self.country + '_' + \
+            return self.StationCode.upper() + self.monument + self.receiver + self.country + '_' + \
                    self.data_source + '_' + self.start_time + '_' + self.file_period + '_' + \
                    self.data_frequency + '_' + self.data_type
 
@@ -146,6 +146,7 @@ class RinexNameFormat(object):
                             self.filename_base() + (version_2_ext[to_type]
                                                     if self.version < 3 else
                                                     '.' + version_3_ext[to_type]))
+
     def filename_no_ext(self, no_path=False):
         # join the path to the file again
         return os.path.join('' if no_path else self.path,

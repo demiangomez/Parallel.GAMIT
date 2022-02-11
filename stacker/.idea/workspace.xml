@@ -2,16 +2,10 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="a64c3a05-b10f-4d88-bc8d-bee6a190e9d3" name="Default" comment="">
-      <change beforePath="$PROJECT_DIR$/../classes/pyRinexName.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/pyRinexName.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../com/ArchiveService.py" beforeDir="false" afterPath="$PROJECT_DIR$/../com/ArchiveService.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit/GenerateKml.py" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/GenerateKml.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit/pyGamitSession.py" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/pyGamitSession.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit/pyGamitTask.py" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/pyGamitTask.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit/pyNetwork.py" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/pyNetwork.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit/pyParseZTD.py" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/pyParseZTD.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../parallel_gamit/pyStation.py" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/pyStation.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../scripts/setup.sh" beforeDir="false" afterPath="$PROJECT_DIR$/../scripts/setup.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classes/Utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/../classes/Utils.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../parallel_gamit/pyParallelGamit.py" beforeDir="false" afterPath="$PROJECT_DIR$/../parallel_gamit/pyParallelGamit.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pyDRA.py" beforeDir="false" afterPath="$PROJECT_DIR$/pyDRA.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

@@ -9,8 +9,10 @@ from shutil import copyfile, rmtree
 
 # deps
 import simplekml
+from tqdm import tqdm
 
 # app
+import pyRinexName
 from pyStation import StationInstance
 from Utils import determine_frame, file_open, stationID, chmod_exec
 import pyGamitConfig
@@ -76,11 +78,23 @@ class GamitSession(object):
         # make StationInstances
         station_instances = []
         for stn in stations:
-            station_instances += [StationInstance(cnn, archive, stn, date, GamitConfig)]
+            try:
+                station_instances += [StationInstance(cnn, archive, stn, date, GamitConfig)]
+            except pyRinexName.RinexNameException:
+                tqdm.write(' -- WARNING (station instance): station %s on day %s appears to have a badly formed RINEX '
+                           'filename. Please check the archive and make sure all filenames follow the RINEX 2/3 '
+                           'convention. Station has been excluded from the GAMIT session.'
+                           % (stationID(stn), date.yyyyddd()))
 
         # do the same with ties
         for stn in ties:
-            station_instances += [StationInstance(cnn, archive, stn, date, GamitConfig, is_tie=True)]
+            try:
+                station_instances += [StationInstance(cnn, archive, stn, date, GamitConfig, is_tie=True)]
+            except pyRinexName.RinexNameException:
+                tqdm.write(' -- WARNING (tie instance): station %s on day %s appears to have a badly formed RINEX '
+                           'filename. Please check the archive and make sure all filenames follow the RINEX 2/3 '
+                           'convention. Station has been excluded from the GAMIT session.'
+                           % (stationID(stn), date.yyyyddd()))
 
         self.StationInstances = station_instances
 

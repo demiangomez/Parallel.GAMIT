@@ -16,15 +16,26 @@ import matplotlib
 if not os.environ.get('DISPLAY', None):
     matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import traceback
+import io
+import base64
+import numpy
 
 # app
 import dbConnection
 import pyETM
 import pyDate
+import pyJobServer
+import pyOptions
 from Utils import process_date
 from pyStack import Polyhedron, np_array_vertices
 from pyDate import Date
 from Utils import file_write, json_converter
+
+wrms_n = []
+wrms_e = []
+wrms_u = []
+project = 'default'
 
 LIMIT = 2.5
 
@@ -35,10 +46,42 @@ def sql_select(project, fields, date2):
           ORDER BY "NetworkCode", "StationCode"''' % (fields, project, date2.year, date2.doy)
 
 
+def compute_dra(ts, NetworkCode, StationCode, pdates, project, histogram=False):
+    try:
+        # load from the db
+        cnn = dbConnection.Cnn('gnss_data.cfg')
+
+        # to pass the filename back to the callback_handler
+        filename = project + '_dra/' + NetworkCode + '.' + StationCode
+        if ts.size:
+
+            if ts.shape[0] > 2:
+                dts = numpy.append(numpy.diff(ts[:, 0:3], axis=0), ts[1:, -3:], axis=1)
+
+                dra_ts = pyETM.GamitSoln(cnn, dts, NetworkCode, StationCode, project)
+
+                etm = pyETM.DailyRep(cnn, NetworkCode, StationCode, False, False, dra_ts)
+
+                figfile = ''
+                hisfile = ''
+
+                if etm.A is not None:
+                    figfile = etm.plot(fileio=io.BytesIO(), plot_missing=False, t_win=pdates)
+                    if histogram:
+                        hisfile = etm.plot_hist(fileio=io.BytesIO())
+
+                    # save the wrms
+                    return etm.factor[0] * 1000, etm.factor[1] * 1000, etm.factor[2] * 1000, figfile, hisfile, \
+                           filename, NetworkCode, StationCode
+                else:
+                    return None, None, None, figfile, hisfile, filename, NetworkCode, StationCode
+    except Exception as e:
+        raise Exception('While working on %s.%s' % (NetworkCode, StationCode) + '\n') from e
+
 
 class DRA(list):
 
-    def __init__(self, cnn, project, end_date, verbose=False):
+    def __init__(self, cnn, project, start_date, end_date, verbose=False):
 
         super(DRA, self).__init__()
 
@@ -54,27 +97,35 @@ class DRA(list):
 
         gamit_vertices = self.cnn.query_float(
             'SELECT "NetworkCode" || \'.\' || "StationCode", "X", "Y", "Z", "Year", "DOY", "FYear" '
-            'FROM gamit_soln WHERE "Project" = \'%s\' AND ("Year", "DOY") <= (%i, %i)'
-            'ORDER BY "NetworkCode", "StationCode"' % (project, end_date.year, end_date.doy))
-
+            'FROM gamit_soln WHERE "Project" = \'%s\' AND ("Year", "DOY") BETWEEN (%i, %i) AND (%i, %i) '
+            'ORDER BY "NetworkCode", "StationCode"' % (project, start_date.year, start_date.doy,
+                                                       end_date.year, end_date.doy))
 
         self.gamit_vertices = np_array_vertices(gamit_vertices)
 
         dates = self.cnn.query_float('SELECT "Year", "DOY" FROM gamit_soln WHERE "Project" = \'%s\' '
-                                     'AND ("Year", "DOY") <= (%i, %i) '
+                                     'AND ("Year", "DOY") BETWEEN (%i, %i) AND (%i, %i) '
                                      'GROUP BY "Year", "DOY" ORDER BY "Year", "DOY"'
-                                     % (project, end_date.year, end_date.doy))
+                                     % (project, start_date.year, start_date.doy, end_date.year, end_date.doy))
 
         self.dates = [Date(year=int(d[0]), doy=int(d[1])) for d in dates]
 
         self.stations = self.cnn.query_float('SELECT "NetworkCode", "StationCode" FROM gamit_soln '
-                                             'WHERE "Project" = \'%s\' AND ("Year", "DOY") <= (%i, %i) '
+                                             'WHERE "Project" = \'%s\' AND ("Year", "DOY") '
+                                             'BETWEEN (%i, %i) AND (%i, %i) '
                                              'GROUP BY "NetworkCode", "StationCode" '
                                              'ORDER BY "NetworkCode", "StationCode"'
-                                             % (project, end_date.year, end_date.doy), as_dict=True)
+                                             % (project, start_date.year, start_date.doy,
+                                                end_date.year, end_date.doy), as_dict=True)
 
+        i = 0
         for d in tqdm(self.dates, ncols=160, desc=' >> Initializing the stack polyhedrons'):
             self.append(Polyhedron(self.gamit_vertices, project, d))
+            if i < len(self.dates) - 1:
+                if d != self.dates[i + 1] - 1:
+                    for dd in [Date(mjd=md) for md in list(range(d.mjd + 1, self.dates[i + 1].mjd))]:
+                        tqdm.write(' -- Missing DOY detected: %s' % dd.yyyyddd())
+            i += 1
 
     def stack_dra(self):
 
@@ -84,8 +135,8 @@ class DRA(list):
             # do not set the polyhedron as aligned unless we are in the max iteration step
             self[j + 1].align(self[j], scale=False, verbose=self.verbose)
             # write info to the screen
-            tqdm.write(' -- %s (%3i) %2i it wrms: %4.1f T %6.1f %6.1f %6.1f '
-                       'R (%6.1f %6.1f %6.1f)*1e-9 D-W: %3i' %
+            tqdm.write(' -- %s (%04i) %2i it wrms: %4.1f T %6.1f %6.1f %6.1f '
+                       'R (%6.1f %6.1f %6.1f)*1e-9 D-W: %5.3f IQR: %4.1f' %
                        (self[j + 1].date.yyyyddd(),
                         self[j + 1].stations_used,
                         self[j + 1].iterations,
@@ -96,7 +147,8 @@ class DRA(list):
                         self[j + 1].helmert[0],
                         self[j + 1].helmert[1],
                         self[j + 1].helmert[2],
-                        self[j + 1].downweighted
+                        self[j + 1].down_frac,
+                        self[j + 1].iqr * 1000
                         ))
 
         self.transformations.append([poly.info() for poly in self[1:]])
@@ -128,12 +180,38 @@ class DRA(list):
     def to_json(self, json_file):
         # print(repr(self.transformations))
         file_write(json_file,
-                   json.dumps({ 'transformations' : self.transformations },
+                   json.dumps({'transformations': self.transformations},
                               indent=4, sort_keys=False, default=json_converter
                               ))
 
 
+def callback_handler(job):
+
+    global wrms_n, wrms_e, wrms_u
+
+    if job.exception:
+        tqdm.write(' -- Fatal error on node %s message from node follows -> \n%s' % (job.ip_addr, job.exception))
+    elif job.result is not None:
+        if job.result[0] is not None:
+            wrms_n.append(job.result[0])
+            wrms_e.append(job.result[1])
+            wrms_u.append(job.result[2])
+
+            # save the figures, if any
+            if job.result[3]:
+                with open('%s.png' % job.result[5], "wb") as fh:
+                    fh.write(base64.decodebytes(job.result[3]))
+
+            if job.result[4]:
+                with open('%s_hist.png' % job.result[5], "wb") as fh:
+                    fh.write(base64.decodebytes(job.result[4]))
+        else:
+            tqdm.write(' -- Station %s.%s did not produce valid statistics' % (job.result[6], job.result[7]))
+
+
 def main():
+
+    global wrms_n, wrms_e, wrms_u, project
 
     parser = argparse.ArgumentParser(description='GNSS daily repetitivities analysis (DRA)')
 
@@ -150,8 +228,7 @@ def main():
     parser.add_argument('-v', '--verbose', action='store_true',
                         help="Provide additional information during the alignment process (for debugging purposes)")
 
-    parser.add_argument('-v', '--verbose', action='store_true',
-                        help="Provide additional information during the alignment process (for debugging purposes)")
+    parser.add_argument('-np', '--noparallel', action='store_true', help="Execute command without parallelization.")
 
     args = parser.parse_args()
 
@@ -161,6 +238,10 @@ def main():
 
     dates = [pyDate.Date(year=1980, doy=1),
              pyDate.Date(year=2100, doy=1)]
+
+    Config = pyOptions.ReadOptions("gnss_data.cfg")  # type: pyOptions.ReadOptions
+    JobServer = pyJobServer.JobServer(Config, run_parallel=not args.noparallel)  # type: pyJobServer.JobServer
+
     try:
         dates = process_date(args.date_filter)
     except ValueError as e:
@@ -188,47 +269,42 @@ def main():
     ########################################
     # load polyhedrons
     # create the DRA object
-    dra = DRA(cnn, args.project[0], dates[1], args.verbose)
+    dra = DRA(cnn, args.project[0], dates[0], dates[1], args.verbose)
 
     dra.stack_dra()
 
     dra.to_json(project + '_dra.json')
 
-    wrms_n = []
-    wrms_e = []
-    wrms_u = []
+    missing_doys = []
+
+    tqdm.write(' >> Daily repetitivity analysis done. DOYs with wrms > 8 mm are shown below:')
+    for i, d in enumerate(dra):
+        if d.wrms is not None:
+            if d.wrms > 0.008:
+                tqdm.write(' -- %s (%04i) %2i it wrms: %4.1f D-W: %5.3f IQR: %4.1f' %
+                           (d.date.yyyyddd(),
+                            d.stations_used,
+                            d.iterations,
+                            d.wrms * 1000,
+                            d.down_frac,
+                            d.iqr * 1000))
+
+    qbar = tqdm(total=len(dra.stations), desc=' >> Computing DRAs', ncols=160, disable=None)
+
+    modules = ('pyETM', 'dbConnection', 'traceback', 'io', 'numpy')
+    JobServer.create_cluster(compute_dra, progress_bar=qbar, callback=callback_handler, modules=modules)
 
     # plot each DRA
-    for stn in tqdm(dra.stations):
+    for stn in dra.stations:
         NetworkCode = stn['NetworkCode']
         StationCode = stn['StationCode']
 
-        # load from the db
         ts = dra.get_station(NetworkCode, StationCode)
+        JobServer.submit(ts, NetworkCode, StationCode, pdates, project, args.histogram)
 
-        if ts.size:
-            try:
-                if ts.shape[0] > 2:
-                    dts = np.append(np.diff(ts[:, 0:3], axis=0), ts[1:, -3:], axis=1)
-
-                    dra_ts = pyETM.GamitSoln(cnn, dts, NetworkCode, StationCode, project)
-
-                    etm = pyETM.DailyRep(cnn, NetworkCode, StationCode, False, False, dra_ts)
-
-                    if etm.A is not None:
-                        etm.plot(pngfile='%s/%s.%s_DRA.png' % (project + '_dra', NetworkCode, StationCode),
-                                 plot_missing=False, t_win=pdates)
-                        if args.histogram:
-                            etm.plot_hist(pngfile='%s/%s.%s_DRA_hist.png' %
-                                                  (project + '_dra', NetworkCode, StationCode))
-
-                        # save the wrms
-                        wrms_n.append(etm.factor[0] * 1000)
-                        wrms_e.append(etm.factor[1] * 1000)
-                        wrms_u.append(etm.factor[2] * 1000)
-
-            except Exception as e:
-                tqdm.write(' --> while working on %s.%s' % (NetworkCode, StationCode) + '\n' + traceback.format_exc())
+    JobServer.wait()
+    qbar.close()
+    JobServer.close_cluster()
 
     wrms_n = np.array(wrms_n)
     wrms_e = np.array(wrms_e)

@@ -11,6 +11,7 @@ import dbConnection
 import Utils
 from Utils import required_length
 from pyBunch import Bunch
+import pyETM
 
 from pyETM import (DEFAULT_FREQUENCIES,
                    DEFAULT_POL_TERMS,
@@ -32,8 +33,8 @@ def main():
                              "Alternatively, a file with the station list can be provided.")
 
     parser.add_argument('-fun', '--function_type', nargs='+', metavar=('function', 'argument'), default=[],
-                        help="Specifies the type of function to work with. Can be polynomial (p), jump (j), or "
-                             "periodic (q). Each one accepts a list of arguments. "
+                        help="Specifies the type of function to work with. Can be polynomial (p), jump (j), "
+                             "periodic (q) or bulk earthquake jump removal (t). Each one accepts a list of arguments. "
                              "p {terms} where terms equals the number of polynomial terms in the ETM, i.e. "
                              "terms = 2 is constant velocity and terms = 3 is velocity + acceleration, etc.\n"
                              "j {action} {type} {date} {relax} where action can be + or -. A + indicates that a jump "
@@ -42,7 +43,10 @@ def main():
                              "date is the date of the event in all the accepted formats "
                              "(yyyy/mm/dd yyyy_doy gpswk-wkday fyear); and relax is a list of relaxation times for the "
                              "logarithmic decays (only used when type = 1, they are ignored when type = 0).\n"
-                             "q {periods} where periods is a list expressed in days (1 yr = 365.25)")
+                             "q {periods} where periods is a list expressed in days (1 yr = 365.25). "
+                             "t {max_magnitude} {stack_name} removes any earthquake Mw <= max_magnitude from "
+                             "the specified stations' trajectory models; if GAMIT solutions are invoked, provide the "
+                             "stack_name to obtain the ETMs of the stations.")
 
     parser.add_argument('-soln', '--solution_type', nargs='+', choices=['ppp', 'gamit'],
                         default=['ppp', 'gamit'], action=required_length(1, 2),
@@ -83,8 +87,9 @@ def insert_modify_param(parser, cnn, stnlist, args):
     if len(args.function_type) < 2:
         parser.error('invalid number of arguments')
 
-    elif args.function_type[0] not in ('p', 'j', 'q'):
-        parser.error('function type should be one of the following: polynomial (p), jump (j), or periodic (q)')
+    elif args.function_type[0] not in ('p', 'j', 'q', 't'):
+        parser.error('function type should be one of the following: polynomial (p), jump (j), periodic (q), or '
+                     'bulk earthquake jump removal (t)')
 
     # create a bunch object to save all the params that will enter the database
     tpar = Bunch()
@@ -101,6 +106,7 @@ def insert_modify_param(parser, cnn, stnlist, args):
     tpar.action      = None
 
     ftype = args.function_type[0]
+    remove_eq = False
 
     try:
         if ftype == 'p':
@@ -134,7 +140,6 @@ def insert_modify_param(parser, cnn, stnlist, args):
             except Exception as e:
                 parser.error('while parsing jump date: ' + str(e))
 
-
             if tpar.jump_type == 1:
                 tpar.relaxation = [float(f) for f in args.function_type[4:]]
 
@@ -148,9 +153,12 @@ def insert_modify_param(parser, cnn, stnlist, args):
             tpar.object      = 'periodic'
             tpar.frequencies = [float(1/float(p)) for p in args.function_type[1:]]
 
+        elif ftype == 't':
+            tpar.object = 'jump'
+            remove_eq = True
+
     except ValueError:
         parser.error('invalid argument type for function "%s"' % ftype)
-
 
     for station in stnlist:
         for soln in args.solution_type:
@@ -158,31 +166,59 @@ def insert_modify_param(parser, cnn, stnlist, args):
             tpar.StationCode = station['StationCode']
             tpar.soln        = soln
 
-            ppar = copy.deepcopy(dict(tpar))
-            ppar = {k : v
-                    for k, v in ppar.items()
-                    if v not in (None, []) and k not in ('action', 'relaxation', 'jump_type',
-                                                         'terms', 'frequencies')}
-
             station_soln = "%s.%s (%s)" % (station['NetworkCode'], station['StationCode'], soln)
-            # check if solution exists for this station
-            try:
-                epar = cnn.get('etm_params', ppar, list(ppar.keys()))
-                
-                print(' >> Found a set of matching parameters for station ' + station_soln)
 
-                print(' -- Deleting ' + station_soln)
+            if remove_eq:
+                # load the ETM parameters for this station
+                print(' >> Obtaining ETM parameters for  ' + station_soln)
 
-                cnn.delete('etm_params', epar)
+                if soln == 'ppp':
+                    etm = pyETM.PPPETM(cnn, station['NetworkCode'], station['StationCode'])
+                else:
+                    etm = pyETM.GamitETM(cnn, station['NetworkCode'], station['StationCode'],
+                                         stack_name=args.function_type[2])
 
-            except pg.DatabaseError:
-                print(' >> No set of parameters found for station ' + station_soln)
+                for eq in [e for e in etm.Jumps.table
+                           if e.p.jump_type in (pyETM.CO_SEISMIC_DECAY, pyETM.CO_SEISMIC_JUMP_DECAY,
+                                                pyETM.CO_SEISMIC_JUMP)]:
+                    if eq.magnitude <= float(args.function_type[1]):
+                        # this earthquake should be removed, fill in the data
+                        tpar.Year = eq.date.year
+                        tpar.DOY = eq.date.doy
+                        tpar.jump_type = 1
+                        tpar.relaxation = None
+                        tpar.action = '-'
+                        apply_change(cnn, station, tpar, soln)
+            else:
+                apply_change(cnn, station, tpar, soln)
 
-            cnn.insert('etm_params', tpar)
-            # insert replaces the uid field
-            del tpar.uid
 
-            print(' -- Inserting %s for %s' % (tpar.object, station_soln))
+def apply_change(cnn, station, tpar, soln):
+    ppar = copy.deepcopy(dict(tpar))
+    ppar = {k: v
+            for k, v in ppar.items()
+            if v not in (None, []) and k not in ('action', 'relaxation', 'jump_type',
+                                                 'terms', 'frequencies')}
+
+    station_soln = "%s.%s (%s)" % (station['NetworkCode'], station['StationCode'], soln)
+    # check if solution exists for this station
+    try:
+        epar = cnn.get('etm_params', ppar, list(ppar.keys()))
+
+        print(' >> Found a set of matching parameters for station ' + station_soln)
+
+        print(' -- Deleting ' + station_soln)
+
+        cnn.delete('etm_params', epar)
+
+    except pg.DatabaseError:
+        print(' >> No set of parameters found for station ' + station_soln)
+
+    cnn.insert('etm_params', tpar)
+    # insert replaces the uid field
+    del tpar.uid
+
+    print(' -- Inserting %s for %s' % (tpar.object, station_soln))
 
 
 if __name__ == '__main__':

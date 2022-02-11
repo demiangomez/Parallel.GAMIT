@@ -557,6 +557,7 @@ def run_gamit_session(gamit_task, dir_name, year, doy, dry_run):
 
 def run_globk(globk_task, project, date):
 
+    from datetime import datetime
     polyhedron, variance = globk_task.execute()
     # open a database connection (this is on the node)
     cnn = dbConnection.Cnn('gnss_data.cfg')

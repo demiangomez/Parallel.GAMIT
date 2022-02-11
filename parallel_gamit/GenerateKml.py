@@ -71,32 +71,34 @@ def generate_kml(cnn, project, stations):
 
     stylec = simplekml.StyleMap()
     stylec.normalstyle.iconstyle.icon.href = ICON_CIRCLE
-    stylec.normalstyle.iconstyle.scale = 4
+    stylec.normalstyle.iconstyle.scale = 1.5
     stylec.normalstyle.labelstyle.scale = 0
 
     stylec.highlightstyle.iconstyle.icon.href = ICON_CIRCLE
-    stylec.highlightstyle.iconstyle.scale = 5
-    stylec.highlightstyle.labelstyle.scale = 3
+    stylec.highlightstyle.iconstyle.scale = 2
+    stylec.highlightstyle.labelstyle.scale = 2
 
     styles_ok = simplekml.StyleMap()
     styles_ok.normalstyle.iconstyle.icon.href = ICON_SQUARE
     styles_ok.normalstyle.iconstyle.color = 'ff00ff00'
-    styles_ok.normalstyle.iconstyle.scale = 4
+    styles_ok.normalstyle.iconstyle.scale = 1.5
     styles_ok.normalstyle.labelstyle.scale = 0
 
     styles_ok.highlightstyle.iconstyle.icon.href = ICON_SQUARE
     styles_ok.highlightstyle.iconstyle.color = 'ff00ff00'
-    styles_ok.highlightstyle.labelstyle.scale = 5
+    styles_ok.highlightstyle.iconstyle.scale = 2
+    styles_ok.highlightstyle.labelstyle.scale = 2
 
     styles_nok = simplekml.StyleMap()
     styles_nok.normalstyle.iconstyle.icon.href = ICON_SQUARE
     styles_nok.normalstyle.iconstyle.color = 'ff0000ff'
-    styles_nok.normalstyle.iconstyle.scale = 4
+    styles_nok.normalstyle.iconstyle.scale = 1.5
     styles_nok.normalstyle.labelstyle.scale = 0
 
     styles_nok.highlightstyle.iconstyle.icon.href = ICON_SQUARE
     styles_nok.highlightstyle.iconstyle.color = 'ff0000ff'
-    styles_nok.highlightstyle.labelstyle.scale = 5
+    styles_nok.highlightstyle.iconstyle.scale = 2
+    styles_nok.highlightstyle.labelstyle.scale = 2
 
     for stn in tqdm(rs, ncols=80):
         stn_id = stationID(stn)
@@ -242,7 +244,7 @@ def plot_station_info_rinex(cnn, NetworkCode, StationCode, stninfo):
         for record in stninfo.records:
             stnfo.append([record['DateStart'].fyear,
                           (record['DateEnd'].fyear if record['DateEnd'].year is not None \
-                           else pyDate.Date(datetime=dt.datetime.now()))
+                           else pyDate.Date(datetime=dt.datetime.now()).fyear)
                           ])
 
     rinex = np.array(cnn.query_float('SELECT "ObservationFYear" FROM rinex_proc WHERE "NetworkCode" = \'%s\' '
@@ -269,7 +271,7 @@ def plot_station_info_rinex(cnn, NetworkCode, StationCode, stninfo):
         # plt.show()
         figfile.seek(0)  # rewind to beginning of file
 
-        figdata_png = base64.b64encode(figfile.getvalue())
+        figdata_png = base64.b64encode(figfile.getvalue()).decode()
     except Exception:
         # either no rinex or no station info
         figdata_png = ''

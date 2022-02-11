@@ -131,6 +131,8 @@ def calculate_etms(cnn, stack, JobServer, iterations, create_target=True):
         target = []
         for i in tqdm(list(range(len(stack.dates))), ncols=160, desc=' >> Initializing the target polyhedrons', disable=None):
             dd = stack.dates[i]
+            # DDG: to avoid getting disconnected
+            cnn.query('SELECT 1')
             if not stack[i].aligned:
                 # not aligned, put in a target polyhedron
                 target.append(pyStack.Polyhedron(vertices, 'etm', dd))
@@ -281,7 +283,6 @@ def main():
         max_iters = 4
         print(' >> Defaulting to 4 iterations')
 
-
     exclude_stn = args.exclude_stations if args.exclude_stations else []
     use_stn     = args.use_stations     if args.use_stations     else []
 
@@ -341,7 +342,7 @@ def main():
                     # do not set the polyhedron as aligned unless we are in the max iteration step
                     stack[j].align(target[j], True if i == max_iters - 1 else False)
                     # write info to the screen
-                    qbar.write(' -- %s (%3i) %2i it: wrms: %4.1f T %5.1f %5.1f %5.1f '
+                    qbar.write(' -- %s (%04i) %2i it: wrms: %4.1f T %5.1f %5.1f %5.1f '
                                'R (%5.1f %5.1f %5.1f)*1e-9' %
                                (stack[j].date.yyyyddd(),
                                 stack[j].stations_used,
@@ -367,7 +368,6 @@ def main():
             stack.align_spaces(constrains)
         else:
             stack.remove_common_modes()
-
 
     # calculate the etms again, after removing or inheriting parameters
     calculate_etms(cnn, stack, JobServer, iterations=None, create_target=False)

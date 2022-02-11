@@ -29,6 +29,8 @@ import dbConnection
 import Utils
 import pyETM
 from Utils import stationID, file_write
+from pyETM import CO_SEISMIC_JUMP_DECAY, CO_SEISMIC_DECAY
+
 
 def plot_station_param(NetworkCode, StationCode, parameter_name, unit, pn, pe):
 
@@ -48,19 +50,19 @@ def plot_station_param(NetworkCode, StationCode, parameter_name, unit, pn, pe):
     # plt.show()
     figfile.seek(0)  # rewind to beginning of file
 
-    figdata_png = base64.b64encode(figfile.getvalue())
+    figdata_png = base64.b64encode(figfile.getvalue()).decode()
 
     plt.close()
 
     return figdata_png
 
 
-def generate_kmz(kmz, stations, discarded):
+def generate_kmz(kmz, stations, discarded, deformation_type='interseismic', units='mm/yr'):
 
     tqdm.write(' >> Generating KML (see production directory)...')
 
     kml = simplekml.Kml()
-    folder1 = kml.newfolder(name='velocity')
+    folder1 = kml.newfolder(name=deformation_type)
     folder2 = kml.newfolder(name='discarded')
 
     # define styles
@@ -77,12 +79,12 @@ def generate_kmz(kmz, stations, discarded):
     for stn in tqdm(stations, ncols=160, disable=None, desc=' -- Included station list'):
         stn_id = stationID(stn)
         plot   = plot_station_param(stn['NetworkCode'], stn['StationCode'],
-                                    'velocity', 'mm/yr', stn['vn'], stn['ve'])
+                                    deformation_type, units, stn['n'], stn['e'])
 
         pt = folder1.newpoint(name=stn_id, coords=[(stn['lon'], stn['lat'])])
         pt.stylemap = styles_ok
 
-        pt.description = """<strong>NE vel: %5.2f %5.2f [mm/yr]</strong><br><br>
+        pt.description = """<strong>NE (%s): %5.2f %5.2f [%s]</strong><br><br>
         <table width="880" cellpadding="0" cellspacing="0">
         <tr>
         <td align="center" valign="top">
@@ -94,25 +96,25 @@ def generate_kmz(kmz, stations, discarded):
         </tr>
         </td>
         </table>
-        """ % (stn['vn']*1000, stn['ve']*1000, plot, stn['etm'])
+        """ % (deformation_type, stn['n']*1000, stn['e']*1000, units, plot, stn['etm'])
 
         ls = folder1.newlinestring(name=stn_id)
 
         ls.coords = [(stn['lon'], stn['lat']),
-                     (stn['lon'] + stn['ve'] * 1 / 0.025,
-                      stn['lat'] + stn['vn'] * 1  /0.025 * np.cos(stn['lat']*np.pi/180))]
+                     (stn['lon'] + stn['e'] * 10,
+                      stn['lat'] + stn['n'] * 10 * np.cos(stn['lat']*np.pi/180))]
         ls.style.linestyle.width = 3
         ls.style.linestyle.color = 'ff0000ff'
 
     for stn in tqdm(discarded, ncols=160, disable=None, desc=' -- Excluded station list'):
         stn_id = stationID(stn)
         plot   = plot_station_param(stn['NetworkCode'], stn['StationCode'], 
-                                    'velocity', 'mm/yr', stn['vn'], stn['ve'])
+                                    deformation_type, units, stn['n'], stn['e'])
 
         pt = folder2.newpoint(name=stn_id, coords=[(stn['lon'], stn['lat'])])
         pt.stylemap = styles_nok
 
-        pt.description = """<strong>NE vel: %5.2f %5.2f [mm/yr]</strong><br><br>
+        pt.description = """<strong>NE (%s): %5.2f %5.2f [%s]</strong><br><br>
         <table width="880" cellpadding="0" cellspacing="0">
         <tr>
         <td align="center" valign="top">
@@ -124,13 +126,13 @@ def generate_kmz(kmz, stations, discarded):
         </tr>
         </td>
         </table>
-        """ % (stn['vn']*1000, stn['ve']*1000, plot, stn['etm'])
+        """ % (deformation_type, stn['n']*1000, stn['e']*1000, units, plot, stn['etm'])
 
         ls = folder2.newlinestring(name=stn_id)
 
         ls.coords = [(stn['lon'], stn['lat']),
-                     (stn['lon'] + stn['ve'] * 1 / 0.025,
-                      stn['lat'] + stn['vn'] * 1 / 0.025*np.cos(stn['lat']*np.pi/180))]
+                     (stn['lon'] + stn['e'] * 10,
+                      stn['lat'] + stn['n'] * 10 * np.cos(stn['lat']*np.pi/180))]
         ls.style.linestyle.width = 3
         ls.style.linestyle.color = 'ff0000ff'
 
@@ -145,16 +147,17 @@ def process_interseismic(cnn, stnlist, force_stnlist, stack, sigma_cutoff, vel_c
     # start by checking that the stations in the list have a linear start (no post-seismic)
     # and more than 2 years of data until the first earthquake or non-linear behavior
 
-    tqdm.write(' >> Analyzing suitability of station list to participate in interseismic trajectory model...')
+    tqdm.write(' >> Analyzing suitability of station list to participate in interseismic model...')
+    tqdm.write(' -- latitude cutoff: south %.2f, north %.2f' % (lat_lim[0], lat_lim[1]))
     tqdm.write(' -- velocity cutoff: %.2f mm/yr; output filename: %s' % (vel_cutoff, filename))
 
     use_station = []
     discarded   = []
     velocities  = []
-    min_lon     =  9999
-    max_lon     = -9999
-    min_lat     =  9999
-    max_lat     = -9999
+    # min_lon     =  9999
+    # max_lon     = -9999
+    # min_lat     =  9999
+    # max_lat     = -9999
 
     for stn in tqdm(stnlist, ncols=160, disable=None):
         try:
@@ -175,7 +178,7 @@ def process_interseismic(cnn, stnlist, force_stnlist, stack, sigma_cutoff, vel_c
 
                 # check that station has at least 2 years of data
                 if etm.gamit_soln.date[-1].fyear - etm.gamit_soln.date[0].fyear < 2 and use:
-                    tqdm.write(' -- %s rejected due having less than two years of observations %s -> %s'
+                    tqdm.write(' -- %s rejected because it has less than two years of observations %s -> %s'
                                % (stn_id,
                                   etm.gamit_soln.date[0].yyyyddd(),
                                   etm.gamit_soln.date[-1].yyyyddd()))
@@ -204,8 +207,7 @@ def process_interseismic(cnn, stnlist, force_stnlist, stack, sigma_cutoff, vel_c
                                            % (stn_id, etm.gamit_soln.date[0].yyyyddd()))
                                 use = False
 
-                    if (etm.factor[0] * 1000 > sigma_cutoff or \
-                        etm.factor[1] * 1000 > sigma_cutoff) and use:
+                    if (etm.factor[0] * 1000 > sigma_cutoff or etm.factor[1] * 1000 > sigma_cutoff) and use:
                         tqdm.write(' -- %s rejected due to large wrms %5.2f %5.2f %5.2f'
                                    % (stn_id,
                                       etm.factor[0] * 1000, etm.factor[1] * 1000, etm.factor[2] * 1000))
@@ -229,11 +231,9 @@ def process_interseismic(cnn, stnlist, force_stnlist, stack, sigma_cutoff, vel_c
                         'StationCode' : etm.StationCode,
                         'lat'         : etm.gamit_soln.lat[0],
                         'lon'         : etm.gamit_soln.lon[0],
-                        'vn'          : etm.Linear.p.params[0, 1],
-                        've'          : etm.Linear.p.params[1, 1],
-                        'etm'         : etm.plot(plot_missing  = False,
-                                                 plot_outliers = False,
-                                                 fileio=BytesIO())
+                        'n'           : etm.Linear.p.params[0, 1],
+                        'e'           : etm.Linear.p.params[1, 1],
+                        'etm'         : etm.plot(plot_missing  = False, plot_outliers = True, fileio=BytesIO())
                         }
 
             if use:
@@ -247,10 +247,10 @@ def process_interseismic(cnn, stnlist, force_stnlist, stack, sigma_cutoff, vel_c
                 v = getvel()
                 velocities.append(v)
 
-                min_lon = min(v['lon'], min_lon)
-                max_lon = max(v['lon'], max_lon)
-                min_lat = min(v['lat'], min_lat)
-                max_lat = max(v['lat'], max_lat)
+                #min_lon = min(v['lon'], min_lon)
+                #max_lon = max(v['lon'], max_lon)
+                #min_lat = min(v['lat'], min_lat)
+                #max_lat = max(v['lat'], max_lat)
 
             elif etm.A is not None:
                 discarded.append(getvel())
@@ -258,63 +258,44 @@ def process_interseismic(cnn, stnlist, force_stnlist, stack, sigma_cutoff, vel_c
         except pyETM.pyETMException as e:
             tqdm.write(' -- %s: %s' % (stn_id, str(e)))
 
-
     tqdm.write(' >> Total number of stations for linear model: %i' % len(use_station))
-    map = Basemap(llcrnrlon  = min_lon - 2,
-                  llcrnrlat  = min_lat - 2,
-                  urcrnrlon  = max_lon + 2,
-                  urcrnrlat  = max_lat + 2,
-                  resolution = 'i',
-                  projection = 'merc',
-                  lon_0      = (max_lon - min_lon)/2 + min_lon,
-                  lat_0      = (max_lat - min_lat)/2 + min_lat)
 
-    plt.figure(figsize=(15, 10))
-    map.drawcoastlines()
-    map.drawcountries()
-    # map.drawstates()
-    # map.fillcontinents(color='#cc9966', lake_color='#99ffff')
-    # draw parallels and meridians.
-    # map.drawparallels(np.arange(np.floor(min_lat), np.ceil(max_lat), 2.))
-    # map.drawmeridians(np.arange(np.floor(min_lon), np.ceil(max_lon), 2.))
-    # map.drawmapboundary(fill_color='#99ffff')
-    map.quiver([l['lon'] for l in velocities],
-               [l['lat'] for l in velocities],
-               [l['ve']  for l in velocities],
-               [l['vn']  for l in velocities],
-               scale=0.25,
-               latlon=True, color='blue', zorder=3)
-    plt.title("Transverse Mercator Projection")
-    plt.savefig('production/test.png')
-    plt.close()
-
-    outvar = np.array([[v['lon'], v['lat'], v['ve'], v['vn']]
-                       for v in velocities])
-    np.savetxt(filename, outvar)
+    outvar = np.array([(v['NetworkCode'] + '.' + v['StationCode'], v['lon'], v['lat'], v['e'], v['n'])
+                       for v in velocities], dtype=[('stn', 'U8'), ('lon', 'float64'), ('lat', 'float64'),
+                                                    ('e', 'float64'), ('n', 'float64')])
+    np.savetxt(filename, outvar, fmt=("%s",  "%13.8f",  "%12.8f", "%12.8f", "%12.8f"))
     if kmz:
-        generate_kmz(kmz, velocities, discarded)
+        generate_kmz(kmz, velocities, discarded, 'interseismic', 'mm/yr')
 
 
-def process_postseismic(cnn, stnlist, force_stnlist, stack, interseimic_filename, events, sigma_cutoff, lat_lim,
-                        filename, kmz):
-    tqdm.write(' >> Analyzing suitability of station list to participate in interseismic trajectory model...')
+def process_postseismic(cnn, stnlist, force_stnlist, stack, interseimic_filename, event, prev_events, sigma_cutoff,
+                        lat_lim, filename, kmz):
+    tqdm.write(' >> Analyzing suitability of station list to participate in postseismic model...')
     tqdm.write(' -- output filename: %s' % filename)
 
     use_station = []
     discarded   = []
-    velocities  = []
-    min_lon     =  9999
-    max_lon     = -9999
-    min_lat     =  9999
-    max_lat     = -9999
 
     # load the interseismic model
     model = np.loadtxt(interseimic_filename)
 
-    model[:, 0] -= 360
+    # model[:, 0] -= 360
+    params = []
+
+    def getpost():
+        return {'NetworkCode': etm.NetworkCode,
+                'StationCode': etm.StationCode,
+                'lat': etm.gamit_soln.lat[0],
+                'lon': etm.gamit_soln.lon[0],
+                'n': eq.p.params[0, 0] if eq.p.jump_type is CO_SEISMIC_DECAY
+                else eq.p.params[0, 1],
+                'e': eq.p.params[1, 0] if eq.p.jump_type is CO_SEISMIC_DECAY
+                else eq.p.params[1, 1],
+                'etm': etm.plot(plot_missing=False, plot_outliers=True, fileio=BytesIO())}
 
     for stn in tqdm(stnlist, ncols=160, disable=None):
         stn_id = stationID(stn)
+        tqdm.write(' -- Processing station %s' % stn_id)
         try:
             lla = cnn.query_float('SELECT lat,lon FROM stations WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\''
                                   % (stn['NetworkCode'], stn['StationCode']), as_dict=True)[0]
@@ -326,16 +307,30 @@ def process_postseismic(cnn, stnlist, force_stnlist, stack, interseimic_filename
                                  stack_name   = stack,
                                  interseismic = [vn, ve, 0.])
 
-            etm.plot('production/%s_gamit_model.png' % stn_id)
-            file_write('production/%s_gamit_model.json' % stn_id,
-                       json.dumps(etm.todictionary(time_series=True, model=True),
-                                  indent    = 4,
-                                  sort_keys = False))
-            # only check everything is station not included in the force list
-            # if stn not in force_stnlist:
+            for eq in [e for e in etm.Jumps.table if e.p.jump_type in (CO_SEISMIC_DECAY, CO_SEISMIC_JUMP_DECAY)
+                       and e.fit and etm.A is not None]:
+                if eq.date == event:
+                    tqdm.write('    co-seismic decay detected for event %s (years: %.3f; data points: %i)'
+                               % (str(eq.p.jump_date), eq.constrain_years, eq.constrain_data_points))
+                    if (eq.constrain_years >= 2.5 and eq.constrain_data_points >= eq.constrain_years * 5) \
+                            or stn in force_stnlist:
+                        params.append(getpost())
+                        tqdm.write('    co-seismic decay added to the list for interpolation')
+                    else:
+                        tqdm.write('    co-seismic decay not added (conditions not met)')
+                        discarded.append(getpost())
+                    break
 
         except pyETM.pyETMException as e:
             tqdm.write(' -- %s: %s' % (stn_id, str(e)))
+
+    outvar = np.array([(v['NetworkCode'] + '.' + v['StationCode'], v['lon'], v['lat'], v['e'], v['n'])
+                       for v in params], dtype=[('stn', 'U8'), ('lon', 'float64'), ('lat', 'float64'),
+                                                ('e', 'float64'), ('n', 'float64')])
+
+    np.savetxt(filename, outvar, fmt=("%s",  "%13.8f",  "%12.8f", "%12.8f", "%12.8f"))
+    if kmz:
+        generate_kmz(kmz, params, discarded, 'postseismic', 'mm')
 
 
 def main():
@@ -358,11 +353,13 @@ def main():
                              "Alternatively, a file with the station list can be provided.")
 
     parser.add_argument('-lat_lim', '--latitude_limits', nargs=2, type=float, metavar='{min_lat max_lat}',
-                        help="Latitude limits (decimal degrees). Discard stations outside of this limit.")
+                        default=[-90, 90],
+                        help="Latitude limits (decimal degrees, stations discarded outside of this limit) provided as "
+                             "south, north limit. Default is -90 90")
 
     parser.add_argument('-sigma', '--sigma_cutoff', nargs=1, type=float, metavar='{mm}', default=[2.5],
-                        help="Reject stations based on the ETM's wrms (in mm). This filter does not apply for forced "
-                             "station list.")
+                        help="Reject stations based on the ETM's wrms (in mm). This filter is not applied for the "
+                             "forced station list.")
 
     parser.add_argument('-vel', '--velocity_cutoff', nargs=1, type=float, metavar='{mm/yr}', default=[50],
                         help="ETM velocity cutoff value to reject stations for velocity interpolation "
@@ -377,10 +374,14 @@ def main():
                              "ETMs embedded in the kmz (default no kmz).")
 
     parser.add_argument('-postseismic', '--postseismic_process', nargs='+', type=str,
-                        metavar='{velocity_field_grid} {event_date} [secondary_relaxation] [output_filename]',
-                        help="Process stations for postseismic field computation. Reject stations with "
-                             "interseismic velocity > {velocity_cutoff} (default 50 mm/yr). Filename to output the "
-                             "selected stations (default filename interseismic.txt)")
+                        metavar='{interseismic_grid} {event_date} {output_filename} {kmz_filename} [event_date_n] '
+                                '[event_grid_n]',
+                        help="Process stations for postseismic field computation. Interseismic removal is done using "
+                             "{interseismic_grid}. The event parameters to be extracted from the ETMs correspond to "
+                             "seismic event given in {event_date}. Resulting parameters will be written to "
+                             "{output_filename}. Additionally, provide [event_date_n] and [event_grid_n] if a previous "
+                             "postsiesmic processes should be removed from the ETMs. If no [event_date_n] are given, "
+                             "then any previous events are ignored (but they could still be present in the ETM fit).")
 
     args = parser.parse_args()
 
@@ -408,8 +409,10 @@ def main():
         process_postseismic(cnn, stnlist, force_stnlist,
                             args.stack[0],
                             args.postseismic_process[0],
+                            Utils.process_date_str(args.postseismic_process[1]),
                             [],
-                            [], [], 'out.txt', 'sss.kmz')
+                            [], [], args.postseismic_process[2], args.postseismic_process[3])
+
 
 if __name__ == '__main__':
     main()

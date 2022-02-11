@@ -5,6 +5,7 @@ import json
 # deps
 import numpy as np
 from tqdm import tqdm
+from scipy.stats import iqr
 
 # app
 import dbConnection
@@ -828,22 +829,26 @@ class Stack(list):
                                 'transformations' : self.transformations },
                               indent=4, sort_keys=False, default=json_converter))
 
+
 class Polyhedron:
     def __init__(self, vertices, project, date, rot=True, aligned=False):
 
         self.project         = project
         self.date            = date
         self.aligned         = aligned
+        self.rot             = rot
         # declare a property that provides information about the state of the polyhedron at initialization
+        # DDG: this is because aligned might change after invoking self.align
         self.aligned_at_init = aligned
-        self.helmert = None
-        self.wrms = None
-        self.stations_used = None
-        self.iterations = None
-        self.down_frac = None
-        self.downweighted = None
-        self.down_comps = None
-        self.rot = rot
+        self.helmert         = None
+        self.wrms            = None
+        self.stations_used   = None
+        self.iterations      = None
+        self.down_frac       = None
+        self.downweighted    = None
+        self.down_comps      = None
+        self.iqr             = None
+
         # initialize the vertices of the polyhedron
         # self.vertices = [v for v in vertices if v[5] == date.year and v[6] == date.doy]
 
@@ -954,17 +959,16 @@ class Polyhedron:
                      ['Y-%s' % ss for ss in st['stn']] + \
                      ['Z-%s' % ss for ss in st['stn']]
 
-            self.helmert = c
-            self.wrms = wrms
+            n = len(intersect) * 3
+            self.helmert       = c
+            self.wrms          = wrms
             self.stations_used = len(intersect)
-            self.iterations = it
-            self.downweighted = np.sum(np.logical_not(index))
-            self.down_frac = np.divide(np.sum(np.logical_not(index)), len(intersect) * 3)
-            self.down_comps = ' '.join(['%s' % ss for ss in np.array(xyzstn)[np.logical_not(index)]])
-
-            self.downweighted = np.sum(np.logical_not(index))
-            self.down_frac    = np.divide(np.sum(np.logical_not(index)), len(intersect) * 3)
-            self.down_comps   = ' '.join('%s' % ss for ss in np.array(xyzstn)[np.logical_not(index)])
+            self.iterations    = it
+            self.downweighted  = np.sum(np.logical_not(index))
+            # P = sq(sw/wrms)  ==>  sqrt(P) * wrms = sw
+            self.down_frac     = np.divide(n - np.sum(np.sqrt(P) * wrms), n)
+            self.down_comps    = ' '.join(['%s' % ss for ss in np.array(xyzstn)[np.logical_not(index)]])
+            self.iqr           = iqr(v)
 
             if verbose:
                 tqdm.write(' -- T: %s iterations: %i wrms: %.1f stations used: %i\n'
@@ -1018,7 +1022,8 @@ class Polyhedron:
                 'helmert'                 : self.helmert.tolist(),
                 'downweighted'            : self.downweighted,
                 'downweighted_fraction'   : self.down_frac,
-                'downweighted_components' : self.down_comps
+                'downweighted_components' : self.down_comps,
+                'iqr'                     : self.iqr
                 }
 
 
