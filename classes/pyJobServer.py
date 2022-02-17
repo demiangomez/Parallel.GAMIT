@@ -186,16 +186,17 @@ def test_node(check_gamit_tables=None, software_sync=()):
         elif not os.path.isdir(tables):
             return ' -- %s: Could not GAMIT tables dir (gg)' % (platform.node())
 
-        for t_name in ('luntab.' + date.yyyy() + '.J2000',
-                       'soltab.' + date.yyyy() + '.J2000',
-                       'ut1.' + eop,
-                       # leapseconds
-                       # vmf1
-                       'pole.' + eop
-                       ): 
-            result = check_tab_file(os.path.join(tables, t_name), date)
-            if result:
-                return result
+        # DDG: deprecated -> GAMIT now uses a single nbody file (binary)
+        # for t_name in ('luntab.' + date.yyyy() + '.J2000',
+        #               'soltab.' + date.yyyy() + '.J2000',
+        #               'ut1.' + eop,
+        #               # leapseconds
+        #               # vmf1
+        #               'pole.' + eop
+        #               ):
+        #    result = check_tab_file(os.path.join(tables, t_name), date)
+        #    if result:
+        #        return result
 
         # fes_cmc consistency
 

@@ -761,16 +761,26 @@ class GamitTask(object):
             lines=`cat ./$DOY/sh_gamit_${DOY}.summary | sed -n 's/WARNING: \([0-9]*\) SITES.*$/\\1/p'`
             grep -A $lines "over constrained" ./$DOY/sh_gamit_${DOY}.summary >> monitor.log
             
+            # DDG: new behavior -> remove the station with the largest over constrained coordinate
             # grep the sites and get the unique list separeted by | (to do regex grep)
-            stns=`grep "GCR APTOL" monitor.log | awk '{print $4"_GPS"}' | uniq | tr '\n' '|'`
-            
+            # stns=`grep "GCR APTOL" monitor.log | awk '{print $4"_GPS"}' | uniq | tr '<line break>' '|'`
             # copy the sittbl. (just in case)
-            cp tables/sittbl. tables/sittbl.${iter_ext}
+            # cp tables/sittbl. tables/sittbl.${iter_ext}
             # remove those from the sittbl list: this will relax station to 100 m
-            grep -v -E "${stns:0:-1}" tables/sittbl.${iter_ext} > tables/sittbl.
+            # grep -v -E "${stns:0:-1}" tables/sittbl.${iter_ext} > tables/sittbl.
             
-            echo "run.sh (`date +"%Y-%m-%d %T"`): relaxing over constrained stations ${stns:0:-1}" >> monitor.log
+            stns=`grep "GCR APTOL" ./$DOY/sh_gamit_${DOY}.summary | awk '{print sqrt($(NF) * $(NF)), $4}' | sort -r | head -n1 | awk '{print $2}' | tr '[:upper:]' '[:lower:]'`
+            echo "run.sh (`date +"%Y-%m-%d %T"`): deleting over constrained station ${stns}" >> monitor.log
+            rm rinex/${stns}*;
+            rm $DOY/${stns}* ;
+            
+            # echo "run.sh (`date +"%Y-%m-%d %T"`): relaxing over constrained stations ${stns:0:-1}" >> monitor.log
+            echo "run.sh (`date +"%Y-%m-%d %T"`): replacing lfile. from this run with lfile.${iter_ext}" >> monitor.log
+            rm ./tables/lfile.
+            cp ./tables/lfile.${iter_ext} ./tables/lfile.
+            
             echo "run.sh (`date +"%Y-%m-%d %T"`): will try sh_gamit again ..." >> monitor.log
+            
             EXE=1;
         fi
 

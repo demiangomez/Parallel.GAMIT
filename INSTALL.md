@@ -61,6 +61,7 @@ python -m pip install fiona==1.8.19
 python -m pip install openpyxl==3.0.7
 python -m pip install cartopy==0.19.0 
 python -m pip install sklearn==0.24.2
+python -m pip install pysftp
 ```
 
 
