@@ -8,6 +8,10 @@ before sending jobs to each node
 """
 
 import time
+import _thread
+import threading
+import queue
+import traceback
 
 # deps
 from tqdm import tqdm
@@ -217,7 +221,6 @@ def setup(modules):
 
     return 0
 
-
 class JobServer:
 
     def check_cluster(self, status, node, job):
@@ -251,7 +254,6 @@ class JobServer:
         :param run_parallel: override the configuration in gnss_data.cfg
         :param software_sync: list of strings with remote and local paths of software to be synchronized
         """
-        print('nahuel-check', check_gamit_tables)
         self.check_gamit_tables = check_gamit_tables
         self.software_sync      = software_sync
 
@@ -271,6 +273,9 @@ class JobServer:
         self.function     = None
         self.modules      = []
 
+        self.on_nodes_changed = None
+        self.job_runner_inbox = queue.PriorityQueue() 
+        
         print(" ==== Starting JobServer(dispy) ====")
 
         # check that the run_parallel option is activated
@@ -296,6 +301,7 @@ class JobServer:
             self.cluster.discover_nodes(servers)
 
             # wait for all nodes
+            print(" >> Waiting %d seconds to discover all nodes... " % DELAY)
             time.sleep(DELAY)
 
             # if no nodes were found, stop
@@ -323,36 +329,57 @@ class JobServer:
                 print(' >> Errors were encountered during initialization. Check messages.')
                 exit()
 
-    def create_cluster(self, function, deps=(), callback=None, progress_bar=None, verbose=False, modules=()):
+    def create_cluster(self, function, deps=(), callback=None, progress_bar=None, verbose=False, modules=(),
+                       on_nodes_changed=None,
+                       node_setup=None,
+                       node_cleanup=None
+                       ):
 
         self.jobs     = []
         self.callback = callback
         self.function = function
         self.verbose  = verbose
         self.close    = True
-
-        if self.run_parallel:
-
+        self.on_nodes_changed = on_nodes_changed
+        self.node_cleanup     = node_cleanup
+        
+        if not self.run_parallel:
+            if node_setup:
+                node_setup()
+            _thread.start_new_thread(self._job_runner_thread, ())
+        else:
             # DDG: NodeAllocate is used to pass the arguments to setup during node initialization
             self.cluster = dispy.JobCluster(function,
-                                            [dispy.NodeAllocate(node.ip_addr, setup_args=(modules,))
+                                            [dispy.NodeAllocate(node.ip_addr, setup_args=() if node_setup else (modules,))
                                              for node in self.nodes],
                                             list(deps),
                                             callback,
                                             self.cluster_status,
-                                            pulse_interval = 60,
-                                            setup          = setup,
+                                            pulse_interval=60,
+                                            # Note, exceptions in setup seems to be swallowed up and
+                                            # never shown.
+                                            setup          = node_setup or setup,
+                                            cleanup        = node_cleanup or True,
                                             loglevel       = dispy.logger.CRITICAL,
+                                            # if communication is lost to a node, his jobs will be
+                                            # automatically rescheduled to another one.. (but
+                                            # jobs must be reentrant! Because if rescheduled and the
+                                            # disconnected node is really alive (temporal netsplit) the
+                                            # job will run multiple times and maybe in parallel)
                                             reentrant      = True,
                                             ip_addr        = self.ip_address)
 
             self.http_server = dispy.httpd.DispyHTTPServer(self.cluster, poll_sec=2)
 
             # wait for all nodes to be created
+            print(" >> Waiting %d seconds to initialize all nodes... " % DELAY)
             time.sleep(DELAY)
+            
 
         self.progress_bar = progress_bar
+        
 
+        
     def submit(self, *args):
         """
         function to submit jobs to dispy. If run_parallel == False, the jobs are executed
@@ -361,19 +388,56 @@ class JobServer:
         """
         if self.run_parallel:
             self.jobs.append(self.cluster.submit(*args))
+        # if no-parallel was invoked, execute the procedure manually and synchronously
+        elif not self.callback:
+            self.function(*args)
         else:
-            # if no parallel was invoked, execute the procedure manually
-            if self.callback:
-                job = dispy.DispyJob(None, args, ())
+            job = dispy.DispyJob(None, args, ())
+            try:
+                job.result = self.function(*args)
+                if self.progress_bar is not None:
+                    self.progress_bar.update()
+            except Exception as e:
+                job.exception = e
+            self.callback(job)
+
+    def submit_async(self, *args):
+        # If run_parallel == True, works the same as the submit() method
+        # If run_parallel == False, then the job will be run asynchronously in a job_runner
+        # thread.
+        # TODO: The submit() method must be deprecated and replaced with this method after we
+        # make sure no code depends on submit() synchronous behavior. So every job submitted
+        # will run asynchronously no matter run_parallel value and no different running semantics
+        # will be used.
+        if self.run_parallel:
+            job = self.cluster.submit(*args)
+            self.jobs.append(job)
+        else:
+            # dispy will a sign a job.id automatically
+            job = dispy.DispyJob(None, args, ())
+            self.job_runner_inbox.put((1, job, args))
+        return job
+            
+
+    def _job_runner_thread(self):
+        while True:
+            (prio, job, args) = self.job_runner_inbox.get()
+
+            if 'CLOSE' == job:
+                return
+            
+            try:
                 try:
                     job.result = self.function(*args)
                     if self.progress_bar is not None:
                         self.progress_bar.update()
-                except Exception as e:
-                    job.exception = e
+                except:
+                    job.exception = traceback.format_exc()
                 self.callback(job)
-            else:
-                self.function(*args)
+            except:
+                tqdm.write('WARNING: Exception running job callback: ' + traceback.format_exc())
+
+
 
     def wait(self):
         """
@@ -381,7 +445,7 @@ class JobServer:
         :return: none
         """
         if self.run_parallel:
-            tqdm.write(' -- Waiting for jobs to finish...')
+            tqdm.write(' -- Waiting for jobs to finish (no less than %d seconds)...' % DELAY)
             try:
                 self.cluster.wait()
                 # let the process trigger cluster_status before letting the calling proc close the progress bar
@@ -399,48 +463,74 @@ class JobServer:
             self.http_server.shutdown()
             self.cleanup()
 
+            
     def cluster_status(self, status, node, job):
-
+        """ Called by dispy on cluster events """
+        # see https://dispy.org/examples.html#process-status-notifications
+        J = dispy.DispyJob
+        N = dispy.DispyNode
+        
         # update the status in the http_server
         self.http_server.cluster_status(self.http_server._clusters[self.cluster.name], status, node, job)
 
-        if status == dispy.DispyNode.Initialized:
-            tqdm.write(' -- Node %s initialized with %i CPUs' % (node.name, node.avail_cpus))
-            # test node to make sure everything works
-            self.cluster.send_file('gnss_data.cfg', node)
-            self.nodes.append(node)
+        s = status
+        if not job:
+            # Node status change
+            if N.Initialized == s:
+                tqdm.write(' -- Node %s initialized with %i CPUs' % (node.name, node.avail_cpus))
+                # test node to make sure everything works
+                self.cluster.send_file('gnss_data.cfg', node)
+                self.nodes.append(node)
+                if self.on_nodes_changed:
+                    self.on_nodes_changed(self.nodes)
 
-        elif job is not None:
-            J = dispy.DispyJob
-            if status == J.Finished:
+            elif N.Close == s:
+                self.nodes.remove(node)
+                if self.on_nodes_changed:
+                    self.on_nodes_changed(self.nodes)
+        else:
+            # Job status change
+            if J.Finished == s:
                 if self.verbose:
                     tqdm.write(' -- Job %i finished successfully' % job.id)
 
-            elif status == J.Abandoned:
+            elif J.Abandoned == s:
+                # If a node becomes offline and the cluster was created with reentrant=False,
+                # their jobs will be reported as Abandoned. If reentrant=True, they will be
+                # automatically redirected to other nodes by dispy.
                 # always print abandoned jobs
                 tqdm.write(' -- Job %04i (%s) was reported as abandoned at node %s -> resubmitting'
                            % (job.id, str(job.args), node.name))
 
-            elif status == J.Created:
+            elif J.Created == s:
                 if self.verbose:
                     tqdm.write(' -- Job %i has been created' % job.id)
 
-            elif status == J.Terminated:
+            elif J.Terminated == s:
                 tqdm.write(' -- Job %04i has been terminated with the following exception: ' % job.id)
                 tqdm.write(str(job.exception))
 
-            elif status == J.Cancelled:
+            elif J.Cancelled == s:
                 tqdm.write(' -- Job %04i has been cancelled with the following exception: ' % job.id)
                 tqdm.write(str(job.exception))
 
             #
-            if status in (J.Finished,
-                          J.Terminated):
-                if self.progress_bar is not None:
-                    self.progress_bar.update()
+            if s in (J.Finished, J.Terminated) and self.progress_bar is not None:
+                self.progress_bar.update()
+                
+            if s in (J.Finished, J.Abandoned, J.Terminated, J.Cancelled):
+                try:
+                    self.jobs.remove(job)
+                except:
+                    pass
+
 
     def cleanup(self):
-        if self.run_parallel and self.close:
+        if not self.run_parallel:
+            if self.node_cleanup:
+                self.node_cleanup()
+            self.job_runner_inbox.put((0, 'CLOSE', None))
+        elif self.close:
             self.cluster.print_status()
             self.cluster.close()
             self.close = False

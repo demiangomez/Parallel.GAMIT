@@ -167,7 +167,7 @@ class StationInfoRecord(pyBunch.Bunch):
                                          str(self.AntennaSerial))
 
 
-class StationInfo(object):
+class StationInfo:
     """
     New parameter: h_tolerance makes the station info more tolerant to gaps. This is because station info in the old
     days had a break in the middle and the average epoch was falling right in between the gap

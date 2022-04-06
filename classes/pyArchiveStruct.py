@@ -274,6 +274,8 @@ class RinexStruct(object):
 
         return self.cnn.query(sql).dictresult()
 
+    
+
     def scan_archive_struct(self, rootdir, progress_bar=None):
         self.archiveroot = rootdir
 
@@ -408,7 +410,7 @@ class RinexStruct(object):
         :param key_filter:
         :return:
         """
-        keys_out = dict()
+        keys_out = {}
 
         try:
             path     = os.path.dirname(path_filename).split('/')

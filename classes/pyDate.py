@@ -150,11 +150,11 @@ def date2gpsDate(year,month,day):
     ut  = (day % 1) *24.
     day = floor(day)
 
-    julianDay =   floor( 365.25 * year )              \
-                + floor( 30.6001 * ( month + 1. ) )   \
-                + day                                      \
-                + ut/24.                                   \
-                + 1720981.5
+    julianDay = (  floor( 365.25 * year )
+                 + floor( 30.6001 * ( month + 1. ) )
+                 + day
+                 + ut/24. 
+                 + 1720981.5)
 
     gpsWeek    = floor((julianDay - 2444244.5)/7.)
     gpsWeekDay = (julianDay - 2444244.5) % 7
@@ -233,7 +233,6 @@ class Date(object):
 
         # parse args
         for key in kwargs:
-
             arg = kwargs[key]
             key = key.lower()
 
@@ -294,11 +293,13 @@ class Date(object):
                     break
                 else:
                     raise pyDateException('invalid type %s for %s\n' % (str(type(arg)), key))
+                
             else:
                 raise pyDateException('unrecognized input arg: '+key+'\n')
 
         # make due with what we gots
-        if self.year is not None and self.doy is not None:
+        if self.year is not None and \
+           self.doy  is not None:
 
             # compute the month and day of month
             self.month, self.day = doy2date(self.year, self.doy)
@@ -311,7 +312,8 @@ class Date(object):
 
             self.mjd = gpsDate2mjd(self.gpsWeek,self.gpsWeekDay)
 
-        elif self.gpsWeek is not None and self.gpsWeekDay is not None:
+        elif self.gpsWeek    is not None and \
+             self.gpsWeekDay is not None:
 
             # initialize modified julian day from gps date
             self.mjd = gpsDate2mjd(self.gpsWeek, self.gpsWeekDay)
@@ -322,7 +324,9 @@ class Date(object):
             # compute day of year from month and day of month
             self.doy, self.fyear = date2doy(self.year, self.month, self.day, self.hour, self.minute, self.second)
 
-        elif self.year is not None and self.month is not None and self.day:
+        elif self.year  is not None and \
+             self.month is not None and \
+             self.day:
 
             # initialize day of year and fractional year from date
             self.doy, self.fyear = date2doy(self.year, self.month, self.day, self.hour, self.minute, self.second)
@@ -450,6 +454,9 @@ class Date(object):
 
     def yyyyddd(self):
         return '%4i %03i' % (int(self.year), int(self.doy))
+    
+    def iso_date(self):
+        return "%d-%02d-%02d" % (self.year, self.month, self.day)
 
     def datetime(self):
         if self.year is None:
@@ -464,14 +471,12 @@ class Date(object):
             return datetime(year=self.year, month=self.month, day=self.day, hour=0, minute=0, second=0).strftime(
                 '%Y-%m-%d %H:%M:%S')
         else:
-            _, fyear = date2doy(self.year, self.month, self.day, 0, 0, 0)
-            return fyear
+            return date2doy(self.year, self.month, self.day, 0, 0, 0)[1] # fyear
 
     def last_epoch(self, out_format='datetime'):
         if out_format == 'datetime':
             return datetime(year=self.year, month=self.month, day=self.day, hour=23, minute=59, second=59).strftime(
                 '%Y-%m-%d %H:%M:%S')
         else:
-            _, fyear = date2doy(self.year, self.month, self.day, 23, 59, 59)
-            return fyear
+            return date2doy(self.year, self.month, self.day, 23, 59, 59)[1] # fyear
 

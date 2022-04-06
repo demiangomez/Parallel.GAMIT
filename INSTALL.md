@@ -61,7 +61,10 @@ python -m pip install fiona==1.8.19
 python -m pip install openpyxl==3.0.7
 python -m pip install cartopy==0.19.0 
 python -m pip install sklearn==0.24.2
-python -m pip install pysftp
+# Required by pysftp/paramiko, newer versions require Rust to build
+python -m pip install cryptography==3.3.2
+python -m pip install paramiko==2.10.1
+python -m pip install pysftp==0.2.9
 ```
 
 

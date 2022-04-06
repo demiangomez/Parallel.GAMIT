@@ -103,7 +103,8 @@ from Utils import (print_columns,
                    ecef2lla,
                    file_append,
                    file_open,
-                   file_read_all)
+                   file_read_all,
+                   stationID)
 
 
 error_message = False
@@ -221,7 +222,7 @@ def try_insert(NetworkCode, StationCode, year, doy, rinex):
 
         # get the rinex file name
         rnx_name = pyRinexName.RinexNameFormat(rinex)
-    except Exception:
+    except:
         return traceback.format_exc() + ' processing rinex: %s (%s.%s %s %s) using node %s' \
                % (rinex, NetworkCode, StationCode, str(year), str(doy), platform.node())
 
@@ -405,7 +406,7 @@ def obtain_otl(NetworkCode, StationCode):
                     errors += str(e) + '\n'
                     continue
 
-                except Exception:
+                except:
 
                     return traceback.format_exc() + \
                            ' processing: %s using node %s' % (stn_id, platform.node())
@@ -497,7 +498,7 @@ def insert_stninfo(NetworkCode, StationCode, stninfofile):
             except pyStationInfo.pyStationInfoException as e:
                 errors.append(str(e))
 
-            except Exception:
+            except:
                 errors.append(traceback.format_exc() + ' insert_stninfo: ' + NetworkCode + ' ' + StationCode +
                               ' using node ' + platform.node())
                 continue
@@ -542,9 +543,9 @@ def execute_ppp(record, rinex_path, h_tolerance):
 
         Config = pyOptions.ReadOptions("gnss_data.cfg")
 
-    except Exception:
-        return traceback.format_exc() + ' processing rinex: %s.%s %s %s using node %s' \
-                   % (NetworkCode, StationCode, str(year), str(doy), platform.node())
+    except:
+        return traceback.format_exc() + ' processing rinex: %s %s %s using node %s' \
+                   % (stationID(record), str(year), str(doy), platform.node())
 
     # create a temp folder in production to put the orbit in
     # we need to check the RF of the orbit to see if we have this solution in the DB
@@ -647,7 +648,7 @@ def execute_ppp(record, rinex_path, h_tolerance):
 
         cnn.insert_event(e.event)
 
-    except Exception:
+    except:
         return traceback.format_exc() + ' processing rinex: %s.%s %s %s using node %s' \
                    % (NetworkCode, StationCode, str(year), str(doy), platform.node())
 
@@ -683,7 +684,7 @@ def post_scan_rinex_job(cnn, Archive, rinex_file, rinexpath, master_list, JobSer
 
 def scan_rinex(cnn, JobServer, pyArchive, archive_path, master_list, ignore):
 
-    master_list = [item['NetworkCode'] + '.' + item['StationCode'] for item in master_list]
+    master_list = [stationID(item) for item in master_list]
 
     print(" >> Analyzing the archive's structure...")
     pbar = tqdm(ncols=80, unit='crz', disable=None)
@@ -726,7 +727,7 @@ def process_otl(cnn, JobServer, master_list):
     print("")
     print(" >> Calculating coordinates and OTL for new stations...")
 
-    master_list = [item['NetworkCode'] + '.' + item['StationCode'] for item in master_list]
+    master_list = [stationID(item) for item in master_list]
 
     records = cnn.query('SELECT "NetworkCode", "StationCode" FROM stations '
                         'WHERE auto_x is null OR auto_y is null OR auto_z is null OR "Harpos_coeff_otl" is null '
@@ -758,7 +759,7 @@ def scan_station_info(JobServer, pyArchive, archive_path, master_list):
 
     print("   >> Processing Station Info files...")
 
-    master_list = set(item['NetworkCode'] + '.' + item['StationCode'] for item in master_list)
+    master_list = set(stationID(item) for item in master_list)
 
     pbar = tqdm(total=len(stninfo), ncols=80, disable=None)
 
@@ -884,8 +885,6 @@ def hash_check(cnn, master_list, sdate, edate, rehash=False, h_tolerant=0):
 
         except pyStationInfo.pyStationInfoException as e:
             tqdm.write(str(e))
-        except Exception:
-            raise
 
     if not rehash:
         print(' -- Done checking hash values.')

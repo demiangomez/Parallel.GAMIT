@@ -1432,7 +1432,8 @@ class ReadRinex(RinexRecord):
             raise pyRinexException(str(e))
 
         filename = Utils.copyfile(crinez_path,
-                                  os.path.join(path, crinez), self.rinex_version)
+                                  os.path.join(path, crinez),
+                                  self.rinex_version)
 
         self.log_event('Created CRINEZ from local copy and copied to %s' % path)
 
