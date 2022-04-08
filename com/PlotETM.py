@@ -95,6 +95,12 @@ def main():
     parser.add_argument('-gui', '--interactive', action='store_true',
                         help="Interactive mode: allows to zoom and view the plot interactively")
 
+    parser.add_argument('-rj', '--remove_jumps', action='store_true', default=False,
+                        help="Remove jumps from model and time series before plotting")
+
+    parser.add_argument('-rp', '--remove_polynomial', action='store_true', default=False,
+                        help="Remove polynomial terms from model and time series before plotting")
+
     parser.add_argument('-win', '--time_window', nargs='+', metavar='interval',
                         help='Date range to window data. Can be specified in yyyy/mm/dd, yyyy.doy or as a single '
                              'integer value (N) which shall be interpreted as last epoch-N')
@@ -178,7 +184,9 @@ def main():
             try:
 
                 if args.gamit is None and args.filename is None:
-                    etm = pyETM.PPPETM(cnn, stn['NetworkCode'], stn['StationCode'], False, args.no_model)
+                    etm = pyETM.PPPETM(cnn, stn['NetworkCode'], stn['StationCode'], False, args.no_model,
+                                       plot_remove_jumps=args.remove_jumps,
+                                       plot_polynomial_removed=args.remove_polynomial)
                 elif args.filename is not None:
                     etm = from_file(args, cnn, stn)
                 else:
@@ -191,7 +199,11 @@ def main():
                     soln = pyETM.GamitSoln(cnn, polyhedrons, stn['NetworkCode'], stn['StationCode'], args.gamit[0])
 
                     etm = pyETM.GamitETM(cnn, stn['NetworkCode'], stn['StationCode'], False,
-                                         args.no_model, gamit_soln=soln)
+                                         args.no_model, gamit_soln=soln, plot_remove_jumps=args.remove_jumps,
+                                         plot_polynomial_removed=args.remove_polynomial)
+                                      #   postseismic=[{'date': pyDate.Date(year=2010,doy=58),
+                                      #  'relaxation': [0.5],
+                                      #  'amplitude': [[-0.0025, -0.0179, -0.005]]}])
 
                     # print ' > %5.2f %5.2f %5.2f %i %i' % \
                     #      (etm.factor[0]*1000, etm.factor[1]*1000, etm.factor[2]*1000, etm.soln.t.shape[0],

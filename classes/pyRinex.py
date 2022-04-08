@@ -32,6 +32,7 @@ TYPE_CRINEZ = 0
 TYPE_RINEX  = 1
 TYPE_RINEZ  = 2
 TYPE_CRINEX = 3
+TYPE_CRINEZ_2 = 4
 
 
 class pyRinexException(Exception):
@@ -524,7 +525,6 @@ class ReadRinex(RinexRecord):
         if not os.path.exists(self.rootdir):
             os.makedirs(self.rootdir)
 
-
     def create_script(self, name, command):
         script_path = os.path.join(self.rootdir, name)
         file_write(script_path, '#! /bin/bash\n' + command + '\n')
@@ -544,7 +544,7 @@ class ReadRinex(RinexRecord):
                 prg1 = 'zcat "%s" ' % self.local_copy
 
         # determine the program to pipe into
-        if self.origin_type in (TYPE_CRINEZ, TYPE_CRINEX):
+        if self.origin_type in (TYPE_CRINEZ, TYPE_CRINEX, TYPE_CRINEZ_2):
             prg2 = ' crx2rnx > "%s"' % self.rinex_path
         else:
             prg2 = ' > "%s"' % self.rinex_path
@@ -668,7 +668,7 @@ class ReadRinex(RinexRecord):
 
         copy(origin_file, self.rootdir)
 
-        if self.origin_type in (TYPE_CRINEZ, TYPE_CRINEX, TYPE_RINEZ):
+        if self.origin_type in (TYPE_CRINEZ, TYPE_CRINEX, TYPE_RINEZ, TYPE_CRINEZ_2):
             self.uncompress()
 
         # check basic infor in the rinex header to avoid problems with RinSum
@@ -725,7 +725,6 @@ class ReadRinex(RinexRecord):
 
         # load the RinexRecord class
         self.load_record()
-
 
     def multiday_handle(self, origin_file):
         # split the file
@@ -1387,7 +1386,7 @@ class ReadRinex(RinexRecord):
             filename = path_dst
 
         else:
-            raise pyRinexException('pyRinex will not natively generate a RINEZ file.')
+            raise pyRinexException('pyRinex will not natively generate a RINEZ or CRINEZ_2 (RINEX 2.gz) file.')
 
         # to keep everything consistent, also change the local copies of the file
         self.rename(filename)
@@ -1406,13 +1405,17 @@ class ReadRinex(RinexRecord):
 
         return filename
 
-
-    def compress_local_copyto(self, path):
+    def compress_local_copyto(self, path, force_filename=None):
         # this function compresses and moves the local copy of the rinex
         # meant to be used when a multiday rinex file is encountered and we need to move it to the repository
 
         # compress the rinex into crinez. Make the filename
-        crinez = self.rinex_name_format.to_rinex_format(TYPE_CRINEZ, no_path=True)
+        # DDG: only create a RINEX compliant filename if force_filename=None
+        if not force_filename:
+            crinez = self.rinex_name_format.to_rinex_format(TYPE_CRINEZ, no_path=True)
+        else:
+            # use provided filename
+            crinez = force_filename
 
         crinez_path = os.path.join(self.rootdir, crinez)
         # we make the crinez again (don't use the existing from the database) to apply any corrections
@@ -1438,7 +1441,6 @@ class ReadRinex(RinexRecord):
 
         return filename
 
-
     def rename(self, new_name = None, NetworkCode = None, StationCode = None):
 
         # function that renames the local crinez and rinex file based on the provided information
@@ -1463,7 +1465,7 @@ class ReadRinex(RinexRecord):
                 #                  stations code!
                 self.rinex_name_format.StationCode = rnx.StationCode
 
-                 # rename the files
+                # rename the files
                 # check if local crinez exists (possibly made by compress_local_copyto)
                 new_crinez_path = os.path.join(self.rootdir, crinez)
                 if os.path.isfile(self.crinez_path):
@@ -1508,7 +1510,6 @@ class ReadRinex(RinexRecord):
             if self.multiday:
                 for Rnx in self.multiday_rnx_list:
                     Rnx.cleanup()
-
 
     def __del__(self):
         self.cleanup()

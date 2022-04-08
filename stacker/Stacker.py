@@ -335,7 +335,7 @@ def main():
                 if stack[j].date != target[j].date:
                     # raise an error if dates don't agree!
                     raise Exception("Error processing %s: dates don't agree (target date %s)"
-                                        % ( stack[j].date.yyyyddd(),
+                                        % (stack[j].date.yyyyddd(),
                                            target[j].date.yyyyddd()))
                 else:
                     # should only attempt to align a polyhedron that is unaligned

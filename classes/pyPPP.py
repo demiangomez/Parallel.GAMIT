@@ -142,7 +142,8 @@ class PPPSpatialCheck:
 
 class RunPPP(PPPSpatialCheck):
     def __init__(self, in_rinex, otl_coeff, options, sp3types, sp3altrn, antenna_height, strict=True, apply_met=True,
-                 kinematic=False, clock_interpolation=False, hash=0, erase=True, decimate=True):
+                 kinematic=False, clock_interpolation=False, hash=0, erase=True, decimate=True, solve_coordinates=True,
+                 solve_troposphere=105, back_substitution=False, elev_mask=10, x=0, y=0, z=0):
 
         assert isinstance(in_rinex, pyRinex.ReadRinex)
 
@@ -179,9 +180,14 @@ class RunPPP(PPPSpatialCheck):
 
         self.frame             = None
         self.atx               = None
-        self.x                 = None
-        self.y                 = None
-        self.z                 = None
+        # DDG: now accepts solving for a fixed coordinate PPP
+        self.solve_coordinates = solve_coordinates
+        self.solve_troposphere = solve_troposphere
+        self.back_substitution = back_substitution
+        self.elev_mask         = elev_mask
+        self.x                 = x
+        self.y                 = y
+        self.z                 = z
         self.lat               = None
         self.lon               = None
         self.h                 = None
@@ -233,6 +239,12 @@ class RunPPP(PPPSpatialCheck):
 
             # generate a unique id for this instance
             self.rootdir = os.path.join(self.rootdir, str(uuid.uuid4()))
+
+            path = os.path.join(self.rootdir, self.rinex.rinex[:-3])
+            self.path_sum_file = path + 'sum'
+            self.path_pos_file = path + 'pos'
+            self.path_ses_file = path + 'ses'
+            self.path_res_file = path + 'res'
 
             try:
                 # create a production folder to analyze the rinex file
@@ -289,7 +301,6 @@ class RunPPP(PPPSpatialCheck):
         file_write(os.path.join(self.rootdir, self.rinex.StationCode + '.olc'),
                    self.otl_coeff)
 
-
     def config_session(self):
 
         options = self.options
@@ -313,29 +324,34 @@ class RunPPP(PPPSpatialCheck):
                       options['info']))
 
         file_write(os.path.join(self.rootdir, 'commands.cmd'),
-                   "' UT DAYS OBSERVED                      (1-45)'               1\n"
-                   "' USER DYNAMICS         (1=STATIC,2=KINEMATIC)'               %s\n"
-                   "' OBSERVATION TO PROCESS         (1=COD,2=C&P)'               2\n"
-                   "' FREQUENCY TO PROCESS        (1=L1,2=L2,3=L3)'               3\n"
-                   "' SATELLITE EPHEMERIS INPUT     (1=BRD ,2=SP3)'               2\n"
-                   "' SATELLITE PRODUCT (1=NO,2=Prc,3=RTCA,4=RTCM)'               2\n"
-                   "' SATELLITE CLOCK INTERPOLATION   (1=NO,2=YES)'               %s\n"
-                   "' IONOSPHERIC GRID INPUT          (1=NO,2=YES)'               1\n"
-                   "' SOLVE STATION COORDINATES       (1=NO,2=YES)'               2\n"
-                   "' SOLVE TROP. (1=NO,2-5=RW MM/HR) (+100=grad) '             105\n"
-                   "' BACKWARD SUBSTITUTION           (1=NO,2=YES)'               1\n"
-                   "' REFERENCE SYSTEM            (1=NAD83,2=ITRF)'               2\n"
-                   "' COORDINATE SYSTEM(1=ELLIPSOIDAL,2=CARTESIAN)'               2\n"
-                   "' A-PRIORI PSEUDORANGE SIGMA               (m)'           2.000\n"
-                   "' A-PRIORI CARRIER PHASE SIGMA             (m)'           0.015\n"
-                   "' LATITUDE  (ddmmss.sss,+N) or ECEF X      (m)'          0.0000\n"
-                   "' LONGITUDE (ddmmss.sss,+E) or ECEF Y      (m)'          0.0000\n"
-                   "' HEIGHT (m)                or ECEF Z      (m)'          0.0000\n"
-                   "' ANTENNA HEIGHT                           (m)'          %6.4f\n"
-                   "' CUTOFF ELEVATION                       (deg)'          10.000\n"
-                   "' GDOP CUTOFF                                 '          20.000\n"
-                   % ('1' if not self.kinematic else '2', '1'
-                      if not self.clock_interpolation else '2', self.antH))
+                   "' UT DAYS OBSERVED                      (1-45)'                   1\n"
+                   "' USER DYNAMICS         (1=STATIC,2=KINEMATIC)'                   %s\n"
+                   "' OBSERVATION TO PROCESS         (1=COD,2=C&P)'                   2\n"
+                   "' FREQUENCY TO PROCESS        (1=L1,2=L2,3=L3)'                   3\n"
+                   "' SATELLITE EPHEMERIS INPUT     (1=BRD ,2=SP3)'                   2\n"
+                   "' SATELLITE PRODUCT (1=NO,2=Prc,3=RTCA,4=RTCM)'                   2\n"
+                   "' SATELLITE CLOCK INTERPOLATION   (1=NO,2=YES)'                   %s\n"
+                   "' IONOSPHERIC GRID INPUT          (1=NO,2=YES)'                   1\n"
+                   "' SOLVE STATION COORDINATES       (1=NO,2=YES)'                   %s\n"
+                   "' SOLVE TROP. (1=NO,2-5=RW MM/HR) (+100=grad) '                   %i\n"
+                   "' BACKWARD SUBSTITUTION           (1=NO,2=YES)'                   %s\n"
+                   "' REFERENCE SYSTEM            (1=NAD83,2=ITRF)'                   2\n"
+                   "' COORDINATE SYSTEM(1=ELLIPSOIDAL,2=CARTESIAN)'                   2\n"
+                   "' A-PRIORI PSEUDORANGE SIGMA               (m)'              2.0000   9.00\n"
+                   "' A-PRIORI CARRIER PHASE SIGMA             (m)'              0.0150   9.00\n"
+                   "' LATITUDE  (ddmmss.sss,+N) or ECEF X      (m)'      %14.4f   0.000\n"
+                   "' LONGITUDE (ddmmss.sss,+E) or ECEF Y      (m)'      %14.4f   0.000\n"
+                   "' HEIGHT (m)                or ECEF Z      (m)'      %14.4f   0.000\n"
+                   "' ANTENNA HEIGHT                           (m)'      %14.4f\n"
+                   "' CUTOFF ELEVATION                       (deg)'      %14.4f\n"
+                   "' GDOP CUTOFF                                 '             20.0000\n"
+                   % ('1' if not self.kinematic else '2',
+                      '1' if not self.clock_interpolation else '2',
+                      '1' if not self.solve_coordinates else '2',
+                      self.solve_troposphere,
+                      '1' if not self.back_substitution else '2',
+                      self.x, self.y, self.z,
+                      self.antH, self.elev_mask))
 
         file_write(os.path.join(self.rootdir, 'input.inp'), 
                    "%s\n"
@@ -351,7 +367,6 @@ class RunPPP(PPPSpatialCheck):
                       self.clocks1.clk_filename,
                       self.orbits2.sp3_filename,
                       self.clocks2.clk_filename))
-
 
     def get_orbits(self, type):
 
@@ -549,8 +564,8 @@ class RunPPP(PPPSpatialCheck):
             if not self.check_otl(self.proc_parameters):
                 raise pyRunPPPException(
                     'Error while running PPP: could not find the OTL coefficients. '
-                    'Check RINEX header for formatting issues in the APPROX ANT POSITION field. If APR is too far from OTL '
-                    'coordinates (declared in the HARPOS or BLQ format) NRCAN will reject the coefficients. '
+                    'Check RINEX header for formatting issues in the APPROX ANT POSITION field. If APR is too far '
+                    'from OTL coordinates (declared in the HARPOS or BLQ format) NRCAN will reject the coefficients. '
                     'OTL coefficients record follows:\n' + self.otl_coeff)
 
         if not self.check_eop(self.file_summary):
@@ -621,9 +636,8 @@ class RunPPP(PPPSpatialCheck):
                     else:
                         return False, msg
                 else:
-                    path = os.path.join(self.rootdir, self.rinex.rinex[:-3])
-                    self.out = file_readlines(path + 'sum')
-                    self.pos = file_readlines(path + 'pos')
+                    self.out = file_readlines(self.path_sum_file)
+                    self.pos = file_readlines(self.path_pos_file)
                     break
 
         except pyRunWithRetry.RunCommandWithRetryExeception as e:
@@ -684,7 +698,6 @@ class RunPPP(PPPSpatialCheck):
             self.config_session()
 
         self.load_record()
-
 
     def load_record(self):
 

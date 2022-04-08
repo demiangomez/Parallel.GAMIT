@@ -16,11 +16,13 @@ TYPE_CRINEZ = 0
 TYPE_RINEX  = 1
 TYPE_RINEZ  = 2
 TYPE_CRINEX = 3
+TYPE_CRINEZ_2 = 4
 
-version_2_ext = {TYPE_CRINEZ : 'd.Z',
-                 TYPE_RINEX  : 'o',
-                 TYPE_RINEZ  : 'o.Z',
-                 TYPE_CRINEX : 'd'}
+version_2_ext = {TYPE_CRINEZ  : 'd.Z',
+                 TYPE_RINEX   : 'o',
+                 TYPE_RINEZ   : 'o.Z',
+                 TYPE_CRINEX  : 'd',
+                 TYPE_CRINEZ_2: 'd.gz'}  # some newer files come in d.gz
 
 version_3_ext = {TYPE_CRINEZ : 'crx.gz',
                  TYPE_RINEX  : 'rnx',
@@ -110,11 +112,11 @@ class RinexNameFormat(object):
                    if filename.endswith(ext)),
                   None)
 
-        if ft != None:
+        if ft is not None:
             self.version = 2
             return ft
             # @todo after return exception, this was never raised, remove it?
-            #raise RinexNameException('Invalid filename format: ' + filename)
+            # raise RinexNameException('Invalid filename format: ' + filename)
         else:
             self.version = 3
 
@@ -155,7 +157,7 @@ class RinexNameFormat(object):
     def split_filename(self, filename):
 
         if self.version < 3:
-            sfile = re.findall(r'(\w{4})(\d{3})(\w)\.(\d{2})([doOD]\.?[Z]?)$', filename)
+            sfile = re.findall(r'(\w{4})(\d{3})(\w)\.(\d{2})([doOD](?:.gz|.Z)?)$', filename)
 
             if sfile:
                 return sfile[0]

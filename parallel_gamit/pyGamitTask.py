@@ -139,7 +139,7 @@ class GamitTask(object):
                                         # before creating local copy, decimate file
                                         Rnx.decimate(30)
                                         Rnx.purge_comments()
-                                        Rnx.compress_local_copyto(self.pwd_rinex)
+                                        Rnx.compress_local_copyto(self.pwd_rinex, rinex['destiny'])
                                         break
                             else:
                                 Rinex.rename(rinex['destiny'])
@@ -149,7 +149,7 @@ class GamitTask(object):
                                 # before creating local copy, decimate file
                                 Rinex.decimate(30)
                                 Rinex.purge_comments()
-                                Rinex.compress_local_copyto(self.pwd_rinex)
+                                Rinex.compress_local_copyto(self.pwd_rinex, rinex['destiny'])
 
                     except (OSError, IOError):
                         log('An error occurred while trying to copy ' +
@@ -262,7 +262,6 @@ class GamitTask(object):
         else:
             Rinex.window_data( end = dt)
 
-
     def parse_monitor(self, success):
         lines  = file_readlines(self.pwd + '/monitor.log')
         output = ''.join(lines)
@@ -273,7 +272,6 @@ class GamitTask(object):
                            output, re.MULTILINE)[0], '%Y-%m-%d %H:%M:%S')
         except:
             start_time = datetime(2001, 1, 1, 0, 0, 0)
-
 
         try:
             if success:
@@ -286,7 +284,6 @@ class GamitTask(object):
         except:
             end_time = datetime(2001, 1, 1, 0, 0, 0)
 
-
         try:
             if not success:
                 fatals = set(re.findall(r'(.*?FATAL.*)', output, re.MULTILINE))
@@ -295,13 +292,11 @@ class GamitTask(object):
         except Exception as e:
             fatals = ['Could not retrieve FATALS: ' + str(e)]
 
-
         try:
             iterations = int(re.findall(r'run.sh \(\d+-\d+-\d+ \d+:\d+:\d+\): Iteration depth: (\d+)',
                              output, re.MULTILINE)[-1])
         except:
             iterations = 0
-
 
         try:
             nrms = float(
@@ -310,7 +305,6 @@ class GamitTask(object):
         except:
             # maybe GAMIT didn't finish
             nrms = 100
-
 
         try:
             updated_apr = re.findall(r' (\w+).*?Updated from', output, re.MULTILINE)[0]
@@ -333,13 +327,11 @@ class GamitTask(object):
             # maybe GAMIT didn't finish
             wl = 0
 
-
         try:
             nl = float(re.findall(r'NL fixed\s+(\d+.\d+)', output, re.MULTILINE)[0])
         except:
             # maybe GAMIT didn't finish
             nl = 0
-
 
         try:
             oc = re.findall(r'relaxing over constrained stations (\w+.*)', output, re.MULTILINE)[0]
@@ -356,7 +348,6 @@ class GamitTask(object):
         except:
             # maybe GAMIT didn't finish
             oc_stn = None
-
 
         try:
             max_overconstrained = None
@@ -378,7 +369,6 @@ class GamitTask(object):
             # maybe GAMIT didn't finish
             max_overconstrained = None
 
-
         try:
             ms = re.findall(r'No data for site (\w+)',   output, re.MULTILINE)
             ds = re.findall(r'.*deleting station (\w+)', output, re.MULTILINE)
@@ -395,7 +385,6 @@ class GamitTask(object):
         except:
             # maybe GAMIT didn't finish
             missing_sites = []
-
 
         return {'session'             : '%s %s' % (self.date.yyyyddd(), self.params['DirName']),
                 'Project'             : self.params['NetName'],
@@ -417,7 +406,6 @@ class GamitTask(object):
                 'success'             : success,
                 'fatals'              : fatals
                 }
-
 
     def finish(self):
         try:
@@ -493,7 +481,6 @@ class GamitTask(object):
         replace_ln_file.close()
 
         chmod_exec(replace_ln_file_path)
-
 
     def create_run_script(self):
 
@@ -896,7 +883,6 @@ class GamitTask(object):
         run_file.close()
 
         chmod_exec(run_file_path)
-
 
     def create_finish_script(self):
 

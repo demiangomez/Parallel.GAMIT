@@ -3,7 +3,8 @@
 import argparse
 import glob
 import os
-
+import re
+import shutil
 # app
 import pyRinex
 import pyPPP
@@ -13,7 +14,7 @@ import pyBrdc
 import pyStationInfo
 import dbConnection
 from pyPPP import PPPSpatialCheck
-
+from Utils import file_readlines
 
 def main():
 
@@ -51,8 +52,29 @@ def main():
     parser.add_argument('-ne', '--no_erase', action='store_true',
                         help="Do not erase PPP folder structure after completion.")
 
+    parser.add_argument('-back', '--backward_substitution', action='store_true', default=False,
+                        help="Run PPP with backward substitution.")
+
+    parser.add_argument('-fix', '--fix_coordinate', nargs='+', metavar='coordinate_file | x y z', default=None,
+                        help='Do not solve for station coordinates, fix station position as given in [coordinate_file] '
+                             'or provide a list of X Y Z coordinates. File should contain the '
+                             'apriori coordinates as a list starting with the station name '
+                             'and the X Y Z coordinates. For example: OSU1  595355.1776 -4856629.7091  4077991.9857')
+
+    parser.add_argument('-st', '--solve_troposphere', type=int, nargs=1, default=105,
+                        choices=(1, 2, 3, 4, 5, 102, 103, 104, 105),
+                        help='Solve for the tropospheric wet delay. Possible options are 1: do not solve, 2-5: solve '
+                             'without gradients (number determine the random walk in mm/hr), +100: solve gradients.')
+
+    parser.add_argument('-elv', '--elevation_mask', type=int, nargs=1, default=10,
+                        help='Elevation mask (default=10).')
+
+    parser.add_argument('-c', '--copy_results', type=str, nargs=1, metavar='storage_dir',
+                        help='Copy the output files (.ses, .sum, .res, .pos) to [storage_dir]. A folder with the '
+                             'station name will be created in [storage_dir].')
+
     parser.add_argument('-nocfg', '--no_config_file', type=str, nargs=3,
-                        metavar=('sp3_directory','sp3_types', 'brdc_directory'),
+                        metavar=('sp3_directory', 'sp3_types', 'brdc_directory'),
                         help='Do not attempt to open gnss_data.cfg. Append [sp3_directory], [sp3_types] '
                              'and [brdc_directory] to access the precise and broadcast orbit files. Use the keywords '
                              '$year, $doy, $month, $day, $gpsweek, $gpswkday to dynamically replace with the '
@@ -62,23 +84,22 @@ def main():
 
     args = parser.parse_args()
 
-    options = {}
+    Config = pyOptions.ReadOptions('gnss_data.cfg')  # type: pyOptions.ReadOptions
+    options = Config.options
+    sp3types = Config.sp3types
+    sp3altrn = Config.sp3altrn
+    brdc_path = Config.brdc_path
+
     if args.no_config_file is not None:
-        options['ppp_path'] = ''
-        options['ppp_exe']  = 'ppp'
-        options['grdtab']   = 'grdtab'
-        options['otlgrid']  = 'otl.grid'
+        # options['ppp_path'] = ''
+        # options['ppp_exe']  = 'ppp'
+        # options['grdtab']   = 'grdtab'
+        # options['otlgrid']  = 'otl.grid'
         options['sp3']      = args.no_config_file[0]
 
         sp3types  = args.no_config_file[1].split(',')
         sp3altrn  = ['jpl', 'jp2', 'jpr']
-        brdc_path = args.no_config_file[2]
-    else:
-        Config    = pyOptions.ReadOptions('gnss_data.cfg')  # type: pyOptions.ReadOptions
-        options   = Config.options
-        sp3types  = Config.sp3types
-        sp3altrn  = Config.sp3altrn
-        brdc_path = Config.brdc_path
+        # brdc_path = args.no_config_file[2]
 
     # flog to determine if should erase or not folder
     erase = not args.no_erase
@@ -109,14 +130,17 @@ def main():
 
                 for rnx in rnx_days:
                     execute_ppp(rnx, args, stnm, options, sp3types, sp3altrn, brdc_path, erase,
-                                not args.no_met, args.decimate)
+                                not args.no_met, args.decimate, args.fix_coordinate, args.solve_troposphere[0],
+                                args.copy_results, args.backward_substitution, args.elevation_mask[0])
 
         except pyRinex.pyRinexException as e:
             print(str(e))
             continue
 
 
-def execute_ppp(rinexinfo, args, stnm, options, sp3types, sp3altrn, brdc_path, erase, apply_met=True, decimate=True):
+def execute_ppp(rinexinfo, args, stnm, options, sp3types, sp3altrn, brdc_path, erase, apply_met=True, decimate=True,
+                fix_coordinate=None, solve_troposphere=105, copy_results=None, backward_substitution=False,
+                elevation_mask=5):
 
     # put the correct APR coordinates in the header.
     # stninfo = pyStationInfo.StationInfo(None, allow_empty=True)
@@ -152,9 +176,34 @@ def execute_ppp(rinexinfo, args, stnm, options, sp3types, sp3altrn, brdc_path, e
             otl_coeff = otl.calculate_otl_coeff()
             # run again, now with OTL coeff:
 
+        # determine if need to solve for coordinates or not
+        x = y = z = 0
+        if fix_coordinate is not None:
+            if len(fix_coordinate) > 1:
+                x = float(fix_coordinate[0])
+                y = float(fix_coordinate[1])
+                z = float(fix_coordinate[2])
+            else:
+                # read from file
+                cstr = file_readlines(fix_coordinate[0])
+                xyz = re.findall(r'%s (-?\d+\.\d+)\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)' % rinexinfo.StationCode,
+                                 ''.join(cstr), re.IGNORECASE)
+                if len(xyz):
+                    x = float(xyz[0][0])
+                    y = float(xyz[0][1])
+                    z = float(xyz[0][2])
+                else:
+                    print('WARNING: coordinate fixing invoked but could not find %s in list of coordinates -> '
+                          'unfixing station coordinate in PPP' % rinexinfo.StationCode)
+                    fix_coordinate = False
+            print('%14.4f %14.4f %14.4f' % (x,y,z))
+
         ppp = pyPPP.RunPPP(rinexinfo, otl_coeff, options, sp3types, sp3altrn, 0,
                            strict=False, apply_met=apply_met, kinematic=False,
-                           clock_interpolation=True, erase=erase, decimate=decimate)
+                           clock_interpolation=True, erase=erase, decimate=decimate,
+                           solve_coordinates=True if not fix_coordinate else False,
+                           solve_troposphere=solve_troposphere, back_substitution=backward_substitution,
+                           elev_mask=elevation_mask, x=x, y=y, z=z)
 
         ppp.exec_ppp()
 
@@ -203,6 +252,20 @@ def execute_ppp(rinexinfo, args, stnm, options, sp3types, sp3altrn, brdc_path, e
                       % (closest_stn[0]['NetworkCode'],
                          closest_stn[0]['StationCode'],
                          closest_stn[0]['distance']))
+
+        if copy_results:
+            copy_results = copy_results[0]
+            try:
+                fpath = os.path.join(copy_results, rinexinfo.StationCode)
+                if not os.path.exists(fpath):
+                    os.makedirs(fpath)
+                shutil.copyfile(ppp.path_res_file, os.path.join(fpath, os.path.basename(ppp.path_res_file)))
+                shutil.copyfile(ppp.path_pos_file, os.path.join(fpath, os.path.basename(ppp.path_pos_file)))
+                shutil.copyfile(ppp.path_ses_file, os.path.join(fpath, os.path.basename(ppp.path_ses_file)))
+                shutil.copyfile(ppp.path_sum_file, os.path.join(fpath, os.path.basename(ppp.path_sum_file)))
+                shutil.copyfile(os.path.join(ppp.rootdir, 'commands.cmd'), os.path.join(fpath, os.path.basename(ppp.path_sum_file) + '.cmd'))
+            except Exception as e:
+                print('WARNING: There was a problem copying results to %s: %s' % (copy_results, str(e)))
 
     except pyPPP.pyRunPPPException as e:
         print('Exception in PPP: ' + str(e))

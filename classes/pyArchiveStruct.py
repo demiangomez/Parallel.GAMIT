@@ -26,6 +26,7 @@ import pyRinexName
 from pyRinexName import RinexNameFormat
 from Utils import file_try_remove
 
+
 class RinexStruct(object):
 
     def __init__(self, cnn):

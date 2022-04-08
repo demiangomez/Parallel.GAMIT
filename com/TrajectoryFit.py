@@ -15,6 +15,9 @@ import json
 from tqdm import tqdm
 import numpy as np
 import matplotlib
+
+import pyDate
+
 if not os.environ.get('DISPLAY', None):
     matplotlib.use('Agg')
 
@@ -268,8 +271,8 @@ def process_interseismic(cnn, stnlist, force_stnlist, stack, sigma_cutoff, vel_c
         generate_kmz(kmz, velocities, discarded, 'interseismic', 'mm/yr')
 
 
-def process_postseismic(cnn, stnlist, force_stnlist, stack, interseimic_filename, event, prev_events, sigma_cutoff,
-                        lat_lim, filename, kmz):
+def process_postseismic(cnn, stnlist, force_stnlist, stack, interseimic_filename, event, filename, kmz,
+                        prev_events=None, sigma_cutoff=0, lat_lim=0):
     tqdm.write(' >> Analyzing suitability of station list to participate in postseismic model...')
     tqdm.write(' -- output filename: %s' % filename)
 
@@ -281,6 +284,18 @@ def process_postseismic(cnn, stnlist, force_stnlist, stack, interseimic_filename
 
     # model[:, 0] -= 360
     params = []
+
+    pgrids = []
+    pdates = []
+
+    # check if any prev_events where passed
+    if prev_events:
+        if np.mod(len(prev_events), 2) != 0:
+            raise ValueError('Invalid number of arguments for previous events: needs to be multiple of 2.')
+        n = int(len(prev_events) / 2)
+        for e, g in zip(prev_events[0:n], prev_events[n:]):
+            pgrids.append(np.loadtxt(g))
+            pdates.append(Utils.process_date_str(e))
 
     def getpost():
         return {'NetworkCode': etm.NetworkCode,
@@ -303,21 +318,55 @@ def process_postseismic(cnn, stnlist, force_stnlist, stack, interseimic_filename
             ve = griddata(model[:, 0:2], model[:, 2] / 1000, (lla['lon'], lla['lat']), method='cubic')
             vn = griddata(model[:, 0:2], model[:, 3] / 1000, (lla['lon'], lla['lat']), method='cubic')
 
+            postseismic = []
+
+            # check if any prev_events where passed
+            if prev_events:
+                for e, g in zip(pdates, pgrids):
+                    # interpolate on the grid
+                    pe = griddata(g[:, 0:2], g[:, 2] / 1000, (lla['lon'], lla['lat']), method='cubic')
+                    pn = griddata(g[:, 0:2], g[:, 3] / 1000, (lla['lon'], lla['lat']), method='cubic')
+                    if np.isnan(pe):
+                        pe = 0.
+                        pn = 0.
+                    postseismic.append({'date': e,
+                                        'relaxation': [0.5],
+                                        'amplitude': [[pn, pe, 0.]]})
+                    tqdm.write('    postseismic removal for %s %6.3f %6.3f %6.3f'
+                               % (e.yyyyddd(), float(pn), float(pe), 0.))
             etm = pyETM.GamitETM(cnn, stn['NetworkCode'], stn['StationCode'],
                                  stack_name   = stack,
-                                 interseismic = [vn, ve, 0.])
+                                 interseismic = [vn, ve, 0.],
+                                 postseismic  = postseismic,
+                                 ignore_db_params=True,
+                                 plot_polynomial_removed=True,
+                                 plot_remove_jumps=True)
 
+            previous_eq = None
             for eq in [e for e in etm.Jumps.table if e.p.jump_type in (CO_SEISMIC_DECAY, CO_SEISMIC_JUMP_DECAY)
                        and e.fit and etm.A is not None]:
+                # check if any earthquakes exist before the event of interest that are not included in
+                # pdates, which are the events corrected using the postsiesmic removal
+                # also check that the postseismic fit the event is less than 2.5 (which means the previous event is
+                # poorly constrained)
+                if eq.date < event and event.fyear - eq.min_date < 2.5 and eq.date not in pdates:
+                    previous_eq = eq.date
+
                 if eq.date == event:
                     tqdm.write('    co-seismic decay detected for event %s (years: %.3f; data points: %i)'
                                % (str(eq.p.jump_date), eq.constrain_years, eq.constrain_data_points))
-                    if (eq.constrain_years >= 2.5 and eq.constrain_data_points >= eq.constrain_years * 5) \
-                            or stn in force_stnlist:
+                    if (eq.constrain_years >= 2.5 and eq.constrain_data_points >= eq.constrain_years * 5
+                            and not previous_eq) or stn in force_stnlist:
                         params.append(getpost())
                         tqdm.write('    co-seismic decay added to the list for interpolation')
                     else:
-                        tqdm.write('    co-seismic decay not added (conditions not met)')
+                        if eq.constrain_years < 2.5:
+                            tqdm.write('    co-seismic decay not added (less than 2.5 years after event)')
+                        elif eq.constrain_data_points < eq.constrain_years * 5:
+                            tqdm.write('    co-seismic decay not added (too few data points)')
+                        elif previous_eq:
+                            tqdm.write('    co-seismic decay not added (postseismic of event on %s not corrected)'
+                                       % previous_eq)
                         discarded.append(getpost())
                     break
 
@@ -374,8 +423,8 @@ def main():
                              "ETMs embedded in the kmz (default no kmz).")
 
     parser.add_argument('-postseismic', '--postseismic_process', nargs='+', type=str,
-                        metavar='{interseismic_grid} {event_date} {output_filename} {kmz_filename} [event_date_n] '
-                                '[event_grid_n]',
+                        metavar='{interseismic_grid} {event_date} {output_filename} {kmz_filename} [event_date_1] '
+                                '[event_date_2] ... [event_grid_1] [event_grid_2] ...',
                         help="Process stations for postseismic field computation. Interseismic removal is done using "
                              "{interseismic_grid}. The event parameters to be extracted from the ETMs correspond to "
                              "seismic event given in {event_date}. Resulting parameters will be written to "
@@ -410,8 +459,8 @@ def main():
                             args.stack[0],
                             args.postseismic_process[0],
                             Utils.process_date_str(args.postseismic_process[1]),
-                            [],
-                            [], [], args.postseismic_process[2], args.postseismic_process[3])
+                            args.postseismic_process[2], args.postseismic_process[3],
+                            args.postseismic_process[4:], 0, 0)
 
 
 if __name__ == '__main__':
