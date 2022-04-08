@@ -70,7 +70,8 @@ PBAR_FORMAT = '{l_bar}{bar}| {n_fmt}/{total_fmt} {elapsed}<{remaining} {postfix}
 # Utils
 ###############################################################################
 
-def path_replace_tags(filename, date : Date, NetworkCode, StationCode):
+
+def path_replace_tags(filename, date : Date, NetworkCode, StationCode, Marker=0, CountryCode='ARG'):
     return (filename.replace('${year}',     str(date.year)) 
                     .replace('${doy}',      str(date.doy).zfill(3)) 
                     .replace('${day}',      str(date.day).zfill(2)) 
@@ -82,7 +83,10 @@ def path_replace_tags(filename, date : Date, NetworkCode, StationCode):
                     .replace('${STATION}',  StationCode.upper()) 
                     .replace('${station}',  StationCode.lower())
                     .replace('${NETWORK}',  NetworkCode.upper()) 
-                    .replace('${network}',  NetworkCode.lower()))
+                    .replace('${network}',  NetworkCode.lower())
+                    .replace('${marker}',   str(Marker).zfill(2))
+                    .replace('${COUNTRY}',  CountryCode.upper())
+                    .replace('${country}',  CountryCode.lower()))
 
 
 # The 'fqdn' stored in the db is really fqdn + [:port]
@@ -111,6 +115,8 @@ class Station(NamedTuple):
     stationID           : str
     NetworkCode         : str
     StationCode         : str
+    Marker              : int
+    CountryCode         : str
     sources             : List[Source]
     abspath_station_dir : str  # station download dir
 
@@ -146,7 +152,8 @@ class File(NamedTuple):
         src   = stn.sources[src_idx]
         date  = Date(mjd=date_mjd)
 
-        urlpath_file      = path_replace_tags(src.path, date, stn.NetworkCode, stn.StationCode)
+        urlpath_file      = path_replace_tags(src.path, date, stn.NetworkCode, stn.StationCode, stn.Marker,
+                                              stn.CountryCode)
         filename          = os.path.basename(urlpath_file)
         abspath_down_file = os.path.join(stn.abspath_station_dir,
                                          filename)
@@ -687,6 +694,8 @@ def download_all_stations_data(cnn                    : dbConnection.Cnn,
                 stations[stn_idx_next] = Station(stationID           = station_id,
                                                  NetworkCode         = stn['NetworkCode'],
                                                  StationCode         = stn['StationCode'],
+                                                 Marker              = stn['marker'],
+                                                 CountryCode         = stn['country_code'],
                                                  sources             = sources,
                                                  abspath_station_dir = abspath_station_dir)
                 stn_idx_next += 1

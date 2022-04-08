@@ -480,8 +480,10 @@ def process_stnlist(cnn, stnlist_in, print_summary=True, summary_title=None):
         rs = cnn.query('SELECT * FROM stations WHERE "NetworkCode" NOT LIKE \'?%%\' '
                        'ORDER BY "NetworkCode", "StationCode"')
 
-        stnlist += [{'NetworkCode': rstn['NetworkCode'],
-                     'StationCode': rstn['StationCode']}
+        stnlist += [{'NetworkCode' : rstn['NetworkCode'],
+                     'StationCode' : rstn['StationCode'],
+                     'marker'      : rstn['marker'] if rstn['marker'] else 0,
+                     'country_code': rstn['country_code'] if rstn['country_code'] else ''}
                     for rstn in rs.dictresult() ]
     else:
         for stn in stnlist_in:
@@ -510,8 +512,10 @@ def process_stnlist(cnn, stnlist_in, print_summary=True, summary_title=None):
                 for rstn in rs.dictresult():
                     if {'NetworkCode': rstn['NetworkCode'],
                         'StationCode': rstn['StationCode']} not in stnlist:
-                        stnlist.append({'NetworkCode': rstn['NetworkCode'],
-                                        'StationCode': rstn['StationCode']})
+                        stnlist.append({'NetworkCode' : rstn['NetworkCode'],
+                                        'StationCode' : rstn['StationCode'],
+                                        'marker'      : rstn['marker'] if rstn['marker'] else 0,
+                                        'country_code': rstn['country_code'] if rstn['country_code'] else ''})
 
     # deal with station removals (-)
     for stn in [stn.replace('-', '').lower() for stn in stnlist_in if '-' in stn]:
