@@ -6,6 +6,7 @@ import sys
 import filecmp
 import argparse
 import stat
+import shutil
 from datetime import datetime
 from zlib import crc32 as zlib_crc32
 from pathlib import Path
@@ -509,8 +510,8 @@ def process_stnlist(cnn, stnlist_in, print_summary=True, summary_title=None):
                 for rstn in rs.dictresult():
                     if {'NetworkCode': rstn['NetworkCode'],
                         'StationCode': rstn['StationCode']} not in stnlist:
-                        stnlist += [{'NetworkCode': rstn['NetworkCode'],
-                                     'StationCode': rstn['StationCode']}]
+                        stnlist.append({'NetworkCode': rstn['NetworkCode'],
+                                        'StationCode': rstn['StationCode']})
 
     # deal with station removals (-)
     for stn in [stn.replace('-', '').lower() for stn in stnlist_in if '-' in stn]:
@@ -740,7 +741,17 @@ def file_try_remove(path):
     except:
         return False
 
+def dir_try_remove(path, recursive=False):
+    try:
+        if recursive:
+            shutil.rmtree(path)
+        else:
+            os.rmdir(path)
+        return True
+    except:
+        return False
 
+    
 def chmod_exec(path):
     # chmod +x path
     f = Path(path)

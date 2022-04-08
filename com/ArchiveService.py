@@ -35,7 +35,7 @@ import argparse
 from tqdm import tqdm
 
 # app
-from Utils import file_append, file_try_remove, file_open
+from Utils import file_append, file_try_remove, file_open, dir_try_remove
 import pyJobServer
 import pyEvents
 import pyProducts
@@ -354,7 +354,7 @@ def process_crinex_file(crinez, filename, data_rejected, data_retry):
 
                 # normalize header to add the APR coordinate
                 # empty dict since nothing extra to change (other than the APR coordinate)
-                rinexinfo.normalize_header(dict())
+                rinexinfo.normalize_header({})
             except pyRinex.pyRinexExceptionNoAutoCoord:
                 # could not determine an autonomous coordinate, try PPP anyways. 50% chance it will work
                 pass
@@ -589,10 +589,7 @@ def remove_empty_folders(folder):
         if dirpath == folder:
             break
 
-        try:
-            os.rmdir(dirpath)
-        except OSError:
-            pass
+        dir_try_remove(dirpath, recursive=False)
 
 
 def print_archive_service_summary():
@@ -660,7 +657,7 @@ def main():
             os.makedirs(path)
 
     # delete any locks with a NetworkCode != '?%'
-    cnn.query('delete from locks where "NetworkCode" not like \'?%\'')
+    cnn.query('DELETE FROM locks WHERE "NetworkCode" NOT LIKE \'?%\'')
     # get the locks to avoid reprocessing files that had no metadata in the database
     locks = cnn.query('SELECT * FROM locks').dictresult()
 

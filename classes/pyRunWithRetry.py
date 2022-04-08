@@ -77,7 +77,7 @@ class command(threading.Thread):
                     print(self.cmd)
                     raise
 
-            except Exception:
+            except:
                 print(self.cmd)
                 raise
 
@@ -92,7 +92,7 @@ class command(threading.Thread):
         if self.is_alive():
             try:
                 self.p.kill()
-            except Exception:
+            except:
                 # the process was done
                 return False
 
@@ -103,7 +103,7 @@ class command(threading.Thread):
     def __exit__(self, exc_type, exc_val, exc_tb):
         try:
             self.p.terminate()
-        except Exception:
+        except:
             pass
 
         self.p = None
