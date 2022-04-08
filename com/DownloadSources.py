@@ -824,7 +824,8 @@ def process_file(abspath_scripts_dir : str,
                  abspath_down_file   : str,
                  src_format          : str,
                  StationCode         : str):
-    
+
+    DEBUG = False
     abspath_down_dir, fname_down = os.path.split(abspath_down_file)
     
     abspath_tmp_dir = None
@@ -1050,7 +1051,7 @@ class ProtocolHTTP(IProtocol):
                     shutil.copyfileobj(r.raw, f)
                 return None
             else:
-                error = "%d %s" % (r.reason, r.reason)
+                error = "%d %s" % (r.status_code, r.reason)
                 if 500 <= r.status_code <= 599:
                     raise Exception(error)
                 else:
