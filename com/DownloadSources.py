@@ -204,8 +204,8 @@ class Msg:
 
     # Messages from dispy job manager:
     class PROCESS_RESULT(NamedTuple):
-        error     : Optional[str]
-        file_desc : Optional[FileDescriptor]
+        file  : Optional[FileDescriptor]
+        error : Optional[str]
 
 
 ###############################################################################
@@ -792,7 +792,7 @@ def download_all_stations_data(cnn                    : dbConnection.Cnn,
                 f = File.from_descriptor(stations, msg.file)
                 if msg.error:
                     tqdm.write('%s Process ERROR! format=%r: %s %s\n%s' % (f.desc, f.source.format,
-                                                                          f.src_desc, f.url, msg.error))
+                                                                           f.src_desc, f.url, msg.error))
                     # Try next download source, maybe file is in better shape in another server
                     stats.process_error +=1 
                     queue_download_next_source(f)
@@ -865,13 +865,14 @@ def process_file(abspath_scripts_dir : str,
 
         # if DEBUG:
         #     tqdm.write('abspath_out_files'+repr(abspath_out_files))
-        
+
+        if not abspath_out_files:
+            raise Exception("No files found after processing")
+
         for file in abspath_out_files: # usually only a single file
             rinex = pyRinex.ReadRinex('???', StationCode, file)
             # compress rinex and output it to abspath_down_dir
             rinex.compress_local_copyto(abspath_down_dir)
-        else:
-            raise Exception("No files found after processing")
         
     finally:
         if abspath_tmp_dir:
