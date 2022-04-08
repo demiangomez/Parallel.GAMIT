@@ -294,7 +294,8 @@ class StationCollection(list):
     def check_station_codes(self, station):
 
         for stn in self:
-            if stn.NetworkCode != station.NetworkCode and stn.StationCode == station.StationCode:
+            if stn.NetworkCode != station.NetworkCode and \
+               stn.StationCode == station.StationCode:
                 # duplicate StationCode (different Network), produce Alias
                 unique = False
                 while not unique:
@@ -308,10 +309,9 @@ class StationCollection(list):
 
         # make sure alias does not exists as alias and station code
         for stn in self:
-            if stn != station:
-                if station.StationAlias == stn.StationAlias or station.StationAlias == stn.StationCode:
-                    # not unique!
-                    return False
+            if stn != station and station.StationAlias in (stn.StationAlias, stn.StationCode):
+                # not unique!
+                return False
 
         return True
 
