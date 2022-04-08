@@ -204,8 +204,8 @@ class Msg:
 
     # Messages from dispy job manager:
     class PROCESS_RESULT(NamedTuple):
-        error     : Optional[str]
-        file_desc : Optional[FileDescriptor]
+        file  : Optional[FileDescriptor]
+        error : Optional[str]
 
 
 ###############################################################################
@@ -792,7 +792,7 @@ def download_all_stations_data(cnn                    : dbConnection.Cnn,
                 f = File.from_descriptor(stations, msg.file)
                 if msg.error:
                     tqdm.write('%s Process ERROR! format=%r: %s %s\n%s' % (f.desc, f.source.format,
-                                                                          f.src_desc, f.url, msg.error))
+                                                                           f.src_desc, f.url, msg.error))
                     # Try next download source, maybe file is in better shape in another server
                     stats.process_error +=1 
                     queue_download_next_source(f)
