@@ -44,6 +44,7 @@ import dbConnection
 import Utils
 import pyArchiveStruct
 import pyRinex
+import pyRinexName
 import pyStationInfo
 import pyJobServer
 from pyDate import Date
@@ -55,9 +56,9 @@ from Utils import (required_length,
                    dir_try_remove)
 
 
-SERVER_REFRESH_INTERVAL      = 2  # in seconds
-SERVER_CONNECTION_TIMEOUT    = 10 # in seconds
-SERVER_RECONNECTION_INTERVAL = 3  # in seconds
+SERVER_REFRESH_INTERVAL      = 2   # in seconds
+SERVER_CONNECTION_TIMEOUT    = 10  # in seconds
+SERVER_RECONNECTION_INTERVAL = 3   # in seconds
 SERVER_MAX_RECONNECTIONS     = 8
 
 DEBUG = False
@@ -71,8 +72,16 @@ PBAR_FORMAT = '{l_bar}{bar}| {n_fmt}/{total_fmt} {elapsed}<{remaining} {postfix}
 ###############################################################################
 
 
-def path_replace_tags(filename, date : Date, NetworkCode, StationCode, Marker=0, CountryCode='ARG'):
-    return (filename.replace('${year}',     str(date.year)) 
+def path_replace_tags(filename, date : Date, NetworkCode='', StationCode='', Marker=0, CountryCode='ARG'):
+    str_marker = str(Marker).zfill(2)
+
+    # create RinexNameFormat objects to create RINEX 2/3 filenames
+    rnx2 = pyRinexName.RinexNameFormat(None, StationCode=StationCode, monument=str_marker[0], receiver=str_marker[1],
+                                       country=CountryCode, date=date, version=2)
+    rnx3 = pyRinexName.RinexNameFormat(None, StationCode=StationCode, monument=str_marker[0], receiver=str_marker[1],
+                                       country=CountryCode, date=date, version=3)
+
+    return (filename.replace('${year}',     str(date.year))
                     .replace('${doy}',      str(date.doy).zfill(3)) 
                     .replace('${day}',      str(date.day).zfill(2)) 
                     .replace('${month}',    str(date.month).zfill(2)) 
@@ -84,9 +93,15 @@ def path_replace_tags(filename, date : Date, NetworkCode, StationCode, Marker=0,
                     .replace('${station}',  StationCode.lower())
                     .replace('${NETWORK}',  NetworkCode.upper()) 
                     .replace('${network}',  NetworkCode.lower())
-                    .replace('${marker}',   str(Marker).zfill(2))
+                    .replace('${marker}',   str_marker)
                     .replace('${COUNTRY}',  CountryCode.upper())
-                    .replace('${country}',  CountryCode.lower()))
+                    .replace('${country}',  CountryCode.lower())
+                    .replace('${RINEX2}',   rnx2.to_rinex_format(pyRinexName.TYPE_CRINEZ, True))
+                    .replace('${RINEX3_30}', rnx3.to_rinex_format(pyRinexName.TYPE_CRINEZ, True, '30S'))
+                    .replace('${RINEX3_15}', rnx3.to_rinex_format(pyRinexName.TYPE_CRINEZ, True, '15S'))
+                    .replace('${RINEX3_10}', rnx3.to_rinex_format(pyRinexName.TYPE_CRINEZ, True, '10S'))
+                    .replace('${RINEX3_05}', rnx3.to_rinex_format(pyRinexName.TYPE_CRINEZ, True, '05S'))
+                    .replace('${RINEX3_01}', rnx3.to_rinex_format(pyRinexName.TYPE_CRINEZ, True, '01S')))
 
 
 # The 'fqdn' stored in the db is really fqdn + [:port]
@@ -582,6 +597,7 @@ def download_all_stations_data(cnn                    : dbConnection.Cnn,
         process_error = 0
 
     pbar = None
+
     def file_finished(f : File, result : str):
         nonlocal files_pending_qty, pbar, servers, stats
         
@@ -608,7 +624,6 @@ def download_all_stations_data(cnn                    : dbConnection.Cnn,
         pbar.update()
         # print("files_pending_qty=%d" % files_pending_qty)
 
-        
     def queue_download(stn_idx : int, date_mjd : int, src_idx : int):
         nonlocal stats, stations
         
@@ -861,6 +876,7 @@ def process_file(abspath_scripts_dir : str,
                 raise Exception("No script for format %r: %s not found in current node" %
                                 (src_format, abspath_script_file))
 
+        # @TODO: this only works for RINEX 2, needs to work for RINEX 3 as well
         abspath_out_files = glob.glob(abspath_tmp_dir + '/*.??[oOdD]')
 
         # if DEBUG:
@@ -869,9 +885,22 @@ def process_file(abspath_scripts_dir : str,
         if not abspath_out_files:
             raise Exception("No files found after processing")
 
-        for file in abspath_out_files: # usually only a single file
+        for file in abspath_out_files:  # usually only a single file
+            # before trying to open it, check if naming convention is consistent with RINEX
+            try:
+                _ = pyRinexName.RinexNameFormat(file)
+            except pyRinexName.RinexNameException:
+                # move the file to a valid rinex convention name (use RINEX 2 as default)
+                _, extension = os.path.splitext(file)
+                new_file = os.path.join(os.path.dirname(file), StationCode + '0010' + extension)
+                shutil.move(file, new_file)
+                file = new_file
+
             rinex = pyRinex.ReadRinex('???', StationCode, file)
             # compress rinex and output it to abspath_down_dir
+            # DDG: apply the naming convention before moving the file
+            #      this solves uppercase to lowercase, wrong date, etc
+            rinex.apply_file_naming_convention()
             rinex.compress_local_copyto(abspath_down_dir)
         
     finally:
@@ -1027,7 +1056,7 @@ class ProtocolHTTP(IProtocol):
     DEFAULT_PORT = 80
     
     def __init__(self, *args, protocol = 'http', **kargs):
-        super(ProtocolHTTP, self).__init__(protocol, *args,**kargs)
+        super(ProtocolHTTP, self).__init__(protocol, *args, **kargs)
 
         # NASA server is problematic. It never sends a "401 Unauthorized" response
         # and also needs to get the Authorization header in intermediate requests
@@ -1359,7 +1388,7 @@ def main():
         depfuncs = (dir_try_remove, file_try_remove)
         depmodules = ('tempfile', 'shutil', 'os', 'subprocess', 'glob',
                       # app
-                      'pyRinex')
+                      'pyRinex', 'pyRinexName')
 
         jobs_mgr = JobsManager(job_server, Config.format_scripts_path)
         job_server.create_cluster(process_file,  # called in remote node

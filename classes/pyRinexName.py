@@ -56,14 +56,36 @@ class RinexNameException(Exception):
 
 
 class RinexNameFormat(object):
-    def __init__(self, filename):
-        self.path     = os.path.dirname(filename)
-        self.filename = os.path.basename(filename)
-        self.version  = 0
+    def __init__(self, filename, StationCode='XXXX', monument='0', receiver='0', country='UNK', data_source='R',
+                 date=None, file_period='1D', data_frequency='30S', data_type='MO', version=2):
+        """
+        new feature for this class: pass filename=None and the kwargs for each component to form a rinex filename
+        this method requires the user to specific the version, which by default is set to 2
+        """
+        if filename:
+            self.path     = os.path.dirname(filename)
+            self.filename = os.path.basename(filename)
+            self.version  = 0
 
-        self.type = self.identify_rinex_type(filename)
+            self.type = self.identify_rinex_type(filename)
 
-        parts = self.split_filename(filename)
+            parts = self.split_filename(filename)
+        else:
+            self.path     = None
+            self.filename = None
+            self.version  = version
+            self.type     = TYPE_RINEX
+
+            if not date:
+                date = Date(year=1980, doy=1)
+
+            start_time = date.yyyy() + date.ddd() + '0000'
+
+            if version > 2:
+                parts = [StationCode + monument + receiver + country, data_source, start_time, file_period,
+                         data_frequency, data_type, 'rnx']
+            else:
+                parts = [StationCode, date.ddd(), '0', date.yyyy()[2:], 'o']
         try:
             if self.version < 3:
                 self.StationCode        = parts[0]
@@ -134,25 +156,25 @@ class RinexNameFormat(object):
             
             # @todo must raise RinexNameException here?
 
-    def filename_base(self):
+    def filename_base(self, override_freq=None):
         if self.version < 3:
             return self.StationCode + self.doy + self.session + '.' + self.year
         else:
-            return self.StationCode.upper() + self.monument + self.receiver + self.country + '_' + \
+            return self.StationCode.upper() + self.monument + self.receiver + self.country.upper() + '_' + \
                    self.data_source + '_' + self.start_time + '_' + self.file_period + '_' + \
-                   self.data_frequency + '_' + self.data_type
+                   self.data_frequency if not override_freq else override_freq + '_' + self.data_type
 
-    def to_rinex_format(self, to_type, no_path=False):
+    def to_rinex_format(self, to_type, no_path=False, override_freq=None):
         # join the path to the file again
         return os.path.join('' if no_path else self.path,
-                            self.filename_base() + (version_2_ext[to_type]
-                                                    if self.version < 3 else
-                                                    '.' + version_3_ext[to_type]))
+                            self.filename_base(override_freq=override_freq) + (version_2_ext[to_type]
+                                                                               if self.version < 3 else
+                                                                               '.' + version_3_ext[to_type]))
 
-    def filename_no_ext(self, no_path=False):
+    def filename_no_ext(self, no_path=False, override_freq=None):
         # join the path to the file again
         return os.path.join('' if no_path else self.path,
-                            self.filename_base())
+                            self.filename_base(override_freq=override_freq))
 
     def split_filename(self, filename):
 

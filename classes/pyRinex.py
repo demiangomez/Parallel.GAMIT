@@ -1488,6 +1488,10 @@ class ReadRinex(RinexRecord):
 
                 # update the database dictionary record
                 self.record['Filename'] = self.rinex
+                # DDG Apr 9 2022: needed to update the pyRinexName, otherwise, changes in date (doy, yr, etc)
+                # were not applied
+                # update the pyRinexName object
+                self.rinex_name_format = rnx
 
         # we don't touch the metadata StationCode and NetworkCode unless explicitly passed
         if NetworkCode:

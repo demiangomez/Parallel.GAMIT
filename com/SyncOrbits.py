@@ -148,14 +148,16 @@ def main():
             try:
                 filename     = 'brdc%s0.%sn' % (str(date.doy).zfill(3),
                                                 str(date.year)[2:4])
-                ftp_filename = filename + '.Z'
+                ftp_filename = filename + '.gz'
                 if downloadIfMissing(ftp_list,
                                      ftp_filename,
                                      filename,
                                      brdc_archive,
                                      'BRDC'):
                     # decompress file
-                    pyRunWithRetry.RunCommand('gunzip -f ' + ftp_filename, 15).run_shell()
+                    tqdm.write('  -> Download succeeded %s' %  os.path.join(brdc_archive, ftp_filename))
+                    pyRunWithRetry.RunCommand('gunzip -f ' + os.path.join(brdc_archive, ftp_filename),
+                                              15).run_shell()
             except:
                 continue
 

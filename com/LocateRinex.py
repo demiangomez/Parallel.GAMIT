@@ -126,12 +126,12 @@ def main():
                 if rinexinfo.multiday and not args.no_split:
                     print('Provided RINEX file is a multiday file!')
                     # rinex file is a multiday file, output all the solutions
-                    rnx_list = rinexinfo.multiday_rnx_list
+                    rnx_days = rinexinfo.multiday_rnx_list
 
                 for rnx in rnx_days:
                     execute_ppp(rnx, args, stnm, options, sp3types, sp3altrn, brdc_path, erase,
-                                not args.no_met, args.decimate, args.fix_coordinate, args.solve_troposphere[0],
-                                args.copy_results, args.backward_substitution, args.elevation_mask[0])
+                                not args.no_met, args.decimate, args.fix_coordinate, args.solve_troposphere,
+                                args.copy_results, args.backward_substitution, args.elevation_mask)
 
         except pyRinex.pyRinexException as e:
             print(str(e))
@@ -196,7 +196,7 @@ def execute_ppp(rinexinfo, args, stnm, options, sp3types, sp3altrn, brdc_path, e
                     print('WARNING: coordinate fixing invoked but could not find %s in list of coordinates -> '
                           'unfixing station coordinate in PPP' % rinexinfo.StationCode)
                     fix_coordinate = False
-            print('%14.4f %14.4f %14.4f' % (x,y,z))
+            print('%14.4f %14.4f %14.4f' % (x, y, z))
 
         ppp = pyPPP.RunPPP(rinexinfo, otl_coeff, options, sp3types, sp3altrn, 0,
                            strict=False, apply_met=apply_met, kinematic=False,
