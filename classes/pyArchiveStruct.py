@@ -292,7 +292,7 @@ class RinexStruct(object):
                     progress_bar.update()
 
                 try:
-                    RinexNameFormat(file) # except if invalid
+                    RinexNameFormat(file)  # except if invalid
                     # only add valid rinex files (now allows the full range)
                     fls.append(file)
                     rnx.append(crinex)

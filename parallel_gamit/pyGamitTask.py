@@ -531,7 +531,7 @@ class GamitTask(object):
         DOY=%s;
         MIN_SPAN=%s;
         EOP=%s;
-        NOFPT=%s;
+        NOFTP=%s;
 
         # set the name of the outfile
         OUT_FILE=%s%s%s.out

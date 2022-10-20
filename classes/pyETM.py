@@ -437,6 +437,7 @@ class ListSoln(GamitSoln):
         super(ListSoln, self).__init__(cnn=cnn, polyhedrons=polyhedrons, NetworkCode=NetworkCode,
                                        StationCode=StationCode, stack_name=stack_name)
         self.rnx_no_ppp = []
+        self.type = 'file'
 
 
 class JumpTable:
@@ -647,6 +648,7 @@ class EtmFunction:
         self.p.object = ''
         self.p.metadata = None
         self.p.hash = 0
+        self.p.covar  = np.array([])
 
         self.param_count = 0
         self.column_index = np.array([])
@@ -725,8 +727,8 @@ class Jump(EtmFunction):
         if dtype not in (CO_SEISMIC_JUMP,
                          CO_SEISMIC_DECAY,
                          CO_SEISMIC_JUMP_DECAY):
-            logger.info('Mechanical Jump -> Adding jump on %s type: %s; Action: %s; Fit: %s'
-                        % (self.date.yyyyddd(), type_dict[dtype], action, str(self.fit)))
+            logger.info('Mechanical Jump -> Adding jump on %s type: %s; Action: %s; Fit: %s; Col index: %s'
+                        % (self.date.yyyyddd(), type_dict[dtype], action, str(self.fit), str(self.column_index)))
         Jump.rehash(self)
 
     def rehash(self):
@@ -817,7 +819,8 @@ class Jump(EtmFunction):
                ', type=' + type_dict[self.p.jump_type] + \
                ', metadata="' + self.p.metadata + \
                '", action="' + str(self.action) + \
-               '", fit=' + str(self.fit)
+               '", fit=' + str(self.fit) + \
+               '", column_index=' + str(self.column_index)
 
     def __repr__(self):
         return 'pyPPPETM.Jump(%s)' % str(self)
@@ -900,8 +903,8 @@ class CoSeisJump(Jump):
         self.nr = relaxation.shape[0]
         self.p.relaxation = relaxation
 
-        logger.info('Geophysical Jump -> Adding jump on %s type: %s; Mag: %.1f; Action: %s; Fit: %s'
-                    % (self.date.yyyyddd(), type_dict[dtype], magnitude, action, str(self.fit)))
+        logger.info('Geophysical Jump -> Adding jump on %s type: %s; Mag: %.1f; Action: %s; Fit: %s; Col index: %s'
+                    % (self.date.yyyyddd(), type_dict[dtype], magnitude, action, str(self.fit), str(self.column_index)))
 
         # DDG: New feature -> include a postseismic relaxation to remove from the data before performing the fit
         # if post-seismic component is passed, then subtract from the data (this step is done in __init__.
@@ -1500,6 +1503,7 @@ class Design(np.ndarray):
             # save the column index
             if jump.fit:
                 jump.column_index = np.arange(col_index, col_index + jump.param_count)
+                # print(jump)
                 # assign the portion of the design matrix
                 A[:, jump.column_index] = jump.design
                 # increment the col_index
@@ -1519,7 +1523,7 @@ class Design(np.ndarray):
 
         A.params = Linear.param_count + Jumps.param_count() + Periodic.param_count
 
-        # save the constrains matrix
+        # save the constraints matrix
         A.constrains = Jumps.constrains
 
         # Finally, we must return the newly created object:
@@ -1738,7 +1742,7 @@ class ETM:
                 self.l -= pmodel
 
     def run_adjustment(self, cnn, l, soln, ignore_db_params=False):
-
+        import pandas as pd
         if self.A is not None:
             # try to load the last ETM solution from the database
 
@@ -1792,7 +1796,7 @@ class ETM:
                     p = []
                     factor = []
                     for i in range(3):
-                        x, sigma, index, residuals, fact, w = self.adjust_lsq(self.A, l[i])
+                        x, sigma, index, residuals, fact, w, cova = self.adjust_lsq(self.A, l[i])
 
                         c.append(x)
                         s.append(sigma)
@@ -1800,6 +1804,16 @@ class ETM:
                         r.append(residuals)
                         factor.append(fact)
                         p.append(w)
+
+                        # DDG: uncomment to see covariance information on the screen
+                        # dinv = np.diag(1 / np.sqrt(np.diag(cova)))
+                        # corr = dinv @ cova @ dinv
+                        # print('%i CORR ==============' % i)
+                        # df = pd.DataFrame(corr, columns=range(x.size), index=range(x.size))
+                        # print(df)
+                        # print('%i COVA ==============' % i)
+                        # df = pd.DataFrame(cova, columns=range(x.size), index=range(x.size))
+                        # print(df)
 
                     self.C = np.array(c)
                     self.S = np.array(s)
@@ -2731,8 +2745,8 @@ class ETM:
         index = Ai.remove_constrains(s <= LIMIT)
 
         v = Ai.remove_constrains(v)
-
-        return C, sigma, index, v, factor, P
+        # DDG: output the full covariance matrix too
+        return C, sigma, index, v, factor, P, np.square(So) * SS
 
     @staticmethod
     def chi2inv(chi, df):
@@ -2909,9 +2923,11 @@ class DailyRep(ETM):
 
 class FileETM(ETM):
 
-    def __init__(self, cnn, poly_list=None, plotit=False, no_model=False):
+    def __init__(self, cnn, poly_list=None, plotit=False, no_model=False, plot_remove_jumps=False,
+                 plot_polynomial_removed=False):
 
-        self.soln.type = 'file'
+        # self.soln.type = 'file'
 
-        ETM.__init__(self, cnn, poly_list, no_model, plotit=plotit, ignore_db_params=True)
+        ETM.__init__(self, cnn, poly_list, no_model, plotit=plotit, ignore_db_params=True,
+                     plot_remove_jumps=plot_remove_jumps, plot_polynomial_removed=plot_polynomial_removed)
 

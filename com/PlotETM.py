@@ -57,7 +57,7 @@ def from_file(args, cnn, stn):
     polyhedrons = np.array((x, y, z, [d.year for d in dd], [d.doy for d in dd])).transpose()
 
     soln = pyETM.ListSoln(cnn, polyhedrons.tolist(), stn['NetworkCode'], stn['StationCode'])
-    etm  = pyETM.FileETM(cnn, soln, False, args.no_model)
+    etm  = pyETM.FileETM(cnn, soln, False, args.no_model, args.remove_jumps, args.remove_polynomial)
 
     return etm
 

@@ -61,7 +61,7 @@ SERVER_CONNECTION_TIMEOUT    = 10  # in seconds
 SERVER_RECONNECTION_INTERVAL = 3   # in seconds
 SERVER_MAX_RECONNECTIONS     = 8
 
-DEBUG = False
+DEBUG = True
 
 CONFIG_FILE = 'gnss_data.cfg'
 
@@ -685,7 +685,8 @@ def download_all_stations_data(cnn                    : dbConnection.Cnn,
     with tqdm(desc=' >> Querying Stations',
               dynamic_ncols = True,              
               total=len(stnlist),
-              bar_format = PBAR_FORMAT
+              bar_format = PBAR_FORMAT,
+              disable=None
               ) as pbar:
 
         tqdm.write(" >> Querying Stations info")
@@ -743,7 +744,8 @@ def download_all_stations_data(cnn                    : dbConnection.Cnn,
     pbar = tqdm(desc=' >> Download',
                 dynamic_ncols = True,              
                 total         = files_pending_qty,
-                bar_format    = PBAR_FORMAT
+                bar_format    = PBAR_FORMAT,
+                disable = None
                 )
     with pbar:
         while files_pending_qty:

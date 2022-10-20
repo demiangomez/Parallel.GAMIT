@@ -281,7 +281,7 @@ class Date(object):
 
                 if isinstance(arg, str):
                     self.year, self.doy, self.hour, self.minute, self.second = parse_stninfo(arg)
-                elif isinstance(arg, datetime):
+                elif isinstance(arg, datetime) or isinstance(arg, Date):
                     self.day    = arg.day
                     self.month  = arg.month
                     self.year   = arg.year

@@ -121,7 +121,10 @@ def main():
                 for orbit in Config.sp3types + Config.sp3altrn:
                     for ext in ('.sp3', '.clk', '.erp', '7.erp'):
                         try:
-                            filename = orbit + date.wwwwd() + ext + '.Z'
+                            if ext == '7.erp':
+                                filename = orbit + date.wwww() + ext + '.Z'
+                            else:
+                                filename = orbit + date.wwwwd() + ext + '.Z'
                             downloadIfMissing(ftp_list,
                                               filename,
                                               filename,
@@ -158,8 +161,8 @@ def main():
                     tqdm.write('  -> Download succeeded %s' %  os.path.join(brdc_archive, ftp_filename))
                     pyRunWithRetry.RunCommand('gunzip -f ' + os.path.join(brdc_archive, ftp_filename),
                                               15).run_shell()
-            except:
-                continue
+            except Exception as e:
+                tqdm.write(' -- BRDC ERROR: %s' % str(e))
 
             pbar.set_postfix(gpsWeek='%i %i' % (date.gpsWeek, date.gpsWeekDay))
             pbar.update()

@@ -306,7 +306,7 @@ def process_crinex_file(crinez, filename, data_rejected, data_retry):
     try:
         fileparts = pyRinexName.RinexNameFormat(filename)
 
-        StationCode = fileparts.StationCode
+        StationCode = fileparts.StationCode.lower()
         doy         = fileparts.date.doy
         year        = fileparts.date.year
     except pyRinexName.RinexNameException:

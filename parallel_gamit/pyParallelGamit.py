@@ -331,7 +331,7 @@ def main():
         # purge solutions if requested
         purge_solutions(JobServer, args, dates, GamitConfig)
     elif args.purge:
-        tqdm.write(' >> Dry run or check mode activated. Cannot purge solutions in these modes.')
+        tqdm.write(' >> Dry run or check mode activated. Cannot purge solutions in this mode.')
 
     # run the job server
     sessions = ExecuteGamit(cnn, JobServer, GamitConfig, stations, check_stations, args.ignore_missing, dates,

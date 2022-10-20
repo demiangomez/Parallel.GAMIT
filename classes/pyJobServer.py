@@ -18,7 +18,7 @@ from tqdm import tqdm
 import dispy
 import dispy.httpd
 
-DELAY = 10
+DELAY = 20
 
 
 def test_node(check_gamit_tables=None, software_sync=()):
@@ -221,6 +221,7 @@ def setup(modules):
 
     return 0
 
+
 class JobServer:
 
     def check_cluster(self, status, node, job):
@@ -274,8 +275,9 @@ class JobServer:
         self.modules      = []
 
         self.on_nodes_changed = None
-        self.job_runner_inbox = queue.PriorityQueue() 
-        
+        self.job_runner_inbox = queue.PriorityQueue()
+        self.node_cleanup = None
+
         print(" ==== Starting JobServer(dispy) ====")
 
         # check that the run_parallel option is activated
@@ -301,7 +303,7 @@ class JobServer:
             self.cluster.discover_nodes(servers)
 
             # wait for all nodes
-            print(" >> Waiting %d seconds to discover all nodes... " % DELAY)
+            tqdm.write(" >> Waiting %d seconds to discover all nodes... " % DELAY)
             time.sleep(DELAY)
 
             # if no nodes were found, stop
@@ -372,14 +374,11 @@ class JobServer:
             self.http_server = dispy.httpd.DispyHTTPServer(self.cluster, poll_sec=2)
 
             # wait for all nodes to be created
-            print(" >> Waiting %d seconds to initialize all nodes... " % DELAY)
+            tqdm.write(" >> Waiting %d seconds to initialize all nodes... " % DELAY)
             time.sleep(DELAY)
-            
 
         self.progress_bar = progress_bar
-        
 
-        
     def submit(self, *args):
         """
         function to submit jobs to dispy. If run_parallel == False, the jobs are executed
@@ -437,8 +436,6 @@ class JobServer:
             except:
                 tqdm.write('WARNING: Exception running job callback: ' + traceback.format_exc())
 
-
-
     def wait(self):
         """
         wrapped function to wait for cluster execution
@@ -463,7 +460,6 @@ class JobServer:
             self.http_server.shutdown()
             self.cleanup()
 
-            
     def cluster_status(self, status, node, job):
         """ Called by dispy on cluster events """
         # see https://dispy.org/examples.html#process-status-notifications
@@ -523,7 +519,6 @@ class JobServer:
                     self.jobs.remove(job)
                 except:
                     pass
-
 
     def cleanup(self):
         if not self.run_parallel:

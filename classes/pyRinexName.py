@@ -57,7 +57,7 @@ class RinexNameException(Exception):
 
 class RinexNameFormat(object):
     def __init__(self, filename, StationCode='XXXX', monument='0', receiver='0', country='UNK', data_source='R',
-                 date=None, file_period='1D', data_frequency='30S', data_type='MO', version=2):
+                 date=None, file_period='01D', data_frequency='30S', data_type='MO', version=2):
         """
         new feature for this class: pass filename=None and the kwargs for each component to form a rinex filename
         this method requires the user to specific the version, which by default is set to 2
@@ -148,10 +148,10 @@ class RinexNameFormat(object):
             if not sfile:
                 raise RinexNameException('Could not determine the rinex type (malformed filename): ' + filename)
             elif sfile[0][0] == 'rnx':
-                return (TYPE_RINEX if sfile[0][1] is '' else
+                return (TYPE_RINEX if sfile[0][1] == '' else
                         TYPE_RINEZ)
             elif sfile[0][0] == 'crx':
-                return (TYPE_CRINEX if sfile[0][1] is '' else
+                return (TYPE_CRINEX if sfile[0][1] == '' else
                         TYPE_CRINEZ)
             
             # @todo must raise RinexNameException here?
@@ -162,7 +162,7 @@ class RinexNameFormat(object):
         else:
             return self.StationCode.upper() + self.monument + self.receiver + self.country.upper() + '_' + \
                    self.data_source + '_' + self.start_time + '_' + self.file_period + '_' + \
-                   self.data_frequency if not override_freq else override_freq + '_' + self.data_type
+                   (self.data_frequency if not override_freq else override_freq) + '_' + self.data_type
 
     def to_rinex_format(self, to_type, no_path=False, override_freq=None):
         # join the path to the file again
