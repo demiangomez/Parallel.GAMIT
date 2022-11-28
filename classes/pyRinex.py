@@ -95,6 +95,7 @@ class RinexRecord(object):
         self.completion        = None
         self.rel_completion    = None
         self.rinex_version     = None
+        self.min_time_seconds  = 3600
 
         # log list to append all actions performed to rinex file
         self.log = []
@@ -239,7 +240,6 @@ class ReadRinex(RinexRecord):
 
         return fields, data
 
-
     def format_record(self, record_dict, record, values):
 
         if type(values) not in (list, tuple):
@@ -254,7 +254,6 @@ class ReadRinex(RinexRecord):
                            ' was too long (> 60 chars). Replaced with: ' + data)
 
         return '%-60s' % data + record
-
 
     def write_rinex(self, new_header):
         if new_header != self.header:
@@ -280,7 +279,6 @@ class ReadRinex(RinexRecord):
 
         self.data = rinex
 
-
     def replace_record(self, header, record, new_values):
 
         if record not in self.required_records.keys():
@@ -300,12 +298,10 @@ class ReadRinex(RinexRecord):
 
         return new_header
 
-
     def log_event(self, desc):
         self.log += [Event(StationCode = self.StationCode,
                            NetworkCode = self.NetworkCode,
                            Description = desc)]
-
 
     def insert_comment(self, header, comment):
 
@@ -320,7 +316,6 @@ class ReadRinex(RinexRecord):
 
         return new_header
 
-
     def __purge_comments(self, header):
         new_header = [line for line in header if not line.strip().endswith('COMMENT')]
 
@@ -328,13 +323,11 @@ class ReadRinex(RinexRecord):
 
         return new_header
 
-
     def purge_comments(self):
 
         new_header = self.__purge_comments(self.header)
 
         self.write_rinex(new_header)
-
 
     def check_interval(self):
 
@@ -377,7 +370,6 @@ class ReadRinex(RinexRecord):
         new_header += [''.ljust(60, ' ') + 'END OF HEADER\n']
 
         self.write_rinex(new_header)
-
 
     def check_header(self):
 
@@ -571,7 +563,6 @@ class ReadRinex(RinexRecord):
                 ('Could not create RINEX file. crx2rnx stderr follows: ' + err) if err else
                 'Could not create RINEX file. Unknown reason. Possible problem with crx2rnx?')
 
-
     def ConvertRinex(self, to_version):
         # only available to convert from 3 -> 2
         try:
@@ -601,7 +592,6 @@ class ReadRinex(RinexRecord):
         except pyRunWithRetry.RunCommandWithRetryExeception as e:
             # catch the timeout except and pass it as a pyRinexException
             raise pyRinexException(str(e))
-
 
     def RunRinSum(self):
         """
@@ -640,8 +630,8 @@ class ReadRinex(RinexRecord):
         with file_open(self.rinex_path + '.log') as info:
             return json.load(info)
 
-
-    def __init__(self, NetworkCode, StationCode, origin_file, no_cleanup=False, allow_multiday=False):
+    def __init__(self, NetworkCode, StationCode, origin_file, no_cleanup=False, allow_multiday=False,
+                 min_time_seconds=3600):
         """
         pyRinex initialization
         if file is multiday, DO NOT TRUST date object for initial file. Only use pyRinex objects contained in the
@@ -655,6 +645,7 @@ class ReadRinex(RinexRecord):
         self.local_copy     = None
         self.rootdir        = None
 
+        self.min_time_seconds = min_time_seconds
         # check that the rinex file name is valid!
         try:
             self.rinex_name_format = pyRinexName.RinexNameFormat(origin_file)
@@ -680,7 +671,7 @@ class ReadRinex(RinexRecord):
         self.size = os.path.getsize(os.path.join(self.rootdir,
                                                  self.rinex_name_format.to_rinex_format(TYPE_RINEX, no_path=True)))
         # process the output
-        self.parse_output(self.RunGfzrnx())
+        self.parse_output(self.RunGfzrnx(), self.min_time_seconds)
 
         # DDG: new interval checking after running Gfzrnx
         # check the sampling interval
@@ -803,7 +794,7 @@ class ReadRinex(RinexRecord):
         # remove the temp folder
         rmtree(temp)
 
-    def parse_output(self, output):
+    def parse_output(self, output, min_time_seconds=3600):
 
         try:
             p = output['site']['position']
@@ -859,9 +850,9 @@ class ReadRinex(RinexRecord):
         elif self.interval > 120:
             raise pyRinexExceptionBadFile('RINEX sampling interval > 120s. The output from Gfzrnx was:\n' + str(output))
 
-        elif self.epochs * self.interval < 3600:
-            raise pyRinexExceptionBadFile('RINEX file with < 1 hr of observation time. '
-                                          'The output from Gfzrnx was:\n' + str(output))
+        elif self.epochs * self.interval < min_time_seconds:
+            raise pyRinexExceptionBadFile('RINEX file with < %i seconds of observation time. '
+                                          'The output from Gfzrnx was:\n' % min_time_seconds + str(output))
 
         try:
             p = output['data']['epoch']
@@ -1125,7 +1116,6 @@ class ReadRinex(RinexRecord):
 
         self.log_event('RINEX decimated to %is (applied to %s)' % (decimate_rate, str(copyto)))
 
-
     def remove_systems(self, systems=('C', 'E', 'I', 'J', 'R', 'S'), copyto=None):
         # if copy to is passed, then the system removal is done on the copy of the file, not on the current rinex.
         # other wise, system removal is done to current rinex
@@ -1155,12 +1145,11 @@ class ReadRinex(RinexRecord):
         # if working on local copy, reload the rinex information
         if copyto == self.rinex_path:
             # reload information from this file
-            self.parse_output(self.RunGfzrnx())
+            self.parse_output(self.RunGfzrnx(), self.min_time_seconds)
         else:
             raise pyRinexException(err)
 
         self.log_event('Removed systems %s (applied to %s)' % (','.join(systems), str(copyto)))
-
 
     def normalize_header(self, NewValues=None, brdc=None, x=None, y=None, z=None):
         # this function gets rid of the heaer information and replaces it with the station info (trusted)

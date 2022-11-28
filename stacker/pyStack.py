@@ -12,7 +12,7 @@ import dbConnection
 from pyDate import Date
 from pyETM import pi
 import pyETM
-from Utils import (lg2ct, ct2lg, file_write, stationID, json_converter)
+from Utils import (lg2ct, ct2lg, file_write, stationID, json_converter, process_stnlist)
 
 
 def adjust_lsq(A, L, P=None):
@@ -314,8 +314,8 @@ class Stack(list):
                    not np.isnan(target_periods[s]['182.625']['n'][0]):
                     use_stations.append(s)
 
-            tqdm.write(' >> Inheriting periodic components...')
-
+            tqdm.write(' >> Inheriting periodic components using these stations...')
+            process_stnlist(self.cnn, use_stations)
             # load the periodic terms of the stations that will produce the inheritance
             etm_objects = self.cnn.query_float('SELECT etms."NetworkCode", etms."StationCode", stations.lat, '
                                                'stations.lon, '
@@ -552,24 +552,28 @@ class Stack(list):
         target_list = []
         stack_list  = []
 
-        tqdm.write(' >> Aligning coordinate space...')
+        tqdm.write(' >> Aligning position space...')
         for stn in use_stations:
             if not np.isnan(target_dict[stn]['x']):
-                target_list.append((stn,
-                                    target_dict[stn]['x'],
-                                    target_dict[stn]['y'],
-                                    target_dict[stn]['z'],
-                                    ref_date.year,
-                                    ref_date.doy,
-                                    ref_date.fyear))
                 # get the ETM coordinate for this station
                 net = stn.split('.')[0]
                 ssn = stn.split('.')[1]
+                try:
+                    ts = pyETM.GamitSoln(self.cnn, self.get_station(net, ssn), net, ssn, self.name)
+                    etm = pyETM.GamitETM(self.cnn, net, ssn, gamit_soln=ts)
+                    stack_list += etm.get_etm_soln_list()
 
-                ts = pyETM.GamitSoln(self.cnn, self.get_station(net, ssn), net, ssn, self.name)
-                etm = pyETM.GamitETM(self.cnn, net, ssn, gamit_soln=ts)
-                stack_list += etm.get_etm_soln_list()
-
+                    target_list.append((stn,
+                                        target_dict[stn]['x'],
+                                        target_dict[stn]['y'],
+                                        target_dict[stn]['z'],
+                                        ref_date.year,
+                                        ref_date.doy,
+                                        ref_date.fyear))
+                except pyETM.pyETMException as e:
+                    tqdm.write(' -- Station %s in the constraints file but no vertices in polyhedron: %s'
+                               % (stn, str(e)))
+                    continue
 
         c_array = np_array_vertices(stack_list)
 
@@ -590,7 +594,7 @@ class Stack(list):
         # remove the scale factor
         helmert = comb.helmert
 
-        tqdm.write(' -- Reporting coordinate space residuals (in mm) before and after frame alignment\n'
+        tqdm.write(' -- Reporting position space residuals (in mm) before and after frame alignment\n'
                    '         Before   After |     Before   After  ')
         # format r_before and r_after to satisfy the required print_residuals format
         r_before = r_before.reshape(3, r_before.shape[0] // 3).transpose()
@@ -618,7 +622,7 @@ class Stack(list):
                                'helmert_transformation'     : comb.helmert.tolist(),
                                'comments'                   : 'No scale factor estimated.'}
 
-        for poly in tqdm(self, ncols=160, desc=' -- Applying coordinate space transformation', disable=None):
+        for poly in tqdm(self, ncols=160, desc=' -- Applying position space transformation', disable=None):
             if poly.date != ref_date:
                 poly.align(helmert=helmert, scale=scale)
 

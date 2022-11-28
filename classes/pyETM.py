@@ -1218,7 +1218,7 @@ class GenericJumps:
         table = {j.date for j in self.table}
 
         for j in jp:
-            date = pyDate.Date(Year=j['Year'], doy=j['DOY'])
+            date = pyDate.Date(Year=int(j['Year']), doy=int(j['DOY']))
 
             if date not in table:
                 self.table.append(Jump(NetworkCode, StationCode, soln, t, date, 'mechanic-jump',
@@ -1591,7 +1591,9 @@ class ETM:
         self.P = np.array([])
         self.factor = np.array([])
         self.covar = np.zeros((3, 3))
-        self.A = None
+        self.A  = None
+        # DDG: was missing to initialize As if A ends up being None
+        self.As = None
         self.param_origin = ESTIMATION
         self.soln = soln
         self.no_model = no_model
@@ -2312,7 +2314,7 @@ class ETM:
 
         if bot == top:
             ax.autoscale(enable=True, axis='y', tight=False)
-            ax.autoscale(enable=False, axis='y', tight=False)
+            #ax.autoscale(enable=False, axis='y', tight=False)
         else:
             ax.set_ylim(bot, top)
 
@@ -2321,9 +2323,9 @@ class ETM:
         if t_win is None:
             # turn on to adjust the limits, then turn off to plot jumps
             ax.autoscale(enable=True, axis='x', tight=False)
-            ax.autoscale(enable=False, axis='x', tight=False)
+            #ax.autoscale(enable=False, axis='x', tight=False)
             ax.autoscale(enable=True, axis='y', tight=False)
-            ax.autoscale(enable=False, axis='y', tight=False)
+            #ax.autoscale(enable=False, axis='y', tight=False)
         else:
             if t_win[0] == t_win[1]:
                 t_win[0] = t_win[0] - 1. / 365.25
@@ -2336,7 +2338,7 @@ class ETM:
 
         # plot missing solutions
         for missing in self.soln.ts_ns:
-            ax.plot((missing, missing), ax.get_ylim(), color=(1, 0, 1, 0.2), linewidth=1)
+            ax.axvline(missing, color=(1, 0, 1, 0.2), linewidth=1)
 
         # plot the position of the outliers
         for blunder in self.soln.ts_blu:
@@ -2349,25 +2351,22 @@ class ETM:
             if jump.date < self.soln.date[0] or jump.date > self.soln.date[-1]:
                 continue
 
-            c = ':'
-            color = None
+            c = 'tab:gray'
             if not jump.fit:
-                color = 'tab:gray'
+                c = 'tab:gray'
             elif jump.p.jump_type == GENERIC_JUMP:
-                c = 'c:'
+                c = 'c'
             elif jump.p.jump_type == ANTENNA_CHANGE:
-                c = 'b:'
+                c = 'b'
             elif jump.p.jump_type == REFERENCE_FRAME_JUMP:
-                color = 'tab:green'
+                c = 'tab:green'
             elif jump.p.jump_type == CO_SEISMIC_JUMP_DECAY:
-                c = 'r:'
+                c = 'r'
             elif jump.p.jump_type == CO_SEISMIC_JUMP:
-                color = 'tab:purple'
+                c = 'tab:purple'
             else:
                 continue
-
-            ax.plot((jump.date.fyear, jump.date.fyear), ax.get_ylim(),
-                    c, **({'color': color} if color else {}))
+            ax.axvline(jump.date.fyear, color=c, linestyle=':')
 
     def todictionary(self, time_series=False, model=False):
         # convert the ETM adjustment into a dictionary
@@ -2842,13 +2841,16 @@ class GamitETM(ETM):
         else:
             # get residuals from GAMIT solutions to PPP model
             etm = PPPETM(cnn, self.NetworkCode, self.StationCode)
-            # DDG: 20-SEP-2018 compare using MJD not FYEAR to avoid round off errors
-            index = np.isin(etm.soln.mjds, self.soln.mjd)
-            # use the etm object to obtain the design matrix that matches the dimensions of self.soln.t
-            neu = [np.dot(etm.As[index, :], etm.C[i])
-                   for i in range(3)]
+            if etm.A is None:
+                raise pyETMException_NoDesignMatrix('No PPP design matrix available for %s' % stn_id)
+            else:
+                # DDG: 20-SEP-2018 compare using MJD not FYEAR to avoid round off errors
+                index = np.isin(etm.soln.mjds, self.soln.mjd)
+                # use the etm object to obtain the design matrix that matches the dimensions of self.soln.t
+                neu = [np.dot(etm.As[index, :], etm.C[i])
+                       for i in range(3)]
 
-            del etm
+                del etm
 
         rxyz = self.rotate_2xyz(np.array(neu)) + np.array([self.soln.auto_x,
                                                            self.soln.auto_y,

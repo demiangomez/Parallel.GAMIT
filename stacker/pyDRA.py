@@ -32,6 +32,7 @@ from pyStack import Polyhedron, np_array_vertices
 from pyDate import Date
 from Utils import file_write, json_converter
 
+stn_stats = []
 wrms_n = []
 wrms_e = []
 wrms_u = []
@@ -69,12 +70,12 @@ def compute_dra(ts, NetworkCode, StationCode, pdates, project, histogram=False):
                     figfile = etm.plot(fileio=io.BytesIO(), plot_missing=False, t_win=pdates)
                     if histogram:
                         hisfile = etm.plot_hist(fileio=io.BytesIO())
-
                     # save the wrms
                     return etm.factor[0] * 1000, etm.factor[1] * 1000, etm.factor[2] * 1000, figfile, hisfile, \
-                           filename, NetworkCode, StationCode
+                           filename, NetworkCode, StationCode, etm.soln.lat[0], etm.soln.lon[0], etm.soln.height[0]
                 else:
-                    return None, None, None, figfile, hisfile, filename, NetworkCode, StationCode
+                    return None, None, None, figfile, hisfile, filename, NetworkCode, StationCode, etm.soln.lat[0], \
+                           etm.soln.lon[0], etm.soln.height[0]
     except Exception as e:
         raise Exception('While working on %s.%s' % (NetworkCode, StationCode) + '\n') from e
 
@@ -85,10 +86,11 @@ class DRA(list):
 
         super(DRA, self).__init__()
 
-        self.project = project
-        self.cnn = cnn
+        self.project         = project
+        self.cnn             = cnn
         self.transformations = []
-        self.verbose = verbose
+        self.stats           = {}
+        self.verbose         = verbose
 
         if end_date is None:
             end_date = Date(datetime=datetime.now())
@@ -180,19 +182,29 @@ class DRA(list):
     def to_json(self, json_file):
         # print(repr(self.transformations))
         file_write(json_file,
-                   json.dumps({'transformations': self.transformations},
+                   json.dumps({'transformations': self.transformations, 'stats': self.stats},
                               indent=4, sort_keys=False, default=json_converter
                               ))
 
 
 def callback_handler(job):
 
-    global wrms_n, wrms_e, wrms_u
+    global stn_stats, wrms_n, wrms_e, wrms_u
 
     if job.exception:
         tqdm.write(' -- Fatal error on node %s message from node follows -> \n%s' % (job.ip_addr, job.exception))
     elif job.result is not None:
         if job.result[0] is not None:
+            # pass information about the station's stats to save in the json
+            stn_stats.append({'NetworkCode': job.result[6],
+                              'StationCode': job.result[7],
+                              'lat': job.result[8],
+                              'lon': job.result[9],
+                              'height': job.result[10],
+                              'wrms_n': job.result[0],
+                              'wrms_e': job.result[1],
+                              'wrms_u': job.result[2]})
+
             wrms_n.append(job.result[0])
             wrms_e.append(job.result[1])
             wrms_u.append(job.result[2])
@@ -200,18 +212,18 @@ def callback_handler(job):
             # save the figures, if any
             if job.result[3]:
                 with open('%s.png' % job.result[5], "wb") as fh:
-                    fh.write(base64.decodebytes(job.result[3]))
+                    fh.write(base64.b64decode(job.result[3]))
 
             if job.result[4]:
                 with open('%s_hist.png' % job.result[5], "wb") as fh:
-                    fh.write(base64.decodebytes(job.result[4]))
+                    fh.write(base64.b64decode(job.result[4]))
         else:
             tqdm.write(' -- Station %s.%s did not produce valid statistics' % (job.result[6], job.result[7]))
 
 
 def main():
 
-    global wrms_n, wrms_e, wrms_u, project
+    global stn_stats, wrms_n, wrms_e, wrms_u, project
 
     parser = argparse.ArgumentParser(description='GNSS daily repetitivities analysis (DRA)')
 
@@ -273,8 +285,6 @@ def main():
 
     dra.stack_dra()
 
-    dra.to_json(project + '_dra.json')
-
     missing_doys = []
 
     tqdm.write(' >> Daily repetitivity analysis done. DOYs with wrms > 8 mm are shown below:')
@@ -305,6 +315,10 @@ def main():
     JobServer.wait()
     qbar.close()
     JobServer.close_cluster()
+
+    # add the station stats to the json output
+    dra.stats = stn_stats
+    dra.to_json(project + '_dra.json')
 
     wrms_n = np.array(wrms_n)
     wrms_e = np.array(wrms_e)
@@ -362,7 +376,8 @@ def main():
     plt.savefig(project + '_dra.png')
     plt.close()
 
-
     ax.set_xlim(0, 8)
+
+
 if __name__ == '__main__':
     main()

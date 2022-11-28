@@ -499,13 +499,13 @@ def gamit_callback(job):
         msg = []
         if 'error' not in result.keys():
             if result['nrms'] > 1:
-                msg.append('    > NRMS > 1.0 (%.3f)' % result['nrms'])
+                msg.append('    > NRMS > 1.0 (%.3f) in solution %s' % (result['nrms'], result['session']))
 
             if result['wl'] < 60:
-                msg.append('    > WL fixed < 60 (%.1f)' % result['wl'])
+                msg.append('    > WL fixed < 60 (%.1f) in solution %s' % (result['wl'], result['session']))
 
             if result['missing']:
-                msg.append('    > Missing sites in solution: ' + ', '.join(result['missing']))
+                msg.append('    > Missing sites in solution %s: ' % result['session'] + ', '.join(result['missing']))
 
             # DDG: only show sessions with problems to facilitate debugging.
             if result['success']:

@@ -26,7 +26,9 @@ from Utils import (process_date,
                    file_write,
                    file_readlines,
                    file_open,
-                   stationID)
+                   stationID,
+                   print_columns,
+                   process_stnlist)
 
 
 pi = 3.141592653589793
@@ -90,7 +92,7 @@ def callback_handler(job):
         etm_vertices += job.result
 
 
-def calculate_etms(cnn, stack, JobServer, iterations, create_target=True):
+def calculate_etms(cnn, stack, JobServer, iterations, create_target=True, exclude_stn=()):
     """
     Parallel calculation of ETMs to save some time
     :param cnn: connection to the db
@@ -98,11 +100,14 @@ def calculate_etms(cnn, stack, JobServer, iterations, create_target=True):
     :param JobServer: parallel.python object
     :param iterations: current iteration number
     :param create_target: indicate if function should create and return target polyhedrons
+    :param exclude_stn: list of stations to exclude from the stacking process
     :return: the target polyhedron list that will be used for alignment (if create_target = True)
     """
     global etm_vertices
 
-    qbar = tqdm(total=len(stack.stations), desc=' >> Calculating ETMs', ncols=160, disable=None)
+    # DD: remove from the station count the number of excluded stations
+    # so that the progress bar ends in the right number
+    qbar = tqdm(total=len(stack.stations)-len(exclude_stn), desc=' >> Calculating ETMs', ncols=160, disable=None)
 
     modules = ('pyETM', 'pyDate', 'dbConnection', 'traceback')
 
@@ -115,8 +120,12 @@ def calculate_etms(cnn, stack, JobServer, iterations, create_target=True):
 
     for station in stack.stations:
         # extract the time series from the polyhedron data
-        stn_ts = stack.get_station(station['NetworkCode'], station['StationCode'])
-        JobServer.submit(station, stn_ts, stack.name, iterations)
+        if stationID(station) in [stationID(s) for s in exclude_stn]:
+            tqdm.write(' -- Station %s.%s has been manually excluded from the stacking process'
+                       % (station['NetworkCode'], station['StationCode']))
+        else:
+            stn_ts = stack.get_station(station['NetworkCode'], station['StationCode'])
+            JobServer.submit(station, stn_ts, stack.name, iterations)
 
     JobServer.wait()
 
@@ -129,7 +138,8 @@ def calculate_etms(cnn, stack, JobServer, iterations, create_target=True):
 
     if create_target:
         target = []
-        for i in tqdm(list(range(len(stack.dates))), ncols=160, desc=' >> Initializing the target polyhedrons', disable=None):
+        for i in tqdm(list(range(len(stack.dates))), ncols=160,
+                      desc=' >> Initializing the target polyhedrons', disable=None):
             dd = stack.dates[i]
             # DDG: to avoid getting disconnected
             cnn.query('SELECT 1')
@@ -185,10 +195,11 @@ def load_periodic_space(periodic_file):
     return periods
 
 
-def load_constrains(constrains_file):
+def load_constrains(constrains_file, exclude_stn=()):
     """
     Load the frame parameters
-    :param constrains_file:
+    :param constrains_file: file with the parameters to inherit from primary frame
+    :param exclude_stn:     station list to exclude from the inheritance process
     :return: dictionary with the parameters for the given frame
     """
     params = dict()
@@ -203,24 +214,27 @@ def load_constrains(constrains_file):
                          r'\s*(-?\d*\.\d+|NaN)\s*(-?\d*\.\d+|NaN)\s*(-?\d*\.\d+|NaN)', lines, re.MULTILINE)
 
         for s in stn:
-            params[s[0]] = {
-                'x'       : float(s[1]),
-                'y'       : float(s[2]),
-                'z'       : float(s[3]),
-                'epoch'   : float(s[4]),
-                'vx'      : float(s[5]),
-                'vy'      : float(s[6]),
-                'vz'      : float(s[7]),
+            if s[0] in [stationID(stn) for stn in exclude_stn]:
+                tqdm.write(' -- Loading constraints: station %s has been manually excluded' % s[0])
+            else:
+                params[s[0]] = {
+                    'x'       : float(s[1]),
+                    'y'       : float(s[2]),
+                    'z'       : float(s[3]),
+                    'epoch'   : float(s[4]),
+                    'vx'      : float(s[5]),
+                    'vy'      : float(s[6]),
+                    'vz'      : float(s[7]),
 
-                # sin and cos to arranged as [n:sin, n:cos] ... it as we have it in the database
-                '365.250' : { 'n' :  [np.divide(float(s[8]),  1000.), np.divide(float(s[10]), 1000.)],
-                              'e' :  [np.divide(float(s[12]), 1000.), np.divide(float(s[14]), 1000.)],
-                              'u' :  [np.divide(float(s[16]), 1000.), np.divide(float(s[18]), 1000.)]},
+                    # sin and cos to arranged as [n:sin, n:cos] ... it as we have it in the database
+                    '365.250' : { 'n' :  [np.divide(float(s[8]),  1000.), np.divide(float(s[10]), 1000.)],
+                                  'e' :  [np.divide(float(s[12]), 1000.), np.divide(float(s[14]), 1000.)],
+                                  'u' :  [np.divide(float(s[16]), 1000.), np.divide(float(s[18]), 1000.)]},
 
-                '182.625' : { 'n' :  [np.divide(float(s[9]),  1000.), np.divide(float(s[11]), 1000.)],
-                              'e' :  [np.divide(float(s[13]), 1000.), np.divide(float(s[15]), 1000.)],
-                              'u' :  [np.divide(float(s[17]), 1000.), np.divide(float(s[19]), 1000.)] }
-            }
+                    '182.625' : { 'n' :  [np.divide(float(s[9]),  1000.), np.divide(float(s[11]), 1000.)],
+                                  'e' :  [np.divide(float(s[13]), 1000.), np.divide(float(s[15]), 1000.)],
+                                  'u' :  [np.divide(float(s[17]), 1000.), np.divide(float(s[19]), 1000.)] }
+                }
 
     return params
 
@@ -242,9 +256,6 @@ def main():
     parser.add_argument('-exclude', '--exclude_stations', nargs='+', type=str, metavar='{net.stnm}',
                         help="Manually specify stations to remove from the stacking process.")
 
-    parser.add_argument('-use', '--use_stations', nargs='+', type=str, metavar='{net.stnm}',
-                        help="Manually specify stations to use for the stacking process.")
-
     parser.add_argument('-dir', '--directory', type=str,
                         help="Directory to save the resulting PNG files. If not specified, assumed to be the "
                              "production directory")
@@ -255,11 +266,11 @@ def main():
     parser.add_argument('-plot', '--plot_stack_etms', action='store_true', default=False,
                         help="Plot the stack ETMs after computation is done")
 
-    parser.add_argument('-constrains', '--external_constrains', nargs='+',
-                        help="File with external constrains parameters (position, velocity and periodic). These may be "
-                             "from a parent frame such as ITRF. "
+    parser.add_argument('-constraints', '--external_constraints', nargs='+',
+                        help="File with external constraints parameters (position, velocity and periodic). These may "
+                             "br from a parent frame such as ITRF. "
                              "Inheritance will occur with stations on the list whenever a parameter exists. "
-                             "Example: -constrains itrf14.txt "
+                             "Example: -constraints itrf14.txt "
                              "Format is: net.stn x y z epoch vx vy vz sn_1y sn_6m cn_1y cn_6m se_1y se_6m ce_1y ce_6m "
                              "su_1y su_6m cu_1y cu_6m ")
 
@@ -283,8 +294,11 @@ def main():
         max_iters = 4
         print(' >> Defaulting to 4 iterations')
 
-    exclude_stn = args.exclude_stations if args.exclude_stations else []
-    use_stn     = args.use_stations     if args.use_stations     else []
+    if args.exclude_stations:
+        exclude_stn = process_stnlist(cnn, args.exclude_stations,
+                                      summary_title='User selected list of stations to exclude:')
+    else:
+        exclude_stn = []
 
     dates = [Date(year=1980, doy=1), Date(datetime=datetime.now())]
     if args.date_end is not None:
@@ -304,10 +318,16 @@ def main():
         args.directory = 'production'
 
     # load the ITRF dat file with the periodic space components
-    if args.external_constrains:
-        constrains = load_constrains(args.external_constrains[0])
+    if args.external_constraints:
+        constraints = load_constrains(args.external_constraints[0], exclude_stn)
+        if len(constraints) == 0 :
+            print(' >> WARNING: Empty constraints file passed. Check that the lines start with a space.')
+            exit(1)
+        elif len(constraints) < 3:
+            print(' >> WARNING: A constraints file was passed but %i stations where found. The number of '
+                  'stations in the constraints file might be insufficient to align all spaces.' % len(constraints))
     else:
-        constrains = None
+        constraints = None
 
     # create the stack object
     stack = pyStack.Stack(cnn, args.project[0], args.stack_name[0], args.redo_stack, end_date=dates[1])
@@ -319,7 +339,7 @@ def main():
     for i in range(max_iters):
         # create the target polyhedrons based on iteration number (i == 0: PPP)
 
-        target = calculate_etms(cnn, stack, JobServer, i)
+        target = calculate_etms(cnn, stack, JobServer, i, exclude_stn=exclude_stn)
 
         qbar = tqdm(total=len(stack), ncols=160,
                     desc=' >> Aligning polyhedrons (%i of %i)' % (i+1, max_iters), disable=None)
@@ -362,10 +382,10 @@ def main():
         # before removing common modes (or inheriting periodic terms), calculate ETMs with final aligned solutions
         calculate_etms(cnn, stack, JobServer, iterations=None, create_target=False)
         # only apply common mode removal if redoing the stack
-        if args.external_constrains:
-            stack.remove_common_modes(constrains)
-            # here, we also align the stack in velocity and coordinate space
-            stack.align_spaces(constrains)
+        if args.external_constraints:
+            stack.remove_common_modes(constraints)
+            # here, we also align the stack in velocity and position space
+            stack.align_spaces(constraints)
         else:
             stack.remove_common_modes()
 

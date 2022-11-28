@@ -142,8 +142,8 @@ class Globk(object):
             contents += \
             """
             echo " max_chii  1. 0.6"                                                     >> globk.cmd
-            echo " apr_site  all 1 1 1 0 0 0"                                            >> globk.cmd
-            echo " apr_atm   all 1 1 1"                                                  >> globk.cmd
+            echo " apr_neu  all 1 1 1 0 0 0"                                             >> globk.cmd
+            echo "#apr_atm  all 1 1 1"                                                   >> globk.cmd
 
             # create the sinex header file
             echo "+FILE/REFERENCE                               " >  head.snx
