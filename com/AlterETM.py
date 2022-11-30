@@ -9,7 +9,7 @@ import pg
 # app
 import dbConnection
 import Utils
-from Utils import required_length
+from Utils import required_length, process_date
 from pyBunch import Bunch
 import pyETM
 
@@ -46,7 +46,14 @@ def main():
                              "q {periods} where periods is a list expressed in days (1 yr = 365.25). "
                              "t {max_magnitude} {stack_name} removes any earthquake Mw <= max_magnitude from "
                              "the specified stations' trajectory models; if GAMIT solutions are invoked, provide the "
-                             "stack_name to obtain the ETMs of the stations.")
+                             "stack_name to obtain the ETMs of the stations. "
+                             "m {stack_name} [start_date] [end_date|days] removes mechanical jumps between given dates "
+                             "from the specified stations' trajectory models; if no dates are provided, remove all "
+                             "mechanical jumps. If only first date is provided, remove starting at that date until "
+                             "today. Can also specify {start_date} {days} to add to {start_date}. "
+                             "Provide the stack_name to obtain the ETMs of the stations. "
+                             "If PPP solutions only (-soln ppp), stack_name is ignored. If both solutions are "
+                             "indicated (or -soln is not specified) then stack_name must be provided.")
 
     parser.add_argument('-soln', '--solution_type', nargs='+', choices=['ppp', 'gamit'],
                         default=['ppp', 'gamit'], action=required_length(1, 2),
@@ -87,9 +94,9 @@ def insert_modify_param(parser, cnn, stnlist, args):
     if len(args.function_type) < 2:
         parser.error('invalid number of arguments')
 
-    elif args.function_type[0] not in ('p', 'j', 'q', 't'):
-        parser.error('function type should be one of the following: polynomial (p), jump (j), periodic (q), or '
-                     'bulk earthquake jump removal (t)')
+    elif args.function_type[0] not in ('p', 'j', 'q', 't', 'm'):
+        parser.error('function type should be one of the following: polynomial (p), jump (j), periodic (q), '
+                     'bulk geophysical jump removal (t), bulk mechanical jump removal (t).')
 
     # create a bunch object to save all the params that will enter the database
     tpar = Bunch()
@@ -107,6 +114,7 @@ def insert_modify_param(parser, cnn, stnlist, args):
 
     ftype = args.function_type[0]
     remove_eq = False
+    remove_mec = False
 
     try:
         if ftype == 'p':
@@ -156,6 +164,9 @@ def insert_modify_param(parser, cnn, stnlist, args):
         elif ftype == 't':
             tpar.object = 'jump'
             remove_eq = True
+        elif ftype == 'm':
+            tpar.object = 'jump'
+            remove_mec = True
 
     except ValueError:
         parser.error('invalid argument type for function "%s"' % ftype)
@@ -189,6 +200,32 @@ def insert_modify_param(parser, cnn, stnlist, args):
                         tpar.relaxation = None
                         tpar.action = '-'
                         apply_change(cnn, station, tpar, soln)
+
+            elif remove_mec:
+                # load the ETM parameters for this station
+                print(' >> Obtaining ETM parameters for  ' + station_soln)
+
+                if soln == 'ppp':
+                    etm = pyETM.PPPETM(cnn, station['NetworkCode'], station['StationCode'])
+                else:
+                    etm = pyETM.GamitETM(cnn, station['NetworkCode'], station['StationCode'],
+                                         stack_name=args.function_type[1])
+
+                for jump in [e for e in etm.Jumps.table
+                             if e.p.jump_type in (pyETM.ANTENNA_CHANGE, pyETM.GENERIC_JUMP)]:
+
+                    # process the dates. If no date, returns from 1980 until now
+                    sdate = process_date(args.function_type[2:])
+
+                    if sdate[0] <= jump.date <= sdate[1]:
+                        # this jump should be removed, fill in the data
+                        tpar.Year = jump.date.year
+                        tpar.DOY = jump.date.doy
+                        tpar.jump_type = 0
+                        tpar.relaxation = None
+                        tpar.action = '-'
+                        apply_change(cnn, station, tpar, soln)
+
             else:
                 apply_change(cnn, station, tpar, soln)
 

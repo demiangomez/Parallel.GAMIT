@@ -1044,7 +1044,8 @@ class Earthquakes:
             # open the jumps table
             jp = cnn.query_float('SELECT * FROM etm_params WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' '
                                  'AND soln = \'%s\' AND jump_type <> 0 AND object = \'jump\''
-                                 % (NetworkCode, StationCode, soln.type), as_dict=True)
+                                 % (NetworkCode, StationCode, 'gamit' if soln.type == 'file' else soln.type),
+                                 as_dict=True)
 
             # start by collapsing all earthquakes for the same day.
             # Do not allow more than one earthquake on the same day
@@ -1135,7 +1136,9 @@ class GenericJumps:
 
     def __init__(self, cnn, NetworkCode, StationCode, soln, t, FitGenericJumps=True):
 
-        self.solution_type = soln.type
+        # DDG Nov-30: change the solution type to GAMIT if soln.type == 'file'. This is because otherwise the ETM
+        #             done with files will not read the updated parameters from the database
+        self.solution_type = 'gamit' if soln.type == 'file' else soln.type
         self.table = []
 
         if t.size >= 2:
@@ -1238,7 +1241,7 @@ class Periodic(EtmFunction):
             etm_param = cnn.get('etm_params',
                                 {'NetworkCode': NetworkCode,
                                  'StationCode': StationCode,
-                                 'soln': soln.type,
+                                 'soln': 'gamit' if soln.type else soln.type,
                                  'object': 'periodic'
                                  },
                                 ['NetworkCode', 'StationCode', 'soln', 'object'])
@@ -1399,7 +1402,7 @@ class Polynomial(EtmFunction):
                 etm_param = cnn.get('etm_params',
                                     {'NetworkCode': NetworkCode,
                                      'StationCode': StationCode,
-                                     'soln': soln.type,
+                                     'soln': 'gamit' if soln.type == 'file' else soln.type,
                                      'object': 'polynomial'},
                                     ['NetworkCode', 'StationCode', 'soln', 'object'])
 
