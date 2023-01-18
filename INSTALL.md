@@ -37,13 +37,13 @@ Install Python packages
 ---------------------------
 
 ```sh
-python -m pip install numpy==1.16.0
-python -m pip install wheel
-python -m pip install PyGreSQL==5.0.4
-python -m pip install scipy==1.2.0 
-python -m pip install matplotlib==2.0.0 
+python -m pip install numpy==1.24.1
+python -m pip install wheel==0.37.1
+python -m pip install PyGreSQL==5.2.4
+python -m pip install scipy==1.10.0
+python -m pip install matplotlib==3.6.3
 python -m pip install tqdm==4.19.4
-python -m pip install scandir==1.6
+python -m pip install scandir==1.10.0
 python -m pip install dispy==4.11.0
 python -m pip install netifaces==0.10.9
 python -m pip install psutil==5.6.3
@@ -56,11 +56,11 @@ python -m pip install git+git://github.com/usgs/earthquake-impact-utils@0.8.27
 python -m pip install requests==2.25.1
 python -m pip install obspy==1.2.2
 python -m pip install pandas==1.1.5
-python -m pip install shapely==1.7.1
-python -m pip install fiona==1.8.19
+python -m pip install shapely==2.0.0
+python -m pip install fiona==1.8.22
 python -m pip install openpyxl==3.0.7
-python -m pip install cartopy==0.19.0 
-python -m pip install sklearn==0.24.2
+python -m pip install cartopy==0.21.1 
+python -m pip install scikit-learn==1.2.0
 # Required by pysftp/paramiko, newer versions require Rust to build
 python -m pip install cryptography==3.3.2
 python -m pip install paramiko==2.10.1
