@@ -78,7 +78,7 @@ def adjust_lsq(A, L, P=None):
             f = np.ones((v.shape[0],))
 
             sw = np.power(10, LIMIT - s[s > LIMIT])
-            sw[sw < np.finfo(np.float).eps] = np.finfo(np.float).eps
+            sw[sw < np.finfo(float).eps] = np.finfo(float).eps
 
             f[s > LIMIT] = sw
 

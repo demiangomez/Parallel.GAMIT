@@ -77,7 +77,7 @@ def robust_lsq(A, P, L, max_iter=10, gcc=True, limit=2.5, lat=0, lon=0):
             # (missing jump, etc) you end up with very unstable inversions
             # f[f > 500] = 500
             sw = np.power(10, LIMIT - s[s > LIMIT])
-            sw[sw < np.finfo(np.float).eps] = np.finfo(np.float).eps
+            sw[sw < np.finfo(float).eps] = np.finfo(float).eps
             f[s > LIMIT] = 1. / sw
 
             P = np.diag(np.divide(1, np.square(factor * f)))
@@ -87,7 +87,7 @@ def robust_lsq(A, P, L, max_iter=10, gcc=True, limit=2.5, lat=0, lon=0):
         iteration += 1
 
     # make sure there are no values below eps. Otherwise matrix becomes singular
-    P[P < np.finfo(np.float).eps] = 1e-6
+    P[P < np.finfo(float).eps] = 1e-6
     # some statistics
     SS = np.linalg.inv(np.dot(np.dot(A.transpose(), P), A))
 
