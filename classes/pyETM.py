@@ -86,7 +86,7 @@ language = {
         "polynomial removed": "Polinomio Removido"
     }}
 
-if not 'LANG' in globals():
+if 'LANG' not in globals():
     LANG = 'eng'
 
 
@@ -1681,7 +1681,7 @@ class ETM:
                 if j.date == event['date'] and j.p.jump_type in (CO_SEISMIC_JUMP_DECAY,
                                                                  CO_SEISMIC_DECAY, CO_SEISMIC_JUMP):
                     jump = j
-                    # force M (for Manual) in action
+                    # force M (for Manual, i.e. passing postseismic as an argument to pyETM) in action
                     jump.action = 'M'
                     if not jump.fit and j.p.jump_type in (CO_SEISMIC_JUMP_DECAY, CO_SEISMIC_JUMP):
                         # if this jump was not set to be adjusted, then apply dummy parameters for the jump if

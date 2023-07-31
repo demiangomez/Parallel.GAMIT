@@ -721,7 +721,6 @@ class Stack(list):
                                      'AND "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND stack = \'%s\''
                                      % (p['NetworkCode'], p['StationCode'], self.name), as_dict=True)[0]
 
-
             params = np.array(q['params'])
             params = params.reshape((3, params.shape[0] // 3))
             # first item, i.e. params[:][0] in array is position
@@ -747,7 +746,7 @@ class Stack(list):
                                    np.column_stack((dvx.flatten(), dvy.flatten(), dvz.flatten())).tolist(),
                                'residuals_after_alignment':
                                    np.column_stack((dvxa.flatten(), dvya.flatten(), dvza.flatten())).tolist(),
-                               'reference_date': ref_date,
+                               'reference_date': ref_date.fyear,
                                'helmert_transformation': c.tolist(),
                                'comments': 'Velocity space transformation.'}
 

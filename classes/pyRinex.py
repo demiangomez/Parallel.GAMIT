@@ -526,11 +526,11 @@ class ReadRinex(RinexRecord):
 
         # determine compression type, if necessary
         result = os.system('file "%s" | grep -q "Zip"' % self.local_copy)
-        if result is 0:
+        if result == 0:
             prg1 = 'unzip -p "%s" ' % self.local_copy
         else:
             result = os.system('file "%s" | grep -q "ASCII"' % self.local_copy)
-            if result is 0:
+            if result == 0:
                 prg1 = 'cat "%s" ' % self.local_copy
             else:
                 prg1 = 'zcat "%s" ' % self.local_copy
@@ -974,7 +974,7 @@ class ReadRinex(RinexRecord):
                 self.log_event('Decimating to 30 seconds to run auto_coord')
 
             # remove the other systems that sh_rx2apr does not use
-            if rnx.system is 'M':
+            if rnx.system == 'M':
                 rnx.remove_systems()
                 self.log_event('Removing systems other systems to run auto_coord')
 
@@ -1292,41 +1292,45 @@ class ReadRinex(RinexRecord):
         gfzrnx now makes things simpler: just use the appropriate command
         :return:
         """
-        temp = os.path.join(self.rootdir, 'rename')
+
+        self.rename(self.rinex_name_format.to_rinex_format(TYPE_RINEX, True))
+
+        # version that uses gfzrnx: too slow with large files!!
+        # temp = os.path.join(self.rootdir, 'rename')
         # create a temporary folder to isolate the files
-        if not os.path.exists(temp):
-            os.makedirs(temp)
+        # if not os.path.exists(temp):
+        #    os.makedirs(temp)
 
         # before applying naming convention, check the marker name in the header
-        if self.marker_name[0:4].lower() != self.StationCode.lower():
-            site = '-site ' + self.StationCode.lower()
-            self.normalize_header()
-        else:
-            site = ''
+        # if self.marker_name[0:4].lower() != self.StationCode.lower():
+        #     site = '-site ' + self.StationCode.lower()
+        #     self.normalize_header()
+        # else:
+        #     site = ''
 
-        cmd = pyRunWithRetry.RunCommand('gfzrnx_lx -finp %s -fout rename/::RX%i:: -kv %s'
-                                        % (self.rinex, int(self.rinex_version), site), 45, self.rootdir)
+        # cmd = pyRunWithRetry.RunCommand('gfzrnx_lx -finp %s -fout rename/::RX%i:: -kv %s'
+        #                                 % (self.rinex, int(self.rinex_version), site), 90, self.rootdir)
 
-        try:
-            _, err = cmd.run_shell()
-            # raise error if error reported by gfzrnx
-            if '| E |' in err:
-                raise pyRinexException('Error while applying RINEX naming convention: ' + err)
+        # try:
+        #     _, err = cmd.run_shell()
+        #     # raise error if error reported by gfzrnx
+        #     if '| E |' in err:
+        #         raise pyRinexException('Error while applying RINEX naming convention: ' + err)
 
-        except pyRunWithRetry.RunCommandWithRetryExeception as e:
-            # catch the timeout except and pass it as a pyRinexException
-            raise pyRinexException(str(e))
+        # except pyRunWithRetry.RunCommandWithRetryExeception as e:
+        #     # catch the timeout except and pass it as a pyRinexException
+        #     raise pyRinexException(str(e))
 
-        f = glob.glob(os.path.join(temp, '*'))
-        if not f:
-            raise pyRinexException('Error while applying RINEX naming convention (no file found): ' + err)
-        else:
-            # rename file if there was a change
-            if not os.path.basename(f[0]) == self.rinex:
-                self.rename(os.path.basename(f[0]))
+        # f = glob.glob(os.path.join(temp, '*'))
+        # if not f:
+        #     raise pyRinexException('Error while applying RINEX naming convention (no file found): ' + err)
+        # else:
+        #     # rename file if there was a change
+        #     if not os.path.basename(f[0]) == self.rinex:
+        #         self.rename(os.path.basename(f[0]))
 
         # remove the temp directory
-        rmtree(temp)
+        # rmtree(temp)
 
     def move_origin_file(self, path, destiny_type=TYPE_CRINEZ):
         # this function moves the ARCHIVE file (or repository) to another location indicated by path
@@ -1517,7 +1521,7 @@ class ReadRinex(RinexRecord):
     def __add__(self, other):
 
         if not isinstance(other, ReadRinex):
-            raise pyRinexException('type: '+type(other)+' invalid.  Can only splice two RINEX objects.')
+            raise pyRinexException('type: '+type(other)+' invalid. Can only splice two RINEX objects.')
 
         elif self.StationCode != other.StationCode:
             raise pyRinexException('Cannot splice together two different stations!')
@@ -1531,19 +1535,20 @@ class ReadRinex(RinexRecord):
             f2 = self
 
         # now splice files
-        cmd = pyRunWithRetry.RunCommand('teqc -n_GLONASS 64 -n_GPS 64 -n_SBAS 64 -n_Galileo 64 +obs %s.t %s %s'
-                                        % (f1.rinex_path, f1.rinex_path, f2.rinex_path), 5)
-
+        # cmd = pyRunWithRetry.RunCommand('teqc -n_GLONASS 64 -n_GPS 64 -n_SBAS 64 -n_Galileo 64 +obs %s.t %s %s'
+        #                                 % (f1.rinex_path, f1.rinex_path, f2.rinex_path), 5)
+        cmd = pyRunWithRetry.RunCommand('gfzrnx_lx -finp %s %s -fout %s -vo %i'
+                                        % (f1.rinex_path, f2.rinex_path, f1.rinex_path + '.t',
+                                           int(self.rinex_version * 10) / 10), 15)
         # leave errors un-trapped on purpose (will raise an error to the parent)
         out, err = cmd.run_shell()
 
-        if 'teqc: failure to read' in str(err):
+        if 'gfzrnx: failure to read' in str(err):
             raise pyRinexException(err)
 
         filename = Utils.move(f1.rinex_path + '.t',
                               f1.rinex_path)
         return ReadRinex(self.NetworkCode, self.StationCode, filename, allow_multiday=True)
-
 
     def __repr__(self):
         return 'pyRinex.ReadRinex(%s, %s, %s, %s)' % (self.NetworkCode, self.StationCode,

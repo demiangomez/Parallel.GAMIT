@@ -96,7 +96,7 @@ def insert_modify_param(parser, cnn, stnlist, args):
 
     elif args.function_type[0] not in ('p', 'j', 'q', 't', 'm'):
         parser.error('function type should be one of the following: polynomial (p), jump (j), periodic (q), '
-                     'bulk geophysical jump removal (t), bulk mechanical jump removal (t).')
+                     'bulk geophysical jump removal (t), bulk mechanical jump removal (m).')
 
     # create a bunch object to save all the params that will enter the database
     tpar = Bunch()

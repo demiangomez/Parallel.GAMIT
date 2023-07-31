@@ -241,7 +241,7 @@ INSERT INTO sources_formats (format) VALUES ('DEFAULT_FORMAT');
 """
 CREATE TABLE sources_servers (
     server_id  INT     NOT NULL GENERATED ALWAYS AS IDENTITY,
-    protocol   VARCHAR NOT NULL CHECK (protocol IN ('FTP', 'HTTP', 'SFTP', 'HTTPS')),
+    protocol   VARCHAR NOT NULL CHECK (protocol IN ('ftp', 'http', 'sftp', 'https', 'FTP', 'HTTP', 'SFTP', 'HTTPS')),
     fqdn       VARCHAR NOT NULL,
 
     username   VARCHAR,
@@ -249,7 +249,7 @@ CREATE TABLE sources_servers (
 
     -- overrideable by sources_stations:
     "path"     VARCHAR, 
-    "format"   VARCHAR NOT NULL REFERENCES sources_formats(format) DEFAULT 'DEFAULT_FORMAT'
+    "format"   VARCHAR NOT NULL REFERENCES sources_formats(format) DEFAULT 'DEFAULT_FORMAT',
 
     PRIMARY KEY(server_id)
 );

@@ -37,6 +37,7 @@ FTP_PASS = 'gomez.124@osu.edu'
 # http://sgf.rgo.ac.uk/forumNESC/index.php?topic=58.0
 # *?list
 
+
 def main():
     parser = argparse.ArgumentParser( description = 'Archive operations Main Program')
 
@@ -99,7 +100,6 @@ def main():
                           .replace('$gpsweek',  str(date.gpsWeek).zfill(4)) \
                           .replace('$gpswkday', str(date.gpsWeekDay))
 
-
         for date in (pyDate.Date(mjd=mdj) for mdj in drange):
 
             sp3_archive = get_archive_path(Config.sp3_path, date)
@@ -107,14 +107,14 @@ def main():
             if not os.path.exists(sp3_archive):
                 os.makedirs(sp3_archive)
 
-            for repro in ('', '/repro2'):
+            for repro in ('', '/repro2', '/repro3'):
                 # try both in the repro and / folders
                 folder = "/pub/gps/products/" + date.wwww() + repro
                 try:
                     tqdm.write(' -- Changing folder to ' + folder)
                     ftp.cwd(folder)
                     ftp_list = set(ftp.nlst())
-                except:
+                except Exception:
                     # folder not present, skip
                     continue
 
