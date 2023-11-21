@@ -66,8 +66,14 @@ def main():
                         help='Solve for the tropospheric wet delay. Possible options are 1: do not solve, 2-5: solve '
                              'without gradients (number determine the random walk in mm/hr), +100: solve gradients.')
 
-    parser.add_argument('-elv', '--elevation_mask', type=int, nargs=1, default=10,
+    parser.add_argument('-elv', '--elevation_mask', type=int, default=10,
                         help='Elevation mask (default=10).')
+
+    parser.add_argument('-min', '--min_time_seconds', type=int, default=3600,
+                        help='Minimum observation time in seconds for observations (default=3600).')
+
+    parser.add_argument('-code', '--code_only', action='store_true', default=False,
+                        help='Run PPP using only code (C1) observations.')
 
     parser.add_argument('-c', '--copy_results', type=str, nargs=1, metavar='storage_dir',
                         help='Copy the output files (.ses, .sum, .res, .pos) to [storage_dir]. A folder with the '
@@ -87,7 +93,8 @@ def main():
     Config = pyOptions.ReadOptions('gnss_data.cfg')  # type: pyOptions.ReadOptions
     options = Config.options
     sp3types = Config.sp3types
-    sp3altrn = Config.sp3altrn
+    # DDG: now there is no sp3altrn anymore
+    # sp3altrn = Config.sp3altrn
     brdc_path = Config.brdc_path
 
     if args.no_config_file is not None:
@@ -98,7 +105,7 @@ def main():
         options['sp3']      = args.no_config_file[0]
 
         sp3types  = args.no_config_file[1].split(',')
-        sp3altrn  = ['jpl', 'jp2', 'jpr']
+        # sp3altrn  = ['jpl', 'jp2', 'jpr']
         # brdc_path = args.no_config_file[2]
 
     # flog to determine if should erase or not folder
@@ -118,10 +125,11 @@ def main():
 
     for rinex in rinex_list:
         # read the station name from the file
-        stnm = rinex.split('/')[-1][0:4]
+        stnm = rinex.split('/')[-1][0:4].lower()
 
         try:
-            with pyRinex.ReadRinex('???', stnm, rinex, allow_multiday = args.no_split) as rinexinfo:
+            with pyRinex.ReadRinex('???', stnm, rinex, allow_multiday=args.no_split,
+                                   min_time_seconds=args.min_time_seconds) as rinexinfo:
                 rnx_days = [rinexinfo]
                 if rinexinfo.multiday and not args.no_split:
                     print('Provided RINEX file is a multiday file!')
@@ -129,9 +137,9 @@ def main():
                     rnx_days = rinexinfo.multiday_rnx_list
 
                 for rnx in rnx_days:
-                    execute_ppp(rnx, args, stnm, options, sp3types, sp3altrn, brdc_path, erase,
+                    execute_ppp(rnx, args, stnm, options, sp3types, (), brdc_path, erase,
                                 not args.no_met, args.decimate, args.fix_coordinate, args.solve_troposphere,
-                                args.copy_results, args.backward_substitution, args.elevation_mask)
+                                args.copy_results, args.backward_substitution, args.elevation_mask, args.code_only)
 
         except pyRinex.pyRinexException as e:
             print(str(e))
@@ -140,7 +148,7 @@ def main():
 
 def execute_ppp(rinexinfo, args, stnm, options, sp3types, sp3altrn, brdc_path, erase, apply_met=True, decimate=True,
                 fix_coordinate=None, solve_troposphere=105, copy_results=None, backward_substitution=False,
-                elevation_mask=5):
+                elevation_mask=5, code_only=False):
 
     # put the correct APR coordinates in the header.
     # stninfo = pyStationInfo.StationInfo(None, allow_empty=True)
@@ -166,7 +174,8 @@ def execute_ppp(rinexinfo, args, stnm, options, sp3types, sp3altrn, brdc_path, e
         if args.ocean_loading or args.insert_sql:
             # get a first ppp coordinate
             ppp = pyPPP.RunPPP(rinexinfo, '', options, sp3types, sp3altrn, 0,
-                               strict=False, apply_met=False, kinematic=False, clock_interpolation=True)
+                               strict=False, apply_met=False, kinematic=False, clock_interpolation=True,
+                               observations=pyPPP.OBSERV_CODE_ONLY if code_only else pyPPP.OBSERV_CODE_PHASE)
 
             ppp.exec_ppp()
 
@@ -203,7 +212,8 @@ def execute_ppp(rinexinfo, args, stnm, options, sp3types, sp3altrn, brdc_path, e
                            clock_interpolation=True, erase=erase, decimate=decimate,
                            solve_coordinates=True if not fix_coordinate else False,
                            solve_troposphere=solve_troposphere, back_substitution=backward_substitution,
-                           elev_mask=elevation_mask, x=x, y=y, z=z)
+                           elev_mask=elevation_mask, x=x, y=y, z=z,
+                           observations=pyPPP.OBSERV_CODE_ONLY if code_only else pyPPP.OBSERV_CODE_PHASE)
 
         ppp.exec_ppp()
 
@@ -212,8 +222,8 @@ def execute_ppp(rinexinfo, args, stnm, options, sp3types, sp3altrn, brdc_path, e
 
         if not args.insert_sql:
             print('%s %10.5f %13.4f %13.4f %13.4f %14.9f %14.9f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f' % (
-                stnm, rinexinfo.date.fyear, ppp.x, ppp.y, ppp.z, ppp.lat[0], ppp.lon[0], ppp.h[0], ppp.clock_phase,
-                ppp.clock_phase_sigma, ppp.phase_drift, ppp.phase_drift_sigma, ppp.clock_rms))
+                stnm, rinexinfo.date.fyear, ppp.x, ppp.y, ppp.z, ppp.lat[0], ppp.lon[0], ppp.h[0],
+                ppp.clock_phase, ppp.clock_phase_sigma, ppp.phase_drift, ppp.phase_drift_sigma, ppp.clock_rms))
         else:
             print('INSERT INTO stations ("NetworkCode", "StationCode", "auto_x", "auto_y", "auto_z", ' \
                   '"Harpos_coeff_otl", lat, lon, height) VALUES ' \

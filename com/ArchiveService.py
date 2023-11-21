@@ -56,9 +56,8 @@ cnn = dbConnection.Cnn('gnss_data.cfg')
 
 
 def insert_station_w_lock(cnn, StationCode, filename, lat, lon, h, x, y, z, otl):
-
     rs = cnn.query("""
-SELECT NetworkCode FROM
+SELECT "NetworkCode" FROM
     (SELECT *, 2*asin(sqrt(sin((radians(%.8f)-radians(lat))/2)^2 + 
     cos(radians(lat)) * cos(radians(%.8f)) * sin((radians(%.8f)-radians(lon))/2)^2))*6371000 AS distance
         FROM stations WHERE "NetworkCode" LIKE \'?%%\' AND "StationCode" = \'%s\') as DD
@@ -76,7 +75,7 @@ SELECT NetworkCode FROM
 
         # check if network code exists
         NetworkCode = '???'
-        index       = 0
+        index = 0
         while cnn.query('SELECT * FROM stations '
                         'WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\''
                         % (NetworkCode, StationCode)).ntuples() != 0:
@@ -96,23 +95,28 @@ SELECT NetworkCode FROM
         if rs.ntuples() == 0:
             # create network code
             cnn.insert('networks',
-                       NetworkCode = NetworkCode,
-                       NetworkName = 'Temporary network for new stations')
+                       NetworkCode=NetworkCode,
+                       NetworkName='Temporary network for new stations')
 
         # insert record in stations with temporary NetworkCode
         try:
             cnn.insert('stations',
-                       NetworkCode      = NetworkCode,
-                       StationCode      = StationCode,
-                       auto_x           = x,
-                       auto_y           = y,
-                       auto_z           = z,
-                       Harpos_coeff_otl = otl,
-                       lat              = round(lat, 8),
-                       lon              = round(lon, 8),
-                       height           = round(h, 3))
-        except dbConnection.dbErrInsert:
+                       NetworkCode=NetworkCode,
+                       StationCode=StationCode,
+                       auto_x=x,
+                       auto_y=y,
+                       auto_z=z,
+                       Harpos_coeff_otl=otl,
+                       lat=round(lat, 8),
+                       lon=round(lon, 8),
+                       height=round(h, 3))
+        except dbConnection.dbErrInsert as e:
             # another process did the insert before, ignore the error
+            file_append('errors_pyArchiveService.log',
+                        'ON ' + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') +
+                        ' an unhandled error occurred:\n' +
+                        str(e) + '\n' +
+                        'END OF ERROR =================== \n\n')
             pass
 
         # update the lock information for this station
@@ -143,9 +147,6 @@ def callback_handle(job):
             log_job_error(out_message)
 
         if new_station:
-            tqdm.write(' -- New stations were found in the repository. Please assign a network to each new station '
-                       'and remove the locks from the files before running again ArchiveService')
-
             # check the distance w.r.t the current new stations
 
             StationCode = new_station[0]
@@ -158,6 +159,10 @@ def callback_handle(job):
             h   = new_station[3][2]
 
             filename = os.path.relpath(new_station[4], repository_data_in)
+
+            tqdm.write(' -- New station %s was found in the repository at %s. Please assign a network to the new '
+                       'station and remove the locks from the files before running again ArchiveService.'
+                       % (StationCode, filename))
 
             # logic behind this sql sentence:
             # we are searching for a station within 100 meters that has been recently added, so NetworkCode = ???
@@ -359,9 +364,9 @@ def process_crinex_file(crinez, filename, data_rejected, data_retry):
                 # could not determine an autonomous coordinate, try PPP anyways. 50% chance it will work
                 pass
 
+            # DDG: now there is no sp3altrn anymore
             with pyPPP.RunPPP(rinexinfo, '',
-                              Config.options, Config.sp3types, Config.sp3altrn,
-                              rinexinfo.antOffset,
+                              Config.options, Config.sp3types, (), rinexinfo.antOffset,
                               strict=False, apply_met=False, clock_interpolation=True) as ppp:  # type: pyPPP.RunPPP
 
                 try:
@@ -435,7 +440,7 @@ def process_crinex_file(crinez, filename, data_rejected, data_retry):
                     # no match, but we have some candidates
 
                     error = "Solution for RINEX in repository (%s %s) did not match a unique station location " \
-                            "(and station code) within 5 km. Possible cantidate(s): %s. This file has been moved " \
+                            "(and station code) within 5 km. Possible candidate(s): %s. This file has been moved " \
                             "to data_in_retry. pSQL sentence follows:\n" \
                             "PSQL# INSERT INTO stations (\"NetworkCode\", \"StationCode\", \"auto_x\", " \
                             "\"auto_y\", \"auto_z\", \"lat\", \"lon\", \"height\") VALUES " \

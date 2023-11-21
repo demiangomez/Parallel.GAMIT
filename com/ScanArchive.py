@@ -368,18 +368,19 @@ def obtain_otl(NetworkCode, StationCode):
 
                 # read the crinex
                 try:
-                        # run ppp without otl and met and in non-strict mode
-                        with pyPPP.RunPPP(Rinex, '', Config.options, Config.sp3types, Config.sp3altrn,
-                                          Rinex.antOffset, strict=False, apply_met=False,
-                                          clock_interpolation=True) as ppp:
+                    # run ppp without otl and met and in non-strict mode
+                    # DDG: now there is no sp3altrn anymore
+                    with pyPPP.RunPPP(Rinex, '', Config.options, Config.sp3types, (),
+                                      Rinex.antOffset, strict=False, apply_met=False,
+                                      clock_interpolation=True) as ppp:
 
-                            ppp.exec_ppp()
+                        ppp.exec_ppp()
 
-                            x.append(ppp.x)
-                            y.append(ppp.y)
-                            z.append(ppp.z)
+                        x.append(ppp.x)
+                        y.append(ppp.y)
+                        z.append(ppp.z)
 
-                            errors += 'PPP -> %s: %.3f %.3f %.3f\n' % (stn_id, ppp.x, ppp.y, ppp.z)
+                        errors += 'PPP -> %s: %.3f %.3f %.3f\n' % (stn_id, ppp.x, ppp.y, ppp.z)
 
                 except (pySp3.pySp3Exception, 
                         pyClk.pyClkException,
@@ -602,11 +603,11 @@ def execute_ppp(record, rinex_path, h_tolerance):
                                        y = stn[0]['auto_y'], 
                                        z = stn[0]['auto_z'])
 
+                # DDG: no more sp3altrn
                 with pyPPP.RunPPP(Rinex,
                                   stn[0]['Harpos_coeff_otl'],
                                   Config.options,
-                                  Config.sp3types,
-                                  Config.sp3altrn,
+                                  Config.sp3types, (),
                                   stninfo.to_dharp(stninfo.currentrecord).AntennaHeight,
                                   hash = stninfo.currentrecord.hash) as ppp:
                     ppp.exec_ppp()
@@ -1100,6 +1101,8 @@ def import_station(cnn, args):
 
                 result, match, closest_stn = spatial.verify_spatial_coherence(cnn, StationCode)
 
+                tqdm.write(' -- Processing %s' % filename)
+                
                 if result:
                     tqdm.write(' -- Found external station %s.%s in network %s (distance %.3f)'
                                % (NetworkCode, StationCode, match[0]['NetworkCode'], match[0]['distance']))
@@ -1212,52 +1215,54 @@ def try_insert_files(cnn, archive, station, NetworkCode, StationCode, rinex):
         # a station file with rinex data in it. Attempt to insert the data and the associated station information
         for rnx in rinex:
 
-            with pyRinex.ReadRinex(NetworkCode, StationCode, rnx) as rinexinfo:
+            try:
+                with pyRinex.ReadRinex(NetworkCode, StationCode, rnx) as rinexinfo:
 
-                inserted = archive.insert_rinex(rinexobj=rinexinfo)
+                    inserted = archive.insert_rinex(rinexobj=rinexinfo)
 
-                if not inserted:
-                    # display an error message
-                    tqdm.write(' -- %s.%s (%s) not imported: already existed in database.'
-                               % (NetworkCode, StationCode, os.path.basename(rnx)))
-                else:
-                    tqdm.write(' -- %s.%s (%s) successfully imported into database.'
-                               % (NetworkCode, StationCode, os.path.basename(rnx)))
+                    if not inserted:
+                        # display an error message
+                        tqdm.write(' -- %s.%s (%s) not imported: already existed in database.'
+                                   % (NetworkCode, StationCode, os.path.basename(rnx)))
+                    else:
+                        tqdm.write(' -- %s.%s (%s) successfully imported into database.'
+                                   % (NetworkCode, StationCode, os.path.basename(rnx)))
 
+                    try:
+                        pyStationInfo.StationInfo(cnn, NetworkCode, StationCode, rinexinfo.date)
 
-                try:
-                    pyStationInfo.StationInfo(cnn, NetworkCode, StationCode, rinexinfo.date)
+                    except pyStationInfo.pyStationInfoException:
 
-                except pyStationInfo.pyStationInfoException:
+                        # station info not in db! import the corresponding station info
 
-                    # station info not in db! import the corresponding station info
+                        stninfo_inserted = False
 
-                    stninfo_inserted = False
+                        for record in import_stninfo:
+                            import_record = pyStationInfo.StationInfoRecord(NetworkCode, StationCode, record)
 
-                    for record in import_stninfo:
-                        import_record = pyStationInfo.StationInfoRecord(NetworkCode, StationCode, record)
+                            # DDG: to avoid problems with files that contain two different station info records, check
+                            # that import_record.DateEnd.datetime() is not less than the first observation of the rinex
+                            if rinexinfo.datetime_firstObs >= import_record.DateStart.datetime() and \
+                               not import_record.DateEnd.datetime() <= rinexinfo.datetime_firstObs:
 
-                        # DDG: to avoid problems with files that contain two different station info records, we check
-                        # that import_record.DateEnd.datetime() is not less than the first observation of the rinex
-                        if rinexinfo.datetime_firstObs >= import_record.DateStart.datetime() and \
-                           not import_record.DateEnd.datetime() <= rinexinfo.datetime_firstObs:
-                        
-                            if rinexinfo.datetime_lastObs > import_record.DateEnd.datetime():
-                                tqdm.write('    WARNING! RINEX file %s has an end data past the station info record. '
-                                           'Maybe this file has a receiver/antenna change in the middle.'
-                                           % os.path.basename(rnx))
+                                if rinexinfo.datetime_lastObs > import_record.DateEnd.datetime():
+                                    tqdm.write('    WARNING! RINEX file %s has an end data past the station info '
+                                               'record. Maybe this file has a receiver/antenna change in the middle.'
+                                               % os.path.basename(rnx))
 
-                            # the record we are looking for
-                            try:
-                                stninfo.InsertStationInfo(import_record)
-                                stninfo_inserted = True
+                                # the record we are looking for
+                                try:
+                                    stninfo.InsertStationInfo(import_record)
+                                    stninfo_inserted = True
 
-                            except pyStationInfo.pyStationInfoException as e:
-                                tqdm.write('    ' + str(e))
+                                except pyStationInfo.pyStationInfoException as e:
+                                    tqdm.write('    ' + str(e))
 
-                    if not stninfo_inserted:
-                        tqdm.write('    Could not find a valid station info in the database or in the station '
-                                   'package. File remains in database without metadata.')
+                        if not stninfo_inserted:
+                            tqdm.write('    Could not find a valid station info in the database or in the station '
+                                       'package. File remains in database without metadata.')
+            except pyRinex.pyRinexException as e:
+                tqdm.write('    Problem while processing RINEX file for database record insert: ' + str(e))
     else:
         # a station file without rinex data
         # attempt to merge the station information

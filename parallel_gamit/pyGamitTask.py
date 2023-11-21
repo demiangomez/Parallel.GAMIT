@@ -83,14 +83,15 @@ class GamitTask(object):
                                              self.pwd_igs, True)  # type: pySp3.GetSp3Orbits
 
                 except pySp3.pySp3Exception:
-                    log('could not find principal orbits, fetching alternative')
+                    log('could not find orbits to run the process')
 
                     # try alternative orbits
-                    if self.options['sp3altrn']:
-                        Sp3 = pySp3.GetSp3Orbits(self.orbits['sp3_path'], self.date, self.orbits['sp3altrn'],
-                                                 self.pwd_igs, True)  # type: pySp3.GetSp3Orbits
-                    else:
-                        raise
+                    # DDG: now there is no sp3altrn anymore
+                    # if self.options['sp3altrn']:
+                    #    Sp3 = pySp3.GetSp3Orbits(self.orbits['sp3_path'], self.date, self.orbits['sp3altrn'],
+                    #                             self.pwd_igs, True)  # type: pySp3.GetSp3Orbits
+                    # else:
+                    raise
 
                 if Sp3.type != 'igs':
                     # rename file

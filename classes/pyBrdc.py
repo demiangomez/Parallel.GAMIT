@@ -13,8 +13,10 @@ import os
 # app
 import pyProducts
 
+
 class pyBrdcException(pyProducts.pyProductsException):
     pass
+
 
 class GetBrdcOrbits(pyProducts.OrbitalProduct):
 
@@ -23,6 +25,8 @@ class GetBrdcOrbits(pyProducts.OrbitalProduct):
         self.brdc_archive = brdc_archive
         self.brdc_path    = None
         self.no_cleanup   = no_cleanup
+        # DDG: for compatibility with sp3 object
+        self.type         = 'brdc'
 
         # try both zipped and unzipped n files
         self.brdc_filename = 'brdc' + str(date.doy).zfill(3) + '0.' + str(date.year)[2:4] + 'n'

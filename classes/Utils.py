@@ -83,6 +83,8 @@ def required_length(nmin,nmax):
 
 
 def parse_crinex_rinex_filename(filename):
+    # DDG: DEPRECATED
+    # this function only accepts .Z as extension. Replaced with RinexName.split_filename which also includes .gz
     # parse a crinex filename
     sfile = re.findall('(\w{4})(\d{3})(\w{1})\.(\d{2})([d]\.[Z])$', filename)
     if sfile:
@@ -93,7 +95,6 @@ def parse_crinex_rinex_filename(filename):
         return sfile[0]
 
     return []
-
 
 
 def _increment_filename(filename):
@@ -130,20 +131,16 @@ def _increment_filename(filename):
 
     path      = os.path.dirname(filename)
     filename  = os.path.basename(filename)
-    fileparts = parse_crinex_rinex_filename(filename)
-
-    if not fileparts:
-        raise ValueError('Invalid file naming convention: {}'.format(filename))
+    # replace with parse_crinex_rinex_filename (deprecated)
+    # fileparts = parse_crinex_rinex_filename(filename)
+    fileparts = pyRinexName.RinexNameFormat(filename).split_filename(filename)
 
     # Check if there's a counter in the filename already - if not, start a new
     # counter at 0.
     value = 0
 
-    filename = os.path.join(path, '%s%03i%s.%02i%s' % (fileparts[0].lower(),
-                                                       int(fileparts[1]),
-                                                       sessions[value],
-                                                       int(fileparts[3]),
-                                                       fileparts[4]))
+    filename = os.path.join(path, '%s%03i%s.%02i%s' % (fileparts[0].lower(), int(fileparts[1]), sessions[value],
+                                                       int(fileparts[3]), fileparts[4]))
 
     # The counter is just an integer, so we can increment it indefinitely.
     while True:
@@ -154,17 +151,11 @@ def _increment_filename(filename):
 
         if value == len(sessions):
             raise ValueError('Maximum number of sessions reached: %s%03i%s.%02i%s'
-                             % (fileparts[0].lower(),
-                                int(fileparts[1]),
-                                sessions[value-1],
-                                int(fileparts[3]),
-                                fileparts[4]))
+                             % (fileparts[0].lower(), int(fileparts[1]), sessions[value-1],
+                                int(fileparts[3]), fileparts[4]))
 
-        yield os.path.join(path, '%s%03i%s.%02i%s' % (fileparts[0].lower(),
-                                                      int(fileparts[1]),
-                                                      sessions[value],
-                                                      int(fileparts[3]),
-                                                      fileparts[4]))
+        yield os.path.join(path, '%s%03i%s.%02i%s' % (fileparts[0].lower(), int(fileparts[1]), sessions[value],
+                                                      int(fileparts[3]), fileparts[4]))
 
 
 def copyfile(src, dst, rnx_ver=2):

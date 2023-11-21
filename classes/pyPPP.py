@@ -17,6 +17,7 @@ import re
 # deps
 import numpy
 
+import pyBrdc
 # app
 import pyRinex
 import pySp3
@@ -26,6 +27,9 @@ import pyEvents
 import pyRunWithRetry
 from pyDate import Date
 from Utils import lg2ct, ecef2lla, determine_frame, file_write, file_readlines
+
+OBSERV_CODE_ONLY  = '1'
+OBSERV_CODE_PHASE = '2'
 
 
 def find_between(s, first, last):
@@ -143,7 +147,8 @@ class PPPSpatialCheck:
 class RunPPP(PPPSpatialCheck):
     def __init__(self, in_rinex, otl_coeff, options, sp3types, sp3altrn, antenna_height, strict=True, apply_met=True,
                  kinematic=False, clock_interpolation=False, hash=0, erase=True, decimate=True, solve_coordinates=True,
-                 solve_troposphere=105, back_substitution=False, elev_mask=10, x=0, y=0, z=0):
+                 solve_troposphere=105, back_substitution=False, elev_mask=10, x=0, y=0, z=0,
+                 observations=OBSERV_CODE_PHASE):
 
         assert isinstance(in_rinex, pyRinex.ReadRinex)
 
@@ -176,14 +181,22 @@ class RunPPP(PPPSpatialCheck):
         self.clock_estimates     = None
 
         # DDG: do not allow clock interpolation before May 1 2001
-        self.clock_interpolation = clock_interpolation if rinexobj.date > Date(year=2001, month=5, day=1) else False
+        # DDG: unless it is a code-only request, then MUST be turned on
+        if observations == OBSERV_CODE_PHASE:
+            self.clock_interpolation = clock_interpolation if rinexobj.date > Date(year=2001, month=5, day=1) else False
+        else:
+            # override user's decision, must be on to run
+            self.clock_interpolation = True
 
         self.frame             = None
         self.atx               = None
+        # DDG: now can choose between code and code+phase observations
+        self.observations      = observations
         # DDG: now accepts solving for a fixed coordinate PPP
         self.solve_coordinates = solve_coordinates
-        self.solve_troposphere = solve_troposphere
-        self.back_substitution = back_substitution
+        # do not allow back_substitution or troposphere if code-only observations
+        self.solve_troposphere = 1     if observations == OBSERV_CODE_ONLY else solve_troposphere
+        self.back_substitution = False if observations == OBSERV_CODE_ONLY else back_substitution
         self.elev_mask         = elev_mask
         self.x                 = x
         self.y                 = y
@@ -208,21 +221,21 @@ class RunPPP(PPPSpatialCheck):
         self.processed_obs = None
         self.rejected_obs  = None
 
-        self.orbit_type = None
-        self.orbits1    = None
-        self.orbits2    = None
-        self.clocks1    = None
-        self.clocks2    = None
-        self.eop_file   = None
-        self.sp3altrn   = sp3altrn
-        self.sp3types   = sp3types
-        self.otl_coeff  = otl_coeff
-        self.strict     = strict
-        self.apply_met  = apply_met
-        self.erase      = erase
-        self.out        = ''
-        self.summary    = ''
-        self.pos        = ''
+        self.orbit_type    = None
+        self.orbits1       = None
+        self.orbits2       = None
+        self.clocks1       = None
+        self.clocks2       = None
+        self.eop_file      = None
+        self.sp3altrn      = sp3altrn
+        self.sp3types      = sp3types
+        self.otl_coeff     = otl_coeff
+        self.strict        = strict
+        self.apply_met     = apply_met
+        self.erase         = erase
+        self.out           = ''
+        self.summary       = ''
+        self.pos           = ''
 
         self.rootdir = os.path.join('production', 'ppp')
 
@@ -326,9 +339,9 @@ class RunPPP(PPPSpatialCheck):
         file_write(os.path.join(self.rootdir, 'commands.cmd'),
                    "' UT DAYS OBSERVED                      (1-45)'                   1\n"
                    "' USER DYNAMICS         (1=STATIC,2=KINEMATIC)'                   %s\n"
-                   "' OBSERVATION TO PROCESS         (1=COD,2=C&P)'                   2\n"
-                   "' FREQUENCY TO PROCESS        (1=L1,2=L2,3=L3)'                   3\n"
-                   "' SATELLITE EPHEMERIS INPUT     (1=BRD ,2=SP3)'                   2\n"
+                   "' OBSERVATION TO PROCESS         (1=COD,2=C&P)'                   %s\n"
+                   "' FREQUENCY TO PROCESS        (1=L1,2=L2,3=L3)'                   %s\n"
+                   "' SATELLITE EPHEMERIS INPUT     (1=BRD ,2=SP3)'                   %s\n"
                    "' SATELLITE PRODUCT (1=NO,2=Prc,3=RTCA,4=RTCM)'                   2\n"
                    "' SATELLITE CLOCK INTERPOLATION   (1=NO,2=YES)'                   %s\n"
                    "' IONOSPHERIC GRID INPUT          (1=NO,2=YES)'                   1\n"
@@ -346,6 +359,9 @@ class RunPPP(PPPSpatialCheck):
                    "' CUTOFF ELEVATION                       (deg)'      %14.4f\n"
                    "' GDOP CUTOFF                                 '             20.0000\n"
                    % ('1' if not self.kinematic else '2',
+                      self.observations,
+                      '1' if self.observations == OBSERV_CODE_ONLY else '3',
+                      '1' if self.observations == OBSERV_CODE_ONLY else '2',
                       '1' if not self.clock_interpolation else '2',
                       '1' if not self.solve_coordinates else '2',
                       self.solve_troposphere,
@@ -362,27 +378,30 @@ class RunPPP(PPPSpatialCheck):
                    "orbits/%s\n"
                    "orbits/%s\n"
                    "orbits/%s\n"
-                   % (self.rinex.rinex,
-                      self.orbits1.sp3_filename,
-                      self.clocks1.clk_filename,
-                      self.orbits2.sp3_filename,
-                      self.clocks2.clk_filename))
+                   % (self.rinex.rinex, self.orbits1.filename, self.clocks1.filename,
+                      self.orbits2.filename, self.clocks2.filename))
 
-    def get_orbits(self, type):
+    def get_orbits(self, orbit_type):
 
         options = self.options
 
         orbits_path = os.path.join(self.rootdir, 'orbits')
-        
-        orbits1 = pySp3.GetSp3Orbits(options['sp3'], self.rinex.date,     type, orbits_path, True)
-        orbits2 = pySp3.GetSp3Orbits(options['sp3'], self.rinex.date + 1, type, orbits_path, True)
 
-        clocks1 = pyClk.GetClkFile(  options['sp3'], self.rinex.date,     type, orbits_path, True)
-        clocks2 = pyClk.GetClkFile(  options['sp3'], self.rinex.date + 1, type, orbits_path, True)
+        if self.observations == OBSERV_CODE_PHASE:
+            orbits1 = pySp3.GetSp3Orbits(options['sp3'], self.rinex.date,     orbit_type, orbits_path, True)
+            orbits2 = pySp3.GetSp3Orbits(options['sp3'], self.rinex.date + 1, orbit_type, orbits_path, True)
 
+            clocks1 = pyClk.GetClkFile(  options['sp3'], self.rinex.date,     orbit_type, orbits_path, True)
+            clocks2 = pyClk.GetClkFile(  options['sp3'], self.rinex.date + 1, orbit_type, orbits_path, True)
+        else:
+            # for code-only solution we get the BRDC orbit and we use the same information for all files.
+            orbits1 = pyBrdc.GetBrdcOrbits(options['brdc'], self.rinex.date, orbits_path, True)
+            orbits2 = orbits1
+            clocks1 = orbits1
+            clocks2 = orbits1
         try:
-            eop_file = pyEOP.GetEOP(options['sp3'], self.rinex.date, type, self.rootdir)
-            eop_file = eop_file.eop_filename
+            eop_file = pyEOP.GetEOP(options['sp3'], self.rinex.date, orbit_type, self.rootdir)
+            eop_file = eop_file.filename
         except pyEOP.pyEOPException:
             # no eop, continue with out one
             eop_file = 'dummy.eop'
@@ -672,21 +691,26 @@ class RunPPP(PPPSpatialCheck):
                 except (pyRunPPPExceptionNaN,
                         pyRunPPPExceptionTooFewAcceptedObs,
                         pyRunPPPExceptionZeroProcEpochs):
-                    # Nan in the result
-                    if not self.kinematic:
-                        # first retry, turn to kinematic mode
-                        self.kinematic = True
 
-                    elif self.rinex.date.fyear >= 2001.33287 and not self.clock_interpolation:
-                        # date has to be > 2001 May 1 (SA deactivation date)
-                        self.clock_interpolation = True
+                    # DDG: only attempt reruns if OBSERV_CODE_PHASE
+                    if self.observations == OBSERV_CODE_PHASE:
+                        # Nan in the result
+                        if not self.kinematic:
+                            # first retry, turn to kinematic mode
+                            self.kinematic = True
 
-                    elif self.sp3altrn and self.orbit_type not in self.sp3altrn:
-                        # second retry, kinematic and alternative orbits (if exist)
-                        self.get_orbits(self.sp3altrn)
+                        elif self.rinex.date.fyear >= 2001.33287 and not self.clock_interpolation:
+                            # date has to be > 2001 May 1 (SA deactivation date)
+                            self.clock_interpolation = True
 
+                        elif self.sp3altrn and self.orbit_type not in self.sp3altrn:
+                            # second retry, kinematic and alternative orbits (if exist)
+                            self.get_orbits(self.sp3altrn)
+
+                        else:
+                            # it didn't work in kinematic mode either! raise error
+                            raise
                     else:
-                        # it didn't work in kinematic mode either! raise error
                         raise
             elif self.sp3altrn and self.orbit_type not in self.sp3altrn:
                 # maybe a bad orbit, fall back to alternative

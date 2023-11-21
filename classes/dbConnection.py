@@ -28,15 +28,25 @@ DB_PASS = ''
 DB_NAME = 'gnss_data'
 
 
-DEBUG=True
+DEBUG = False
+
+
 def debug(s):
     if DEBUG:
         file_append('/tmp/db.log', "DB: %s\n" % s)
 
+
 class dbErrInsert (Exception): pass
+
+
 class dbErrUpdate (Exception): pass
+
+
 class dbErrConnect(Exception): pass
+
+
 class dbErrDelete (Exception): pass
+
 
 class IntegrityError(pg.IntegrityError): pass
 

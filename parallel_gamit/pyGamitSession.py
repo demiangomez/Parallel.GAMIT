@@ -211,7 +211,7 @@ class GamitSession(object):
                        'gamitopts'   : self.GamitOpts,
                        'orbits'      : {'sp3_path'  : self.Config.sp3_path,
                                         'sp3types'  : self.Config.sp3types,
-                                        'sp3altrn'  : self.Config.sp3altrn,
+                                        'sp3altrn'  : (),
                                         'brdc_path' : self.Config.brdc_path
                                         }
                        }

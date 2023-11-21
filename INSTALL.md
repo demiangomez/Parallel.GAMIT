@@ -65,6 +65,8 @@ python -m pip install scikit-learn==1.2.0
 python -m pip install cryptography==3.3.2
 python -m pip install paramiko==2.10.1
 python -m pip install pysftp==0.2.9
+python -m pip install country-converter
+python -m pip install geopy
 ```
 
 

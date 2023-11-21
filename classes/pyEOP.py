@@ -6,7 +6,7 @@ Author: Demian D. Gomez
 This class fetches earth orientation parameters files from the orbits folder (specified in the gnss_data.cfg file) passed as an argument (sp3archive)
 
 """
-
+import pyDate
 import pyProducts
 import pyEvents
 
@@ -28,9 +28,18 @@ class GetEOP(pyProducts.OrbitalProduct):
         # loop through the types of sp3 files to try
         self.eop_path = None
 
-        for sp3type in sp3types:
+        # determine the date of the first day of the week
+        week = pyDate.Date(gpsWeek=date.gpsWeek, gpsWeekDay=0)
 
-            self.eop_filename = sp3type + date.wwww() + '7.erp'
+        for sp3type in sp3types:
+            if sp3type[0].isupper():
+                # long name IGS format
+                self.eop_filename = (sp3type.replace('{YYYYDDD}', week.yyyyddd(space=False)).
+                                     replace('{INT}', '01D').
+                                     replace('{PER}', '07D') + 'ERP.ERP')
+            else:
+                # short name IGS format
+                self.eop_filename = sp3type.replace('{WWWWD}', week.wwww()) + '7.erp'
 
             try:
                 pyProducts.OrbitalProduct.__init__(self, sp3archive, date, self.eop_filename, copyto)

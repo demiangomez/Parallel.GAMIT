@@ -114,7 +114,7 @@ def doy2date(year,doy):
 
     # check doy based on year
     if doy < 1 or doy > mxd:
-        raise pyDateException('day of year input is invalid')
+        raise pyDateException('day of year input is invalid (year=%i doy=%i)' % (year, doy))
 
     # localized days
     if isLeapYear:
@@ -452,8 +452,11 @@ class Date(object):
     def yyyymmdd(self):
         return "%s/%s/%s" % (str(self.year), str(self.month), str(self.day))
 
-    def yyyyddd(self):
-        return '%4i %03i' % (int(self.year), int(self.doy))
+    def yyyyddd(self, space=True):
+        if space:
+            return '%4i %03i' % (int(self.year), int(self.doy))
+        else:
+            return '%4i%03i' % (int(self.year), int(self.doy))
     
     def iso_date(self):
         return "%d-%02d-%02d" % (self.year, self.month, self.day)

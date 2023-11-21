@@ -11,7 +11,7 @@ import os
 import argparse
 from datetime import datetime
 import ftplib
-import zlib
+import re
 
 # deps
 import numpy as np
@@ -24,12 +24,21 @@ from Utils import required_length, process_date
 import pyRunWithRetry
 
 # Old FTP server:
-#FTP_HOST = '198.118.242.40'
+# FTP_HOST = '198.118.242.40'
 
 # New FTP-SSL server:
 FTP_HOST = 'gdc.cddis.eosdis.nasa.gov'
 FTP_USER = 'Anonymous'
 FTP_PASS = 'gomez.124@osu.edu'
+OPERA_FOLDER = '/pub/gps/products/$gpsweek'
+REPRO_FOLDER = '/pub/gps/products/$gpsweek/repro3'
+
+# Now downloading orbits from CODE
+# FTP_HOST = 'ftp.aiub.unibe.ch'
+# FTP_USER = ''
+# FTP_PASS = ''
+# OPERA_FOLDER = '/CODE/$year'
+# REPRO_FOLDER = '/REPRO_2020/CODE/$year'
 
 # @todo
 # METHOD = 'HTTP'   # 'FTP' | 'HTTP'
@@ -60,8 +69,7 @@ def main():
                 d = pyDate.Date( year = now.year,
                                 month = now.month,
                                  day  = now.day)
-                dates = (d - int(args.window[0]),
-                         d)
+                dates = (d - int(args.window[0]), d)
             else:
                 dates = process_date(args.date_range)
         except ValueError as e:
@@ -77,24 +85,25 @@ def main():
         drange = np.arange(dates[0].mjd,
                            dates[1].mjd, 1)
 
-        pbar = tqdm(desc='%-30s' % ' >> Synchronizing orbit files', total=len(drange), ncols=160)
+        pbar = tqdm(desc='%-30s' % ' >> Synchronizing orbit files', total=len(drange), ncols=160, disable=None)
 
         # connect to ftp
         ftp = ftplib.FTP_TLS(FTP_HOST, FTP_USER, FTP_PASS)
- 
+        # ftp = ftplib.FTP(FTP_HOST, FTP_USER, FTP_PASS)
+        # ftp.login()
         ftp.set_pasv(True)
         ftp.prot_p()
 
         def downloadIfMissing(ftp_list, ftp_filename, local_filename, local_dir, desc):
             mark_path = os.path.join(local_dir, local_filename)
             if not os.path.isfile(mark_path) and ftp_filename in ftp_list:
-                tqdm.write('%-31s: %s' % (' -- trying to download ' + desc, filename))
+                tqdm.write('%-31s: %s' % (' -- trying to download ' + desc, ftp_filename))
                 down_path = os.path.join(local_dir, ftp_filename)
                 with open(down_path, 'wb') as f:
                     ftp.retrbinary("RETR " + ftp_filename, f.write)
                 return True
 
-        def get_archive_path(archive, date):
+        def replace_vars(archive, date):
             return archive.replace('$year',     str(date.year)) \
                           .replace('$doy',      str(date.doy).zfill(3)) \
                           .replace('$gpsweek',  str(date.gpsWeek).zfill(4)) \
@@ -102,65 +111,80 @@ def main():
 
         for date in (pyDate.Date(mjd=mdj) for mdj in drange):
 
-            sp3_archive = get_archive_path(Config.sp3_path, date)
-
+            sp3_archive = replace_vars(Config.sp3_path, date)
+            tqdm.write(' -- Working on local dir ' + sp3_archive)
             if not os.path.exists(sp3_archive):
                 os.makedirs(sp3_archive)
 
-            for repro in ('', '/repro2', '/repro3'):
-                # try both in the repro and / folders
-                folder = "/pub/gps/products/" + date.wwww() + repro
-                try:
-                    tqdm.write(' -- Changing folder to ' + folder)
-                    ftp.cwd(folder)
-                    ftp_list = set(ftp.nlst())
-                except Exception:
-                    # folder not present, skip
-                    continue
-
-                for orbit in Config.sp3types + Config.sp3altrn:
-                    for ext in ('.sp3', '.clk', '.erp', '7.erp'):
-                        try:
-                            if ext == '7.erp':
-                                filename = orbit + date.wwww() + ext + '.Z'
-                            else:
-                                filename = orbit + date.wwwwd() + ext + '.Z'
-                            downloadIfMissing(ftp_list,
-                                              filename,
-                                              filename,
-                                              sp3_archive,
-                                              'EOP' if ext == '7.erp' else ext.upper())
-                        except:
-                            pass
-
-            ###### now the brdc files #########
+            # because the CODE FTP has all files in a single directory, list and then search for all desired elements
+            opera_folder = replace_vars(OPERA_FOLDER, date)
+            repro_folder = replace_vars(REPRO_FOLDER, date)
+            # do not list again if in the same year
 
             try:
-                folder = "/pub/gps/data/daily/%s/%s/%sn" % (date.yyyy(), date.ddd(), date.yyyy()[2:])
-                tqdm.write(' -- Changing folder to ' + folder)
-                ftp.cwd(folder)
-                ftp_list = set(ftp.nlst())
-            except:
-                continue
+                ftp.cwd(opera_folder)
+                opera_list = set(ftp.nlst())
+            except ftplib.error_perm:
+                # no operational dir?
+                opera_list = ()
 
-            brdc_archive = get_archive_path(Config.brdc_path, date)
+            try:
+                ftp.cwd(repro_folder)
+                repro_list = set(ftp.nlst())
+            except ftplib.error_perm:
+                # no repro dir
+                repro_list = ()
+
+            # first look for the operational product
+            for sp3type in Config.sp3types:
+                if sp3type[0].isupper():
+                    # long name IGS format
+                    sp3_filename = (sp3type.replace('{YYYYDDD}', date.yyyyddd(space=False)).
+                                    replace('{INT}', '[0-1]5M').replace('{PER}', '01D') + 'ORB.SP3')
+                    clk_filename = (sp3type.replace('{YYYYDDD}', date.yyyyddd(space=False)).
+                                    replace('{INT}', '[0-3][0-5][SM]').replace('{PER}', '01D') + 'CLK.CLK')
+                    eop_filename = (sp3type.replace('{YYYYDDD}', date.yyyyddd(space=False)).
+                                    replace('{INT}', '01D').replace('{PER}', '07D') + 'ERP.ERP')
+                else:
+                    # short name IGS format
+                    sp3_filename = sp3type.replace('{WWWWD}', date.wwwwd()) + '.sp3.Z'
+                    clk_filename = sp3type.replace('{WWWWD}', date.wwwwd()) + '.clk.Z'
+                    eop_filename = sp3type.replace('{WWWWD}', date.wwwwd()) + '.clk.Z'
+
+                tqdm.write(' -- Checking in %s and %s for sp3, clock, and erp files' % (opera_folder, repro_folder))
+
+                for folder, ftp_list in [(opera_folder, opera_list), (repro_folder, repro_list)]:
+                    # try to download SP3 files
+                    try:
+                        ftp.cwd(folder)
+
+                        for ext, recmp in [('SP3', sp3_filename), ('CLK', clk_filename), ('ERP', eop_filename)]:
+                            r = re.compile('(' + recmp + ')')
+                            match = list(filter(r.match, ftp_list))
+                            for file in match:
+                                downloadIfMissing(ftp_list, file, file, sp3_archive, ext)
+                    except ftplib.error_perm:
+                        continue
+
+            # ##### now the brdc files #########
+            folder = "/pub/gps/data/daily/%s/%s/%sn" % (date.yyyy(), date.ddd(), date.yyyy()[2:])
+            tqdm.write(' -- Changing folder to ' + folder)
+            ftp.cwd(folder)
+            ftp_list = set(ftp.nlst())
+
+            brdc_archive = replace_vars(Config.brdc_path, date)
 
             if not os.path.exists(brdc_archive):
                 os.makedirs(brdc_archive)
-
             try:
-                filename     = 'brdc%s0.%sn' % (str(date.doy).zfill(3),
-                                                str(date.year)[2:4])
-                ftp_filename = filename + '.gz'
-                if downloadIfMissing(ftp_list,
-                                     ftp_filename,
-                                     filename,
-                                     brdc_archive,
-                                     'BRDC'):
-                    # decompress file
-                    tqdm.write('  -> Download succeeded %s' %  os.path.join(brdc_archive, ftp_filename))
-                    pyRunWithRetry.RunCommand('gunzip -f ' + os.path.join(brdc_archive, ftp_filename),
-                                              15).run_shell()
+                filename = 'brdc%s0.%sn' % (str(date.doy).zfill(3), str(date.year)[2:4])
+                for ext in ('.Z', '.gz'):
+                    ftp_filename = filename + ext
+                    if downloadIfMissing(ftp_list, ftp_filename, filename, brdc_archive, 'BRDC'):
+                        # decompress file
+                        tqdm.write('  -> Download succeeded %s' %  os.path.join(brdc_archive, ftp_filename))
+                        pyRunWithRetry.RunCommand('gunzip -f ' + os.path.join(brdc_archive, ftp_filename),
+                                                  15).run_shell()
             except Exception as e:
                 tqdm.write(' -- BRDC ERROR: %s' % str(e))
 

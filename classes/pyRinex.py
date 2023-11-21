@@ -575,7 +575,7 @@ class ReadRinex(RinexRecord):
 
             result_path = self.rinex_path + '.t'
             
-            if '| E |' in err.lower():
+            if '| E |' in err:
                 raise pyRinexExceptionBadFile('gfzrnx_lx returned error converting to RINEX 2.11:\n' + err)
 
             elif not os.path.exists(result_path):
@@ -623,7 +623,7 @@ class ReadRinex(RinexRecord):
             # catch the timeout except and pass it as a pyRinexException
             raise pyRinexException(str(e))
 
-        if '| E |' in err.lower():
+        if '| E |' in err:
             raise pyRinexExceptionBadFile('gfzrnx_lx returned error:\n' + err)
 
         # write RinSum output to a log file (debug purposes)
@@ -686,6 +686,14 @@ class ReadRinex(RinexRecord):
             first_obs = datetime.datetime(self.datetime_lastObs.date().year,
                                           self.datetime_lastObs.date().month,
                                           self.datetime_lastObs.date().day)
+
+            # DDG: this is not enough to check consistent RINEX file. Here, we checked if there is more than one hour
+            # of data after the first observation of the second day (variable first_obs). But, one cases look like this
+            #  01  2  5 23 15  0.0000000  0  7G 5G 4G30G 9G 7G24G10
+            # ....
+            #  01  2  6  3 35 30.0000000  0  5G 6G26G17G10G23
+            # a single observation of the next day exists, but at 3:35. This makes
+            # (self.datetime_lastObs - first_obs).total_seconds() return more than 3600
 
             if (self.datetime_lastObs - first_obs).total_seconds() >= 3600:
                 # the file has more than one day in it...
@@ -958,6 +966,32 @@ class ReadRinex(RinexRecord):
         return header
 
     def auto_coord(self, brdc, chi_limit=3):
+        # use NRCAN PPP in code-only mode to obtain a coordinate of the station
+        import pyPPP, pyOptions
+
+        rnx = ReadRinex(self.NetworkCode, self.StationCode, self.rinex_path, allow_multiday=True)
+
+        config = pyOptions.ReadOptions('gnss_data.cfg')  # type: pyOptions.ReadOptions
+
+        ppp = pyPPP.RunPPP(rnx, '', config.options, '', '', 0,
+                           clock_interpolation=True, strict=False, apply_met=False, observations=pyPPP.OBSERV_CODE_ONLY)
+
+        ppp.exec_ppp()
+
+        self.x = ppp.x
+        self.y = ppp.y
+        self.z = ppp.z
+
+        self.lat, self.lon, self.h = ecef2lla([self.x, self.y, self.z])
+
+        # copy the header to replace with new coordinate
+        new_header = self.replace_record(self.header,'APPROX POSITION XYZ', (self.x, self.y, self.z))
+        # write the rinex file with the new header
+        rnx.write_rinex(new_header)
+
+        return (self.x, self.y, self.z), (self.lat, self.lon, self.h)
+
+    def auto_coord_sh_rx2apr(self, brdc, chi_limit=3):
         # use gamit's sh_rx2apr to obtain a coordinate of the station
 
         # do not work with the original file. Decimate and remove other systems (to increase speed)
@@ -988,7 +1022,7 @@ class ReadRinex(RinexRecord):
         # copy brdc orbit if we have a decimated rinex file
         # DDG 26 Jun 19: BUT CHECK THAT PATHS ARE DIFFERENT! If ReadRinex in line 1073 fails, then rnx = self
         # and was trying to copy BRDC file over itself!
-        brdc_path = os.path.join(rnx.rootdir, brdc.brdc_filename)
+        brdc_path = os.path.join(rnx.rootdir, brdc.filename)
         if brdc.brdc_path != brdc_path:
             copyfile(brdc.brdc_path, brdc_path)
 
@@ -1003,7 +1037,7 @@ class ReadRinex(RinexRecord):
         for i in range(max_it):
 
             cmd = pyRunWithRetry.RunCommand(
-                'sh_rx2apr -site ' + rnx.rinex + ' -nav ' + brdc.brdc_filename + ' -chi ' + str(chi_limit), 60,
+                'sh_rx2apr -site ' + rnx.rinex + ' -nav ' + brdc.filename + ' -chi ' + str(chi_limit), 60,
                 rnx.rootdir)
             # leave errors un-trapped on purpose (will raise an error to the parent)
             out, err = cmd.run_shell()

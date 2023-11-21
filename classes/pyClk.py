@@ -13,8 +13,10 @@ import os
 import pyProducts
 from Utils import file_try_remove
 
+
 class pyClkException(pyProducts.pyProductsException):
     pass
+
 
 class GetClkFile(pyProducts.OrbitalProduct):
 
@@ -26,7 +28,16 @@ class GetClkFile(pyProducts.OrbitalProduct):
         self.no_cleanup = no_cleanup
 
         for sp3type in sp3types:
-            self.clk_filename = sp3type + date.wwwwd() + '.clk'
+            # DDG: now the filename is built as a REGEX string and the latest version of the file is obtained
+            # detect the type of sp3 file we are using (long name: upper case; short name: lowercase)
+            if sp3type[0].isupper():
+                # long name IGS format
+                self.clk_filename = (sp3type.replace('{YYYYDDD}', date.yyyyddd(space=False)).
+                                     replace('{INT}', '[0-3][0-5][SM]').
+                                     replace('{PER}', '01D') + 'CLK.CLK')
+            else:
+                # short name IGS format
+                self.clk_filename = sp3type.replace('{WWWWD}', date.wwwwd()) + '.clk'
 
             try:
                 pyProducts.OrbitalProduct.__init__(self, clk_archive, date, self.clk_filename, copyto)
@@ -40,9 +51,8 @@ class GetClkFile(pyProducts.OrbitalProduct):
 
         # if we get here and self.sp3_path is still none, then no type of sp3 file was found
         if self.clk_path is None:
-            raise pyClkException('Could not find a valid clocks file for ' + date.wwwwd() +
+            raise pyClkException('Could not find a valid clocks file for ' + date.wwwwd() + ' (' + date.yyyymmdd() + ')'
                                  ' using any of the provided sp3 types')
-
 
     def cleanup(self):
         if self.clk_path and not self.no_cleanup:

@@ -26,6 +26,9 @@ class ReadOptions:
                         'node_list'            : None,
                         'ip_address'           : None,
                         'brdc'                 : None,
+                        'sp3_ac'               : ['IGS', 'JPL'],
+                        'sp3_cs'               : ['R03', 'R02', 'OPS'],
+                        'sp3_st'               : ['FIN', 'RAP'],
                         'sp3_type_1'           : None,
                         'sp3_type_2'           : None,
                         'sp3_type_3'           : None,
@@ -84,10 +87,20 @@ class ReadOptions:
         self.repository_data_in_retry = os.path.join(self.repository, 'data_in_retry')
         self.repository_data_reject   = os.path.join(self.repository, 'data_rejected')
 
+        # build the sp3types based on the provided options
+        self.sp3types = []
+        for ac in self.options['sp3_ac'].split(','):
+            for cs in self.options['sp3_cs'].split(','):
+                for st in self.options['sp3_st'].split(','):
+                    self.sp3types.append(ac.upper() + '[0-9]' + cs.upper() + st.upper() + '_{YYYYDDD}0000_{PER}_{INT}_')
 
-        self.sp3types = [self.options[k] for k in ('sp3_type_1', 'sp3_type_2', 'sp3_type_3') if self.options[k] is not None]
-        # alternative sp3 types
-        self.sp3altrn = [self.options[k] for k in ('sp3_altr_1', 'sp3_altr_2', 'sp3_altr_3') if self.options[k] is not None]
+        # repeat the types but for repro2 orbits (short names), in case repro3 do not exist
+        for ac in self.options['sp3_ac'].split(','):
+            # get the ACs' last letter
+            last_letter = ac[-1].lower()
+            # form the old-style (ig2, igs, igr) product AC filename
+            for ll in ['2', last_letter, 'r']:
+                self.sp3types.append(ac[0:2].lower() + ll + '{WWWWD}')
 
         self.run_parallel = (self.options['parallel'] == 'True')
 

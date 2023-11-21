@@ -9,6 +9,7 @@ import datetime
 import zlib
 import re
 from json import JSONEncoder
+import os
 
 # deps
 import numpy as np
@@ -18,7 +19,7 @@ import dbConnection
 import pyDate
 import pyBunch
 import pyEvents
-from Utils import struct_unpack, file_readlines, crc32, stationID
+from Utils import struct_unpack, file_readlines, crc32, stationID, determine_frame, parse_atx_antennas
 
 
 def _default(self, obj):
@@ -236,6 +237,64 @@ class StationInfo:
 
             self.record_count = stninfo.ntuples()
             return True
+
+    def antenna_check(self, frames):
+        missing = []
+        atx = dict()
+        for frame in frames:
+            # read all the available atx files
+            atx[frame['name']] = parse_atx_antennas(frame['atx'])
+
+        # check that the antennas declared in this station information record exist in the ATX file
+        for i, record in enumerate(self.records):
+            # check existence of ANTENNA in ATX
+            # determine the reference frame using the start date
+            frame, atx_file = determine_frame(frames, record['DateStart'])
+            # check if antenna in atx, if not, produce a warning
+            if record['AntennaCode'] not in atx[frame]:
+                missing.append({'record': record, 'atx_file': os.path.basename(atx_file), 'frame': frame})
+
+        return missing
+
+    def station_info_gaps(self):
+        # this function checks any missing station info (gaps) or any data outside the first and last station info
+        gaps = []
+        if len(self.records) > 1:
+            # get gaps between stninfo records
+            for erecord, srecord in zip(self.records[0:-1], self.records[1:]):
+
+                sdate = srecord['DateStart']
+                edate = erecord['DateEnd']
+
+                # if the delta between previous and current session exceeds one second, check if any rinex falls
+                # in that gap
+                if (sdate.datetime() - edate.datetime()).total_seconds() > 1:
+                    count = self.cnn.query('SELECT count(*) as rcount FROM rinex_proc '
+                                           'WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND '
+                                           '"ObservationETime" > \'%s\' AND "ObservationSTime" < \'%s\' AND '
+                                           '"Completion" >= 0.5' % (self.NetworkCode, self.StationCode,
+                                                                    edate.strftime(),
+                                                                    sdate.strftime())).dictresult()[0]['rcount']
+                    if count != 0:
+                        gaps.append({'rinex_count': count, 'record_start': srecord, 'record_end': erecord})
+
+        # there should not be RINEX data outside the station info window
+        rs = self.cnn.query('SELECT min("ObservationSTime") as first_obs, max("ObservationSTime") as last_obs '
+                            'FROM rinex_proc WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' '
+                            'AND "Completion" >= 0.5'
+                            % (self.NetworkCode, self.StationCode))  # only check RINEX with more than 12 hours of data
+
+        rnxtbl = rs.dictresult()
+
+        if rnxtbl[0]['first_obs'] is not None and len(self.records) > 0:
+            # to avoid empty stations (no rinex data)
+            if rnxtbl[0]['first_obs'] < self.records[0]['DateStart'].datetime():
+                gaps.append({'rinex_count': 1, 'record_start': self.records[0], 'record_end': None})
+
+            if rnxtbl[0]['last_obs'] > self.records[-1]['DateEnd'].datetime():
+                gaps.append({'rinex_count': 1, 'record_start': None, 'record_end': self.records[-1]})
+
+        return gaps
 
     def parse_station_info(self, stninfo_file_list):
         """
