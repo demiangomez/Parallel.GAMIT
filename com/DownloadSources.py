@@ -452,8 +452,13 @@ def thread_queue_all_files(cnn, drange, stations, msg_outbox):
                 pass
             except SI.pyStationInfoException:
                 # no possible data here, inform and skip
-                msg_outbox.put(Msg.FILE_SKIPPED_INACTIVE_STATION(file=f))
-                continue
+                # DDG: unless the is NO record, then assume new station with no stninfo yet (try to download)
+                stn_reconds = SI.StationInfo(cnn, stn.NetworkCode, stn.StationCode, allow_empty=True)
+                if stn_reconds.records:
+                    msg_outbox.put(Msg.FILE_SKIPPED_INACTIVE_STATION(file=f))
+                    continue
+                else:
+                    pass
 
             # Query DB
             rinex = db_archive.get_rinex_record(NetworkCode     = stn.NetworkCode,
@@ -879,7 +884,8 @@ def process_file(abspath_scripts_dir : str,
                                 (src_format, abspath_script_file))
 
         # @TODO: this only works for RINEX 2, needs to work for RINEX 3 as well
-        abspath_out_files = glob.glob(abspath_tmp_dir + '/*.??[oOdD]')
+        # DDG: ADDED * at the end of /*.??[oOdD](*) to also pick up Z and gz files
+        abspath_out_files = glob.glob(abspath_tmp_dir + '/*.??[oOdD]*')
 
         # if DEBUG:
         #     tqdm.write('abspath_out_files'+repr(abspath_out_files))
@@ -942,6 +948,10 @@ class IProtocol(ABC):
         pass
 
     @abstractmethod
+    def list_dir(self, server_path : str):
+        pass
+
+    @abstractmethod
     def disconnect(self):
         pass
     
@@ -1001,6 +1011,10 @@ class ProtocolFTP(IProtocol):
             # "530 Not logged in"
             self._check_critical_error(str(e))
             return str(e)
+
+    def list_dir(self, server_path : str):
+        self.ftp.cwd(os.path.dirname(server_path))
+        return set(self.ftp.nlst())
 
     def disconnect(self):
         self.ftp.quit()
@@ -1102,9 +1116,16 @@ class ProtocolHTTP(IProtocol):
                 else:
                     return error
 
+    def list_dir(self, server_path : str):
+        r = self.session.get(self.base_url + server_path)
+        if r.status_code == 200:
+            return r.text
+        else:
+            raise Exception('HTTP returned status code %i' % r.status_code)
+
     def disconnect(self):
         self.session.close()
-    
+
 #--------
 # HTTPS
 #--------
@@ -1114,7 +1135,6 @@ class ProtocolHTTPS(ProtocolHTTP):
     def __init__(self, *args, **kargs):
         super(ProtocolHTTP, self).__init__(*args, protocol='https', **kargs)
         
-
 
 ###############################################################################
 # Download Client

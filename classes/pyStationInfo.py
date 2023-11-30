@@ -455,7 +455,7 @@ class StationInfo:
 
             self.cnn.insert_event(event)
 
-            if new_record['DateStart'] != record['DateStart']:
+            if (new_record['DateStart'].datetime() - record['DateStart'].datetime()).seconds != 0:
                 self.cnn.query('UPDATE stationinfo SET "DateStart" = \'%s\' '
                                'WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "DateStart" = \'%s\'' %
                                (new_record['DateStart'].strftime(),
@@ -611,6 +611,8 @@ class StationInfo:
                     record.HeightCode       = 'DHARP'
                     record.ReceiverVers     = Vers[:5]
                     record.ReceiverFirmware = '-----'
+                    record.ReceiverCode     = rnx['ReceiverType']
+                    record.AntennaCode      = rnx['AntennaType']
 
                     stninfo.append(str(record))
 
@@ -631,6 +633,8 @@ class StationInfo:
         record.DateEnd          = pyDate.Date(stninfo=None)
         record.HeightCode       = 'DHARP'
         record.ReceiverFirmware = '-----'
+        record.ReceiverCode = rnx['ReceiverType']
+        record.AntennaCode = rnx['AntennaType']
 
         stninfo.append(str(record))
 

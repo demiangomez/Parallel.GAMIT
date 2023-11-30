@@ -369,6 +369,8 @@ def StnInfoCheck(cnn, stnlist, Config):
                                              edate.strftime(),
                                              sdate.strftime())).dictresult()[0]['rcount']
                         if count != 0:
+                            print(erecord)
+                            print(srecord)
                             station_list_gaps += [[count, [str(erecord['DateStart']), str(erecord['DateEnd'])],
                                                    [str(srecord['DateStart']), str(srecord['DateEnd'])]]]
 
@@ -668,12 +670,11 @@ def RenameStation(cnn, NetworkCode, StationCode, DestNetworkCode, DestStationCod
                 # if we are here, we are good. Commit
                 cnn.commit_transac()
 
-                date = pyDate.Date(year=src_rinex['ObservationYear'],
-                                   doy =src_rinex['ObservationDOY'])
+                date = pyDate.Date(year=int(src_rinex['ObservationYear']),
+                                   doy =int(src_rinex['ObservationDOY']))
                 # Station info transfer
                 try:
-                    stninfo_dest = pyStationInfo.StationInfo(cnn, DestNetworkCode,
-                                                             DestStationCode, date)  # type: pyStationInfo.StationInfo
+                    _ = pyStationInfo.StationInfo(cnn, DestNetworkCode, DestStationCode, date)
                     # no error, nothing to do.
                 except pyStationInfo.pyStationInfoException:
                     # failed to get a valid station info record! we need to incorporate the station info record from

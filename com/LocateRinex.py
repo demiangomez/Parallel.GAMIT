@@ -5,6 +5,9 @@ import glob
 import os
 import re
 import shutil
+
+import pg
+
 # app
 import pyRinex
 import pyPPP
@@ -42,8 +45,11 @@ def main():
                         help="Fix RINEX using pyRinex, create a local copy (with session number+1) and exit. "
                              "Do not run PPP.")
 
-    parser.add_argument('-ins', '--insert_sql', action='store_true',
-                        help="Produce a SQL INSERT statement for this station including OTL and coordinates.")
+    parser.add_argument('-ins', '--insert_sql', nargs='?', default=False, const='???', metavar='[net]',
+                        help="Produce a SQL INSERT statement for this station including OTL and coordinates. "
+                             "If a network code [net] is specified, then produce the insert in the database. "
+                             "Network code will be inserted if it does not exist. If [net] is not specified, then "
+                             "the command will only output the insert statement with ??? as the network code.")
 
     parser.add_argument('-find', '--find', action='store_true',
                         help="Find the matching station in the db using the "
@@ -225,10 +231,49 @@ def execute_ppp(rinexinfo, args, stnm, options, sp3types, sp3altrn, brdc_path, e
                 stnm, rinexinfo.date.fyear, ppp.x, ppp.y, ppp.z, ppp.lat[0], ppp.lon[0], ppp.h[0],
                 ppp.clock_phase, ppp.clock_phase_sigma, ppp.phase_drift, ppp.phase_drift_sigma, ppp.clock_rms))
         else:
-            print('INSERT INTO stations ("NetworkCode", "StationCode", "auto_x", "auto_y", "auto_z", ' \
-                  '"Harpos_coeff_otl", lat, lon, height) VALUES ' \
-                  '(\'???\', \'%s\', %.4f, %.4f, %.4f, \'%s\', %.8f, %.8f, %.3f)' \
-                  % (stnm, ppp.x, ppp.y, ppp.z, otl_coeff, ppp.lat[0], ppp.lon[0], ppp.h[0]))
+            from geopy.geocoders import Nominatim
+            import country_converter as coco
+            # find the country code for the station
+            geolocator = Nominatim(user_agent="Parallel.GAMIT")
+            location = geolocator.reverse("%f, %f" % (ppp.lat[0], ppp.lon[0]))
+
+            if location and 'country_code' in location.raw['address'].keys():
+                ISO3 = coco.convert(names=location.raw['address']['country_code'], to='ISO3')
+            else:
+                ISO3 = None
+
+            if args.insert_sql == '???':
+                print('INSERT INTO stations ("NetworkCode", "StationCode", "auto_x", "auto_y", "auto_z", ' \
+                      '"Harpos_coeff_otl", lat, lon, height, country_code) VALUES ' \
+                      '(\'???\', \'%s\', %.4f, %.4f, %.4f, \'%s\', %.8f, %.8f, %.3f, \'%s\')' \
+                      % (stnm, ppp.x, ppp.y, ppp.z, otl_coeff, ppp.lat[0], ppp.lon[0], ppp.h[0], ISO3))
+            else:
+                # try to do the insert
+                cnn = dbConnection.Cnn('gnss_data.cfg')
+                NetworkCode = args.insert_sql.lower()
+                try:
+                    cnn.get('networks', {'NetworkCode': NetworkCode})
+                except pg.DatabaseError:
+                    # net does not exist, add it
+                    cnn.insert('networks', NetworkCode=NetworkCode)
+                # now insert the station
+                try:
+                    cnn.insert('stations',
+                               NetworkCode=NetworkCode,
+                               StationCode=stnm,
+                               auto_x=ppp.x,
+                               auto_y=ppp.y,
+                               auto_z=ppp.z,
+                               Harpos_coeff_otl=otl_coeff,
+                               lat=ppp.lat[0],
+                               lon=ppp.lon[0],
+                               height=ppp.h[0],
+                               country_code=ISO3)
+
+                    print('Station %s.%s added to the database (country code: %s)' % (NetworkCode, stnm, ISO3))
+                except dbConnection.dbErrInsert:
+                    print('Station %s.%s (country code: %s) already exists in database' % (NetworkCode, stnm, ISO3))
+                    pass
 
         if args.find:
             cnn = dbConnection.Cnn('gnss_data.cfg')

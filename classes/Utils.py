@@ -34,9 +34,11 @@ def get_field_or_attr(obj, f):
     except:
         return getattr(obj, f)
 
+
 def stationID(s):
     return "%s.%s" % (get_field_or_attr(s, 'NetworkCode'),
                       get_field_or_attr(s, 'StationCode'))
+
 
 def parse_atx_antennas(atx_file):
 
@@ -80,6 +82,26 @@ def required_length(nmin,nmax):
             setattr(args, self.dest, values)
 
     return RequiredLength
+
+
+def station_list_help():
+
+    desc = ("List of networks/stations to process given in [net].[stnm] format or just [stnm] "
+            "(separated by spaces; if [stnm] is not unique in the database, all stations with that "
+            "name will be processed). Use keyword 'all' to process all stations in the database. "
+            "If [net].all is given, all stations from network [net] will be processed. Three letter ISO 3166 "
+            "international standard codes can be provided (always in upper case) to select all stations within a "
+            "country. If a station name is given using a * in from (e.g. *igs.pwro or *pwro) then the station will be "
+            "removed from the list to be processed if net.all or ISO country code was used (in the example, "
+            "igs.all or ARG). Wildcard are accepted using the regex postgres convention. Use [] to provide character "
+            "ranges (e.g. ars.at1[3-5] or ars.[a-b]x01). Char % matches any string (e.g. ars.at%). Char | represents "
+            "the OR operator that can be used to select one string or another (e.g. ars.at1[1|2] to choose at11 and "
+            "at12). To specify a wildcard using a single character, use _ (equivalent to ? in POSIX regular "
+            "expressions). Alternatively, a file with the station list can be provided (using all the same "
+            "conventions described above). When using a file, * can be replaced with - for clarity "
+            "in removing stations from .all lists")
+
+    return desc[0]
 
 
 def parse_crinex_rinex_filename(filename):
@@ -346,8 +368,6 @@ def rotlg2ct(lat, lon, n=1):
     return R
 
 
-
-
 def ecef2lla(ecefArr):
     # convert ECEF coordinates to LLA
     # test data : test_coord = [2297292.91, 1016894.94, -5843939.62]
@@ -459,57 +479,74 @@ def get_resource_delimiter():
 
 
 def process_stnlist(cnn, stnlist_in, print_summary=True, summary_title=None):
-
+    """
+    Now the station list parser handles postgres regular expressions in the station list
+    all behaves as before, but also now support * and - to remove a station from the list (rather than only -)
+    this is to support removal from the command line
+    """
     if len(stnlist_in) == 1 and os.path.isfile(stnlist_in[0]):
         print(' >> Station list read from file: ' + stnlist_in[0])
-        stnlist_in = [line.strip() for line in file_readlines(stnlist_in[0])]
+        # DDG: if len(line.strip()) > 0 avoids any empty lines
+        stnlist_in = [line.strip() for line in file_readlines(stnlist_in[0]) if len(line.strip()) > 0]
 
     stnlist = []
+    # accepted wildcards for station names
+    wildc = '[]%_|'
 
-    if len(stnlist_in) == 1 and stnlist_in[0] == 'all':
-        # all stations
-        rs = cnn.query('SELECT * FROM stations WHERE "NetworkCode" NOT LIKE \'?%%\' '
-                       'ORDER BY "NetworkCode", "StationCode"')
+    for stn in stnlist_in:
+        rs = None
+        if stn == 'all':
+            # keyword all for all stations in list
+            rs = cnn.query('SELECT * FROM stations WHERE "NetworkCode" NOT LIKE \'?%%\' '
+                           'ORDER BY "NetworkCode", "StationCode"')
 
-        stnlist += [{'NetworkCode' : rstn['NetworkCode'],
-                     'StationCode' : rstn['StationCode'],
-                     'marker'      : rstn['marker'] if rstn['marker'] else 0,
-                     'country_code': rstn['country_code'] if rstn['country_code'] else ''}
-                    for rstn in rs.dictresult() ]
-    else:
-        for stn in stnlist_in:
-            rs = None
-            if '.' in stn and '-' not in stn:
-                # a net.stnm given
-                if stn.split('.')[1] == 'all':
-                    # all stations from a network
-                    rs = cnn.query('SELECT * FROM stations WHERE "NetworkCode" = \'%s\' AND '
-                                   '"NetworkCode" NOT LIKE \'?%%\' ORDER BY "NetworkCode", "StationCode"'
-                                   % (stn.split('.')[0]))
+        elif stn.isupper():
+            # country code
+            rs = cnn.query('SELECT * FROM stations WHERE "NetworkCode" NOT LIKE \'?%%\' AND country_code = \'%s\' '
+                           'ORDER BY "NetworkCode", "StationCode"' % stn)
 
-                else:
-                    rs = cnn.query(
-                        'SELECT * FROM stations WHERE "NetworkCode" NOT LIKE \'?%%\' AND "NetworkCode" = \'%s\' '
-                        'AND "StationCode" = \'%s\' ORDER BY "NetworkCode", "StationCode"'
-                        % (stn.split('.')[0], stn.split('.')[1]))
+        elif '.' in stn and stn[0] not in ('-', '*'):
+            net, stnm = stn.split('.')
+            # a net.stnm given
+            if stnm == 'all':
+                # all stations from a network
+                rs = cnn.query('SELECT * FROM stations WHERE "NetworkCode" = \'%s\' AND '
+                               '"NetworkCode" NOT LIKE \'?%%\' ORDER BY "NetworkCode", "StationCode"' % net)
+            elif any(c in set(wildc) for c in stnm):
+                # DDG: wildcard
+                rs = cnn.query('SELECT * FROM stations WHERE "NetworkCode" = \'%s\' AND "StationCode" '
+                               ' SIMILAR TO \'%s\' AND '
+                               '"NetworkCode" NOT LIKE \'?%%\' ORDER BY "NetworkCode", "StationCode"'
+                               % (net, stnm))
+            else:
+                # just a net.stnm
+                rs = cnn.query(
+                    'SELECT * FROM stations WHERE "NetworkCode" NOT LIKE \'?%%\' AND "NetworkCode" = \'%s\' '
+                    'AND "StationCode" = \'%s\' ORDER BY "NetworkCode", "StationCode"' % (net, stnm))
 
-            elif '.' not in stn and '-' not in stn:
+        elif '.' not in stn and stn[0] not in ('-', '*'):
+            # just a station name (check for wildcards)
+            if any(c in set(wildc) for c in stn):
+                # wildcard
+                rs = cnn.query(
+                    'SELECT * FROM stations WHERE "NetworkCode" NOT LIKE \'?%%\' AND '
+                    '"StationCode" SIMILAR TO \'%s\' ORDER BY "NetworkCode", "StationCode"' % stn)
+            else:
                 # just a station name
                 rs = cnn.query(
                     'SELECT * FROM stations WHERE "NetworkCode" NOT LIKE \'?%%\' AND '
                     '"StationCode" = \'%s\' ORDER BY "NetworkCode", "StationCode"' % stn)
 
-            if rs is not None:
-                for rstn in rs.dictresult():
-                    if {'NetworkCode': rstn['NetworkCode'],
-                        'StationCode': rstn['StationCode']} not in stnlist:
-                        stnlist.append({'NetworkCode' : rstn['NetworkCode'],
-                                        'StationCode' : rstn['StationCode'],
-                                        'marker'      : rstn['marker'] if rstn['marker'] else 0,
-                                        'country_code': rstn['country_code'] if rstn['country_code'] else ''})
+        if rs is not None:
+            for rstn in rs.dictresult():
+                if {'NetworkCode': rstn['NetworkCode'], 'StationCode': rstn['StationCode']} not in stnlist:
+                    stnlist.append({'NetworkCode' : rstn['NetworkCode'],
+                                    'StationCode' : rstn['StationCode'],
+                                    'marker'      : rstn['marker'] if rstn['marker'] else 0,
+                                    'country_code': rstn['country_code'] if rstn['country_code'] else ''})
 
-    # deal with station removals (-)
-    for stn in [stn.replace('-', '').lower() for stn in stnlist_in if '-' in stn]:
+    # deal with station removals (- or *)
+    for stn in [stn[1:] for stn in stnlist_in if stn[0] in ('-', '*')]:
         # if netcode not given, remove everybody with that station code
         if '.' in stn:
             stnlist = [stnl for stnl in stnlist if stationID(stnl) != stn]
@@ -591,7 +628,6 @@ def parseIntSet(nputstr=""):
     return selection
 
 
-
 def get_platform_id():
     # ask the os for platform information
     uname = os.uname()
@@ -599,7 +635,6 @@ def get_platform_id():
     # combine to form the platform identification
     return '.'.join((uname[0], uname[2], uname[4]))
     
-
 
 # @todo this function is not used, remove it?
 def get_processor_count():

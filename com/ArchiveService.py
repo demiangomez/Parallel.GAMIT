@@ -632,7 +632,8 @@ def main():
                         help="Delete any network starting with '?' from the stations table and purge the contents of "
                              "the locks table, deleting the associated files from data_in.")
 
-    parser.add_argument('-np', '--noparallel', action='store_true', help="Execute command without parallelization.")
+    parser.add_argument('-np', '--noparallel', action='store_true',
+                        help="Execute command without parallelization.")
 
     args = parser.parse_args()
 

@@ -7,6 +7,7 @@ Author: Demian D. Gomez
 
 import argparse
 import curses
+import time
 from curses import panel
 import curses.ascii
 from curses.textpad import Textbox, rectangle
@@ -19,6 +20,7 @@ import pyOptions
 import dbConnection
 import pyStationInfo
 import pyDate
+from Utils import process_date
 
 
 cnn       = dbConnection.Cnn('gnss_data.cfg')
@@ -159,7 +161,7 @@ class Menu(object):
             elif key == curses.KEY_DOWN:
                 self.navigate(1)
 
-            elif key == 27: # escape (cancel)
+            elif key == 27:  # escape (cancel)
                 break
             else:
                 if self.type == 'edit':
@@ -226,7 +228,12 @@ class Menu(object):
                     edit_field = str(pyDate.Date(stninfo=None))
                 else:
                     # if success, then reformat the datetime
-                    edit_field = str(pyDate.Date(stninfo=edit_field))
+                    if ' ' in edit_field:
+                        # if it has a space, probably station information format
+                        edit_field = str(pyDate.Date(stninfo=edit_field))
+                    else:
+                        # if it doesn't have a space, then try to read the common formats
+                        edit_field = str(process_date([edit_field])[0])
 
             except Exception:
                 self.ShowError('Invalid station information datetime format!')
@@ -294,7 +301,7 @@ class Menu(object):
 def delete_record(menu):
     global StnInfo
 
-    if not 'New station information' in menu.title:
+    if 'New station information' not in menu.title:
         StnInfo.DeleteStationInfo(StnInfo.records[menu.record_index])
 
 
@@ -330,7 +337,6 @@ def save_changes(menu):
             else:
                 # update a station info record
                 StnInfo.UpdateStationInfo(StnInfo.records[menu.record_index], record)
-
         except Exception as e:
             menu.ShowError(traceback.format_exc())
             return False

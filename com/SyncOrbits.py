@@ -48,7 +48,7 @@ REPRO_FOLDER = '/pub/gps/products/$gpsweek/repro3'
 
 
 def main():
-    parser = argparse.ArgumentParser( description = 'Archive operations Main Program')
+    parser = argparse.ArgumentParser( description = 'Synchronize orbit archive')
 
     parser.add_argument('-date', '--date_range', nargs='+', action=required_length(1, 2), metavar='date_start|date_end',
                         help="Date range to check given as [date_start] or [date_start] and [date_end]. "
