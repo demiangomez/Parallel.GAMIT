@@ -727,8 +727,8 @@ class Jump(EtmFunction):
         if dtype not in (CO_SEISMIC_JUMP,
                          CO_SEISMIC_DECAY,
                          CO_SEISMIC_JUMP_DECAY):
-            logger.info('Mechanical Jump -> Adding jump on %s type: %s; Action: %s; Fit: %s; Col index: %s'
-                        % (self.date.yyyyddd(), type_dict[dtype], action, str(self.fit), str(self.column_index)))
+            logger.info('Mec jump -> Adding jump on %s type: %s; Action: %s; Fit: %s'
+                        % (self.date.yyyyddd(), type_dict[dtype], action, 'T' if self.fit else 'F'))
         Jump.rehash(self)
 
     def rehash(self):
@@ -903,8 +903,8 @@ class CoSeisJump(Jump):
         self.nr = relaxation.shape[0]
         self.p.relaxation = relaxation
 
-        logger.info('Geophysical Jump -> Adding jump on %s type: %s; Mag: %.1f; Action: %s; Fit: %s; Col index: %s'
-                    % (self.date.yyyyddd(), type_dict[dtype], magnitude, action, str(self.fit), str(self.column_index)))
+        logger.info('Geo jump -> Adding jump on %s type: %s; Mag: %.1f; Action: %s; Fit: %s'
+                    % (self.date.yyyyddd(), type_dict[dtype], magnitude, action, 'T' if self.fit else 'F'))
 
         # DDG: New feature -> include a postseismic relaxation to remove from the data before performing the fit
         # if post-seismic component is passed, then subtract from the data (this step is done in __init__.
@@ -1173,21 +1173,29 @@ class GenericJumps:
         # get station information
         self.stninfo = pyStationInfo.StationInfo(cnn, NetworkCode, StationCode)
 
+        # DDG new behavior: do not add a jump if the equipment is the same (only if antenna or equipment are different)
+        prev_red = self.stninfo.records[0]
         for stninfo in self.stninfo.records[1:]:
             date = stninfo['DateStart']
 
             table = [j['action'] for j in jp if j['Year'] == date.year and j['DOY'] == date.doy]
+            # there is an action, or action is automatic
+            action = table[0] if table else 'A'
 
-            # add to list only if:
-            # 1) add_meta = True AND there is no '-' OR
-            # 2) add_meta = False AND there is a '+'
+            if (prev_red['AntennaCode'] != stninfo['AntennaCode'] or prev_red['RadomeCode'] != stninfo['RadomeCode']
+                or action != 'A'):
 
-            self.table.append(Jump(NetworkCode, StationCode, soln, t, date,
-                                   'Ant-Rec: %s-%s' % (stninfo['AntennaCode'], stninfo['ReceiverCode']),
-                                   dtype=ANTENNA_CHANGE,
-                                   action=table[0] if table else 'A',
-                                   fit=('+' in table or (self.add_metadata_jumps and '-' not in table))
-                                   ))
+                # add to list only if:
+                # 1) add_meta = True AND there is no '-' OR
+                # 2) add_meta = False AND there is a '+'
+
+                self.table.append(Jump(NetworkCode, StationCode, soln, t, date,
+                                       'Ant-Rec: %s-%s' % (stninfo['AntennaCode'], stninfo['ReceiverCode']),
+                                       dtype=ANTENNA_CHANGE,
+                                       action=action,
+                                       fit=('+' in table or (self.add_metadata_jumps and '-' not in table))
+                                       ))
+            prev_red = stninfo
 
         # frame changes if ppp
         if self.solution_type == 'ppp':
@@ -1421,21 +1429,26 @@ class Polynomial(EtmFunction):
             elif self.terms == 2:
                 self.format_str = LABEL('position') + ' (%.3f' % t_ref + \
                                   ') X: {:.3f} Y: {:.3f} Z: {:.3f} [m]\n' \
-                                  + LABEL('velocity') + ' N: {:.2f} E: {:.2f} U: {:.2f} [mm/yr]'
+                                  + LABEL('velocity') + (' N: {:.2f} $\pm$ {:.2f} E: {:.2f} $\pm$ {:.2f} '
+                                                         'U: {:.2f} $\pm$ {:.2f} [mm/yr]')
                 self.p.metadata = '[[n:pos, n:vel],[e:pos, e:vel],[u:pos, u:vel]]'
 
             elif self.terms == 3:
                 self.format_str = LABEL('position') + ' (%.3f' % t_ref + \
                                   ') X: {:.3f} Y: {:.3f} Z: {:.3f} [m]\n' \
-                                  + LABEL('velocity') + ' N: {:.3f} E: {:.3f} U: {:.3f} [mm/yr]\n' \
-                                  + LABEL('acceleration') + ' N: {:.2f} E: {:.2f} U: {:.2f} [mm/yr**2]'
+                                  + LABEL('velocity') + (' N: {:.3f} $\pm$ {:.2f} E: {:.3f} $\pm$ {:.2f} '
+                                                         'U: {:.3f} $\pm$ {:.2f} [mm/yr]\n') \
+                                  + LABEL('acceleration') + (' N: {:.2f} $\pm$ {:.2f} E: {:.2f} $\pm$ {:.2f} '
+                                                             'U: {:.2f} $\pm$ {:.2f} [mm/yr**2]')
                 self.p.metadata = '[[n:pos, n:vel, n:acc],[e:pos, e:vel, e:acc],[u:pos, u:vel, u:acc]]'
 
             elif self.terms > 3:
                 self.format_str = LABEL('position') + ' (%.3f' % t_ref + \
                                   ') X: {:.3f} Y: {:.3f} Z: {:.3f} [m]\n' \
-                                  + LABEL('velocity') + ' N: {:.3f} E: {:.3f} U: {:.3f} [mm/yr]\n' \
-                                  + LABEL('acceleration') + ' N: {:.2f} E: {:.2f} U: {:.2f} [mm/yr**2] + ' \
+                                  + LABEL('velocity') + (' N: {:.3f} $\pm$ {:.2f} E: {:.3f} $\pm$ {:.2f} '
+                                                         'U: {:.3f} $\pm$ {:.2f} [mm/yr]\n') \
+                                  + LABEL('acceleration') + (' N: {:.2f} $\pm$ {:.2f} E: {:.2f} $\pm$ {:.2f} '
+                                                             'U: {:.2f} $\pm$ {:.2f} [mm/yr**2] + ') \
                                   + '%i ' % (self.terms - 3) + LABEL('other')
                 self.p.metadata = '[[n:pos, n:vel, n:acc, n:tx...],' \
                                   '[e:pos, e:vel, e:acc, e:tx...],' \
@@ -1472,7 +1485,11 @@ class Polynomial(EtmFunction):
                 e = self.p.params[1, p]
                 u = self.p.params[2, p]
 
-                params = np.append(params, (n * 1000, e * 1000, u * 1000))
+                sn = self.p.sigmas[0, p]
+                se = self.p.sigmas[1, p]
+                su = self.p.sigmas[2, p]
+
+                params = np.append(params, (n * 1000, sn * 1000, e * 1000, se * 1000, u * 1000, su * 1000))
 
         return self.format_str.format(*params.tolist())
 
@@ -1612,6 +1629,7 @@ class ETM:
         stn_id = stationID(self)
 
         logger.info('Creating ETM object for %s' % stn_id)
+        logger.info('First obs %.3f last obs %.3f nobs %i' % (np.min(soln.t), np.max(soln.t), soln.t.size))
 
         if postseismic or interseismic:
             # reading data from the database and invoking postseismic or interseismic parameters can cause problems
@@ -1856,10 +1874,86 @@ class ETM:
                             self.As = self.A(soln.ts)
                         j += 1
 
+            # DDG: new method to compute the minimum-entropy sigma for constant velocity
+            entropy_sigmas = self.entropy_sigma()
+            # do not replace values if sigmas come back with 0
+            if np.all(entropy_sigmas > 0):
+                self.Linear.p.sigmas[:, 1] = entropy_sigmas
             # load the covariances using the correlations
             self.process_covariance()
         else:
             logger.info('ETM -> Empty design matrix')
+
+    def get_data_segments(self, tolerance):
+        # find the indices of start of the data gaps
+        gaps = np.where(np.diff(self.soln.mjd) > tolerance)[0]
+
+        segments = []
+        previous = 0
+        # loop though the gaps and produce an array of the data segments
+        # if no gaps, this loop does not do anything and the results is a segment from 0 to -1 (end)
+        for gap in gaps:
+            segments.append([previous, gap])
+            previous = gap + 1
+
+        # the last segment of data goes from previous to the end of the array
+        segments.append([previous, self.soln.mjd.size - 1])
+
+        return segments
+
+    def entropy_sigma(self):
+        # DDG: new method to compute the minimum-entropy sigma
+        # see Saleh, J. (2024). Minimum-entropy velocity estimation from GPS position time series.
+
+        # first get the time series gaps using
+        segments = self.get_data_segments(60)
+        # total duration of the time series
+        T = np.max(self.soln.t) - np.min(self.soln.t)
+
+        print(segments)
+        sv = np.zeros((3, ))
+        # loop three times: one for N-E-U
+        for i, r in enumerate(self.R):
+            # assume residuals already have minimum-entropy
+            # element in array that are not outliers (M = 1)
+            H = np.zeros(len(segments))
+            P = np.zeros(len(segments))
+            for j, s in enumerate(segments):
+                # select the segment of data
+                dT = self.soln.t[s[1]] - self.soln.t[s[0]]
+                # do not process this segment if less than 50 points
+                if s[1] - s[0] < 50:
+                    continue
+                # loop through each segment and get the outliers out
+                f = self.F[i][s[0]:s[1]]
+                x = r[s[0]:s[1]][f]
+                # elements being considered
+                N = np.sum(f)
+                # to build eq 9 from Saleh, J. (2024)
+                i_p1 = np.arange(N) + 1
+                i_m1 = np.arange(N) - 1
+                i_p1[i_p1 > N - 1] = N - 1
+                i_m1[i_m1 < 0] = 0
+
+                # sort the residual vector
+                xr = np.sort(x)
+                # compute the entropy
+                H[j] = 1 / N * np.sum(np.log(N / 2 * (xr[i_p1] - xr[i_m1]))) / np.log(2)
+                P[j] = dT/T
+
+            if len(segments) > 1:
+                H = np.sum(H * P)
+
+            if H != 0:
+                sp = np.power(2, H - 2.0471)
+                sv[i] = sp / T
+            else:
+                sv[i] = 0
+
+            print(' entropy 3 sigma: %f mm/yr entropy: %f' % (float(sv[i]) * 1000 * 3, H))
+            print(' regular 3 sigma: %f mm/yr' % (self.Linear.p.sigmas[i][1] * 1000 * 3))
+
+        return sv
 
     def process_covariance(self):
 

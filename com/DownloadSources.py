@@ -10,7 +10,6 @@ to the directory specified in:
 Runs scripts stored in:
    [Config.format_scripts_path]
 """
-
 # py
 import os
 import argparse
@@ -57,7 +56,7 @@ from Utils import (required_length,
 
 
 SERVER_REFRESH_INTERVAL      = 2   # in seconds
-SERVER_CONNECTION_TIMEOUT    = 10  # in seconds
+SERVER_CONNECTION_TIMEOUT    = 20  # in seconds
 SERVER_RECONNECTION_INTERVAL = 3   # in seconds
 SERVER_MAX_RECONNECTIONS     = 8
 
@@ -241,7 +240,7 @@ INSERT INTO sources_formats (format) VALUES ('DEFAULT_FORMAT');
 """
 CREATE TABLE sources_servers (
     server_id  INT     NOT NULL GENERATED ALWAYS AS IDENTITY,
-    protocol   VARCHAR NOT NULL CHECK (protocol IN ('ftp', 'http', 'sftp', 'https', 'FTP', 'HTTP', 'SFTP', 'HTTPS')),
+    protocol   VARCHAR NOT NULL CHECK (protocol IN ('ftp', 'http', 'sftp', 'https', 'ftpa', 'FTP', 'HTTP', 'SFTP', 'HTTPS', 'FTPA')),
     fqdn       VARCHAR NOT NULL,
 
     username   VARCHAR,
@@ -271,6 +270,7 @@ CREATE TABLE sources_stations (
 );
 """
 )
+
 
 def db_migrate_if_needed(cnn):
     if cnn.query("SELECT table_name FROM information_schema.tables "
@@ -311,8 +311,10 @@ def db_migrate_if_needed(cnn):
         raise Exception("Can't migrate to new schema")
     return True
 
+
 def source_host_desc(src : Source):
     return "%s://%s%s" % (src.protocol, src.username + "@" if src.username else '', src.fqdn)
+
 
 def db_get_sources_for_station(cnn, NetworkCode, StationCode) -> List[Source]:
     return [Source(**r) for r in
@@ -342,9 +344,11 @@ def db_get_sources_for_station(cnn, NetworkCode, StationCode) -> List[Source]:
 # FileDescriptor limits
 MAX_DATE_MJD = 2 ** 32
 
+
 class FilesBag:
     class Dates:
         CHUNK_SIZE = 4096
+
         def __init__(self):
             self.chunks = []
             self.last_chunk_len = 0
@@ -474,6 +478,7 @@ def thread_queue_all_files(cnn, drange, stations, msg_outbox):
 # Process Manager
 ###############################################################################
 
+
 class JobsManager:
     """ Submits PROCESS jobs to cluster while minimizing dispy queue usage """
 
@@ -526,7 +531,6 @@ class JobsManager:
             
             if DEBUG:
                 tqdm.write('%s Submitted for processing format=%r' % (f.desc, f.source.format))
-            
 
     def _submit_pending(self):
         with self.jobs_lock:
@@ -546,9 +550,10 @@ class JobsManager:
 ###############################################################################
 # Download coordinator
 ###############################################################################
-
 # The files are downloaded by a single running node (this), to keep connections to
 # servers persistent, but are processed by the entire cluster.
+
+
 def download_all_stations_data(cnn                    : dbConnection.Cnn,
                                jobs_manager           : JobsManager,
                                abspath_repository_dir : str,
@@ -573,7 +578,6 @@ def download_all_stations_data(cnn                    : dbConnection.Cnn,
 
     files_pending_qty = 0 
 
-    
     def on_download_result(server_id : int, error : Optional[str],
                            elapsed_time = 0, size = 0, timeout = None):
         try:
@@ -682,9 +686,8 @@ def download_all_stations_data(cnn                    : dbConnection.Cnn,
     def queue_download_next_source(f : FileDescriptor):
         queue_download(f.stn_idx, f.date_mjd, f.src_idx + 1)
 
-
     ##
-    ## 1- Query DB for stations + source sinfo
+    #  1- Query DB for stations + source sinfo
     ##
     
     with tqdm(desc=' >> Querying Stations',
@@ -736,16 +739,16 @@ def download_all_stations_data(cnn                    : dbConnection.Cnn,
     jobs_manager.stations          = stations
     jobs_manager.on_process_result = on_process_result
     
-    ##
-    ## 2- Start thread to Query DB for files 
-    ##
+    #
+    # 2- Start thread to Query DB for files
+    #
     # stations_stopped = set()
     _thread.start_new_thread(thread_queue_all_files, (cnn, drange, stations, msg_inbox))
 
 
-    ##
-    ## 3- Coordinate downloads & process
-    ##
+    #
+    # 3- Coordinate downloads & process
+    #
     pbar = tqdm(desc=' >> Download',
                 dynamic_ncols = True,              
                 total         = files_pending_qty,
@@ -823,9 +826,9 @@ def download_all_stations_data(cnn                    : dbConnection.Cnn,
                     file_finished(f, 'PROCESS OK')
                             
 
-    ##
-    ## 4- Cleanup
-    ##
+    #
+    # 4- Cleanup
+    #
 
     tqdm.write('-'*70)
     tqdm.write('Finished all Downloads and Processing')
@@ -917,10 +920,10 @@ def process_file(abspath_scripts_dir : str,
         file_try_remove(abspath_down_file)
 
 
-
 ###############################################################################
 # Download Protocols 
 ###############################################################################
+
 
 class IProtocol(ABC):
     def __init__(self, protocol : str,
@@ -955,15 +958,16 @@ class IProtocol(ABC):
     def disconnect(self):
         pass
     
-#-------
+# -------
 # FTP
-#-------
+# -------
+
 
 class ProtocolFTP(IProtocol):
     DEFAULT_PORT = 21
         
     def __init__(self, *args, **kargs):
-        super(ProtocolFTP, self).__init__('ftp', *args,**kargs)
+        super(ProtocolFTP, self).__init__('ftp', *args, **kargs)
         # timeout here is for all socket operations, not only connection
         self.ftp = ftplib.FTP(timeout = SERVER_CONNECTION_TIMEOUT)
         
@@ -1018,10 +1022,31 @@ class ProtocolFTP(IProtocol):
 
     def disconnect(self):
         self.ftp.quit()
-            
-#-------
+
+# ------------------
+# FTP IN ACTIVE MODE
+# ------------------
+
+
+class ProtocolFTPA(ProtocolFTP):
+    DEFAULT_PORT = 21
+
+    def __init__(self, *args, **kargs):
+        super(ProtocolFTPA, self).__init__(*args, **kargs)
+        # timeout here is for all socket operations, not only connection
+        self.ftp = ftplib.FTP(timeout=SERVER_CONNECTION_TIMEOUT)
+
+    def connect(self):
+        # overrides the set_pasv = true with false for active connection
+        self.ftp.connect(self.fqdn, self.port)
+        if self.username and self.password:
+            self.ftp.login(self.username, self.password)
+        self.ftp.set_pasv(False)
+
+# -------
 # SFTP
-#-------
+# -------
+
 
 class ProtocolSFTP(IProtocol):
     DEFAULT_PORT = 22
@@ -1058,15 +1083,19 @@ class ProtocolSFTP(IProtocol):
             else:
                 raise 
 
+    def list_dir(self, server_path : str):
+        return set(self.sftp.listdir(server_path))
+
     def disconnect(self):
         if self.sftp:
             self.sftp.close()
         if self.transport:
             self.transport.close()
 
-#-------
+# -------
 # HTTP
-#-------
+# -------
+
 
 class ProtocolHTTP(IProtocol):
     DEFAULT_PORT = 80
@@ -1085,15 +1114,20 @@ class ProtocolHTTP(IProtocol):
         class CustomSession(requests.Session):
             def rebuild_auth(self, prepared_request, response):
                 return
-
+        # activate the following lines to output complete header information
+        # from http.client import HTTPConnection
+        # import logging
+        # HTTPConnection.debuglevel = 1
+        # logging.basicConfig(level=logging.DEBUG)
         # The requests will use an HTTP persistent connection
         self.session = CustomSession()
+
         if self.username and self.password:
             # HTTP Basic Authorization
             self.session.auth = (self.username, self.password)
 
         self.base_url = protocol+'://%s:%s' % (self.fqdn, self.port)
-            
+
     def connect(self):
         pass
     
@@ -1102,9 +1136,18 @@ class ProtocolHTTP(IProtocol):
         pass
 
     def download(self, server_path : str, dest_path : str):
+
+        if 'gage' in self.base_url:
+            result = subprocess.run(['es', 'sso', 'access', '--token'], stdout=subprocess.PIPE)
+            gage_token = {'Authorization': 'Bearer ' + result.stdout.decode('utf-8').strip()}
+            # print(result.stdout.decode('utf-8'))
+        else:
+            gage_token = None
+
         with self.session.get(self.base_url + server_path,
                               stream=True,
-                              timeout=SERVER_CONNECTION_TIMEOUT) as r:
+                              timeout=SERVER_CONNECTION_TIMEOUT,
+                              headers=gage_token) as r:
             if 200 <= r.status_code <= 299:
                 with open(dest_path, 'wb') as f:
                     shutil.copyfileobj(r.raw, f)
@@ -1126,14 +1169,16 @@ class ProtocolHTTP(IProtocol):
     def disconnect(self):
         self.session.close()
 
-#--------
+# --------
 # HTTPS
-#--------
+# --------
+
 
 class ProtocolHTTPS(ProtocolHTTP):
     DEFAULT_PORT = 443
+
     def __init__(self, *args, **kargs):
-        super(ProtocolHTTP, self).__init__(*args, protocol='https', **kargs)
+        super(ProtocolHTTPS, self).__init__(*args, protocol='https', **kargs)
         
 
 ###############################################################################
@@ -1165,6 +1210,7 @@ class Client:
         self.next_download = None
         
         protoClass = { 'FTP'  :  ProtocolFTP,
+                       'FTPA' :  ProtocolFTPA,
                        'SFTP' :  ProtocolSFTP,
                        'HTTP' :  ProtocolHTTP,
                        'HTTPS':  ProtocolHTTPS,
@@ -1198,7 +1244,6 @@ class Client:
                 self.state = 'FINISH_PENDING'
                 self.cond.notify()
 
-            
     def _client_thread(self):
         prefix       = '[SERVER-%03d]' % self.server_id
         conn_retries = 0
@@ -1349,7 +1394,6 @@ def main():
 
     parser.add_argument('-np', '--noparallel', action='store_true', help="Execute command without parallelization.")
 
-
     try:
         args = parser.parse_args()
 
@@ -1401,7 +1445,7 @@ def main():
         if db_migrate_if_needed(cnn):
             tqdm.write(" ** DB MIGRATED TO NEW VERSION ** ")
         
-        ## Cluster Job Server
+        # Cluster Job Server
 
         job_server = pyJobServer.JobServer(Config, 
                                            run_parallel = not args.noparallel)
@@ -1434,6 +1478,7 @@ def main():
         parser.error(str(e))
 
     tqdm.write(" ** Finished")
+
 
 if __name__ == '__main__':
     main()

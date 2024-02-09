@@ -9,9 +9,11 @@ import pyRunWithRetry
 import glob
 import pyRinex
 import os
+import Utils
+import re
 
 
-def convert_trimble(path, stnm, out_path, plain_path=False):
+def convert_trimble(path, stnm, out_path, plain_path=False, antenna=None):
     # create a dictionary to save how many files there are for each date
     date_dict = {}
 
@@ -28,6 +30,25 @@ def convert_trimble(path, stnm, out_path, plain_path=False):
         flist = glob.iglob('**/*.T0*', root_dir=path, recursive=True)
     else:
         flist = [path]
+
+    # if antenna is not none, then parse ATX and find provided antenna to replace in RINEX
+    if antenna is not None:
+        atx = Utils.parse_atx_antennas(antenna[0])
+        # figure out if we have wildcards in the antenna name
+        ant = re.findall(antenna[1], '\n'.join(atx))
+        if not ant or len(ant) > 1:
+            raise Exception('Too many matches found. Use a more specific antenna name regex:\n' + '\n'.join(ant))
+        else:
+            ant = ant[0]
+            if len(antenna) > 2:
+                ant_sn = antenna[2]
+            else:
+                ant_sn = None
+            print(' -- Replacing ANT # / TYPE record with provided information:' +
+                  (' ' + ant_sn if ant_sn is not None else '') + ' %-16s%4s' % (ant, 'NONE'))
+    else:
+        ant = None
+        ant_sn = None
 
     # do a for loop and runpk00 all the files in the path folder
     for ff in flist:
@@ -68,6 +89,16 @@ def convert_trimble(path, stnm, out_path, plain_path=False):
             if not os.path.isdir(dir_w_year):
                 os.makedirs(dir_w_year)
 
+            if ant:
+                header = rnx.replace_record(rnx.header, 'ANT # / TYPE',
+                                            [ant_sn if ant_sn is not None else rnx.antNo,
+                                             '%-16s%4s' % (ant, 'NONE')])
+                header = rnx.insert_comment(header, 'TrimbleT0x REPLACED ANT %s' % rnx.antType)
+                rnx.write_rinex(header)
+
+            # make sure the header reflects the curated information
+            rnx.normalize_header()
+            # write the file
             dest_file = rnx.compress_local_copyto(dir_w_year)
 
             if rnx.date.yyyyddd() + f'_{rnx.interval:>02.0f}' in date_dict.keys():

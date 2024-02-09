@@ -194,7 +194,6 @@ class RinexRecord(object):
         r['Completion']       = self.completion
 
 
-
 class ReadRinex(RinexRecord):
     def read_fields(self, line, record, format_tuple):
         # create the parser object

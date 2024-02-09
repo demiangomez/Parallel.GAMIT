@@ -11,12 +11,14 @@ events (M >= 6)
 """
 import re
 import calendar
+import xmltodict
 from collections import OrderedDict
 from datetime import datetime
+from tqdm import tqdm
 
 # deps
 import libcomcat.search
-
+import libcomcat.exceptions as libcome
 
 TIMEFMT2 = '%Y-%m-%d %H:%M:%S.%f'
 
@@ -47,7 +49,9 @@ TIMEFMT2 = '%Y-%m-%d %H:%M:%S.%f'
 #     return newevent
 
 
-WEEKSECS = 86400*7
+WEEKSECS = 86400*14
+
+
 def getTimeSegments2(starttime, endtime):
     #startsecs = int(starttime.strftime('%s'))
     startsecs = calendar.timegm(starttime.timetuple())
@@ -63,18 +67,17 @@ def getTimeSegments2(starttime, endtime):
 
     return [(datetime.utcfromtimestamp(start),
              datetime.utcfromtimestamp(end))
-            for start,end in zip(starts,ends)]
+            for start, end in zip(starts, ends)]
 
 
-
-class AddEarthquakes():
+class AddEarthquakes:
 
     def __init__(self, cnn):
 
         # check the last earthquake in the db
         quakes = cnn.query('SELECT max(date) as mdate FROM earthquakes')
 
-        stime = quakes.dictresult()[0].get('mdate')
+        stime = None  # quakes.dictresult()[0].get('mdate')
 
         if stime is None:
             # no events in the table, add all
@@ -90,36 +93,81 @@ class AddEarthquakes():
         # that no individual segment will return more than the 20,000 event limit.
         segments  = getTimeSegments2(stime, etime)
 
-        print('Breaking request into %i segments.\n' % len(segments))
+        print('Breaking request into %i segments.' % len(segments))
+        print('Requesting data by segment. This might take a few minutes...\n')
 
-        # @todo remove maxmags, was not used and getEventData always returns 0 on second retvalue
-        #maxmags   = 0
-        eventlist = []
-        for stime, etime in segments:
+        for stime, etime in tqdm(segments, ncols=120):
             # sys.stderr.write('%s - Getting data for %s => %s\n' % (comcat.ShakeDateTime.now(),stime,etime))
             # https://github.com/usgs/libcomcat/blob/master/docs/api.md#Searching
-            teventlist = libcomcat.search.search(starttime=stime, endtime=etime,
-                                                 minmagnitude=6, maxmagnitude=10)
-            eventlist += teventlist
+            retry = 0
+            eventlist = []
+            while retry < 3:
+                try:
+                    eventlist = libcomcat.search.search(starttime=stime, endtime=etime, minmagnitude=6)
+                    break
+                except ConnectionError as e:
+                    retry += 1
+                    tqdm.write('There was a connection error while downloading segment %s %s, retrying %i, %s'
+                               % (str(stime), str(etime), retry, str(e)))
 
-        if not len(eventlist):
-            print('No events found.  Exiting.\n')
+            if not len(eventlist):
+                tqdm.write('No events found')
 
-        # eventlist is a list of SummaryEvent objects
-        for event in eventlist:
-            event_date = datetime.strptime(event.time.strftime(TIMEFMT2), TIMEFMT2)
-            try:
-                # print('inserting', event)
-                cnn.insert('earthquakes',
-                           date  = event_date,
-                           lat   = event.latitude,
-                           lon   = event.longitude,
-                           depth = event.depth,
-                           mag=event.magnitude)
-                # print('inserted!')
-            except:
-                # print('failed!')
-                pass
+            # eventlist is a list of SummaryEvent objects
+            for event in eventlist:
+                event_date = datetime.strptime(event.time.strftime(TIMEFMT2), TIMEFMT2)
+
+                rs_event = cnn.query('SELECT * FROM earthquakes WHERE id = \'%s\'' % event.id)
+
+                if not len(rs_event.dictresult()):
+                    try:
+                        # DDG: try to get the moment-tensor solution, if it exists
+                        mt = libcomcat.search.get_product_bytes(event.id,
+                                                                'moment-tensor',
+                                                                'quakeml.xml').decode('utf-8')
+                        # convert from XML to DICT
+                        mtp = xmltodict.parse(mt)
+
+                        nodal_planes = mtp['q:quakeml']['eventParameters']['event']['focalMechanism']['nodalPlanes']
+                        strike1 = float(nodal_planes['nodalPlane1']['strike']['value'])
+                        dip1 = float(nodal_planes['nodalPlane1']['dip']['value'])
+                        rake1 = float(nodal_planes['nodalPlane1']['rake']['value'])
+                        strike2 = float(nodal_planes['nodalPlane2']['strike']['value'])
+                        dip2 = float(nodal_planes['nodalPlane2']['dip']['value'])
+                        rake2 = float(nodal_planes['nodalPlane2']['rake']['value'])
+
+                    except (libcome.ProductNotFoundError, KeyError, Exception) as e:
+                        tqdm.write('Event id %s (%s mag=%.1f) has no moment-tensor solution: %s'
+                                   % (event.id, event_date, event.magnitude, str(e)))
+                        strike1 = 'NaN'
+                        dip1 = 'NaN'
+                        rake1 = 'NaN'
+                        strike2 = 'NaN'
+                        dip2 = 'NaN'
+                        rake2 = 'NaN'
+
+                    try:
+                        # print('inserting', event)
+                        cnn.insert('earthquakes',
+                                   id       = event.id,
+                                   date     = event_date,
+                                   lat      = event.latitude,
+                                   lon      = event.longitude,
+                                   depth    = event.depth,
+                                   mag      = event.magnitude,
+                                   strike1  = strike1,
+                                   dip1     = dip1,
+                                   rake1    = rake1,
+                                   strike2  = strike2,
+                                   dip2     = dip2,
+                                   rake2    = rake2,
+                                   location = event.location)
+                        tqdm.write('inserting event %s in the database' % event.id)
+                    except Exception as e:
+                        tqdm.write('Insert failed! %s' % str(e))
+                        pass
+                else:
+                    tqdm.write('event %s %s already exists in the database' % (event.id, event.location))
 
 
 def main():

@@ -51,11 +51,12 @@ python -m pip install pycos==4.8.11
 python -m pip install dirsync==2.2.4
 python -m pip install simplekml==1.3.1
 python -m pip install hdf5storage==0.1.18
-python -m pip install git+git://github.com/usgs/libcomcat.git@2.0.10
-python -m pip install git+git://github.com/usgs/earthquake-impact-utils@0.8.27
+# python -m pip install git+git://github.com/usgs/libcomcat.git@2.0.10
+# python -m pip install git+git://github.com/usgs/earthquake-impact-utils@0.8.27
+python -m pip install usgs-libcomcat
 python -m pip install requests==2.25.1
 python -m pip install obspy==1.2.2
-python -m pip install pandas==1.1.5
+python -m pip install pandas
 python -m pip install shapely==2.0.0
 python -m pip install fiona==1.8.22
 python -m pip install openpyxl==3.0.7
@@ -67,6 +68,7 @@ python -m pip install paramiko==2.10.1
 python -m pip install pysftp==0.2.9
 python -m pip install country-converter
 python -m pip install geopy
+python -m pip install xmltodict
 ```
 
 
