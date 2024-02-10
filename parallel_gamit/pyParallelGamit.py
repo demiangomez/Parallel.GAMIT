@@ -43,7 +43,6 @@ from Utils import (process_date,
                    )
 
 
-
 class DbAlive(object):
     def __init__(self, cnn, increment):
         self.next_t    = time.time()
@@ -260,7 +259,8 @@ def main():
     parser.add_argument('-kml', '--create_kml', action='store_true',
                         help="Create a KML with everything processed in this run.")
 
-    parser.add_argument('-np', '--noparallel', action='store_true', help="Execute command without parallelization.")
+    parser.add_argument('-np', '--noparallel', action='store_true',
+                        help="Execute command without parallelization.")
 
     args = parser.parse_args()
 
@@ -493,46 +493,54 @@ def ExecuteGlobk(cnn, JobServer, GamitConfig, sessions, dates):
 
 def gamit_callback(job):
 
-    result = job.result
+    results = job.result
 
-    if result is not None:
-        msg = []
-        if 'error' not in result.keys():
-            if result['nrms'] > 1:
-                msg.append('    > NRMS > 1.0 (%.3f) in solution %s' % (result['nrms'], result['session']))
+    if results is not None:
+        for result in results:
+            msg = []
+            if 'error' not in result.keys():
+                if result['nrms'] > 1:
+                    msg.append(f'    > NRMS > 1.0 ({result["nrms"]:.3}) in solution {result["session"]}')
 
-            if result['wl'] < 60:
-                msg.append('    > WL fixed < 60 (%.1f) in solution %s' % (result['wl'], result['session']))
+                if result['wl'] < 60:
+                    msg.append(f'    > WL fixed < 60 ({result["wl"]:.1}) in solution {result["session"]}')
 
-            if result['missing']:
-                msg.append('    > Missing sites in solution %s: ' % result['session'] + ', '.join(result['missing']))
+                if result['missing']:
+                    msg.append(f'    > Missing sites in {result["session"]}: {", ".join(result["missing"])}')
 
-            # DDG: only show sessions with problems to facilitate debugging.
-            if result['success']:
-                if len(msg) > 0:
-                    tqdm.write(' -- %s Done processing: %s -> WARNINGS:\n%s'
-                               % (print_datetime(), result['session'], '\n'.join(msg)))
+                # DDG: only show sessions with problems to facilitate debugging.
+                if result['success']:
+                    if len(msg) > 0:
+                        tqdm.write(f' -- {print_datetime()} finished : {result["session"]} system {result["system"]} '
+                                   f'-> WARNINGS:\n' + '\n'.join(msg))
 
-                # insert information in gamit_stats
-                try:
-                    cnn = dbConnection.Cnn('gnss_data.cfg')  # type: dbConnection.Cnn
-                    cnn.insert('gamit_stats', result)
-                    cnn.close()
-                except dbConnection.dbErrInsert as e:
-                    tqdm.write(' -- %s Error while inserting GAMIT stat for %s: '
-                               % (print_datetime(), result['session'] + ' ' + str(e)))
+                    # insert information in gamit_stats
+                    try:
+                        cnn = dbConnection.Cnn('gnss_data.cfg')  # type: dbConnection.Cnn
+                        cnn.insert('gamit_stats', result)
+                        cnn.close()
+                    except dbConnection.dbErrInsert as e:
+                        tqdm.write(f' -- {print_datetime()} Error while inserting GAMIT stat for {result["session"]} '
+                                   f'system: {result["system"]}' + str(e))
 
+                else:
+                    tqdm.write(f' -- {print_datetime()} finished: {result["session"]} system {result["system"]} '
+                               f'-> FATAL:\n'
+                               f'  > Failed to complete. Check monitor.log:\n'
+                               + indent("\n".join(result["fatals"]), 4))
+
+                    # write FATAL to file
+                    file_append('FATAL.log',
+                                f'ON {print_datetime()} session {result["session"]} system {result["system"]} '
+                                f'-> FATAL: Failed to complete. Check monitor.log\n'
+                                + indent("\n".join(result["fatals"]), 4) + '\n')
             else:
-                tqdm.write(' -- %s Done processing: %s -> FATAL:\n'
-                           '    > Failed to complete. Check monitor.log:\n%s'
-                           % (print_datetime(), result['session'], indent('\n'.join(result['fatals']), 4)))
-                # write FATAL to file
+                tqdm.write(f' -- {print_datetime()} Error in session {result["session"]} system {result["system"]} '
+                           f'message from node follows -> \n{result["error"]}')
+
                 file_append('FATAL.log',
-                            'ON %s session %s -> FATAL: Failed to complete. Check monitor.log\n%s\n'
-                            % (print_datetime(), result['session'], indent('\n'.join(result['fatals']), 4)))
-        else:
-            tqdm.write(' -- %s Error in session %s message from node follows -> \n%s'
-                       % (print_datetime(), result['session'], result['error']))
+                            f'ON {print_datetime()} error in session {result["session"]} '
+                            f'system {result["system"]} message from node follows -> \n{result["error"]}')
 
     else:
         tqdm.write(' -- %s Fatal error on node %s message from node follows -> \n%s'

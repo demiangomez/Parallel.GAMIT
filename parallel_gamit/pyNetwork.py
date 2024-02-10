@@ -426,7 +426,7 @@ class Network(object):
             mask[n1] = False
 
         # Count the number of subnets via the remaining True values in the mask array.
-        if np.count_nonzero(mask) is 0:
+        if np.count_nonzero(mask) == 0:
             # DDG: if the result was zero subnets, then none of the subnets has at least one station
             raise ValueError('No subnets contained more than one station. This day should be run without invoking '
                              'the subnets_delaunay function.')

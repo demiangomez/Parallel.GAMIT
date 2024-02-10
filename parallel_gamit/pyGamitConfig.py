@@ -26,6 +26,7 @@ class GamitConfiguration(ReadOptions):
         self.gamitopt = {'gnss_data'          : None,
                          'eop_type'           : 'usno',
                          'expt_type'          : 'baseline',
+                         'systems'            : ['G', 'E'],
                          'should_iterate'     : 'yes',
                          'org'                : 'IGN',
                          'expt'               : 'expt',
@@ -43,7 +44,6 @@ class GamitConfiguration(ReadOptions):
         self.load_session_config(session_config_file, check_config)
         
         ReadOptions.__init__(self, self.gamitopt['gnss_data'])  # type: ReadOptions
-
 
     def load_session_config(self, session_config_file, check_config):
         try:
