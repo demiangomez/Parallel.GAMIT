@@ -9,6 +9,7 @@ Script to synchronize sp3 and brdc orbits using the CDDIS FTP server.
 
 import os
 import argparse
+import shutil
 from datetime import datetime
 import ftplib
 import re
@@ -48,7 +49,7 @@ REPRO_FOLDER = '/pub/gps/products/$gpsweek/repro3'
 
 
 def main():
-    parser = argparse.ArgumentParser( description = 'Synchronize orbit archive')
+    parser = argparse.ArgumentParser(description = 'Synchronize orbit archive')
 
     parser.add_argument('-date', '--date_range', nargs='+', action=required_length(1, 2), metavar='date_start|date_end',
                         help="Date range to check given as [date_start] or [date_start] and [date_end]. "
@@ -82,8 +83,8 @@ def main():
                                  day  =  now.day))
 
         # go through the dates
-        drange = np.arange(dates[0].mjd,
-                           dates[1].mjd, 1)
+        # DDG: dates[1].mjd + 1 to include the last day
+        drange = np.arange(dates[0].mjd, dates[1].mjd + 1, 1)
 
         pbar = tqdm(desc='%-30s' % ' >> Synchronizing orbit files', total=len(drange), ncols=160, disable=None)
 
@@ -187,6 +188,37 @@ def main():
                                                   15).run_shell()
             except Exception as e:
                 tqdm.write(' -- BRDC ERROR: %s' % str(e))
+
+            # ##### now the ionex files #########
+            folder = "/pub/gps/products/ionex/%s/%s" % (date.yyyy(), date.ddd())
+            tqdm.write(' -- Changing folder to ' + folder)
+            ftp.cwd(folder)
+            ftp_list = set(ftp.nlst())
+
+            ionex_archive = replace_vars(Config.ionex_path, date)
+
+            if not os.path.exists(ionex_archive):
+                os.makedirs(ionex_archive)
+            try:
+                # try the long name
+                l_fname = f'IGS0OPSFIN_{date.yyyy()}{date.ddd()}0000_01D_02H_GIM.INX.gz'
+                s_fname = 'igsg%s0.%si.Z' % (date.ddd(), str(date.year)[2:4])
+
+                if not (os.path.exists(os.path.join(ionex_archive, l_fname)) or
+                        os.path.exists(os.path.join(ionex_archive, s_fname))):
+                    if downloadIfMissing(ftp_list, l_fname, l_fname, ionex_archive, 'IONEX'):
+                        # try long name first
+                        tqdm.write('  -> Download succeeded %s' % os.path.join(ionex_archive, l_fname))
+                        # leave it zipped
+                    elif downloadIfMissing(ftp_list, s_fname, s_fname, ionex_archive, 'IONEX'):
+                        # try short name
+                        tqdm.write('  -> Download succeeded %s' % os.path.join(ionex_archive, s_fname))
+                        # leave it zipped, but change the name to the long name
+                        shutil.move(os.path.join(ionex_archive, s_fname),
+                                    os.path.join(ionex_archive, l_fname))
+
+            except Exception as e:
+                tqdm.write(' -- IONEX ERROR: %s' % str(e))
 
             pbar.set_postfix(gpsWeek='%i %i' % (date.gpsWeek, date.gpsWeekDay))
             pbar.update()

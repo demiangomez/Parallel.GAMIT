@@ -49,7 +49,8 @@ def create_files():
 
     cnn = dbConnection.Cnn("gnss_data.cfg")
 
-    rs = cnn.query('SELECT * FROM stations WHERE "NetworkCode" NOT LIKE \'?%%\' AND "Harpos_coeff_otl" LIKE \'%%HARPOS%%\' ORDER BY "NetworkCode", "StationCode"')
+    rs = cnn.query('SELECT * FROM stations WHERE "NetworkCode" NOT LIKE \'?%%\' AND "Harpos_coeff_otl" LIKE '
+                   '\'%%HARPOS%%\' ORDER BY "NetworkCode", "StationCode"')
     # rs = cnn.query(
     #    'SELECT * FROM stations WHERE "NetworkCode" NOT LIKE \'?%%\' ORDER BY "NetworkCode", "StationCode"')
 
@@ -58,7 +59,7 @@ def create_files():
     stnlist = []
     index   = 0
     for stn in stations:
-        stnlist += ['%-24s %16.3f%16.3f%16.3f' % (stn['NetworkCode'] + '.' + stn['StationCode'],
+        stnlist += ['%-24s %16.3f%16.3f%16.3f' % (stn['NetworkCode'] + '_' + stn['StationCode'],
                                                   float(stn['auto_x']),
                                                   float(stn['auto_y']),
                                                   float(stn['auto_z']))]
@@ -129,7 +130,7 @@ def import_blq(filename):
     # it's BLQ alright
     # find the linenumber of the phase and frequency components
     header  = otl[0:29]
-    pattern = re.compile('\s{2}\w{3}\.\w{4}')
+    pattern = re.compile('\s{2}\w{3}_\w{4}')
 
     for line in otl[29:]:
         if pattern.match(line):
@@ -142,7 +143,7 @@ def load_blq(header, otl):
     cnn = dbConnection.Cnn("gnss_data.cfg")
 
     # begin removing the network code from the OTL
-    NetStn = re.findall('\s{2}(\w{3}\.\w{4})', ''.join(otl))
+    NetStn = re.findall('\s{2}(\w{3}_\w{4})', ''.join(otl))
 
     NetworkCode, StationCode = NetStn[0].split('.')
 

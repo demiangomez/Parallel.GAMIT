@@ -334,6 +334,11 @@ class Stack(list):
                                            'object = \'periodic\' AND frequencies <> \'{}\' AND stack = \'%s\' '
                                            'GROUP BY frequencies' % self.name, as_dict=True)
 
+        if len(frequencies) == 0:
+            tqdm.write(' -- No periodic components available! Maybe time series are not long enough '
+                       'to estimate seasonal components? Nothing done.')
+            return
+
         # get the unique list of frequencies
         f_vector = []
 
@@ -618,13 +623,13 @@ class Stack(list):
                                             'latlon' : stn_lla},
                                'residuals_before_alignment' : r_before.tolist(),
                                'residuals_after_alignment'  : r_after.tolist(),
-                               'reference_date'             : ref_date,
+                               'reference_date'             : ref_date.fyear,
                                'helmert_transformation'     : comb.helmert.tolist(),
                                'comments'                   : 'No scale factor estimated.'}
 
         for poly in tqdm(self, ncols=160, desc=' -- Applying position space transformation', disable=None):
-            if poly.date != ref_date:
-                poly.align(helmert=helmert, scale=scale)
+            # if poly.date != ref_date:
+            poly.align(helmert=helmert, scale=scale)
 
         tqdm.write(' >> Aligning velocity space...')
 
@@ -633,6 +638,12 @@ class Stack(list):
         for stn in use_stations:
             if not np.isnan(target_dict[stn]['vx']):
                 use_stn.append(stn)
+
+        if len(use_stn) == 0:
+            tqdm.write(' -- No velocity space available!')
+            # kill all the trajectory models for this stack to make sure we account for changes in
+            # self.cnn.query('DELETE FROM etms WHERE "soln" = \'gamit\' AND stack = \'%s\' ' % self.name)
+            return
 
         # load the polynomial terms of the stations
         etm_objects = self.cnn.query_float('SELECT etms."NetworkCode", etms."StationCode", stations.lat, '
@@ -984,7 +995,7 @@ class Polyhedron:
         else:
             c = helmert
             if verbose:
-                tqdm.write(' -- T: %s -> externally provided' % (' '.join('%7.4f' % cc for cc in self.helmert)))
+                tqdm.write(' -- T: %s -> externally provided' % (' '.join('%7.4f' % cc for cc in helmert)))
 
         # apply result to everyone
         x = np.dot(np.concatenate((self.ax(scale), self.ay(scale), self.az(scale)), axis=0),

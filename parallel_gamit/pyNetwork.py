@@ -307,6 +307,7 @@ class Network(object):
         # Create a dummy Station object for the geocenter. Coordinates don't have to be defined since the backxyz object
         # uses the geocenter in it already.
         geocenter = copy.deepcopy(backbone1[0])
+        # DDG TODO: REMOVE THIS nan.geoc dummy station
         geocenter.StationCode = 'geoc'
         geocenter.NetworkCode = 'nan'
         mbackbone.append(geocenter)

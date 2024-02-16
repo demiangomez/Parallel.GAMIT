@@ -212,10 +212,10 @@ class GamitSession(object):
                        'orbits'      : {'sp3_path'  : self.Config.sp3_path,
                                         'sp3types'  : self.Config.sp3types,
                                         'sp3altrn'  : (),
-                                        'brdc_path' : self.Config.brdc_path
+                                        'brdc_path' : self.Config.brdc_path,
+                                        'ionex_path': self.Config.ionex_path
                                         }
                        }
-
 
     def create_otl_list(self):
 
@@ -223,7 +223,6 @@ class GamitSession(object):
         if os.path.isfile(otl_path):
             os.remove(otl_path)
 
-        
         with file_open(otl_path, 'w') as otl_list:
             otl_list.write('%s   8-character GAMIT ID read by grdtab (M -> CM)\n' % (self.Config.options['otlmodel']))
             otl_list.write("""$$ Ocean loading displacement

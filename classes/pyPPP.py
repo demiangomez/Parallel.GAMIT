@@ -273,12 +273,14 @@ class RunPPP(PPPSpatialCheck):
 
             except (pySp3.pySp3Exception,
                     pyClk.pyClkException,
-                    pyEOP.pyEOPException):
+                    pyEOP.pyEOPException) as e:
 
                 if sp3altrn:
                     self.get_orbits(self.sp3altrn)
                 else:
-                    raise
+                    raise type(e)(type(e)(e.message + ' -> This exception usually occurs due to the need of having '
+                                                      'the orbit for the day being processed and the orbit of the '
+                                                      'next day.'))
 
             self.write_otl()
             self.copyfiles()

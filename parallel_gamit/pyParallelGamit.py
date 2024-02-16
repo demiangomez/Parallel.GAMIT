@@ -43,6 +43,27 @@ from Utils import (process_date,
                    )
 
 
+def prYellow(skk):
+    if os.fstat(0) == os.fstat(1):
+        return "\033[93m{}\033[00m" .format(skk)
+    else:
+        return skk
+
+
+def prRed(skk):
+    if os.fstat(0) == os.fstat(1):
+        return "\033[91m{}\033[00m" .format(skk)
+    else:
+        return skk
+
+
+def prGreen(skk):
+    if os.fstat(0) == os.fstat(1):
+        return "\033[92m{}\033[00m" .format(skk)
+    else:
+        return skk
+
+
 class DbAlive(object):
     def __init__(self, cnn, increment):
         self.next_t    = time.time()
@@ -202,14 +223,14 @@ def station_list(cnn, stations, dates):
                dates[1].yyyy() + ', ' + dates[1].ddd()))
 
         if rs.ntuples() > 0:
-            tqdm.write(' -- %s -> adding...' % stationID(Stn))
+            tqdm.write(prGreen(' -- %s -> adding...' % stationID(Stn)))
             try:
                 stn_obj.append(Station(cnn, NetworkCode, StationCode, dates))
             except pyETMException:
-                tqdm.write('    %s -> station exists, but there was a problem initializing ETM.'
-                           % stationID(Stn))
+                tqdm.write(prRed('    %s -> station exists, but there was a problem initializing ETM.'
+                                 % stationID(Stn)))
         else:
-            tqdm.write(' -- %s -> no data for requested time window' % stationID(Stn))
+            tqdm.write(prYellow(' -- %s -> no data for requested time window' % stationID(Stn)))
 
     return stn_obj
 
@@ -500,10 +521,10 @@ def gamit_callback(job):
             msg = []
             if 'error' not in result.keys():
                 if result['nrms'] > 1:
-                    msg.append(f'    > NRMS > 1.0 ({result["nrms"]:.3}) in solution {result["session"]}')
+                    msg.append(f'    > NRMS > 1.0 ({result["nrms"]:.3f}) in solution {result["session"]}')
 
                 if result['wl'] < 60:
-                    msg.append(f'    > WL fixed < 60 ({result["wl"]:.1}) in solution {result["session"]}')
+                    msg.append(f'    > WL fixed < 60 ({result["wl"]:.1f}) in solution {result["session"]}')
 
                 if result['missing']:
                     msg.append(f'    > Missing sites in {result["session"]}: {", ".join(result["missing"])}')
@@ -511,8 +532,8 @@ def gamit_callback(job):
                 # DDG: only show sessions with problems to facilitate debugging.
                 if result['success']:
                     if len(msg) > 0:
-                        tqdm.write(f' -- {print_datetime()} finished : {result["session"]} system {result["system"]} '
-                                   f'-> WARNINGS:\n' + '\n'.join(msg))
+                        tqdm.write(prYellow(f' -- {print_datetime()} finished: {result["session"]} '
+                                            f'system {result["system"]} -> WARNINGS:\n' + '\n'.join(msg) + '\n'))
 
                     # insert information in gamit_stats
                     try:
@@ -520,14 +541,14 @@ def gamit_callback(job):
                         cnn.insert('gamit_stats', result)
                         cnn.close()
                     except dbConnection.dbErrInsert as e:
-                        tqdm.write(f' -- {print_datetime()} Error while inserting GAMIT stat for {result["session"]} '
-                                   f'system: {result["system"]}' + str(e))
+                        tqdm.write(prRed(f' -- {print_datetime()} Error while inserting GAMIT stat for '
+                                         f'{result["session"]} system: {result["system"]}' + str(e)))
 
                 else:
-                    tqdm.write(f' -- {print_datetime()} finished: {result["session"]} system {result["system"]} '
-                               f'-> FATAL:\n'
-                               f'  > Failed to complete. Check monitor.log:\n'
-                               + indent("\n".join(result["fatals"]), 4))
+                    tqdm.write(prRed(f' -- {print_datetime()} finished: {result["session"]} system {result["system"]} '
+                                     f'-> FATAL:\n'
+                                     f'  > Failed to complete. Check monitor.log:\n'
+                                     + indent("\n".join(result["fatals"]), 4) + '\n'))
 
                     # write FATAL to file
                     file_append('FATAL.log',
@@ -535,8 +556,8 @@ def gamit_callback(job):
                                 f'-> FATAL: Failed to complete. Check monitor.log\n'
                                 + indent("\n".join(result["fatals"]), 4) + '\n')
             else:
-                tqdm.write(f' -- {print_datetime()} Error in session {result["session"]} system {result["system"]} '
-                           f'message from node follows -> \n{result["error"]}')
+                tqdm.write(prRed(f' -- {print_datetime()} Error in session {result["session"]} '
+                                 f'system {result["system"]} message from node follows -> \n{result["error"]}'))
 
                 file_append('FATAL.log',
                             f'ON {print_datetime()} error in session {result["session"]} '

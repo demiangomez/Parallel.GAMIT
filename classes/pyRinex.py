@@ -88,6 +88,7 @@ class RinexRecord(object):
         self.obs_types         = None
         self.observables       = None
         self.system            = None
+        self.satsys            = None
         self.no_cleanup        = None
         self.multiday          = False
         self.multiday_rnx_list = []
@@ -805,6 +806,7 @@ class ReadRinex(RinexRecord):
 
         try:
             p = output['site']['position']
+            self.satsys = output['data']['satsys']
             self.x, self.y, self.z     = (float(p['x']), float(p['y']), float(p['z']))
             self.lat, self.lon, self.h = ecef2lla([self.x, self.y, self.z])
         except:

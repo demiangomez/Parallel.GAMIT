@@ -12,6 +12,7 @@ from pyOptions import ReadOptions
 import pyBunch
 from Utils import file_open
 
+
 class pyGamitConfigException(Exception):
     def __init__(self, value):
         self.value = value
@@ -26,10 +27,11 @@ class GamitConfiguration(ReadOptions):
         self.gamitopt = {'gnss_data'          : None,
                          'eop_type'           : 'usno',
                          'expt_type'          : 'baseline',
-                         'systems'            : ['G', 'E'],
+                         'systems'            : ['G', 'E', 'R'],
                          'should_iterate'     : 'yes',
                          'org'                : 'IGN',
                          'expt'               : 'expt',
+                         'overconst_action'   : 'inflate',
                          'process_defaults'   : None,
                          'sestbl'             : None,
                          'solutions_dir'      : None,
@@ -59,6 +61,10 @@ class GamitConfiguration(ReadOptions):
             # get gamit config items from session config file
             self.gamitopt.update(dict(config.items('gamit')))
 
+            if type(self.gamitopt['systems']) is str:
+                # only if config parameter was given
+                self.gamitopt['systems'] = [item.strip() for item in self.gamitopt['systems'].split(',')]
+
             self.NetworkConfig = pyBunch.Bunch().fromDict(dict(config.items('network')))
 
             if 'type' not in self.NetworkConfig.keys():
@@ -84,6 +90,11 @@ class GamitConfiguration(ReadOptions):
         item = config.get('gamit', 'sestbl')
         if not os.path.isfile(item):
             raise pyGamitConfigException('sestbl file '+item+' could not be found')
+
+        item = config.get('gamit', 'overconst_action')
+        if item not in ('relax', 'inflate', 'delete', 'remove'):
+            raise pyGamitConfigException('overconst_action accepts the following options: '
+                                         'relax, inflate, delete, or remove')
 
         # item = config.get('gamit','atx')
         # if not os.path.isfile(item):
