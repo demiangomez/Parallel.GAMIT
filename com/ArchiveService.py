@@ -100,6 +100,18 @@ SELECT "NetworkCode" FROM
 
         # insert record in stations with temporary NetworkCode
         try:
+            # DDG: added code to insert new station including the country_code
+            from geopy.geocoders import Nominatim
+            import country_converter as coco
+            # find the country code for the station
+            geolocator = Nominatim(user_agent="Parallel.GAMIT")
+            location = geolocator.reverse("%f, %f" % (lat, lon))
+
+            if location and 'country_code' in location.raw['address'].keys():
+                ISO3 = coco.convert(names=location.raw['address']['country_code'], to='ISO3')
+            else:
+                ISO3 = None
+
             cnn.insert('stations',
                        NetworkCode=NetworkCode,
                        StationCode=StationCode,
@@ -109,7 +121,8 @@ SELECT "NetworkCode" FROM
                        Harpos_coeff_otl=otl,
                        lat=round(lat, 8),
                        lon=round(lon, 8),
-                       height=round(h, 3))
+                       height=round(h, 3),
+                       country_code=ISO3)
         except dbConnection.dbErrInsert as e:
             # another process did the insert before, ignore the error
             file_append('errors_pyArchiveService.log',

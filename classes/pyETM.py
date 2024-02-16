@@ -416,6 +416,13 @@ class GamitSoln:
                 'WHERE r."NetworkCode" = \'%s\' AND r."StationCode" = \'%s\' AND '
                 'p."NetworkCode" IS NULL' % (stack_name, NetworkCode, StationCode))
 
+            # new feature: to avoid problems with realignment of the frame. A change in coordinates was not triggering
+            # a recalculation of the ETMs
+            crd = cnn.query_float(
+                'SELECT avg("X") + avg("Y") + avg("Z") AS hash FROM stacks WHERE '
+                'name = \'%s\' AND "NetworkCode" = \'%s\' AND "StationCode" = \'%s\''
+                % (stack_name, NetworkCode, StationCode), as_dict=True)
+
             self.rnx_no_ppp = rnx.dictresult()
             self.ts_ns = np.array([float(item['ObservationFYear']) for item in self.rnx_no_ppp])
 
@@ -424,6 +431,7 @@ class GamitSoln:
             self.hash = crc32(str(len(self.t) + len(self.blunders)) + ' ' +
                               str(ts[0]) + ' ' +
                               str(ts[-1]) +
+                              str(crd[0]['hash']) +
                               VERSION)
 
         else:
@@ -1211,7 +1219,7 @@ class GenericJumps:
                 frames.sort(key=lambda k: k['Year'])
 
                 for frame in frames[1:]:
-                    date = pyDate.Date(Year=frame['Year'], doy=frame['DOY'])
+                    date = pyDate.Date(Year=int(frame['Year']), doy=int(frame['DOY']))
 
                     table = [j['action'] for j in jp if j['Year'] == date.year and j['DOY'] == date.doy]
 
@@ -1910,7 +1918,7 @@ class ETM:
         # total duration of the time series
         T = np.max(self.soln.t) - np.min(self.soln.t)
 
-        print(segments)
+        # print(segments)
         sv = np.zeros((3, ))
         # loop three times: one for N-E-U
         for i, r in enumerate(self.R):
@@ -1950,8 +1958,8 @@ class ETM:
             else:
                 sv[i] = 0
 
-            print(' entropy 3 sigma: %f mm/yr entropy: %f' % (float(sv[i]) * 1000 * 3, H))
-            print(' regular 3 sigma: %f mm/yr' % (self.Linear.p.sigmas[i][1] * 1000 * 3))
+            # print(' entropy 3 sigma: %f mm/yr entropy: %f' % (float(sv[i]) * 1000 * 3, H))
+            # print(' regular 3 sigma: %f mm/yr' % (self.Linear.p.sigmas[i][1] * 1000 * 3))
 
         return sv
 

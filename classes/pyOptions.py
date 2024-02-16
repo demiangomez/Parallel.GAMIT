@@ -26,6 +26,7 @@ class ReadOptions:
                         'node_list'            : None,
                         'ip_address'           : None,
                         'brdc'                 : None,
+                        'ionex'                : None,
                         'sp3_ac'               : ['IGS', 'JPL'],
                         'sp3_cs'               : ['R03', 'R02', 'OPS'],
                         'sp3_st'               : ['FIN', 'RAP'],
@@ -80,6 +81,7 @@ class ReadOptions:
         self.archive_path        = self.options['path']
         self.sp3_path            = self.options['sp3']
         self.brdc_path           = self.options['brdc']
+        self.ionex_path          = self.options['ionex']
         self.repository          = self.options['repository']
         self.format_scripts_path = self.options['format_scripts_path']
         
