@@ -111,11 +111,7 @@ class GamitTask(object):
                 # do a GAMIT run for each system
                 for sys in self.systems:
                     if self.system_count[sys] > 1:
-                        r = self.run_gamit(sys)
-                        if type(r) is str:
-                            return self.run_gamit('G', dummy=True)
-                        else:
-                            results.append(r)
+                        results.append(self.run_gamit(sys))
                     else:
                         self.log(f'Not enough observing stations for system {sys}. Skipping processing.')
 
@@ -129,7 +125,8 @@ class GamitTask(object):
                     self.log('Single system result, using as final GLX.')
                     # just copy the system result to glbf
                     shutil.copyfile(os.path.join(self.pwd, f'gsoln/' + success_results[0]['system'] + '/' +
-                                                 success_results[0]['glbf']), self.pwd_glbf)
+                                                 success_results[0]['glbf']),
+                                    os.path.join(self.pwd_glbf, success_results[0]['glbf']))
                     self.success = True
                 else:
                     # a problem with all systems, declare fatal
@@ -597,7 +594,6 @@ class GamitTask(object):
                (re.findall(r'yr: Subscript out of range.', output) and not summary == ''):
                 self.log(f'Issue found with this run (sh_setup, FIXDRV, MAKEXP, MAKEX, SOLVE, or sh_get_ion) '
                          f'trying again ({i})...')
-                return "EEE"
                 # skip any further tests
                 continue
 

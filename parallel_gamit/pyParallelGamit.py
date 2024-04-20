@@ -526,8 +526,9 @@ def gamit_callback(job):
                 if result['wl'] < 60:
                     msg.append(f'    > WL fixed < 60 ({result["wl"]:.1f}) in solution {result["session"]}')
 
-                if result['missing']:
-                    msg.append(f'    > Missing sites in {result["session"]}: {", ".join(result["missing"])}')
+                # do not display missing stations anymore, at least for now
+                # if result['missing']:
+                #    msg.append(f'    > Missing sites in {result["session"]}: {", ".join(result["missing"])}')
 
                 # DDG: only show sessions with problems to facilitate debugging.
                 if result['success']:
@@ -547,7 +548,7 @@ def gamit_callback(job):
                 else:
                     tqdm.write(prRed(f' -- {print_datetime()} finished: {result["session"]} system {result["system"]} '
                                      f'-> FATAL:\n'
-                                     f'  > Failed to complete. Check monitor.log:\n'
+                                     f'    > Failed to complete. Check monitor.log:\n'
                                      + indent("\n".join(result["fatals"]), 4) + '\n'))
 
                     # write FATAL to file

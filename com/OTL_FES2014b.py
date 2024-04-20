@@ -28,7 +28,7 @@ import re
 
 # app
 import dbConnection
-from Utils import file_write, file_readlines
+from Utils import file_write, file_readlines, process_stnlist, stationID
 
 
 def main():
@@ -37,21 +37,37 @@ def main():
     parser.add_argument('-import', '--import_otl', nargs=1,
                         help="File containing the BLQ parameters returned by the Chalmers website service.")
 
+    parser.add_argument('-stn', '--station_list', type=str, nargs='+',
+                        help="Limit the output to the provided station list.")
+
     args = parser.parse_args()
+
+    if args.station_list:
+        cnn = dbConnection.Cnn('gnss_data.cfg')
+        stnlist = process_stnlist(cnn, args.station_list)
+    else:
+        stnlist = []
 
     if args.import_otl:
         import_blq(args.import_otl[0])
     else:
-        create_files()
+        create_files(stnlist)
 
 
-def create_files():
+def create_files(stnlist):
 
     cnn = dbConnection.Cnn("gnss_data.cfg")
 
-    rs = cnn.query('SELECT * FROM stations WHERE "NetworkCode" NOT LIKE \'?%%\' AND "Harpos_coeff_otl" LIKE '
-                   '\'%%HARPOS%%\' ORDER BY "NetworkCode", "StationCode"')
-    # rs = cnn.query(
+    if stnlist:
+        sql_where = ','.join("'%s'" % stationID(stn) for stn in stnlist)
+
+        rs = cnn.query('SELECT * FROM stations WHERE "NetworkCode" NOT LIKE \'?%%\' AND "Harpos_coeff_otl" LIKE '
+                       '\'%%HARPOS%%\' AND "NetworkCode" || \'.\' || "StationCode" IN (%s) '
+                       'ORDER BY "NetworkCode", "StationCode"' % sql_where)
+    else:
+        rs = cnn.query('SELECT * FROM stations WHERE "NetworkCode" NOT LIKE \'?%%\' AND "Harpos_coeff_otl" LIKE '
+                       '\'%%HARPOS%%\' ORDER BY "NetworkCode", "StationCode"')
+        # rs = cnn.query(
     #    'SELECT * FROM stations WHERE "NetworkCode" NOT LIKE \'?%%\' ORDER BY "NetworkCode", "StationCode"')
 
     stations = rs.dictresult()
@@ -129,10 +145,10 @@ def import_blq(filename):
 
     # it's BLQ alright
     # find the linenumber of the phase and frequency components
-    header  = otl[0:29]
+    header  = otl[0:34]
     pattern = re.compile('\s{2}\w{3}_\w{4}')
 
-    for line in otl[29:]:
+    for line in otl[34:]:
         if pattern.match(line):
             load_blq(header, otl[otl.index(line):
                                  otl.index(line) + 11])
@@ -144,8 +160,8 @@ def load_blq(header, otl):
 
     # begin removing the network code from the OTL
     NetStn = re.findall('\s{2}(\w{3}_\w{4})', ''.join(otl))
-
-    NetworkCode, StationCode = NetStn[0].split('.')
+    print(NetStn)
+    NetworkCode, StationCode = NetStn[0].split('_')
 
     OTL = (''.join(header) + ''.join(otl)).replace('  ' + NetStn[0], '  ' + StationCode)
     OTL = OTL.replace('$$ ' + NetStn[0], '$$ %-8s' % StationCode)

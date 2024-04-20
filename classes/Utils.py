@@ -91,17 +91,17 @@ def station_list_help():
             "name will be processed). Use keyword 'all' to process all stations in the database. "
             "If [net].all is given, all stations from network [net] will be processed. Three letter ISO 3166 "
             "international standard codes can be provided (always in upper case) to select all stations within a "
-            "country. If a station name is given using a * in from (e.g. *igs.pwro or *pwro) then the station will be "
+            "country. If a station name is given using a * in front (e.g. *igs.pwro or *pwro) then the station will be "
             "removed from the list to be processed if net.all or ISO country code was used (in the example, "
-            "igs.all or ARG). Wildcard are accepted using the regex postgres convention. Use [] to provide character "
-            "ranges (e.g. ars.at1[3-5] or ars.[a-b]x01). Char % matches any string (e.g. ars.at%). Char | represents "
+            "igs.all or ARG). Wildcards are accepted using the regex postgres convention. Use [] to provide character "
+            "ranges (e.g. ars.at1[3-5] or ars.[a-b]x01). Char %% matches any string (e.g. ars.at%%). Char | represents "
             "the OR operator that can be used to select one string or another (e.g. ars.at1[1|2] to choose at11 and "
             "at12). To specify a wildcard using a single character, use _ (equivalent to ? in POSIX regular "
             "expressions). Alternatively, a file with the station list can be provided (using all the same "
             "conventions described above). When using a file, * can be replaced with - for clarity "
             "in removing stations from .all lists")
 
-    return desc[0]
+    return desc
 
 
 def parse_crinex_rinex_filename(filename):

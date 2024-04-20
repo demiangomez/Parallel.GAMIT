@@ -88,7 +88,7 @@ class Network(object):
             dba_stn   = [stn   for net in db_subnets for stn   in net['stations']]
             dba_alias = [alias for net in db_subnets for alias in net['alias']]
 
-            # make the necessary changes to the stations aliases (so they match those in the database)
+            # make the necessary changes to the stations aliiases (so they match those in the database)
             stations.replace_alias(dba_stn, dba_alias)
 
             # build the sub-networks using the information in the database
@@ -127,10 +127,10 @@ class Network(object):
 
                             for table in ('gamit_stats', 'gamit_subnets'):
                                 cnn.delete(table, Project=self.name, Year=self.date.year, DOY=self.date.doy,
-                                           subnet=subnet['subnet'])
+                                           subnet=subnet['subnet'], system=subnet['system'])
 
-                            tqdm.write(' -- %s in sub-network %s%02i did not produce a solution and will be '
-                                       'reprocessed' % (stn, self.org, subnet['subnet']))
+                            tqdm.write(' -- %s in sub-network %s%02i system %s did not produce a solution and will be '
+                                       'reprocessed' % (stn, self.org, subnet['subnet'], subnet['system']))
 
         else:
             tqdm.write(' >> %s %s %s -> Creating network clusters' % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'),

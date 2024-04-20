@@ -9,7 +9,7 @@ import pg
 # app
 import dbConnection
 import Utils
-from Utils import required_length, process_date
+from Utils import required_length, process_date,station_list_help
 from pyBunch import Bunch
 import pyETM
 
@@ -26,11 +26,7 @@ def main():
                                                  'simultaneously.')
 
     parser.add_argument('stnlist', type=str, nargs='+', metavar='all|net.stnm',
-                        help="List of networks/stations to process given in [net].[stnm] format or just [stnm] "
-                             "(separated by spaces; if [stnm] is not unique in the database, all stations with that "
-                             "name will be processed). Use keyword 'all' to process all stations in the database. "
-                             "If [net].all is given, all stations from network [net] will be processed. "
-                             "Alternatively, a file with the station list can be provided.")
+                        help=station_list_help())
 
     parser.add_argument('-fun', '--function_type', nargs='+', metavar=('function', 'argument'), default=[],
                         help="Specifies the type of function to work with. Can be polynomial (p), jump (j), "

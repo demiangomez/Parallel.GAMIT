@@ -1039,7 +1039,13 @@ class Earthquakes:
 
             dist = distance(lon, lat, eq[:, 1], eq[:, 0])
 
-            m = -0.8717 * (np.log10(dist) - 2.25) + 0.4901 * (eq[:, 2] - 6.6928)
+            # Mike's s-score
+            # m = -0.8717 * (np.log10(dist) - 2.25) + 0.4901 * (eq[:, 2] - 6.6928)
+            # new s-score from Gómez et al (in prep)
+            m = 0.526 * eq[:, 2] - 1.148 - np.log10(dist)
+            # NGL's modified expression
+            # m = np.power(10, 0.5*eq[:, 2] - 0.79) - dist
+
             # build the earthquake jump table
             # remove event events that happened the same day
             # DDG: now save the distance to earthquake

@@ -63,7 +63,7 @@ class GamitConfiguration(ReadOptions):
 
             if type(self.gamitopt['systems']) is str:
                 # only if config parameter was given
-                self.gamitopt['systems'] = [item.strip() for item in self.gamitopt['systems'].split(',')]
+                self.gamitopt['systems'] = [item.strip() for item in self.gamitopt['systems'].strip(',').split(',')]
 
             self.NetworkConfig = pyBunch.Bunch().fromDict(dict(config.items('network')))
 
