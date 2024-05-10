@@ -14,6 +14,8 @@ import logging
 import time
 import threading
 from datetime import datetime
+import random
+import string
 
 # deps
 from tqdm import tqdm
@@ -239,6 +241,41 @@ def print_datetime():
     return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
 
+def id_generator(size=4, chars=string.ascii_lowercase + string.digits):
+    return ''.join(random.choice(chars) for _ in range(size))
+
+
+def check_station_alias(cnn):
+    # this method takes all stations, ordered by first RINEX file, and checks if other stations with same StationCode
+    # exist in the database. If there are and have no alias, then assign fixed alias to it
+
+    rs = cnn.query('SELECT "StationCode", count(*) FROM stations WHERE "NetworkCode" not like \'?%\' '
+                   'GROUP BY "StationCode" HAVING count(*) > 1')
+
+    if rs is not None:
+        for rec in rs.dictresult():
+            StationCode = rec['StationCode']
+
+            stn = cnn.query(f'SELECT * FROM stations WHERE "StationCode" = \'{StationCode}\' AND alias IS NULL '
+                            f'ORDER BY "DateStart"')
+            # loop through each one except the first, which will keep its original name
+            for i, s in enumerate(stn.dictresult()):
+                if i > 0:
+                    # make sure the id is unique
+                    unique = False
+                    stn_id = id_generator()
+                    while not unique:
+                        if len(cnn.query(f'SELECT * FROM stations WHERE "alias" = \'{stn_id}\' OR '
+                                         f'"StationCode" = \'{stn_id}\'').dictresult()) == 0:
+                            unique = True
+                        else:
+                            stn_id = id_generator()
+
+                    NetworkCode = s['NetworkCode']
+                    print(f' -- Duplicate station code without alias: {NetworkCode}.{StationCode} -> {stn_id}')
+                    cnn.update('stations', {'alias': stn_id}, StationCode=StationCode, NetworkCode=NetworkCode)
+
+
 def main():
 
     parser = argparse.ArgumentParser(description='Parallel.GAMIT main execution program')
@@ -286,6 +323,11 @@ def main():
     args = parser.parse_args()
 
     cnn = dbConnection.Cnn('gnss_data.cfg')  # type: dbConnection.Cnn
+
+    # DDG: new station alias check is run every time we start GAMIT. Station with duplicate names are assigned a unique
+    # alias that is used for processing
+    print(' >> Checking station duplicates and assigning aliases if needed')
+    check_station_alias(cnn)
 
     dates = None
     drange = None

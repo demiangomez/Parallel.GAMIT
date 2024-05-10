@@ -86,10 +86,12 @@ class Network(object):
 
             # sub-network already exist, put information in lists
             dba_stn   = [stn   for net in db_subnets for stn   in net['stations']]
-            dba_alias = [alias for net in db_subnets for alias in net['alias']]
+            # DDG: deprecated, aliases are now fixed and kept constant
+            # dba_alias = [alias for net in db_subnets for alias in net['alias']]
 
-            # make the necessary changes to the stations aliiases (so they match those in the database)
-            stations.replace_alias(dba_stn, dba_alias)
+            # DDG: deprecated, aliases are now fixed and kept constant
+            # make the necessary changes to the stations aliases (so they match those in the database)
+            # stations.replace_alias(dba_stn, dba_alias)
 
             # build the sub-networks using the information in the database
             clusters, backbone, ties = self.recover_subnets(db_subnets, stn_active)
@@ -816,7 +818,10 @@ class Network(object):
 
             # because a station was added, delete the gamit_stats record to force reprocessing
             for table in ('gamit_stats', 'gamit_subnets'):
-                cnn.delete(table, Project=self.name, Year=self.date.year, DOY=self.date.doy, subnet=0)
+                # DDG: change to query statement to delete all systems (GNSS support)
+                cnn.query(f'DELETE from {table} WHERE "Project"={self.name} AND "Year"={self.date.year} AND '
+                          f'"DOY"={self.date.doy} AND subnet=0')
+                # cnn.delete(table, Project=self.name, Year=self.date.year, DOY=self.date.doy, subnet=0)
 
             tqdm.write(' -- %s was not originally in the processing, will be added to sub-network %s00'
                        % (add_station.netstn, self.org))
@@ -833,7 +838,10 @@ class Network(object):
             clusters['stations'][min_i].append(add_station)
             # because a station was added, delete the gamit_stats and subnets record to force reprocessing
             for table in ('gamit_stats', 'gamit_subnets'):
-                cnn.delete(table, Project=self.name, Year=self.date.year, DOY=self.date.doy, subnet=min_i + 1)
+                # DDG: change to query statement to delete all systems (GNSS support)
+                cnn.query(f'DELETE from {table} WHERE "Project"={self.name} AND "Year"={self.date.year} AND '
+                          f'"DOY"={self.date.doy} AND subnet={min_i + 1}')
+                # cnn.delete(table, Project=self.name, Year=self.date.year, DOY=self.date.doy, subnet=min_i + 1)
 
             tqdm.write(' -- %s was not originally in the processing, will be added to sub-network %s%02i'
                        % (add_station.netstn, self.org, min_i + 1))
