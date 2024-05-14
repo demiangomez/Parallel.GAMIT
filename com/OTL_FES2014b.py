@@ -68,6 +68,7 @@ def create_files(stnlist):
         rs = cnn.query('SELECT * FROM stations WHERE "NetworkCode" NOT LIKE \'?%%\' AND "Harpos_coeff_otl" LIKE '
                        '\'%%HARPOS%%\' ORDER BY "NetworkCode", "StationCode"')
         # rs = cnn.query(
+
     #    'SELECT * FROM stations WHERE "NetworkCode" NOT LIKE \'?%%\' ORDER BY "NetworkCode", "StationCode"')
 
     stations = rs.dictresult()
@@ -145,7 +146,9 @@ def import_blq(filename):
 
     # it's BLQ alright
     # find the linenumber of the phase and frequency components
+
     header  = otl[0:34]
+
     pattern = re.compile('\s{2}\w{3}_\w{4}')
 
     for line in otl[34:]:
@@ -160,8 +163,10 @@ def load_blq(header, otl):
 
     # begin removing the network code from the OTL
     NetStn = re.findall('\s{2}(\w{3}_\w{4})', ''.join(otl))
+
     print(NetStn)
     NetworkCode, StationCode = NetStn[0].split('_')
+
 
     OTL = (''.join(header) + ''.join(otl)).replace('  ' + NetStn[0], '  ' + StationCode)
     OTL = OTL.replace('$$ ' + NetStn[0], '$$ %-8s' % StationCode)
