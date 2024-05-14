@@ -61,7 +61,7 @@ class Globk(object):
 
         chmod_exec(script_path)
 
-    def execute(self):
+    def execute(self, parse_sinex=True):
 
         # if multiple session, run globk first, then returned parsed sinex
         # if single session, then self.pwd_comb points to the folder where the sinex files is
@@ -76,8 +76,7 @@ class Globk(object):
             for s in self.Sessions:
                 for glx in glob.glob(os.path.join(s.pwd_glbf, 'h*.glx')):
                     # save the files that have to be copied, the copy process is done on each node
-                    h_file = 'h' + s.DirName + self.date.yyyy() + self.date.ddd() + '_' + \
-                             self.expt + '.glx'
+                    h_file = 'h' + s.DirName + self.date.yyyy() + self.date.ddd() + '_' + self.expt + '.glx'
                     shutil.copyfile(glx, os.path.join(self.pwd_comb, h_file))
 
             self.linktables(self.date.yyyy(), self.eop)
@@ -89,7 +88,7 @@ class Globk(object):
 
             self.stdout, self.stderr = self.p.communicate()
 
-        return self.parse_sinex()
+        return self.parse_sinex() if parse_sinex else None
 
     def create_combination_script(self, date, org):
 

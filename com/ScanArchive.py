@@ -104,7 +104,8 @@ from Utils import (print_columns,
                    file_append,
                    file_open,
                    file_read_all,
-                   stationID)
+                   stationID,
+                   station_list_help)
 
 
 error_message = False
@@ -1311,11 +1312,7 @@ def main():
     parser = argparse.ArgumentParser(description='Archive operations Main Program')
 
     parser.add_argument('stnlist', type=str, nargs='+', metavar='all|net.stnm',
-                        help="List of networks/stations to process given in [net].[stnm] format or just [stnm] "
-                             "(separated by spaces; if [stnm] is not unique in the database, all stations with that "
-                             "name will be processed). Use keyword 'all' to process all stations in the database. "
-                             "If [net].all is given, all stations from network [net] will be processed. "
-                             "Alternatively, a file with the station list can be provided.")
+                        help=station_list_help())
 
     parser.add_argument('-rinex', '--rinex', metavar='{ignore_stnlist}', type=int, nargs=1, default=None,
                         help="Scan the current archive for RINEX 2/3 files and add them to the database if missing. "

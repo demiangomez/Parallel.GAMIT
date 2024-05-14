@@ -75,6 +75,9 @@ def main():
     parser.add_argument('-skip', '--skip_stations_with_source', action='store_true', default=False,
                         help='Remove stations with sources from the search.')
 
+    parser.add_argument('-yes', '--force_yes', action='store_true', default=False,
+                        help='Always accept a match (without prompting yes/no).')
+
     args = parser.parse_args()
     cnn = dbConnection.Cnn("gnss_data.cfg")
 
@@ -106,11 +109,13 @@ def main():
     if not args.data_source:
         print('Error: a source server has to be provided!')
         return
-    elif type(args.data_source) is str:
-        # FQDN
-        rs = cnn.query('SELECT * FROM sources_servers WHERE fqdn = \'%s\'' % args.data_source)
     else:
-        rs = cnn.query('SELECT * FROM sources_servers WHERE id   =   %i  ' % args.data_source)
+        try:
+            # try with the source number
+            rs = cnn.query('SELECT * FROM sources_servers WHERE server_id = %i  ' % int(args.data_source))
+        except ValueError:
+            # FQDN
+            rs = cnn.query('SELECT * FROM sources_servers WHERE fqdn = \'%s\'' % args.data_source)
 
     if rs is not None:
         for svr in rs.dictresult():
@@ -166,8 +171,17 @@ def main():
                     try_order = 1
 
                 if ask_add:
-                    if query_yes_no('    Would like like to add %s as a source? (source filename %s)'
-                                    % (svr['fqdn'], match['filename']), None):
+                    if args.force_yes:
+                        # don't ask for user prompt
+                        add = True
+                    else:
+                        if query_yes_no('    Would like like to add %s as a source? (source filename %s)'
+                                        % (svr['fqdn'], match['filename']), None):
+                            add = True
+                        else:
+                            add = False
+
+                    if add:
                         cnn.insert('sources_stations',
                                    NetworkCode=match['NetworkCode'],
                                    StationCode=match['StationCode'],
@@ -183,7 +197,7 @@ def search_by_station(stnlist, drange, svr, client):
 
         # tqdm.write(' -- Looking for RINEX files for %s' % stationID(stn))
 
-        for date in (pyDate.Date(mjd=mdj) for mdj in drange):
+        for date in (pyDate.Date(mjd=mdj) for mdj in reversed(drange)):
 
             data_folder = path_replace_tags(svr['path'], date, stn['NetworkCode'], stn['StationCode'],
                                             stn['marker'], stn['country_code'])
@@ -194,10 +208,14 @@ def search_by_station(stnlist, drange, svr, client):
             # change directory to the provided date
             try:
                 data_list = client.proto.list_dir(os.path.dirname(data_folder) + '/')
+                # tqdm.write(data_list)
                 # now use the station information to see if file is in the list
-                r = re.compile('(.*' + filename + '*)')
-                match = list(filter(r.match, data_list))
-                if match:
+                if type(data_list) is set:
+                    r = re.findall('(.*' + filename + '*)', '\n'.join(data_list))
+                else:
+                    r = re.findall('(.*' + filename + '*)', data_list)
+                # match = list(filter(r.match, data_list))
+                if r:
                     # print(' -- Found match %s for %s\n' % (file, stationID(stn)))
                     if stn not in match_list:
                         stn_match = stn
@@ -221,6 +239,13 @@ def search_by_station(stnlist, drange, svr, client):
                     raise
             except ftplib.error_proto as e:
                 tqdm.write('Unexpected error: ' + str(e))
+
+            except Exception as e:
+                if '404' in str(e):
+                    pass
+                else:
+                    tqdm.write('Unexpected error: ' + str(e))
+
     sys.stdout.write('\n')
     return match_list
 
@@ -229,7 +254,7 @@ def search_by_date(stnlist, drange, svr, client):
 
     match_list = []
 
-    for date in (pyDate.Date(mjd=mdj) for mdj in drange):
+    for date in (pyDate.Date(mjd=mdj) for mdj in reversed(drange)):
 
         data_folder = path_replace_tags(os.path.dirname(svr['path']), date)
 

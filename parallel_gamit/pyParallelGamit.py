@@ -14,6 +14,8 @@ import logging
 import time
 import threading
 from datetime import datetime
+import random
+import string
 
 # deps
 from tqdm import tqdm
@@ -42,6 +44,26 @@ from Utils import (process_date,
                    stationID
                    )
 
+
+def prYellow(skk):
+    if os.fstat(0) == os.fstat(1):
+        return "\033[93m{}\033[00m" .format(skk)
+    else:
+        return skk
+
+
+def prRed(skk):
+    if os.fstat(0) == os.fstat(1):
+        return "\033[91m{}\033[00m" .format(skk)
+    else:
+        return skk
+
+
+def prGreen(skk):
+    if os.fstat(0) == os.fstat(1):
+        return "\033[92m{}\033[00m" .format(skk)
+    else:
+        return skk
 
 
 class DbAlive(object):
@@ -203,20 +225,55 @@ def station_list(cnn, stations, dates):
                dates[1].yyyy() + ', ' + dates[1].ddd()))
 
         if rs.ntuples() > 0:
-            tqdm.write(' -- %s -> adding...' % stationID(Stn))
+            tqdm.write(prGreen(' -- %s -> adding...' % stationID(Stn)))
             try:
                 stn_obj.append(Station(cnn, NetworkCode, StationCode, dates))
             except pyETMException:
-                tqdm.write('    %s -> station exists, but there was a problem initializing ETM.'
-                           % stationID(Stn))
+                tqdm.write(prRed('    %s -> station exists, but there was a problem initializing ETM.'
+                                 % stationID(Stn)))
         else:
-            tqdm.write(' -- %s -> no data for requested time window' % stationID(Stn))
+            tqdm.write(prYellow(' -- %s -> no data for requested time window' % stationID(Stn)))
 
     return stn_obj
 
 
 def print_datetime():
     return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+
+def id_generator(size=4, chars=string.ascii_lowercase + string.digits):
+    return ''.join(random.choice(chars) for _ in range(size))
+
+
+def check_station_alias(cnn):
+    # this method takes all stations, ordered by first RINEX file, and checks if other stations with same StationCode
+    # exist in the database. If there are and have no alias, then assign fixed alias to it
+
+    rs = cnn.query('SELECT "StationCode", count(*) FROM stations WHERE "NetworkCode" not like \'?%\' '
+                   'GROUP BY "StationCode" HAVING count(*) > 1')
+
+    if rs is not None:
+        for rec in rs.dictresult():
+            StationCode = rec['StationCode']
+
+            stn = cnn.query(f'SELECT * FROM stations WHERE "StationCode" = \'{StationCode}\' AND alias IS NULL '
+                            f'ORDER BY "DateStart"')
+            # loop through each one except the first, which will keep its original name
+            for i, s in enumerate(stn.dictresult()):
+                if i > 0:
+                    # make sure the id is unique
+                    unique = False
+                    stn_id = id_generator()
+                    while not unique:
+                        if len(cnn.query(f'SELECT * FROM stations WHERE "alias" = \'{stn_id}\' OR '
+                                         f'"StationCode" = \'{stn_id}\'').dictresult()) == 0:
+                            unique = True
+                        else:
+                            stn_id = id_generator()
+
+                    NetworkCode = s['NetworkCode']
+                    print(f' -- Duplicate station code without alias: {NetworkCode}.{StationCode} -> {stn_id}')
+                    cnn.update('stations', {'alias': stn_id}, StationCode=StationCode, NetworkCode=NetworkCode)
 
 
 def main():
@@ -260,11 +317,17 @@ def main():
     parser.add_argument('-kml', '--create_kml', action='store_true',
                         help="Create a KML with everything processed in this run.")
 
-    parser.add_argument('-np', '--noparallel', action='store_true', help="Execute command without parallelization.")
+    parser.add_argument('-np', '--noparallel', action='store_true',
+                        help="Execute command without parallelization.")
 
     args = parser.parse_args()
 
     cnn = dbConnection.Cnn('gnss_data.cfg')  # type: dbConnection.Cnn
+
+    # DDG: new station alias check is run every time we start GAMIT. Station with duplicate names are assigned a unique
+    # alias that is used for processing
+    print(' >> Checking station duplicates and assigning aliases if needed')
+    check_station_alias(cnn)
 
     dates = None
     drange = None
@@ -493,46 +556,55 @@ def ExecuteGlobk(cnn, JobServer, GamitConfig, sessions, dates):
 
 def gamit_callback(job):
 
-    result = job.result
+    results = job.result
 
-    if result is not None:
-        msg = []
-        if 'error' not in result.keys():
-            if result['nrms'] > 1:
-                msg.append('    > NRMS > 1.0 (%.3f) in solution %s' % (result['nrms'], result['session']))
+    if results is not None:
+        for result in results:
+            msg = []
+            if 'error' not in result.keys():
+                if result['nrms'] > 1:
+                    msg.append(f'    > NRMS > 1.0 ({result["nrms"]:.3f}) in solution {result["session"]}')
 
-            if result['wl'] < 60:
-                msg.append('    > WL fixed < 60 (%.1f) in solution %s' % (result['wl'], result['session']))
+                if result['wl'] < 60:
+                    msg.append(f'    > WL fixed < 60 ({result["wl"]:.1f}) in solution {result["session"]}')
 
-            if result['missing']:
-                msg.append('    > Missing sites in solution %s: ' % result['session'] + ', '.join(result['missing']))
+                # do not display missing stations anymore, at least for now
+                # if result['missing']:
+                #    msg.append(f'    > Missing sites in {result["session"]}: {", ".join(result["missing"])}')
 
-            # DDG: only show sessions with problems to facilitate debugging.
-            if result['success']:
-                if len(msg) > 0:
-                    tqdm.write(' -- %s Done processing: %s -> WARNINGS:\n%s'
-                               % (print_datetime(), result['session'], '\n'.join(msg)))
+                # DDG: only show sessions with problems to facilitate debugging.
+                if result['success']:
+                    if len(msg) > 0:
+                        tqdm.write(prYellow(f' -- {print_datetime()} finished: {result["session"]} '
+                                            f'system {result["system"]} -> WARNINGS:\n' + '\n'.join(msg) + '\n'))
 
-                # insert information in gamit_stats
-                try:
-                    cnn = dbConnection.Cnn('gnss_data.cfg')  # type: dbConnection.Cnn
-                    cnn.insert('gamit_stats', result)
-                    cnn.close()
-                except dbConnection.dbErrInsert as e:
-                    tqdm.write(' -- %s Error while inserting GAMIT stat for %s: '
-                               % (print_datetime(), result['session'] + ' ' + str(e)))
+                    # insert information in gamit_stats
+                    try:
+                        cnn = dbConnection.Cnn('gnss_data.cfg')  # type: dbConnection.Cnn
+                        cnn.insert('gamit_stats', result)
+                        cnn.close()
+                    except dbConnection.dbErrInsert as e:
+                        tqdm.write(prRed(f' -- {print_datetime()} Error while inserting GAMIT stat for '
+                                         f'{result["session"]} system: {result["system"]}' + str(e)))
 
+                else:
+                    tqdm.write(prRed(f' -- {print_datetime()} finished: {result["session"]} system {result["system"]} '
+                                     f'-> FATAL:\n'
+                                     f'    > Failed to complete. Check monitor.log:\n'
+                                     + indent("\n".join(result["fatals"]), 4) + '\n'))
+
+                    # write FATAL to file
+                    file_append('FATAL.log',
+                                f'ON {print_datetime()} session {result["session"]} system {result["system"]} '
+                                f'-> FATAL: Failed to complete. Check monitor.log\n'
+                                + indent("\n".join(result["fatals"]), 4) + '\n')
             else:
-                tqdm.write(' -- %s Done processing: %s -> FATAL:\n'
-                           '    > Failed to complete. Check monitor.log:\n%s'
-                           % (print_datetime(), result['session'], indent('\n'.join(result['fatals']), 4)))
-                # write FATAL to file
+                tqdm.write(prRed(f' -- {print_datetime()} Error in session {result["session"]} '
+                                 f'system {result["system"]} message from node follows -> \n{result["error"]}'))
+
                 file_append('FATAL.log',
-                            'ON %s session %s -> FATAL: Failed to complete. Check monitor.log\n%s\n'
-                            % (print_datetime(), result['session'], indent('\n'.join(result['fatals']), 4)))
-        else:
-            tqdm.write(' -- %s Error in session %s message from node follows -> \n%s'
-                       % (print_datetime(), result['session'], result['error']))
+                            f'ON {print_datetime()} error in session {result["session"]} '
+                            f'system {result["system"]} message from node follows -> \n{result["error"]}')
 
     else:
         tqdm.write(' -- %s Fatal error on node %s message from node follows -> \n%s'

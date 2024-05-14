@@ -19,6 +19,7 @@ import pyStationInfo
 import pyETM
 import pyBunch
 import pyDate
+from Utils import stationID
 
 COMPLETION = 0.5
 INTERVAL   = 120
@@ -39,22 +40,25 @@ class pyStationCollectionException(pyStationException):
 class Station(object):
 
     def __init__(self, cnn, NetworkCode, StationCode, dates, StationAlias=None):
+        """
+        Station object to manage metadata and APRs for GAMIT run. Class allows overriding StationAlias but now the
+        stations have a default alias if there is a station duplicate. StationAlias override left for backwards
+        compatibility but it should not be used.
+        """
 
         self.NetworkCode  = NetworkCode
         self.StationCode  = StationCode
-        self.netstn = self.NetworkCode + '.' + self.StationCode
+        self.netstn = stationID(self)
+
         if StationAlias is None:
-            if 'public.stationalias' in cnn.get_tables():
-                rs = cnn.query_float('SELECT * FROM stationalias WHERE "NetworkCode" = \'%s\' '
-                                     'AND "StationCode" = \'%s\''
-                                     % (NetworkCode, StationCode), as_dict=True)
-                if len(rs):
-                    self.StationAlias = rs[0]['StationAlias']
-                else:
-                    # if no record, then Alias = StationCode
-                    self.StationAlias = StationCode
+            rs = cnn.query_float('SELECT * FROM stations WHERE "NetworkCode" = \'%s\' '
+                                 'AND "StationCode" = \'%s\' AND alias IS NOT NULL'
+                                 % (NetworkCode, StationCode), as_dict=True)
+            if len(rs):
+                self.StationAlias = rs[0]['alias']
             else:
-                self.StationAlias = StationCode  # upon creation, Alias = StationCode
+                # if no record, then Alias = StationCode
+                self.StationAlias = StationCode
         else:
             self.StationAlias = StationAlias
 
@@ -132,9 +136,11 @@ class Station(object):
         
         return bool(len(soln))
 
+    # DDG: deprecated, aliases are now fixed and kept constant. Left for backwards compatibility
     def generate_alias(self):
         self.StationAlias = self.id_generator()
 
+    # DDG: deprecated, aliases are now fixed and kept constant. Left for backwards compatibility
     @staticmethod
     def id_generator(size=4, chars=string.ascii_lowercase + string.digits):
         return ''.join(random.choice(chars) for _ in range(size))
@@ -275,10 +281,13 @@ class StationCollection(list):
         if stations:
             self.append(stations)
 
-    def append(self, station, check_aliases=True):
+    def append(self, station):
+        # DDG: deprecated, aliases are now fixed and kept constant
+        # DDG: removed arg check_aliases=True
+
         if not (isinstance(station, Station) or isinstance(station, list)):
-            raise pyStationException('type: ' + str(type(station)) + ' invalid. Can only append Station objects or '
-                                                                     'lists of Station objects')
+            raise pyStationException('type: ' + str(type(station)) +
+                                     ' invalid. Can only append Station objects or lists of Station objects')
 
         if isinstance(station, Station):
             station = [station]
@@ -286,24 +295,26 @@ class StationCollection(list):
         for stn in station:
             # check that the incoming stations is not already in the list
             if not self.ismember(stn):
+                # DDG: deprecated, aliases are now fixed and kept constant
                 # verify the incoming Station against all StationCodes
-                if check_aliases:
-                    self.check_station_codes(stn)
+                # if check_aliases:
+                #     self.check_station_codes(stn)
                 super(StationCollection, self).append(stn)
 
-    def check_station_codes(self, station):
-
-        for stn in self:
-            if stn.NetworkCode != station.NetworkCode and \
-               stn.StationCode == station.StationCode:
-                # duplicate StationCode (different Network), produce Alias
-                unique = False
-                while not unique:
-                    station.generate_alias()
-                    # compare again to make sure this name is unique
-                    unique = self.compare_aliases(station)
-
-                tqdm.write('    Station renamed due to name conflict: ' + station.StationAlias)
+    # DDG: deprecated, aliases are now fixed and kept constant
+    # def check_station_codes(self, station):
+    #
+    #     for stn in self:
+    #         if stn.NetworkCode != station.NetworkCode and \
+    #            stn.StationCode == station.StationCode:
+    #             # duplicate StationCode (different Network), produce Alias
+    #             unique = False
+    #             while not unique:
+    #                 station.generate_alias()
+    #                 # compare again to make sure this name is unique
+    #                 unique = self.compare_aliases(station)
+    #
+    #             tqdm.write('    Station renamed due to name conflict: ' + station.StationAlias)
 
     def compare_aliases(self, station):
 
@@ -338,71 +349,72 @@ class StationCollection(list):
         """
         return np.array([[stn.X, stn.Y, stn.Z] for stn in self if date in stn.good_rinex])
 
-    def replace_alias(self, stations, aliases=None):
-        """
-        replace alias for station(s) provided in the list
-        :param stations: can be a station object, a list of station objects, a StationCollection or a list of strings
-        :param aliases: new aliases to apply to the stations (must be string or list of strings). If it's not provided
-        then aliases are pulled from the stations objects (in which case, stations must be a Station object)
-        :return: None
-        """
-
-        if isinstance(stations, StationCollection) or isinstance(stations, list):
-            if isinstance(stations, list):
-                for stn in stations:
-                    if not (isinstance(stn, Station) or isinstance(stn, str)):
-                        raise pyStationException('type: ' + str(type(stn)) +
-                                                 ' invalid. Can only pass Station or String objects.')
-
-            if isinstance(aliases, list):
-                if len(stations) != len(aliases):
-                    raise pyStationCollectionException('Length of stations and aliases arguments must match')
-
-            elif isinstance(aliases, str) and len(stations) > 1:
-                raise pyStationCollectionException('More than one station for a single alias string')
-
-            elif aliases is None:
-                aliases = [stn.StationAlias for stn in stations]
-
-            elif not (isinstance(aliases, str) or isinstance(aliases, list)):
-                raise pyStationException('type: ' + str(type(aliases)) +
-                                         ' invalid. Can only pass List or String objects.')
-
-        elif isinstance(stations, Station) or isinstance(stations, str):
-            if isinstance(aliases, list) and len(aliases) > 1:
-                raise pyStationCollectionException('More than one alias for a single station object')
-            elif aliases is None:
-                if isinstance(stations, Station):
-                    aliases = stations.StationAlias
-                else:
-                    raise pyStationException('No aliases provided. Argument stations must be a Station object')
-            elif not (isinstance(aliases, list) or isinstance(aliases, str)):
-                raise pyStationException('type: ' + str(type(aliases)) +
-                                         ' invalid. Can only pass List or String objects.')
-
-        else:
-            raise pyStationException('type: ' + str(type(stations)) +
-                                     ' invalid. Can only pass List, StationCollection or String objects.')
-
-        if isinstance(aliases, str):
-            aliases = [aliases]
-
-        if isinstance(stations, str) or isinstance(stations, Station):
-            stations = [stations]
-
-        for stn, alias in zip(stations, aliases):
-            if self[stn].StationCode == alias:
-                # if alias == StationCode continue to next one
-                continue
-            try:
-                self[stn].StationAlias = alias
-                # make sure there is no alias overlap
-                while not self.compare_aliases(self[stn]):
-                    self[stn].generate_alias()
-
-            except pyStationCollectionException as e:
-                print(str(e))
-                pass  # not found in collection
+    # DDG: deprecated, aliases are now fixed and kept constant
+    # def replace_alias(self, stations, aliases=None):
+    #     """
+    #     replace alias for station(s) provided in the list
+    #     :param stations: can be a station object, a list of station objects, a StationCollection or a list of strings
+    #     :param aliases: new aliases to apply to the stations (must be string or list of strings). If it's not provided
+    #     then aliases are pulled from the stations objects (in which case, stations must be a Station object)
+    #     :return: None
+    #     """
+    #
+    #     if isinstance(stations, StationCollection) or isinstance(stations, list):
+    #         if isinstance(stations, list):
+    #             for stn in stations:
+    #                 if not (isinstance(stn, Station) or isinstance(stn, str)):
+    #                     raise pyStationException('type: ' + str(type(stn)) +
+    #                                              ' invalid. Can only pass Station or String objects.')
+    #
+    #         if isinstance(aliases, list):
+    #             if len(stations) != len(aliases):
+    #                 raise pyStationCollectionException('Length of stations and aliases arguments must match')
+    #
+    #         elif isinstance(aliases, str) and len(stations) > 1:
+    #             raise pyStationCollectionException('More than one station for a single alias string')
+    #
+    #         elif aliases is None:
+    #             aliases = [stn.StationAlias for stn in stations]
+    #
+    #         elif not (isinstance(aliases, str) or isinstance(aliases, list)):
+    #             raise pyStationException('type: ' + str(type(aliases)) +
+    #                                      ' invalid. Can only pass List or String objects.')
+    #
+    #     elif isinstance(stations, Station) or isinstance(stations, str):
+    #         if isinstance(aliases, list) and len(aliases) > 1:
+    #             raise pyStationCollectionException('More than one alias for a single station object')
+    #         elif aliases is None:
+    #             if isinstance(stations, Station):
+    #                 aliases = stations.StationAlias
+    #             else:
+    #                 raise pyStationException('No aliases provided. Argument stations must be a Station object')
+    #         elif not (isinstance(aliases, list) or isinstance(aliases, str)):
+    #             raise pyStationException('type: ' + str(type(aliases)) +
+    #                                      ' invalid. Can only pass List or String objects.')
+    #
+    #     else:
+    #         raise pyStationException('type: ' + str(type(stations)) +
+    #                                  ' invalid. Can only pass List, StationCollection or String objects.')
+    #
+    #     if isinstance(aliases, str):
+    #         aliases = [aliases]
+    #
+    #     if isinstance(stations, str) or isinstance(stations, Station):
+    #         stations = [stations]
+    #
+    #     for stn, alias in zip(stations, aliases):
+    #         if self[stn].StationCode == alias:
+    #             # if alias == StationCode continue to next one
+    #             continue
+    #         try:
+    #             self[stn].StationAlias = alias
+    #             # make sure there is no alias overlap
+    #             while not self.compare_aliases(self[stn]):
+    #                 self[stn].generate_alias()
+    #
+    #         except pyStationCollectionException as e:
+    #             print(str(e))
+    #             pass  # not found in collection
 
     def ismember(self, station):
         """
@@ -439,41 +451,3 @@ class StationCollection(list):
 
     def __contains__(self, item):
         return self.ismember(item)
-
-
-if __name__ == '__main__':
-    import dbConnection
-    import pyGamitConfig
-    import pyArchiveStruct
-    import pyGamitSession
-
-    cnn = dbConnection.Cnn('gnss_data.cfg')
-    GamitConfig = pyGamitConfig.GamitConfiguration('CPC-Ar_session.cfg')
-    archive = pyArchiveStruct.RinexStruct(cnn)
-    import pycos
-    import pyDate
-    dr = [pyDate.Date(year=2010,doy=1), pyDate.Date(year=2010,doy=2)]
-    s1 = Station(cnn, 'rms', 'igm1', dr)
-    s2 = Station(cnn, 'rms', 'lpgs', dr)
-    s3 = Station(cnn, 'rms', 'chac', dr)
-    s4 = Station(cnn, 'cap', 'chac', dr)
-    si = StationInstance(cnn, archive, s1, dr[0], GamitConfig)
-    gs = pyGamitSession.GamitSession(cnn, archive, 'igg', 'IGN', None,
-                                     pyDate.Date(year=2020,doy=100),GamitConfig, [s1, s2, s3])
-    c = StationCollection()
-    a = pycos.unserialize(pycos.serialize(gs))
-    print(a)
-    b = pycos.unserialize(pycos.serialize(s1))
-    print(b)
-    c.append(s1)
-    c.append(s2)
-    c.append(s3)
-    c = pycos.unserialize(pycos.serialize(c))
-    print(c)
-    # c.append(s4)
-    # print c
-    # c.replace_alias([s1, s2], ['zzz1', 'zzz1'])
-    # print c
-    # print c.get_active_stations(dr[0]).ismember(s3)
-    # for i, s in enumerate(c):
-    #     print i, s

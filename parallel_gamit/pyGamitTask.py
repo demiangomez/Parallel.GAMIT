@@ -11,6 +11,7 @@ import re
 import glob
 import platform
 import traceback
+import numpy
 
 # app
 import pyRinex
@@ -20,8 +21,17 @@ from Utils import (file_write, file_open,
                    file_append, file_readlines,
                    chmod_exec, stationID)
 
+
 def now_str():
     return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+
+def replace_vars(archive, date):
+    return archive.replace('$year', str(date.year)) \
+        .replace('$doy', str(date.doy).zfill(3)) \
+        .replace('$gpsweek', str(date.gpsWeek).zfill(4)) \
+        .replace('$gpswkday', str(date.gpsWeekDay))
+
 
 class GamitTask(object):
 
@@ -33,24 +43,30 @@ class GamitTask(object):
         self.pwd_brdc     = os.path.join(remote_pwd, 'brdc')
         self.pwd_rinex    = os.path.join(remote_pwd, 'rinex')
         self.pwd_tables   = os.path.join(remote_pwd, 'tables')
+        self.pwd_glbf     = os.path.join(remote_pwd, 'glbf')
 
         self.params    = params
         self.options   = params['options']
         self.orbits    = params['orbits']
         self.gamitopts = params['gamitopts']
+        self.systems   = params['gamitopts']['systems']
         self.date      = params['date']
         self.success   = False
         self.stdout    = ''
         self.stderr    = ''
         self.p         = None
 
-        file_write(os.path.join(self.solution_pwd, 'monitor.log'),
-                   now_str() +
-                   ' -> GamitTask initialized for %s: %s\n' % (self.params['DirName'],
-                                                               self.date.yyyyddd()))
+        # a dictionary to keep track of how many stations support each system
+        self.system_count = {'E': 0, 'G': 0, 'R': 0, 'C': 0}
+
+        self.monitor_file = os.path.join(self.pwd, 'monitor.log')
+
+        file_write(os.path.join(self.solution_pwd, 'monitor.log'), now_str() +
+                   ' -> GamitTask initialized for %s %s local folder %s solution folder %s\n'
+                   % (self.params['DirName'], self.date.yyyyddd(), self.pwd, self.solution_pwd))
 
     def start(self, dirname, year, doy, dry_run=False):
-        monitor_open = False
+        copy_done = False
 
         try:
             # copy the folder created by GamitSession in the solution_pwd to the remote_pwd (pwd)
@@ -68,153 +84,73 @@ class GamitTask(object):
 
             # ready to copy the shared solution_dir to pwd
             shutil.copytree(self.solution_pwd, self.pwd, symlinks=True)
-
-            with file_open(os.path.join(self.pwd, 'monitor.log'), 'a') as monitor:
-                monitor_open = True
-
-                def log(s):
-                    monitor.write(now_str() + ' -> ' + s + '\n')
-
-                log('%s %i %i executing on %s' % (dirname, year, doy, platform.node()))
-                log('fetching orbits')
-
-                try:
-                    Sp3 = pySp3.GetSp3Orbits(self.orbits['sp3_path'], self.date, self.orbits['sp3types'],
-                                             self.pwd_igs, True)  # type: pySp3.GetSp3Orbits
-
-                except pySp3.pySp3Exception:
-                    log('could not find orbits to run the process')
-
-                    # try alternative orbits
-                    # DDG: now there is no sp3altrn anymore
-                    # if self.options['sp3altrn']:
-                    #    Sp3 = pySp3.GetSp3Orbits(self.orbits['sp3_path'], self.date, self.orbits['sp3altrn'],
-                    #                             self.pwd_igs, True)  # type: pySp3.GetSp3Orbits
-                    # else:
-                    raise
-
-                if Sp3.type != 'igs':
-                    # rename file
-                    shutil.copyfile(Sp3.file_path, Sp3.file_path.replace(Sp3.type, 'igs'))
-
-                log('fetching broadcast orbits')
-
-                pyBrdc.GetBrdcOrbits(self.orbits['brdc_path'], self.date, self.pwd_brdc,
-                                     no_cleanup=True)  # type: pyBrdc.GetBrdcOrbits
-
-                for rinex in self.params['rinex']:
-
-                    log('fetching rinex for %s %s %s %s'
-                        % (stationID(rinex), rinex['StationAlias'],
-                           '{:10.6f} {:11.6f}'.format(rinex['lat'], rinex['lon']), 'tie' if rinex['is_tie'] else ''))
-
-                    try:
-                        with pyRinex.ReadRinex(rinex['NetworkCode'],
-                                               rinex['StationCode'],
-                                               rinex['source'], False) as Rinex:  # type: pyRinex.ReadRinex
-
-                            # WARNING! some multiday RINEX were generating conflicts because the RINEX has a name, say,
-                            # tuc12302.10o and the program wants to rename it as tuc12030.10o but because it's a
-                            # multiday file, during __init__ it's already split and renamed as tuc12300.10o and
-                            # additional folders are generated with the information for each file. Therefore, find
-                            # the rinex that corresponds to the date being processed and use that one instead of the
-                            # original file. These files are not allowed by pyArchiveService, but the "start point" of
-                            # the database (i.e. the files already in the folders read by pyScanArchive) has such
-                            # problems.
-
-                            # figure out if this station has been affected by an earthquake
-                            # if so, window the data
-                            if rinex['jump'] is not None:
-                                monitor.write(
-                                    '                    -> RINEX file has been windowed: ETM detected jump on ' +
-                                    rinex['jump'].datetime().strftime('%Y-%m-%d %H:%M:%S') + '\n')
-
-                            if Rinex.multiday:
-                                # find the rinex that corresponds to the session being processed
-                                for Rnx in Rinex.multiday_rnx_list:
-                                    if Rnx.date == self.date:
-                                        Rnx.rename(rinex['destiny'])
-
-                                        if rinex['jump'] is not None:
-                                            self.window_rinex(Rnx, rinex['jump'])
-                                        # before creating local copy, decimate file
-                                        Rnx.decimate(30)
-                                        Rnx.purge_comments()
-                                        Rnx.compress_local_copyto(self.pwd_rinex, rinex['destiny'])
-                                        break
-                            else:
-                                Rinex.rename(rinex['destiny'])
-
-                                if rinex['jump'] is not None:
-                                    self.window_rinex(Rinex, rinex['jump'])
-                                # before creating local copy, decimate file
-                                Rinex.decimate(30)
-                                Rinex.purge_comments()
-                                Rinex.compress_local_copyto(self.pwd_rinex, rinex['destiny'])
-
-                    except (OSError, IOError):
-                        log('An error occurred while trying to copy ' +
-                            rinex['source'] + ' to ' + rinex['destiny'] + ': File skipped.')
-
-                    except (pyRinex.pyRinexException, Exception) as e:
-                        log('An error occurred while trying to copy ' +
-                            rinex['source'] + ': ' + str(e))
-
-                log('executing GAMIT')
-
-                # create the run script
-                self.create_replace_links()
-                self.create_run_script()
-                self.create_finish_script()
-
+            # DDG: do not log anything before the copytree operation because monitor.log still not in pwd
+            self.log(f'{dirname} {year} {doy} executing on {platform.node()} systems ' + ', '.join(self.systems))
+            self.log(f'Copied structure from {self.solution_pwd} to {self.pwd}')
+            # this flag is to inform to the error handler that file operations have been made: thus, errors can
+            # be written to monitor.log
+            copy_done = True
+            # create the run script
+            self.create_replace_links()
             # run the script to replace the links of the tables directory
-            self.p = subprocess.Popen('find ./tables ! -name "otl.grid" -type l -exec ./replace_links.sh {} +',
-                                      shell=True, stdout=subprocess.PIPE,stderr=subprocess.PIPE, cwd=self.pwd)
-            _, _ = self.p.communicate()
+            self.execute('find ./tables ! -name "otl.grid" -type l -exec ./replace_links.sh {} +',
+                         shell=True)
+            self.log('Pre-process tasks (symlink fix) finished with no errors')
 
+            self.fetch_orbits()
+
+            self.fetch_rinex()
+
+            self.log('About to execute GAMIT - system count ' +
+                     ' '.join(f'{s}: {self.system_count[s]}' for s in self.systems))
+
+            results = []
             # now execute the run script
             if not dry_run:
-                self.p = subprocess.Popen('./run.sh', shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                          cwd=self.pwd)
 
-                self.stdout, self.stderr = self.p.communicate()
+                # do a GAMIT run for each system
+                for sys in self.systems:
+                    if self.system_count[sys] > 1:
+                        results.append(self.run_gamit(sys))
+                    else:
+                        self.log(f'Not enough observing stations for system {sys}. Skipping processing.')
 
-                self.p = subprocess.Popen('./finish.sh', shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                          cwd=self.pwd)
+                # combination in GLOBK
+                success_results = [r for r in results if r['success']]
+                if len(success_results) > 1:
+                    self.log('Combination between systems needed.')
+                    self.combine_systems(success_results)
+                    self.success = True
+                elif len(success_results) == 1:
+                    self.log('Single system result, using as final GLX.')
+                    # just copy the system result to glbf
+                    shutil.copyfile(os.path.join(self.pwd, f'gsoln/' + success_results[0]['system'] + '/' +
+                                                 success_results[0]['glbf']),
+                                    os.path.join(self.pwd_glbf, success_results[0]['glbf']))
+                    self.success = True
+                else:
+                    # a problem with all systems, declare fatal
+                    self.log('No valid system solutions. Check fatals.')
 
-                self.stdout, self.stderr = self.p.communicate()
+                if self.success:
+                    # combine zenith tropospheric delays
+                    self.log('Merging all tropospheric estimates in a single file.')
+                    self.process_tropo(success_results)
 
-                # check for any fatals
-                self.p = subprocess.Popen('grep -q \'FATAL\' monitor.log', shell=True, stdout=subprocess.PIPE,
-                                          stderr=subprocess.PIPE, cwd=self.pwd)
-
-                _, _ = self.p.communicate()
-
-                self.success = (self.p.returncode != 0)
-
-            # output statistics to the parent to display
-            result = self.parse_monitor(self.success)
-
-            file_append(os.path.join(self.pwd, 'monitor.log'),
-                        now_str() + ' -> return to Parallel.GAMIT\n')
-
-            # no matter the result of the processing, move folder to final destination
-            if not dry_run:
                 self.finish()
 
-            return result
+            return results
 
-        except:
+        except Exception:
 
             msg = traceback.format_exc() + '\nProcessing %s date %s on node %s' \
                   % (self.params['NetName'], self.date.yyyyddd(), platform.node())
 
             # DDG: do not attempt to write to monitor.log or do any file operations (maybe permission problem)
             # problem might occur during copytree or rmtree or some other operation before opening monitor.log
-            if monitor_open:
-                file_append(os.path.join(self.pwd, 'monitor.log'),
-                            now_str() +
-                            ' -> ERROR in pyGamitTask.start()\n%s' % msg)
+            if copy_done:
+                # if the copy was done, then it is possible to write, so log the error in monitor
+                self.log('ERROR in pyGamitTask.start()\n%s' % msg)
 
                 # the solution folder exists because it was created by GamitSession to start the processing.
                 # erase it to upload the result
@@ -222,36 +158,207 @@ class GamitTask(object):
                     shutil.rmtree(self.solution_pwd)
 
                 # execute final error step: copy to self.solution_pwd
-                shutil.copytree(self.pwd, self.solution_pwd, symlinks=True)
+                # ignore_dangling_symlinks=True and symlink=False to avoid errors from broken symlinks
+                # that might exist in tables
+                shutil.copytree(self.pwd, self.solution_pwd, symlinks=False, ignore_dangling_symlinks=True)
                 # remove the remote pwd
                 shutil.rmtree(self.pwd)
 
-                # output statistics to the parent to display
-                result = self.parse_monitor(False)
+                # output dummy statistics to the parent for display
+                results = self.run_gamit('G', dummy=True)
             else:
-                result = {'session'             : '%s %s' % (self.date.yyyyddd(), self.params['DirName']),
-                          'Project'             : self.params['NetName'],
-                          'subnet'              : self.params['subnet'],
-                          'Year'                : self.date.year,
-                          'DOY'                 : self.date.doy,
-                          'FYear'               : self.date.fyear,
-                          'wl'                  : 0,
-                          'nl'                  : 0,
-                          'nrms'                : 0,
-                          'relaxed_constrains'  : '',
-                          'max_overconstrained' : '',
-                          'node'                : platform.node(),
-                          'execution_time'      : 0,
-                          'execution_date'      : 0,
-                          'missing'             : '',
-                          'success'             : False,
-                          'fatals'              : []
-                          }
+                results = self.run_gamit('G', dummy=True)
 
-            result['error'] = msg
+            results['error'] = msg
 
-            # return useful information to the main node
-            return result
+            # return useful information to the main node (return list because now there is one result per system)
+            return [results]
+
+    def log(self, message, no_timestamp=False):
+        if not no_timestamp:
+            file_append(self.monitor_file, now_str() + ' -> ' + message + '\n')
+        else:
+            file_append(self.monitor_file, message + '\n')
+
+    def process_tropo(self, results):
+        org = self.gamitopts['org']
+
+        znd = os.path.join(self.pwd_glbf, org + self.date.wwwwd() + '.znd')
+
+        for result in results:
+            trp = os.path.join(self.pwd, 'gsoln/' + result['system'] + '/' + org + self.date.wwwwd() + '.trp')
+            if os.path.isfile(trp):
+                # read the content of the file
+                output = file_readlines(trp)
+                v = re.findall(r'(ATM_ZEN X \w+ .. \d+\s*\d*\s*\d*\s*\d*\s*\d*\s*\d*\s*[- ]?'
+                               r'\d*.\d+\s*[+-]*\s*\d*.\d*\s*\d*.\d*)', ''.join(output), re.MULTILINE)
+                # output all the lines into a single znd file in glbf that will be read by pyParseZTD
+                for line in v:
+                    file_append(znd, line + '\n')
+
+    def combine_systems(self, results):
+        # create a globk.cmd file for the combination
+        expt  = self.gamitopts['expt']
+        hfile = f'h{str(self.date.year)[2:]}{self.date.month:02}{self.date.doy:02}1200_{expt}.glx'
+
+        try:
+            globk_cmd = file_open(os.path.join(self.pwd_glbf, 'globk.cmd'), 'w')
+        except (OSError, IOError):
+            raise Exception('could not open file globk.cmd')
+
+        contents = f"""
+ app_ptid all
+ prt_opt GDLF MIDP CMDS PLST
+ out_glb {hfile}
+ descript Multi GNSS combination of global or regional solutions
+ max_chii  1. 0.6
+ apr_site  all 1 1 1 0 0 0
+        """
+
+        globk_cmd.write(contents)
+        globk_cmd.close()
+
+        try:
+            gdl_file = file_open(os.path.join(self.pwd_glbf, 'hfiles.gdl'), 'w')
+        except (OSError, IOError):
+            raise Exception('could not open file hfiles.gdl')
+
+        # create the gdl file with the glx files to merge
+        contents = ''
+        for sol in results:
+            # DDG: down weight E and R solutions (double uncertainty, see GLOBK manual page 12)
+            if sol['system'] == 'G':
+                w = 1.0
+            else:
+                w = 4.0
+            contents += '../gsoln/' + sol['system'] + '/' + sol['glbf'] + f' {w:.1f}\n'
+
+        gdl_file.write(contents)
+        gdl_file.close()
+
+        self.execute('cd glbf; globk 0 out.prt globk.log hfiles.gdl globk.cmd > globk.out', shell=True)
+
+        # now parse the output for any problems
+        try:
+            logfile = ''.join(file_readlines(os.path.join(self.pwd_glbf, 'globk.log')))
+        except FileNotFoundError:
+            logfile = ''
+            pass
+        self.log('\n'.join('\n'.join(i for i in s if i != '')
+                           for s in re.findall(r'(\sFor .* Glbf .*)|(\*{2} .*)', logfile)), no_timestamp=True)
+
+    def execute(self, script_name, shell=False):
+        self.p = subprocess.Popen(script_name, shell=shell, stdout=subprocess.PIPE,
+                                  stderr=subprocess.PIPE, cwd=self.pwd)
+
+        self.stdout, self.stderr = self.p.communicate()
+
+    def fetch_orbits(self):
+        self.log('fetching orbits')
+
+        try:
+            Sp3 = pySp3.GetSp3Orbits(self.orbits['sp3_path'], self.date, self.orbits['sp3types'], self.pwd_igs, True)
+
+            self.log(f'sp3 orbit found: {Sp3.sp3_filename} -> {Sp3.file_path}')
+
+        except pySp3.pySp3Exception:
+            self.log('could not find orbits to run the process')
+            raise
+
+        if Sp3.type[0:3].lower() != 'igs':
+            # rename file
+            filename = str(os.path.basename(Sp3.file_path))
+            filename = filename.replace(filename[0:3], "igs")
+            sp3_rename = os.path.join(self.pwd_igs, filename)
+            self.log(f'renaming {Sp3.file_path} to {sp3_rename}')
+            shutil.copyfile(Sp3.file_path, sp3_rename)
+
+        self.log('fetching broadcast orbits')
+
+        brdc = pyBrdc.GetBrdcOrbits(self.orbits['brdc_path'], self.date, self.pwd_brdc, no_cleanup=True)
+
+        self.log(f'broadcast orbit found: {brdc.brdc_filename}')
+
+        # ionex file TODO: probably define a new object to handle IONEX files in the same way as SP3s
+        if not os.path.exists(os.path.join(self.pwd, 'ionex')):
+            os.makedirs(os.path.join(self.pwd, 'ionex'))
+        # look for the file in the ionex options
+        ionex_file = f'IGS0OPSFIN_{self.date.yyyy()}{self.date.ddd()}0000_01D_02H_GIM.INX.gz'
+        ionex_path = os.path.join(replace_vars(self.orbits['ionex_path'], self.date), ionex_file)
+        if os.path.exists(ionex_path):
+            # use short name when copying
+            short_name = 'igsg%s0.%si.Z' % (self.date.ddd(), str(self.date.year)[2:4])
+            shutil.copyfile(ionex_path, os.path.join(self.pwd, 'ionex/' + short_name))
+            # uncompress the file
+            self.execute('gunzip -f ionex/' + short_name, shell=True)
+            self.log(f'Ionex file found: {ionex_path} -> {os.path.join(self.pwd, short_name)}')
+        else:
+            self.log(f'IONEX path {ionex_path} does not exist. This might stop GAMIT during processing if '
+                     '"Apply 2nd/3rd order ionospheric terms" (Ion model) is set to GMAP.')
+
+    def fetch_rinex(self):
+        for rinex in self.params['rinex']:
+
+            try:
+                with pyRinex.ReadRinex(rinex['NetworkCode'],
+                                       rinex['StationCode'],
+                                       rinex['source'], False) as Rinex:  # type: pyRinex.ReadRinex
+
+                    self.log(f'fetching rinex for {stationID(rinex)} {rinex["StationAlias"]} '
+                             f'{rinex["lat"]:10.6f} {rinex["lon"]:11.6f} {Rinex.satsys:6} '
+                             f'{"tie" if rinex["is_tie"] else ""}')
+
+                    # add 1 to the system_count dictionary
+                    for s in Rinex.satsys:
+                        if s in self.system_count.keys():
+                            self.system_count[s] += 1
+
+                    # WARNING! some multiday RINEX were generating conflicts because the RINEX has a name, say,
+                    # tuc12302.10o and the program wants to rename it as tuc12030.10o but because it's a
+                    # multiday file, during __init__ it's already split and renamed as tuc12300.10o and
+                    # additional folders are generated with the information for each file. Therefore, find
+                    # the rinex that corresponds to the date being processed and use that one instead of the
+                    # original file. These files are not allowed by pyArchiveService, but the "start point" of
+                    # the database (i.e. the files already in the folders read by pyScanArchive) has such
+                    # problems.
+
+                    # figure out if this station has been affected by an earthquake
+                    # if so, window the data
+                    if rinex['jump'] is not None:
+                        self.log(
+                            '                    -> RINEX file has been windowed: ETM detected jump on ' +
+                            rinex['jump'].datetime().strftime('%Y-%m-%d %H:%M:%S') + '\n', no_timestamp=True)
+
+                    if Rinex.multiday:
+                        # find the rinex that corresponds to the session being processed
+                        for Rnx in Rinex.multiday_rnx_list:
+                            if Rnx.date == self.date:
+                                Rnx.rename(rinex['destiny'])
+
+                                if rinex['jump'] is not None:
+                                    self.window_rinex(Rnx, rinex['jump'])
+                                # before creating local copy, decimate file
+                                Rnx.decimate(30)
+                                Rnx.purge_comments()
+                                Rnx.compress_local_copyto(self.pwd_rinex, rinex['destiny'])
+                                break
+                    else:
+                        Rinex.rename(rinex['destiny'])
+
+                        if rinex['jump'] is not None:
+                            self.window_rinex(Rinex, rinex['jump'])
+                        # before creating local copy, decimate file
+                        Rinex.decimate(30)
+                        Rinex.purge_comments()
+                        Rinex.compress_local_copyto(self.pwd_rinex, rinex['destiny'])
+
+            except (OSError, IOError):
+                self.log('An error occurred while trying to copy ' +
+                         rinex['source'] + ' to ' + rinex['destiny'] + ': File skipped.')
+
+            except (pyRinex.pyRinexException, Exception) as e:
+                self.log('An error occurred while trying to copy ' +
+                         rinex['source'] + ': ' + str(e))
 
     def window_rinex(self, Rinex, window):
 
@@ -263,166 +370,37 @@ class GamitTask(object):
         else:
             Rinex.window_data( end = dt)
 
-    def parse_monitor(self, success):
-        lines  = file_readlines(self.pwd + '/monitor.log')
-        output = ''.join(lines)
-
-        try:
-            start_time = datetime.strptime(
-                re.findall(r'run.sh \((\d+-\d+-\d+ \d+:\d+:\d+)\): Iteration depth: 1',
-                           output, re.MULTILINE)[0], '%Y-%m-%d %H:%M:%S')
-        except:
-            start_time = datetime(2001, 1, 1, 0, 0, 0)
-
-        try:
-            if success:
-                end_time = datetime.strptime(
-                    re.findall(r'finish.sh \((\d+-\d+-\d+ \d+:\d+:\d+)\): Done processing h-files and generating SINEX.'
-                               , output, re.MULTILINE)[0], '%Y-%m-%d %H:%M:%S')
-            else:
-                end_time = datetime.now()
-
-        except:
-            end_time = datetime(2001, 1, 1, 0, 0, 0)
-
-        try:
-            if not success:
-                fatals = set(re.findall(r'(.*?FATAL.*)', output, re.MULTILINE))
-            else:
-                fatals = []
-        except Exception as e:
-            fatals = ['Could not retrieve FATALS: ' + str(e)]
-
-        try:
-            iterations = int(re.findall(r'run.sh \(\d+-\d+-\d+ \d+:\d+:\d+\): Iteration depth: (\d+)',
-                             output, re.MULTILINE)[-1])
-        except:
-            iterations = 0
-
-        try:
-            nrms = float(
-                re.findall(r'Prefit nrms:\s+\d+.\d+[eEdD]\+\d+\s+Postfit nrms:\s+(\d+.\d+[eEdD][+-]\d+)', output,
-                           re.MULTILINE)[-1])
-        except:
-            # maybe GAMIT didn't finish
-            nrms = 100
-
-        try:
-            updated_apr = re.findall(r' (\w+).*?Updated from', output, re.MULTILINE)[0]
-            updated_apr = [upd.replace('_GPS', '').lower() for upd in updated_apr]
-            upd_stn = []
-            for stn in updated_apr:
-                for rinex in self.params['rinex']:
-                    if rinex['StationAlias'].lower() == stn.lower():
-                        upd_stn += [stationID(rinex)]
-
-            upd_stn = ','.join(upd_stn)
-        except:
-            # maybe GAMIT didn't finish
-            upd_stn = None
-
-
-        try:
-            wl = float(re.findall(r'WL fixed\s+(\d+.\d+)', output, re.MULTILINE)[0])
-        except:
-            # maybe GAMIT didn't finish
-            wl = 0
-
-        try:
-            nl = float(re.findall(r'NL fixed\s+(\d+.\d+)', output, re.MULTILINE)[0])
-        except:
-            # maybe GAMIT didn't finish
-            nl = 0
-
-        try:
-            oc = re.findall(r'relaxing over constrained stations (\w+.*)', output, re.MULTILINE)[0]
-            oc = oc.replace('|', ',').replace('_GPS', '').lower()
-
-            oc_stn = []
-            for stn in oc.split(','):
-                for rinex in self.params['rinex']:
-                    if rinex['StationAlias'].lower() == stn.lower():
-                        oc_stn += [stationID(rinex)]
-
-            oc_stn = ','.join(oc_stn)
-
-        except:
-            # maybe GAMIT didn't finish
-            oc_stn = None
-
-        try:
-            max_overconstrained = None
-            overcons = re.findall(r'GCR APTOL (\w+).{10}\s+([-]?\d+.\d+)', output, re.MULTILINE)
-
-            if len(overcons) > 0:
-                vals = [float(o[1]) for o in overcons]
-                i    = vals.index(max(abs(v) for v in vals))
-                stn  = overcons[i][0]
-
-                for rinex in self.params['rinex']:
-                    if rinex['StationAlias'].lower() == stn.lower():
-                        # get the real station code
-                        max_overconstrained = stationID(rinex)
-            else:
-                max_overconstrained = None
-
-        except:
-            # maybe GAMIT didn't finish
-            max_overconstrained = None
-
-        try:
-            ms = re.findall(r'No data for site (\w+)',   output, re.MULTILINE)
-            ds = re.findall(r'.*deleting station (\w+)', output, re.MULTILINE)
-            missing_sites = []
-            for stn in ms + ds:
-                for rinex in self.params['rinex']:
-                    if rinex['StationAlias'].lower() == stn.lower() and \
-                       stationID(rinex) not in missing_sites:
-                        if stn in ms:
-                            missing_sites += ['(' + stationID(rinex) + ')']
-                        else:
-                            missing_sites += [stationID(rinex)]
-
-        except:
-            # maybe GAMIT didn't finish
-            missing_sites = []
-
-        return {'session'             : '%s %s' % (self.date.yyyyddd(), self.params['DirName']),
-                'Project'             : self.params['NetName'],
-                'subnet'              : self.params['subnet'],
-                'Year'                : self.date.year,
-                'DOY'                 : self.date.doy,
-                'FYear'               : self.date.fyear,
-                'wl'                  : wl,
-                'nl'                  : nl,
-                'nrms'                : nrms,
-                'relaxed_constrains'  : oc_stn,
-                'max_overconstrained' : max_overconstrained,
-                'updated_apr'         : upd_stn,
-                'iterations'          : iterations,
-                'node'                : platform.node(),
-                'execution_time'      : int((end_time - start_time).total_seconds() / 60.0),
-                'execution_date'      : start_time,
-                'missing'             : missing_sites,
-                'success'             : success,
-                'fatals'              : fatals
-                }
-
     def finish(self):
         try:
-            # delete everything inside the processing dir
-            shutil.rmtree(self.pwd_brdc)
-            shutil.rmtree(self.pwd_igs)
+            gpswday = self.date.gpsWeekDay
+            gpsweek = self.date.wwww()
+            org     = self.gamitopts['org']
+            sinex   = f'{org}{gpsweek}{gpswday}.snx'
 
-            # remove files in tables
-            for ftype in ('*.grid', '*.dat', '*.apr'):
-                for ff in glob.glob(os.path.join(self.pwd_tables, ftype)):
+            if self.success:
+                self.log(f'Successful run: Generating SINEX file {sinex} in glbf.')
+
+                self.execute(f'glbtosnx . "" glbf/h*.glx glbf/{sinex} >> glbf/glbtosnx.out', shell=True)
+
+                self.log('Deleting tables and RINEX files and processing dir.')
+                # delete everything inside the processing dir
+                shutil.rmtree(self.pwd_brdc)
+                shutil.rmtree(self.pwd_igs)
+
+                # remove files from tables files only if successful
+                for ftype in ('*.??o', '*.grid', '*.dat', '*.apr', 'nbody', 'pole.*', 'ut1.*'):
+                    for ff in glob.glob(os.path.join(self.pwd_tables, ftype)):
+                        os.remove(ff)
+
+                # remove files in rinex files only if successful
+                for ff in glob.glob(os.path.join(self.pwd_rinex, '*')):
                     os.remove(ff)
 
-            # remove processing files
-            for ftype in ('b*', 'cfmrg*', 'DPH.*', 'eq_rename.*', 'g*', 'k*', 'p*', 'rcvant.*', 'y*'):
-                for ff in glob.glob(os.path.join(os.path.join(self.pwd, self.date.ddd()), ftype)):
-                    os.remove(ff)
+                # remove files from processing directory
+                for system in self.systems:
+                    for ftype in ('*.??o', 'z*', '*.grid', '*.dat', '*.apr'):
+                        for ff in glob.glob(os.path.join(self.pwd, f'{self.date.ddd()}{system}/{ftype}')):
+                            os.remove(ff)
 
             try:
                 if not os.path.exists(os.path.dirname(self.solution_pwd)):
@@ -438,7 +416,8 @@ class GamitTask(object):
                 shutil.rmtree(self.solution_pwd)
 
             # execute final step: copy to self.solution_pwd
-            shutil.copytree(self.pwd, self.solution_pwd, symlinks=True)
+            self.log(f'Copy results from {self.pwd} to {self.solution_pwd}')
+            shutil.copytree(self.pwd, self.solution_pwd, symlinks=False, ignore_dangling_symlinks=True)
             # remove the remote pwd
             shutil.rmtree(self.pwd)
 
@@ -446,9 +425,7 @@ class GamitTask(object):
             msg = traceback.format_exc() + '\nProcessing %s date %s on node %s' \
                   % (self.params['NetName'], self.date.yyyyddd(), platform.node())
 
-            file_append(os.path.join(self.pwd, 'monitor.log'), 
-                        now_str() +
-                        ' -> ERROR in pyGamitTask.finish()\n%s' % msg)
+            self.log(f'ERROR in pyGamitTask.finish()\n{msg}')
 
     def create_replace_links(self):
         replace_ln_file_path = os.path.join(self.pwd, 'replace_links.sh')
@@ -480,569 +457,319 @@ class GamitTask(object):
         """)
 
         replace_ln_file.close()
-
         chmod_exec(replace_ln_file_path)
 
-    def create_run_script(self):
+    def translate_station_alias(self, station_alias):
+        if type(station_alias) is str:
+            for rinex in self.params['rinex']:
+                if rinex['StationAlias'].lower() == station_alias.lower():
+                    return stationID(rinex)
+        elif type(station_alias) is list or type(station_alias) is set:
+            stn_list = []
+            for stn in station_alias:
+                for rinex in self.params['rinex']:
+                    if rinex['StationAlias'].lower() == stn.lower():
+                        stn_list.append(stationID(rinex))
+            return stn_list
 
-        year = self.date.yyyy()
-        doy  = self.date.ddd()
+        # if here, could not find the alias!
+        raise Exception(f'Could not find station name from alias {station_alias} or input is of invalid type')
 
-        # extract the gps week and convert to string
-        gpsWeek_str = str(self.date.gpsWeek)
+    def run_gamit(self, system, dummy=False):
 
-        # normalize gps week string
-        if self.date.gpsWeek < 1000: gpsWeek_str = '0'+gpsWeek_str
+        year     = self.date.yyyy()
+        doy      = self.date.ddd()
+        org      = self.gamitopts['org']
+        expt     = self.gamitopts['expt']
+        min_t    = '12'
+        eop      = self.gamitopts['eop_type']
+        noftp    = self.gamitopts['noftp']
+        gpswk    = self.date.wwww()
+        gpswkday = str(self.date.gpsWeekDay)
+        system   = system.upper()
+        # the date string to print the info to monitor.log
+        sdate    = '`date +"%Y-%m-%d %T"` -> '
+        fatal    = False
+
+        result   = {'session'             : '%s %s' % (self.date.yyyyddd(), self.params['DirName']),
+                    'system'              : system,
+                    'Project'             : self.params['NetName'],
+                    'subnet'              : self.params['subnet'],
+                    'Year'                : self.date.year,
+                    'DOY'                 : self.date.doy,
+                    'FYear'               : self.date.fyear,
+                    'wl'                  : 0,
+                    'nl'                  : 0,
+                    'nrms'                : 0,
+                    'relaxed_constrains'  : '',
+                    'max_overconstrained' : '',
+                    'updated_apr'         : None,
+                    'iterations'          : 0,
+                    'node'                : platform.node(),
+                    'execution_time'      : 0,
+                    'execution_date'      : datetime.now(),
+                    'glbf'                : None,
+                    'missing'             : [],
+                    'success'             : False,
+                    'fatals'              : []}
+
+        if dummy:
+            return result
 
         # set the path and name for the run script
-        run_file_path = os.path.join(self.pwd,'run.sh')
+        run_file_path    = os.path.join(self.pwd, f'run_{system}.sh')
+        # set the path and name for the finish script
+        finish_file_path = os.path.join(self.pwd, f'finish_{system}.sh')
 
-        try:
-            run_file = file_open(run_file_path, 'w')
-        except (OSError, IOError):
-            raise Exception('could not open file '+run_file_path)
+        if not os.path.isdir(os.path.join(self.pwd, 'tmp')):
+            os.makedirs(os.path.join(self.pwd, 'tmp'))
 
-        contents = """#!/bin/bash
+        if not os.path.isdir(os.path.join(self.pwd, f'gsoln/{system}')):
+            os.makedirs(os.path.join(self.pwd, f'gsoln/{system}'))
 
-        # just in case, create a temporary dir for fortran
-        if [ ! -d ./tmp ]; then
-            mkdir ./tmp
-        fi
-        export TMPDIR=`pwd`/tmp
+        summary_path = os.path.join(self.pwd, f'{doy}{system}/sh_gamit_{doy}{system}.summary')
+        lfile_path   = os.path.join(self.pwd_tables, 'lfile.')
 
-        export INSTITUTE=%s
-        # set max depth for recursion
-        MAX_LEVEL=3;
+        # once executed, check output
+        # loop at least three times
+        last_i  = 0
+        output  = ''
+        summary = ''
+        for i in range(3):
+            retry  = False
+            last_i = i
+            # name for the GAMIT execution output file
+            outfile = org + gpswk + gpswkday + system + str(i) + '.out'
+            outfile_path = os.path.join(self.pwd, outfile)
 
-        # parse input
-        level=$1; [ $# -eq 0 ] && level=1;
+            try:
+                run_file = file_open(run_file_path, 'w')
+            except (OSError, IOError):
+                raise Exception('could not open file ' + run_file_path)
 
-        # check that level less than max depth
-        if [[ $level -gt $MAX_LEVEL ]];then
-            # if so then exit
-            echo "run.sh (`date +"%%Y-%%m-%%d %%T"`): MAX ITERATION DEPTH REACHED ... MUST EXIT" >> monitor.log
-            exit 0;
-        fi
-
-        echo "run.sh (`date +"%%Y-%%m-%%d %%T"`): Iteration depth: $level" >> monitor.log
-
-        # set the params
-        EXPT=%s;
-        YEAR=%s;
-        DOY=%s;
-        MIN_SPAN=%s;
-        EOP=%s;
-        NOFTP=%s;
-
-        # set the name of the outfile
-        OUT_FILE=%s%s%s.out
-
-        # execution flag for sh_gamit
-        EXE=1;
-        COUNTER=0;
-
-        while [ $EXE -eq 1 ]; do
-
-        if [ $COUNTER -gt 9 ]; then
-            echo "run.sh (`date +"%%Y-%%m-%%d %%T"`): Maximum number of retries (10) reached. Abnormal exit in run.sh. Check processing log." >> monitor.log
-            exit 1
-        fi
-
-        # set exe to 0 so that we exit exe loop if no problems found
-        EXE=0;
-
-        # save a copy of the lfile. before running sh_gamit
-        iter_ext=`printf "l%%02d_i%%02d" $level $COUNTER`
-        cp ./tables/lfile. ./tables/lfile.${iter_ext}
-
-        # do the damn thing
-        if [ "$NOFTP" = "no" ]; then
-            sh_gamit -update_l N -topt none -c -copt null -dopt c x -expt $EXPT -d $YEAR $DOY -minspan $MIN_SPAN -remakex Y -eop $EOP &> $OUT_FILE;
-        else
-            sh_gamit -update_l N -topt none -c -copt null -noftp -dopt c x -expt $EXPT -d $YEAR $DOY -minspan $MIN_SPAN -remakex Y -eop $EOP &> $OUT_FILE;
-        fi
-        """ \
-        % (self.gamitopts['org'], self.gamitopts['expt'], year, doy, '12', self.gamitopts['eop_type'],
-           self.gamitopts['noftp'], self.gamitopts['org'], gpsWeek_str, str(self.date.gpsWeekDay))
-
-        # if we're in debug mode do not pipe output to file
-        # if not session.options['debug']: contents += """ &> $OUT_FILE; """;
-
-        contents += """
-
-        grep -q "Geodetic height unreasonable"  $OUT_FILE;
-        if [ $? -eq 0 ]; then
-            sstn=`grep "MODEL/open: Site" $OUT_FILE  | tail -1 | cut -d ":" -f 5 | cut -d " " -f 3 |tr '[:upper:]' '[:lower:]'`;
-            echo "run.sh (`date +"%Y-%m-%d %T"`): deleting station ${sstn}: unreasonable geodetic height" >> monitor.log
-            rm rinex/${sstn}* ;
-            rm $DOY/${sstn}* ;
-            grep "MODEL/open: Site" $OUT_FILE  | tail -1
-            echo "run.sh (`date +"%Y-%m-%d %T"`): will try sh_gamit again ..." >> monitor.log
-            EXE=1;
-        fi
-
-        grep "FATAL.*MAKEX/lib/rstnfo: No match for" $OUT_FILE
-        if [ $? -eq 0 ];then
-            sstn=`grep "FATAL.*MAKEX/lib/rstnfo: No match for" $OUT_FILE | tail -1 | cut -d ":" -f5 | awk '{print $4}' | tr '[:upper:]' '[:lower:]'`
-            echo "run.sh (`date +"%Y-%m-%d %T"`): deleting station ${sstn}: no station info" >> monitor.log
-            rm rinex/${sstn}* ;
-            rm $DOY/${sstn}* ;
-            echo "run.sh (`date +"%Y-%m-%d %T"`): will try sh_gamit again ..." >> monitor.log
-            EXE=1;
-        fi
-
-        grep -q "Error extracting velocities for"  $OUT_FILE;
-        if [ $? -eq 0 ]; then
-            sstn=`grep "Error extracting velocities for" $OUT_FILE  | head -1 | cut -d ":" -f 5 | cut -d " " -f 6 |tr '[:upper:]' '[:lower:]'`;
-            echo "run.sh (`date +"%Y-%m-%d %T"`): deleting station ${sstn}: Error extracting velocities for" >> monitor.log
-            rm rinex/${sstn}* ;
-            rm $DOY/${sstn}* ;
-            grep "Error extracting velocities for" $OUT_FILE  | tail -1
-            echo "run.sh (`date +"%Y-%m-%d %T"`): will try sh_gamit again ..." >> monitor.log
-            EXE=1;
-        fi
-
-        grep -q    "Bad WAVELENGTH FACT" $OUT_FILE;
-        if [ $? -eq 0 ]; then
-            sstn=`grep "Bad WAVELENGTH FACT" $OUT_FILE | tail -1 | cut -d ":" -f 5 | cut -d " " -f 6 | cut -c 3-6`
-            echo "run.sh (`date +"%Y-%m-%d %T"`): deleting station ${sstn}: Bad WAVELENGTH FACT in rinex header" >> monitor.log
-            rm rinex/${sstn}*;
-            rm $DOY/${sstn}* ;
-            echo "run.sh (`date +"%Y-%m-%d %T"`): will try sh_gamit again ..." >> monitor.log
-            EXE=1;
-        fi
-
-        grep -q    "Error decoding swver" $OUT_FILE;
-        if [ $? -eq 0 ]; then
-            grep       "Error decoding swver" $OUT_FILE;
-            sstn=`grep "Error decoding swver" $OUT_FILE | tail -1 | awk '{print $8}' | tr '[:upper:]' '[:lower:]'`
-            echo "run.sh (`date +"%Y-%m-%d %T"`): deleting station ${sstn}: Error decoding swver" >> monitor.log
-            rm rinex/${sstn}*;
-            rm $DOY/${sstn}* ;
-            echo "run.sh (`date +"%Y-%m-%d %T"`): will try sh_gamit again ..." >> monitor.log
-            EXE=1;
-        fi
-
-        grep -q    "FATAL.*MAKEX/lib/hisub:  Antenna code.*not in hi.dat" $OUT_FILE;
-        if [ $? -eq 0 ]; then
-            grep       "FATAL.*MAKEX/lib/hisub:  Antenna code.*not in hi.dat" $OUT_FILE;
-            sstn=`grep "FATAL.*MAKEX/lib/hisub:  Antenna code.*not in hi.dat" $OUT_FILE | tail -1 | awk '{print $9}' | cut -c2-5 | tr '[:upper:]' '[:lower:]'`
-            echo "run.sh (`date +"%Y-%m-%d %T"`): deleting station ${sstn}: Antenna code not in hi.dat" >> monitor.log
-            rm rinex/${sstn}*;
-            rm $DOY/${sstn}* ;
-            echo "run.sh (`date +"%Y-%m-%d %T"`): will try sh_gamit again ..." >> monitor.log
-            EXE=1;
-        fi
-
-        grep -q    "FATAL.*FIXDRV/dcheck: Only one or no existing X-files" $OUT_FILE;
-        if [ $? -eq 0 ]; then
-            grep       "FATAL.*FIXDRV/dcheck: Only one or no existing X-files" $OUT_FILE;
-            echo "run.sh (`date +"%Y-%m-%d %T"`): FIXDRV/dcheck: Only one or no existing X-files" >> monitor.log
-            echo "run.sh (`date +"%Y-%m-%d %T"`): will try sh_gamit again ..." >> monitor.log
-            EXE=1;
-        fi
-
-        grep -q    "FATAL.*MAKEXP/makexp: No RINEX or X-files found" $OUT_FILE;
-        if [ $? -eq 0 ]; then
-            grep       "FATAL.*MAKEXP/makexp: No RINEX or X-files found" $OUT_FILE;
-            echo "run.sh (`date +"%Y-%m-%d %T"`): MAKEXP/makexp: No RINEX or X-files found" >> monitor.log
-            echo "run.sh (`date +"%Y-%m-%d %T"`): will try sh_gamit again ..." >> monitor.log
-            EXE=1;
-        fi
-
-        grep -q    "FATAL.*MAKEX/get_rxfiles: Cannot find selected RINEX file" $OUT_FILE;
-        if [ $? -eq 0 ]; then
-            grep       "FATAL.*MAKEX/get_rxfiles: Cannot find selected RINEX file" $OUT_FILE;
-            echo "run.sh (`date +"%Y-%m-%d %T"`): MAKEX/get_rxfiles: Cannot find selected RINEX file" >> monitor.log
-            echo "run.sh (`date +"%Y-%m-%d %T"`): will try sh_gamit again ..." >> monitor.log
-            EXE=1;
-        fi
-
-        grep -q    "FATAL.*MAKEX/openf: Error opening file:.*" $OUT_FILE;
-        if [ $? -eq 0 ]; then
-            grep       "FATAL.*MAKEX/openf: Error opening file:.*" $OUT_FILE;
-            echo "run.sh (`date +"%Y-%m-%d %T"`): MAKEX/openf: Error opening file" >> monitor.log
-            echo "run.sh (`date +"%Y-%m-%d %T"`): will try sh_gamit again ..." >> monitor.log
-            EXE=1;
-        fi
-        
-        grep -q    "SOLVE/get_widelane: Error reading first record" $OUT_FILE;
-        if [ $? -eq 0 ]; then
-            grep       "SOLVE/get_widelane: Error reading first record" $OUT_FILE;
-            echo "run.sh (`date +"%Y-%m-%d %T"`): SOLVE/get_widelane: Error reading first record of temp file" >> monitor.log
-            echo "run.sh (`date +"%Y-%m-%d %T"`): will try sh_gamit again ..." >> monitor.log
-            EXE=1;
-        fi
-
-        grep -q    "Failure in sh_preproc. STATUS 1 -- sh_gamit terminated" $OUT_FILE;
-        if [ $? -eq 0 ]; then
-            grep       "Failure in sh_preproc. STATUS 1 -- sh_gamit terminated" $OUT_FILE;
-            echo "run.sh (`date +"%Y-%m-%d %T"`): Failure in sh_preproc. STATUS 1 -- sh_gamit terminated" >> monitor.log
-            echo "run.sh (`date +"%Y-%m-%d %T"`): will try sh_gamit again ..." >> monitor.log
-            EXE=1;
-        fi
-
-        # problems related to ill conditioned bias matrix
-        grep -q  "FATAL.*SOLVE/lcloos: Inversion error in" $OUT_FILE;
-        if [ $? -eq 0 ]; then
-
-            # remove the FATAL from the message to avoid confusing finish.sh that there was an error during execution
-            err="SOLVE/lcloos: Inversion error in LCNORM(2)"
-
-            # determine which autocln.sum exists and has information in it
-            if [ -s $DOY/autcln.post.sum ]; then
-                autocln=autcln.post.sum
-
-                # error occurred after the prefit, read the autcln file and remove the station with low obs
-
-                echo "run.sh (`date +"%Y-%m-%d %T"`): $err (after prefit) Will remove the station with the lowest obs count in $autocln" >> monitor.log
-
-                sstn=`sed -n -e '/Number of data by site/,/^$/ p' $DOY/$autocln | tail -n +3 | sed '$d' | awk '{print $3, $4}' | awk -v min=999999 '{if($2<min){min=$2; stn=$1}}END{print stn}' | tr '[:upper:]' '[:lower:]'`
-
-                nobs=`sed -n -e '/Number of data by site/,/^$/ p' $DOY/$autocln | tail -n +3 | sed '$d' | awk '{print $3, $4}' | awk -v min=999999 '{if($2<min){min=$2; stn=$1}}END{print min}'`
-
-                echo "run.sh (`date +"%Y-%m-%d %T"`): deleting station ${sstn} -> observation count: $nobs" >> monitor.log
-                rm rinex/${sstn}*;
-                rm $DOY/${sstn}* ;
-                echo "run.sh (`date +"%Y-%m-%d %T"`): will try sh_gamit again ..." >> monitor.log
-                EXE=1;
-
-            else
-                # the error occurred during the prefit, autocln may or may not have gotten the problem. Use the observation count in the $OUTFILE
-
-                echo "run.sh (`date +"%Y-%m-%d %T"`): $err. (during prefit) Will analyze the MAKEX output and remove the file with more rejected observations" >> monitor.log
-
-                max_rejected=`grep "observations rejected" $OUT_FILE | awk -F ':' '{print $5}' | awk '{print $6}' | awk -v max=0 '{if($1>max){max=$1}}END{print max}'`
-
-                sstn=(`sed -n -e '/'$max_rejected' observations rejected/,/End processing/ p' $OUT_FILE | grep 'End' | awk -F ':' '{print $6}' | awk '{print $1'} | uniq | tr '[:upper:]' '[:lower:]'`)
-
-                if [ -z "$sstn" ]; then
-                    echo "run.sh (`date +"%Y-%m-%d %T"`): could not determine the station with low observation count. Check $OUT_FILE" >> monitor.log
-                else
-                    for stn in ${sstn[*]}
-                    do
-                        echo "run.sh (`date +"%Y-%m-%d %T"`): deleting station ${stn} -> rejected observation count: $max_rejected" >> monitor.log
-                        rm rinex/${stn}*;
-                        rm $DOY/${stn}* ;
-                    done
-                    echo "run.sh (`date +"%Y-%m-%d %T"`): will try sh_gamit again ..." >> monitor.log
-                    EXE=1;
-                fi
-            fi
-
-            # different search methods, deprecated
-            #sstn=(`sed -n -e '/ .... valid observations/,/stop in MODEL/ p' $OUT_FILE | grep 'Site' | awk -F ':' '{print $5}' | awk '{print $2'} | uniq | tr '[:upper:]' '[:lower:]'`)
-        fi
-
-        # this case after SOLVE/lcloos because it also triggers GAMIT sh_chksolve
-        grep -q "FATAL GAMIT sh_chksolve: Solve failed to complete normally" $OUT_FILE;
-        if [ $? -eq 0 ] && [ $EXE -eq 0 ]; then
-            echo "run.sh (`date +"%Y-%m-%d %T"`): GAMIT sh_chksolve: Solve failed to complete normally" >> monitor.log
-            echo "run.sh (`date +"%Y-%m-%d %T"`): will try sh_gamit again ..." >> monitor.log
-            EXE=1;
-        fi
-        
-        # grep over constrained sites
-        grep -q "over constrained" ./$DOY/sh_gamit_${DOY}.summary;
-        if [ $? -eq 0 ]; then
-            # get the number of lines
-            lines=`cat ./$DOY/sh_gamit_${DOY}.summary | sed -n 's/WARNING: \([0-9]*\) SITES.*$/\\1/p'`
-            grep -A $lines "over constrained" ./$DOY/sh_gamit_${DOY}.summary >> monitor.log
+            contents = f"""#!/bin/bash
+            # just in case, create a temporary dir for fortran
+            export TMPDIR=`pwd`/tmp
+            export INSTITUTE={org}
+            # log to the monitor
+            echo "{sdate}run_{system}.sh" >> monitor.log
+            # execute GAMIT
+            sh_gamit -gnss {system} -update_l N -topt none -c -copt null {"-noftp" if noftp == "yes" else ""} -dopt c x -expt {expt} -d {year} {doy} -minspan {min_t} -remakex Y -eop {eop} &> {outfile};
             
-            # DDG: new behavior -> remove the station with the largest over constrained coordinate
-            # grep the sites and get the unique list separeted by | (to do regex grep)
-            # stns=`grep "GCR APTOL" monitor.log | awk '{print $4"_GPS"}' | uniq | tr '<line break>' '|'`
-            # copy the sittbl. (just in case)
-            # cp tables/sittbl. tables/sittbl.${iter_ext}
-            # remove those from the sittbl list: this will relax station to 100 m
-            # grep -v -E "${stns:0:-1}" tables/sittbl.${iter_ext} > tables/sittbl.
-            
-            stns=`grep "GCR APTOL" ./$DOY/sh_gamit_${DOY}.summary | awk '{print sqrt($(NF) * $(NF)), $4}' | sort -r | head -n1 | awk '{print $2}' | tr '[:upper:]' '[:lower:]'`
-            echo "run.sh (`date +"%Y-%m-%d %T"`): deleting over constrained station ${stns}" >> monitor.log
-            rm rinex/${stns}*;
-            rm $DOY/${stns}* ;
-            
-            # echo "run.sh (`date +"%Y-%m-%d %T"`): relaxing over constrained stations ${stns:0:-1}" >> monitor.log
-            echo "run.sh (`date +"%Y-%m-%d %T"`): replacing lfile. from this run with lfile.${iter_ext}" >> monitor.log
-            rm ./tables/lfile.
-            cp ./tables/lfile.${iter_ext} ./tables/lfile.
-            
-            echo "run.sh (`date +"%Y-%m-%d %T"`): will try sh_gamit again ..." >> monitor.log
-            
-            EXE=1;
-        fi
+            # remove extraneous lfiles
+            # rm ./{doy}{system}/l*[ab].*;
 
-        if [ $EXE -eq 1 ]; then
-            # if it will retry, save the previous output using extension .l00_i00, .l00_i01, ... etc
-            # where lxx is the level of iteration and iyy is the interation in this level
-            mv $OUT_FILE $OUT_FILE.${iter_ext}
-            COUNTER=$((COUNTER+1));
-        fi
+            # make sure to rename the gfilea to the correct gfile[0-9].doy
+            # this line is inherited from Abel, not sure about how it's used. Leave just in case.
+            [ -e ./igs/gfilea.* ] && mv -f ./igs/gfilea* ./*/gfile[0-9]*
+            """
 
-        # grep updated coordinates
-        grep Updated ./tables/lfile.;
-        if [ $? -eq 0 ]; then
-            grep Updated ./tables/lfile. >> monitor.log
-        fi
+            run_file.write(contents)
+            run_file.close()
+            chmod_exec(run_file_path)
 
-        done
+            # before executing, make a copy of the lfile
+            shutil.copyfile(lfile_path, lfile_path + str(i))
+            self.execute('./' + os.path.basename(run_file_path))
 
-        # clean up
-        rm -rf ionex met teqc*
+            # read the contents of the output files (summary may not exist)
+            try:
+                summary = ''.join(file_readlines(summary_path))
+            except FileNotFoundError:
+                summary = ''
+                pass
+            output  = ''.join(file_readlines(outfile_path))
+            lfile   = ''.join(file_readlines(lfile_path))
+            lfile_i = ''.join(file_readlines(lfile_path + str(last_i)))
 
-        # blab about failures
-        grep "FATAL" *.out >> monitor.log
+            # check for common problem running MAKEX, etc that usually just get fixed by rerunning
+            if re.findall(r'FATAL.*FIXDRV/dcheck', output) or \
+               re.findall(r'FATAL.*MAKEXP/makexp: No RINEX or X-files found', output) or \
+               re.findall(r'FATAL.*MAKEX/get_rxfiles: Cannot find selected RINEX file', output) or \
+               re.findall(r'FATAL.*MAKEX/openf: Error opening file:.*', output) or \
+               re.findall(r'SOLVE/get_widelane: Error reading first record', output) or \
+               re.findall(r'Failure in sh_preproc. STATUS 1 -- sh_gamit terminated', output) or \
+               re.findall(r'Failure in sh_setup. -- sh_gamit terminated', output) or \
+               re.findall(r'sh_get_ion failed to download requested IONEX file', output) or \
+               (re.findall(r'yr: Subscript out of range.', output) and not summary == ''):
+                self.log(f'Issue found with this run (sh_setup, FIXDRV, MAKEXP, MAKEX, SOLVE, or sh_get_ion) '
+                         f'trying again ({i})...')
+                # skip any further tests
+                continue
 
-        """
+            # check for unreasonable geodetic height
+            if re.findall(r'Geodetic height unreasonable', output):
+                self.log(f'Geodetic height unreasonable in {outfile}')
+                # find the last site that was being processed
+                sites = re.findall(r'MODEL/open: Site\s(\w+)', output)
+                if len(sites):
+                    rinex_rm = glob.glob(os.path.join(self.pwd_rinex, sites[-1].lower() + '*'))
+                    result['missing'] = result['missing'] + self.translate_station_alias([sites[-1].lower()])
+                    for rnx in rinex_rm:
+                        self.log(f'Removing RINEX file {rnx}')
+                        os.remove(rnx)
+                retry  = True
 
-        run_file.write(contents)
+            # check for over constrained solutions
+            oc_site_count = re.findall(r'WARNING: (\d+).*over constrained', summary)
+            result['relaxed_constrains'] = []
+            if oc_site_count:
+                p = 'WARNING: \d+.*over constrained.*(?:\n.*){%s}' % oc_site_count[0]
+                match_sites  = re.findall(p, summary)[0]
+                # extract the sites and their over constrained parameters
+                oc_sites_vals  = re.findall(r'GCR APTOL (\w+).{10}\s+(-?\d+.\d+)', match_sites)
+                oc_sites_alias = set([s[0].lower() for s in oc_sites_vals])
+                oc_sites_only  = self.translate_station_alias(oc_sites_alias)
 
-        contents = \
-        """
+                self.log(f'Over constrained solution in sh_gamit_{doy}{system}.summary')
+                self.log(' ' + '\n '.join(oc_sites_only), no_timestamp=True)
 
-        # remove extraneous solution files
-        # rm ./$DOY/l*[ab].*;
+                # two options: (1) relax over constrained sigmas or (2) remove them from processing
+                # if relaxing, then remove from current lfile.
 
-        # make sure to rename the gfilea to the correct gfile[0-9].doy
-        [ -e ./igs/gfilea.* ] && mv -f ./igs/gfilea* ./*/gfile[0-9]*
+                if self.gamitopts['overconst_action'] == 'delete' or self.gamitopts['overconst_action'] == 'remove':
+                    # get rid of the stations with issues
+                    # add any stations to the missing list, since we have data but we will not have a solution
+                    result['missing'] = result['missing'] + oc_sites_only
+                    for site in oc_sites_alias:
+                        rinex_rm = glob.glob(os.path.join(self.pwd_rinex, site + '*'))
+                        for rnx in rinex_rm:
+                            self.log(f'Removing RINEX file {rnx}')
+                            os.remove(rnx)
 
-        # see if any of the coordinates were updated, exit if not
-        # DDG: Actually, sometimes the final updated coordinate only differs by < .3 m when solve is invoked more than
-        # once from within sh_gamit. Therefore, also check that the updated coordinate is > .3 m from the original APR
-        # this happens because the first Updated coordinate (lxxxxa.ddd) triggers an iteration in solve (lxxxxb.ddd) 
-        # with a solution that is again close to the original APR. Without this check, PG iterates 3 times unnecessarily
-        
-        grep Updated ./tables/lfile.;
-        if [ $? -ne 0 ]; then
-            echo "run.sh (`date +"%Y-%m-%d %T"`): Normal exit from run.sh" >> monitor.log
-            # uncompress everything. Will be compressed later on
-            gunzip ./*/*;
-            exit
-        else
-            updated=(`grep Updated ./tables/lfile. | awk '{print $1}'`)
-            
-            RERUN=0
-            
-            for stn in ${updated[*]}
-            do
-                coords=`grep $stn ./tables/lfile. | awk '{print $2,$3,$4}'`
+                elif self.gamitopts['overconst_action'] == 'relax' or self.gamitopts['overconst_action'] == 'inflate':
+                    # relax the constraints for this station
+                    self.log(f'Creating sittbl. backup to sittbl.{i}')
+                    shutil.copyfile(os.path.join(self.pwd_tables, 'sittbl.'),
+                                    os.path.join(self.pwd_tables, f'sittbl.{i}'))
+                    self.log('Relaxing constraints in sittbl.')
+                    sites = '|'.join(site.upper() for site in oc_sites_alias)
+                    self.execute(f'grep -v -E "{sites}" tables/sittbl.{i} > tables/sittbl.', shell=True)
+                    result['relaxed_constrains'] = oc_sites_only
+                retry = True
+
+            # check for any updated coordinates
+            if re.findall('Updated', lfile):
+                # grep updated coordinates and print them to the monitor
+                upd_stn = re.findall(r'\s(\w+)_\w+\s+(.\d+.\d+)\s+(.\d+.\d+)\s+(.\d+.\d+).*Updated.*', lfile)
+                self.log(f'Found {len(upd_stn)} stations with updated coordinates in lfile. Checking deltas.')
+                # monitor.write('\n'.join(re.findall(r'.*Updated.*', lfile)))
+
+                delta = numpy.zeros(len(upd_stn))
+                for si, stn in enumerate(upd_stn):
+                    # find station in the previous lfile. (previous = lfile.i, before the run)
+                    apr_stn = re.findall(r'\s{}_\w+\s+(.\d+.\d+)\s+(.\d+.\d+)\s+(.\d+.\d+)'.format(stn[0]),
+                                         lfile_i)[0]
+                    delta[si] = numpy.sqrt(numpy.square(float(stn[1]) - float(apr_stn[0])) +
+                                           numpy.square(float(stn[2]) - float(apr_stn[1])) +
+                                           numpy.square(float(stn[3]) - float(apr_stn[2])))
+
+                    self.log(f'{stn[0]} update delta = {delta[si]} m', no_timestamp=True)
+
+                    if numpy.any(delta > 0.3):
+                        self.log(f'One or more stations with updated coordinates > 0.3 m.')
+                        retry = True
+
+            if not retry:
+                # stop iteration if no issues found
+                break
+            else:
+                self.log(f'Issue found in the run, trying again ({i})...')
+
+        # save time stamp for end
+        result['execution_time'] = int((datetime.now() - result['execution_date']).total_seconds() / 60.0)
+        result['iterations']     = last_i
+
+        # extract any FATALS
+        if re.findall(r'.*?FATAL.*', output) or summary == '':
+            self.log('\n'.join(re.findall(r'(.*?FATAL.*)', output)), no_timestamp=True)
+            fatal = True
+            # save the fatals as a list
+            result['fatals'] = set(re.findall(r'(.*?FATAL.*)', output))
+
+            self.log(f'Unsuccessful run for system {system}. Check fatal message.')
+        else:
+            # extract the run statistics and write it to the monitor
+            self.log('NRMS and WL-NL ambiguity summary follows:')
+            self.log('\n'.join(re.findall(r'(.*nrms.*)', summary)), no_timestamp=True)
+            self.log('\n'.join(re.findall(r'(.*WL fixed.*)', summary)), no_timestamp=True)
+
+            try:
+                result['nrms'] = float(re.findall(
+                    r'Prefit nrms:\s+\d+.\d+[eEdD]\+\d+\s+Postfit nrms:\s+(\d+.\d+[eEdD][+-]\d+)', summary)[-1])
+
+                result['wl'] = float(re.findall(r'WL fixed\s+(\d+.\d+)', summary)[0])
+                result['nl'] = float(re.findall(r'NL fixed\s+(\d+.\d+)', summary)[0])
+
+                # now convert h file to GLX and place in each system folder
+                try:
+                    finish_file = file_open(finish_file_path, 'w')
+                except (OSError, IOError):
+                    raise Exception('could not open file ' + finish_file_path)
+
+                contents = f"""#!/bin/bash
+                # just in case, create a temporary dir for fortran
+                export TMPDIR=`pwd`/tmp
+                export INSTITUTE={org}
+                # log to the monitor
+                echo "{sdate}finish_{system}.sh" >> monitor.log
                 
-                # use the copy of the lfile to grep the APR coordinates
-                aprs=`grep $stn ./tables/lfile.${iter_ext} | awk '{print $2,$3,$4}'`
+                cd gsoln/{system}
+                # link the svnav file in tables
+                ln -s ../../tables/svnav.dat .
+    
+                # create the binary h-file
+                htoglb . tmp.svs -a ../../{doy}{system}/h*.{year[2:]}{doy}  >> htoglb.out
                 
-                # get the distance between Updated and APR
-                dist=`echo $coords $aprs | awk '{print sqrt(($1 - $4)^2 + ($2 - $5)^2 + ($3 - $6)^2)}'`
-                
-                if (( $(echo "$dist > 0.3" | bc -l) )); then
-                    RERUN=1;
-                fi
-            done
-            
-            # if RERUN = 0, Updated coordinate was < 0.3 m
-            if [ $RERUN -eq 0 ]; then
-                echo "run.sh (`date +"%Y-%m-%d %T"`): Updated coordinate detected but final solution within 0.3 m of APR" >> monitor.log
-                echo "run.sh (`date +"%Y-%m-%d %T"`): Normal exit from run.sh" >> monitor.log
-                # uncompress everything. Will be compressed later on
-                gunzip ./*/*;
-                exit
-            fi
-        fi
-
-        # iteration detected!
-        echo "run.sh (`date +"%Y-%m-%d %T"`): Updated coordinate detected in lfile. Iterating..." >> monitor.log
-
-        # save this level's out file for debugging
-        mv $OUT_FILE $OUT_FILE.${iter_ext}
-
-        # apr file for updated coordinates
-        aprfile=${EXPT}.temp
-
-        # recreate the apr file with updated coordinates minus the comments
-        sed -e 's/Updated from l.....\.[0-9][0-9][0-9]//g' ./tables/lfile. > ./tables/${aprfile};
-
-        # the copy of the lfile was saved BEFORE running GAMIT. Replace with the updated version
-        cp ./tables/${aprfile} ./tables/lfile.
-
-        # copy over an updated gfile if it exists
-        # cp ./*/gfile* ./tables/
-
-        # update level
-        level=$((level+1));
-
-        # remove the 'old' solution
-        [ $level -le $MAX_LEVEL ] && rm -rf ./$DOY;
-
-        # decompress the remaining solution files
-        gunzip ./*/*;
-
-        # do another iteration
-        ./run.sh $level;
-
-        """
-
-        run_file.write(contents)
-        run_file.close()
-
-        chmod_exec(run_file_path)
-
-    def create_finish_script(self):
-
-        year = self.date.yyyy()
-        doy  = self.date.ddd()
-
-        # extract the gps week and convert to string
-        gpsWeek_str = str(self.date.gpsWeek)
-
-        # normalize gps week string
-        if self.date.gpsWeek < 1000: gpsWeek_str = '0' + gpsWeek_str
-
-        # extract the gps week and day of week
-        gps_week     = self.date.gpsWeek
-        gps_week_day = self.date.gpsWeekDay
-
-        finish_file_path = os.path.join(self.pwd, 'finish.sh')
-
-        try:
-            finish_file = file_open(finish_file_path,'w')
-        except (OSError, IOError):
-            raise Exception('could not open file '+finish_file_path)
-
-        contents = """#!/bin/bash
-        export INSTITUTE=%s
-
-        echo "finish.sh (`date +"%%Y-%%m-%%d %%T"`): Finish script started" >> monitor.log
-
-        # set the name of the outfile
-        FILE=%s%s%s
-        DOY=%s
-        YEAR=%s
-
-        # move to the solution path
-        if [ ! -d ./glbf ]; then
-            # something went wrong! no glbf dir
-            mkdir glbf
-        fi
-
-        cd glbf
-
-        # make sure an h file exists, if not exit
-        if [ ! -f ../$DOY/h*.${YEAR}${DOY} ]; then
-            echo "FATAL in finish.sh (`date +"%%Y-%%m-%%d %%T"`): h-files not found in $DOY folder. Exit" >> ../monitor.log
-            exit;
-        fi
-
-        # get the WL and NL ambiguity resolution and the nrms double diff statistics
-        echo "finish.sh (`date +"%%Y-%%m-%%d %%T"`): NRMS and WL-NL ambiguity summary follows:" >> ../monitor.log
-        grep 'nrms' ../$DOY/sh_gamit_${DOY}.summary >> ../monitor.log
-        grep 'WL fixed' ../$DOY/sh_gamit_${DOY}.summary >> ../monitor.log
-
-        # link the svnav.dat file
-        ln -s ../tables/svnav.dat .
-
-        # create the binary h-file
-        htoglb . tmp.svs -a ../$DOY/h*.${YEAR}${DOY}  >> ../${FILE}.out
-
-        # grep any missing stations to report them to monitor.log
-        grep 'No data for site ' ../${FILE}.out | sort | uniq >> ../monitor.log
+                # grep any missing stations to report them to monitor.log
+                grep 'No data for site ' htoglb.out | sort | uniq >> ../../monitor.log
         
-        # convert the binary h-file to sinex file
-        glbtosnx . "" h*.glx ${FILE}.snx >> ../${FILE}.out
+                # clean up
+                rm HTOGLB.* tmp.svs l*  svnav.dat
+                """
 
-        # clean up
-        rm HTOGLB.* tmp.svs l*  svnav.dat
+                finish_file.write(contents)
+                finish_file.close()
+                chmod_exec(finish_file_path)
+                self.execute('./' + os.path.basename(finish_file_path))
 
-        # move back to home
-        cd ..;
+                # retrieve no data for site x
+                htoglb = ''.join(file_readlines(os.path.join(self.pwd, f'gsoln/{system}/htoglb.out')))
 
-        """ % (self.gamitopts['org'], self.gamitopts['org'], gpsWeek_str, str(gps_week_day), doy, year[2:4])
+                # append any reported missing stations to the result['missing'] list that might have been reported
+                # during the removal of over constrained stations
+                result['missing'] = \
+                    result['missing'] + \
+                    self.translate_station_alias(set(re.findall(r'No data for site (\w+)', htoglb)))
 
-        # dump contents to the script file
-        finish_file.write(contents)
+                hfile = glob.glob(os.path.join(self.pwd, f'gsoln/{system}/h*.glx'))[0]
+                # only write the filename, not the path
+                result['glbf'] = os.path.basename(hfile)
 
-        # this section is to calculate the orbits
-        if self.gamitopts['expt_type'] == 'relax':
+                if system == 'R':
+                    # for GLONASS, remove the GLX and rename the GLR to GLX
+                    os.remove(hfile)
+                    shutil.move(hfile[:-1] + 'r', hfile)
 
-            # create an sp3 file from the g-file
-            contents = """
-            # move to the solutions directory
-            cd ./solutions/*
+                # move the ofile for zenith delay parsing
+                ofile = glob.glob(os.path.join(self.pwd, f'{doy}{system}/o*a.[0-9][0-9][0-9]*'))
+                if len(ofile):
+                    for of in ofile:
+                        shutil.move(of, os.path.join(self.pwd, f'gsoln/{system}/{org}{gpswk}{gpswkday}.trp'))
 
-            # make temporary directory
-            mkdir tmp
+            except IndexError:
+                msg = 'Processing resulted in invalid NRMS or WL/NL ambiguity resolution. Declaring fatal.'
+                self.log(msg)
+                # save this generic message as the FATAL error
+                result['fatals'] = [msg]
+                fatal = True
 
-            # copy the gfile to temp dir
-            cp gfile* tmp/
+            # finally, remove processing files after successful run
+            for ftype in ('b*', 'cfmrg*', 'DPH.*', 'eq_rename.*', 'g*', 'k*', 'p*', 'rcvant.*', 'y*'):
+                for ff in glob.glob(os.path.join(self.pwd, f'{doy}{system}/{ftype}')):
+                    os.remove(ff)
 
-            # move to the temp dir
-            cd tmp;
+        result['success'] = not fatal
 
-            # do the damn thing
-            mksp3.sh %s %s %s
+        return result
 
-            # copy the sp3 file to solution dir if exists
-            [ -e *.sp3 ] && mv *.sp3 ..;
-
-            # move out of temporary directory
-            cd ..;
-
-            # clean up
-            rm -rf tmp gfile*;
-
-            # back to home directory
-            cd ../..
-
-            """ % (year,doy,self.options['org'])
-
-            finish_file.write(contents)
-
-            return
-
-        contents = """
-        # move to the solutions directory
-        cd $DOY
-
-        # rename o file to znd file
-        if [ -f o*a.[0-9][0-9][0-9]* ]; then
-            mv -f o*a.[0-9][0-9][0-9]* ../glbf/%s%s%s.znd;
-        fi
-
-        # remove a priori o file
-        if [ -f o*p.[0-9][0-9][0-9]* ]; then
-            rm -f o*p.[0-9][0-9][0-9]*;
-        fi
-
-        # restore home dir
-        cd ..
-
-        """ % (self.gamitopts['org'], gpsWeek_str, str(gps_week_day))
-
-        finish_file.write(contents)
-
-        contents = """
-        # move to the solutions directory
-        cd $DOY
-
-        # clean up
-        # remove the grid files, rinex files, etc
-        rm -rf gfile* *.grid ????????.??o
-
-        # compress remaining files
-        for file in $(ls);do gzip --force $file; done
-
-        # return to home directory
-        cd ..
-
-        cd rinex
-        rm -rf *
-        cd ..
-        echo "finish.sh (`date +"%Y-%m-%d %T"`): Done processing h-files and generating SINEX." >> monitor.log
-
-        """
-
-        finish_file.write(contents)
-
-        # make sure to close the file
-        finish_file.close()
-
-        # add executable permissions
-        chmod_exec(finish_file_path)

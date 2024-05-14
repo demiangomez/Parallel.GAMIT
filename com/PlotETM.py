@@ -23,7 +23,8 @@ import dbConnection
 import pyDate
 from Utils import (process_date,
                    process_stnlist,
-                   file_write)
+                   file_write,
+                   station_list_help)
 
 
 def from_file(args, cnn, stn):
@@ -66,10 +67,7 @@ def main():
     parser = argparse.ArgumentParser(description='Plot ETM for stations in the database')
 
     parser.add_argument('stnlist', type=str, nargs='+',
-                        help="List of networks/stations to plot given in [net].[stnm] format or just [stnm] "
-                             "(separated by spaces; if [stnm] is not unique in the database, all stations with that "
-                             "name will be plotted). Use keyword 'all' to plot all stations in all networks. "
-                             "If [net].all is given, all stations from network [net] will be plotted")
+                        help=station_list_help())
 
     parser.add_argument('-nop', '--no_plots', action='store_true',
                         help="Do not produce plots", default=False)
