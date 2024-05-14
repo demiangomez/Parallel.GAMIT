@@ -150,7 +150,8 @@ SIGMA_FLOOR_V = 0.15
 ESTIMATION = 0
 DATABASE = 1
 
-VERSION = '1.2.1'
+# last changed May, 10 2024
+VERSION = '1.2.2'
 
 
 class pyETMException(Exception):
