@@ -301,13 +301,17 @@ class RunPPP(PPPSpatialCheck):
 
     def copyfiles(self):
         # prepare all the files required to run PPP
-        files = ('gpsppp.stc', 'gpsppp.svb_gnss_yrly', 'gpsppp.flt', 'gpsppp.stc')
+        files = ('gpsppp.stc', 'gpsppp.svb_gnss_yrly', 'gpsppp.flt')
         if self.apply_met:
             files = ('gpsppp.met',) + files
 
         for f in files:
-            copyfile(os.path.join(self.ppp_path, f),
-                     os.path.join(self.rootdir,  f))
+            if os.path.exists(os.path.join(self.ppp_path, f)):
+                copyfile(os.path.join(self.ppp_path, f),
+                         os.path.join(self.rootdir,  f))
+            else:
+                if f == 'gpsppp.svb_gnss_yrly':
+                    raise pyRunPPPException(f'Missing gpsppp.svb_gnss_yrly for PPP processing.')
 
         copyfile(os.path.join(self.atx),
                  os.path.join(self.rootdir, os.path.basename(self.atx)))

@@ -337,7 +337,7 @@ class StationCollection(list):
         collection = StationCollection()
         for stn in self:
             if date in stn.good_rinex:
-                collection.append(stn, check_aliases)
+                collection.append(stn)
 
         return collection
 
