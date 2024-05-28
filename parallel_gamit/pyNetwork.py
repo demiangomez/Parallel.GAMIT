@@ -729,46 +729,6 @@ class Network(object):
         return backbone
 
     @staticmethod
-    def determine_core_network(stations, date):
-        """
-        Deprecated function to create the core network
-        :param stations: list of station objects
-        :param date: date to be processed
-        :return: a list of stations that make up the core network or empty is no need to split the processing
-        """
-        if len(stations) <= NET_LIMIT:
-            return []
-        else:
-            # this session will require be split into more than one subnet
-
-            active_stations = stations.get_active_stations(date)
-
-            points = np.array([[stn.record.lat, stn.record.lon] for stn in active_stations])
-
-            stn_candidates = list(active_stations)
-
-            # create a convex hull
-            hull = ConvexHull(points)
-
-            # build a list of the stations in the convex hull
-            core_network = [stn_candidates[vertex] for vertex in hull.vertices]
-
-            # create a mask so that the centroid is not a point in the hull
-            mask = np.ones(points.shape[0], dtype=bool)
-            mask[hull.vertices] = False
-
-            if np.any(mask):
-                # also add the centroid of the figure
-                mean_ll = np.mean(points, axis=0)
-
-                # find the closest stations to the centroid
-                centroid = int(np.argmin(np.sum(np.abs(points[mask] - mean_ll), axis=1)))
-
-                core_network += [stn_candidates[centroid]]
-
-            return core_network
-
-    @staticmethod
     def recover_subnets(db_subnets, stations):
         # this method does not update the labels because they are not used
         # labels are only used to tie station

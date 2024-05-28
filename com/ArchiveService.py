@@ -331,6 +331,7 @@ def process_crinex_file(crinez, filename, data_rejected, data_retry):
         event = pyEvents.Event(Description = 'Could not read the station code, year or doy for file ' + crinez,
                                EventType   = 'error')
         error_handle(cnn, event, crinez, reject_folder, filename, no_db_log=True)
+        cnn.close()
         return event['Description'], None
 
     def fill_event(ev, desc = None):
@@ -353,6 +354,7 @@ def process_crinex_file(crinez, filename, data_rejected, data_retry):
             # STOP! see if rinexinfo is a multiday rinex file
             if not verify_rinex_multiday(cnn, rinexinfo, Config):
                 # was a multiday rinex. verify_rinex_date_multiday took care of it
+                cnn.close()
                 return None, None
 
             # DDG: we don't use otl coefficients because we need an approximated coordinate
@@ -394,7 +396,7 @@ def process_crinex_file(crinez, filename, data_rejected, data_retry):
 
                     except pyRinex.pyRinexExceptionNoAutoCoord as e:
                         # catch pyRinexExceptionNoAutoCoord and convert it into a pyRunPPPException
-
+                        cnn.close()
                         raise pyPPP.pyRunPPPException('Both PPP and sh_rx2apr failed to obtain a coordinate for %s.\n'
                                                       'The file has been moved into the rejection folder. '
                                                       'Summary PPP file and error (if exists) follows:\n%s\n\n'
@@ -413,6 +415,7 @@ def process_crinex_file(crinez, filename, data_rejected, data_retry):
 
                 # check for unreasonable heights
                 if ppp.h[0] > 9000 or ppp.h[0] < -400:
+                    cnn.close()
                     raise pyRinex.pyRinexException(os.path.relpath(crinez, Config.repository_data_in) +
                                                    ' : unreasonable geodetic height (%.3f). '
                                                    'RINEX file will not enter the archive.' % (ppp.h[0]))
@@ -440,7 +443,7 @@ def process_crinex_file(crinez, filename, data_rejected, data_retry):
                                os.path.join(retry_folder, filename),
                                os.path.join(retry_folder, filename.replace(StationCode, match[0]['StationCode'])),
                                StationCode, ppp.x, ppp.y, ppp.z, ppp.lat[0], ppp.lon[0], ppp.h[0])
-
+                    cnn.close()
                     raise pyPPP.pyRunPPPExceptionCoordConflict(error)
 
                 elif len(match) > 1:
@@ -462,7 +465,7 @@ def process_crinex_file(crinez, filename, data_rejected, data_retry):
                                ', '.join(['%s.%s: %.3f m' %
                                           (m['NetworkCode'], m['StationCode'], m['distance']) for m in match]),
                                StationCode, ppp.x, ppp.y, ppp.z, ppp.lat[0], ppp.lon[0], ppp.h[0])
-
+                    cnn.close()
                     raise pyPPP.pyRunPPPExceptionCoordConflict(error)
 
                 else:
@@ -482,7 +485,7 @@ def process_crinex_file(crinez, filename, data_rejected, data_retry):
                     # add the file to the locks table so that it doesn't get processed over and over
                     # this will be removed by user so that the file gets reprocessed once all the metadata is ready
                     cnn.insert('locks', filename=os.path.relpath(crinez, Config.repository_data_in))
-
+                    cnn.close()
                     return None, [StationCode,
                                   (ppp.x, ppp.y, ppp.z),
                                   coeff, 
@@ -590,9 +593,11 @@ def process_crinex_file(crinez, filename, data_rejected, data_retry):
                                EventType = 'error')
 
         error_handle(cnn, event, crinez, retry_folder, filename, no_db_log=True)
+        cnn.close()
 
         return event['Description'], None
 
+    cnn.close()
     return None, None
 
 

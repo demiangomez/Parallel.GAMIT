@@ -509,7 +509,6 @@ def insert_stninfo(NetworkCode, StationCode, stninfofile):
         return '\n\n'.join(errors)
         
 
-
 def remove_from_archive(cnn, record, Rinex, Config):
 
     # do not make very complex things here, just move it out from the archive
@@ -595,6 +594,7 @@ def execute_ppp(record, rinex_path, h_tolerance):
                     cnn.query('DELETE FROM ppp_soln WHERE %s'   % where_obs)
                     cnn.query('DELETE FROM rinex WHERE %s AND "Filename" = \'%s\'' % (where_obs, record['Filename']))
                     cnn.commit_transac()
+                    cnn.close()
                     return
 
                 stninfo = pyStationInfo.StationInfo(cnn, NetworkCode, StationCode, Rinex.date, h_tolerance=h_tolerance)
@@ -649,10 +649,12 @@ def execute_ppp(record, rinex_path, h_tolerance):
         e.event['DOY']         = int(doy)
 
         cnn.insert_event(e.event)
+        cnn.close()
 
     except:
-        return traceback.format_exc() + ' processing rinex: %s.%s %s %s using node %s' \
-                   % (NetworkCode, StationCode, str(year), str(doy), platform.node())
+        cnn.close()
+        return (traceback.format_exc() + ' processing rinex: %s.%s %s %s using node %s' %
+                (NetworkCode, StationCode, str(year), str(doy), platform.node()))
 
 
 def post_scan_rinex_job(cnn, Archive, rinex_file, rinexpath, master_list, JobServer, ignore):
