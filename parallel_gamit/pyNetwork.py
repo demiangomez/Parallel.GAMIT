@@ -185,7 +185,8 @@ class Network(object):
             station_labels.append(stations[cluster])
             cluster_labels.append(np.ones((1, np.sum(cluster)),
                                            dtype=np.int_).squeeze()*row)
-            cluster_ties.append(ties[np.isin(ties, np.where(cluster)[0])])
+            cluster_ties.append(stations[ties[np.isin(ties,
+                                                      np.where(cluster)[0])]])
         # put everything in a dictionary
         clusters = { 'centroids'  : points[central_points],
                      'labels'     : cluster_labels,
