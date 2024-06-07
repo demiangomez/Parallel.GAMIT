@@ -180,21 +180,24 @@ class Network(object):
         # expand the initial clusters to overlap stations with neighbors
         OC = over_cluster(kmean.labels_, points, metric='euclidean', 
                           neighborhood=5, overlap_points=2)
+        # calculate all 'tie' stations
+        ties = np.where(np.sum(OC, axis=0) > 1)[0]
         # monotonic labels, compatible with previous data structure / api
         cluster_labels = []
         station_labels = []
+        cluster_ties = []
         for row, cluster in enumerate(OC):
             station_labels.append(stations[cluster])
             cluster_labels.append(np.ones((1, np.sum(cluster)),
-                                           dtype=np.int_)*row)
+                                           dtype=np.int_).squeeze()*row)
+            cluster_ties.append(ties[np.isin(ties, np.where(cluster)[0])])
         # put everything in a dictionary
-        # ...not thrilled about 'station' being close to 80 character limit...
-        clusters = {'centroids' : points[central_points],
-                    'labels'    : np.concatenate(cluster_labels[:],
-                                                 axis=1).squeeze(),
-                    'stations'  : np.concatenate(station_labels[:]).squeeze()}
+        clusters = { 'centroids'  : points[central_points],
+                     'labels'     : cluster_labels,
+                     'stations'   : station_labels }
+        
 
-        return clusters
+        return clusters, cluster_ties
 
     @staticmethod
     def backbone_delauney(points, stations):
