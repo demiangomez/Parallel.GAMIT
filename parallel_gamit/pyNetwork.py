@@ -141,16 +141,12 @@ class Network(object):
             if GamitConfig.NetworkConfig['type'] == 'regional':
                 # create station clusters
                 # cluster centroids will be used later to tie the networks
-                clusters = self.make_clusters(stations.get_active_coordinates(date), stn_active)
+                clusters, ties = self.make_clusters(stations.get_active_coordinates(date), stn_active)
 
                 if len(clusters['stations']) > 1:
-                    # get the ties between subnetworks
-                    ties = self.tie_subnetworks(stations.get_active_coordinates(date), clusters, stn_active)
-
                     # build the backbone network
                     backbone = self.backbone_delauney(stations.get_active_coordinates(date), stn_active)
                 else:
-                    ties = []
                     backbone = []
             else:
                 # DDG: if active stations is greater than BACKBONE_NET + 5, then we need to split the processing
@@ -160,8 +156,7 @@ class Network(object):
                 # create some subnets. A single network solution will have a max size of BACKBONE_NET + 5
                 if len(stn_active) > BACKBONE_NET + 5:
                     backbone = self.backbone_delauney(stations.get_active_coordinates(date), stn_active)
-                    subnets = self.subnets_delaunay(backbone, stations.get_active_coordinates(date), stn_active)
-                    clusters, ties = self.global_sel(subnets, stn_active)
+                    clusters, ties = self.make_clusters(stations.get_active_coordinates(date), stn_active)
                 else:
                     # no need to create a set of clusters, just use them all
                     clusters = {'stations': [stn_active]}
