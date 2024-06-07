@@ -27,7 +27,7 @@ import copy
 # deps
 from tqdm import tqdm
 import numpy as np
-from sklearn.cluster import k_means
+from overcluster import over_cluster, select_central_point, slow_bisecting_kmeans
 from scipy.spatial import (ConvexHull,
                            Delaunay,
                            distance)
@@ -171,13 +171,28 @@ class Network(object):
         self.sessions = self.create_gamit_sessions(cnn, archive, clusters, backbone, ties, date)
 
     def make_clusters(self, points, stations, net_limit=NET_LIMIT):
+        # Run initial clustering
+        # TODO: optimize bisecting_kmeans to not be slow
+        kmean = slow_bisecting_kmeans(points)
+        # snap centroids to closest station coordinate
+        central_points = select_central_point(kmean.labels_, points, 
+                                              kmean.cluster_centers_)
+        # expand the initial clusters to overlap stations with neighbors
+        OC = over_cluster(kmean.labels_, points, metric='euclidean', 
+                          neighborhood=5, overlap_points=2)
+        # monotonic labels, compatible with previous data structure / api
+        cluster_labels = []
+        station_labels = []
+        for row, cluster in enumerate(OC):
+            station_labels.append(stations[cluster])
+            cluster_labels.append(np.ones((1, np.sum(cluster)),
+                                           dtype=np.int_)*row)
         # put everything in a dictionary
-        clusters = { 'centroids'  : cc,
-                     'labels'     : ll,
-                     'stations'   : [] }
-
-        for l in range(len(clusters['centroids'])):
-            clusters['stations'].append([s for i, s in zip(ll.tolist(), stations) if i == l])
+        # ...not thrilled about 'station' being close to 80 character limit...
+        clusters = {'centroids' : points[central_points],
+                    'labels'    : np.concatenate(cluster_labels[:],
+                                                 axis=1).squeeze(),
+                    'stations'  : np.concatenate(station_labels[:]).squeeze()}
 
         return clusters
 
