@@ -6,7 +6,7 @@
 
 ## DB Setup
 
-Skip this part if you are using an existing db
+Skip this part if you are using an existing db.
 
 1. bash command as postgres user: createuser gnss_data_osu;
 2. bash command as postgres user: createdb gnss;
