@@ -1,0 +1,39 @@
+
+#----Modified packages (path relative to gps/backend/ folder)----
+
+# modified some code due to bugs in official release
+modified_packages/drf-spectacular
+
+#----Official packages----
+argon2-cffi==23.1.0
+argon2-cffi-bindings==21.2.0
+asgiref==3.8.1
+attrs==23.2.0
+cffi==1.16.0
+Django==5.0.4
+django-auditlog==3.0.0
+django-cors-headers==4.3.1
+django-filter==24.2
+django-viewflow==2.0.2
+djangorestframework==3.15.1
+djangorestframework-simplejwt==5.3.1
+drf-standardized-errors==0.13.0
+inflection==0.5.1
+jsonschema==4.22.0
+jsonschema-specifications==2023.12.1
+Markdown==3.6
+numpy==1.26.4
+pillow==10.3.0
+psycopg2-binary==2.9.9
+pycparser==2.22
+PyJWT==2.8.0
+python-dateutil==2.9.0.post0
+python-dotenv==1.0.1
+pytz==2024.1
+PyYAML==6.0.1
+referencing==0.35.1
+rpds-py==0.18.1
+six==1.16.0
+sqlparse==0.5.0
+typing_extensions==4.11.0
+uritemplate==4.1.1

@@ -1,0 +1,152 @@
+openapi: 3.0.3
+info:
+  title: ''
+  version: 0.0.0
+paths:
+  /a_b_c/:
+    get:
+      operationId: a_b_c_list
+      parameters:
+      - in: query
+        name: field_parameter
+        schema:
+          type: string
+        description: filter_parameter
+      tags:
+      - a_b_c
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Fake'
+          description: ''
+  /a_b_c/home/:
+    get:
+      operationId: a_b_c_home_retrieve
+      parameters:
+      - in: query
+        name: field_parameter
+        schema:
+          type: string
+        description: filter_parameter
+      tags:
+      - a_b_c
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Fake'
+          description: ''
+components:
+  schemas:
+    Fake:
+      type: object
+      properties:
+        fieldOne:
+          type: string
+        fieldTwo:
+          type: string
+        field_ignored:
+          type: string
+        fieldNested:
+          type: object
+          properties:
+            fieldThree:
+              type: integer
+            fieldFour:
+              type: string
+            fieldFive:
+              type: object
+              properties:
+                fieldSeven:
+                  type: integer
+                fieldEight:
+                  type: string
+              required:
+              - fieldEight
+              - fieldSeven
+            fieldSix:
+              type: array
+              items:
+                type: object
+                properties:
+                  fieldSeven:
+                    type: integer
+                  fieldEight:
+                    type: string
+                required:
+                - fieldEight
+                - fieldSeven
+            field_ignored:
+              type: integer
+          required:
+          - fieldFive
+          - fieldFour
+          - field_ignored
+          - fieldSix
+          - fieldThree
+          readOnly: true
+        fieldNestedIgnored:
+          type: object
+          properties:
+            field_three:
+              type: integer
+            field_four:
+              type: string
+            field_five:
+              type: object
+              properties:
+                field_seven:
+                  type: integer
+                field_eight:
+                  type: string
+              required:
+              - field_eight
+              - field_seven
+            field_six:
+              type: array
+              items:
+                type: object
+                properties:
+                  field_seven:
+                    type: integer
+                  field_eight:
+                    type: string
+                required:
+                - field_eight
+                - field_seven
+            field_ignored:
+              type: integer
+          required:
+          - field_five
+          - field_four
+          - field_ignored
+          - field_six
+          - field_three
+          readOnly: true
+      required:
+      - field_ignored
+      - fieldNested
+      - fieldNestedIgnored
+      - fieldOne
+      - fieldTwo
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid

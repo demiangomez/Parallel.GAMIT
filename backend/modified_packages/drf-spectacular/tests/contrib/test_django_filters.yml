@@ -1,0 +1,311 @@
+openapi: 3.0.3
+info:
+  title: ''
+  version: 0.0.0
+paths:
+  /products/:
+    get:
+      operationId: products_list
+      parameters:
+      - in: query
+        name: all_values
+        schema:
+          type: number
+          format: double
+      - in: query
+        name: cat_callable
+        schema:
+          type: string
+        description: some category description
+      - in: query
+        name: category
+        schema:
+          type: string
+          enum:
+          - A
+          - B
+        description: |-
+          some category description
+
+          * `A` - aaa
+          * `B` - b
+      - in: query
+        name: choice_field_enum_override
+        schema:
+          type: string
+      - in: query
+        name: custom_filter
+        schema:
+          type: boolean
+      - in: query
+        name: custom_underspec_filter
+        schema:
+          type: array
+          items:
+            type: string
+            enum:
+            - A
+            - B
+        description: Multiple values may be separated by commas.
+        explode: false
+        style: form
+      - in: query
+        name: decorated_serializer_field
+        schema:
+          type: string
+          format: uuid
+      - in: query
+        name: email
+        schema:
+          type: string
+          format: email
+      - in: query
+        name: in_categories
+        schema:
+          type: array
+          items:
+            type: string
+            enum:
+            - A
+            - B
+        description: Multiple values may be separated by commas.
+        explode: false
+        style: form
+      - in: query
+        name: in_stock
+        schema:
+          type: boolean
+      - in: query
+        name: int_id
+        schema:
+          type: integer
+      - in: query
+        name: is_free
+        schema:
+          type: boolean
+      - in: query
+        name: max_price
+        schema:
+          type: number
+          format: float
+        description: highest price
+        examples:
+          MagicExample1:
+            value: '1337'
+            summary: Magic example 1
+          MagicExample2:
+            value: '1234'
+            summary: Magic example 2
+      - in: query
+        name: max_sub_price
+        schema:
+          type: number
+          format: float
+      - in: query
+        name: model_multi_cat
+        schema:
+          type: array
+          items:
+            type: string
+            enum:
+            - A
+            - B
+        description: |-
+          some category description
+
+          * `A` - aaa
+          * `B` - b
+        explode: true
+        style: form
+      - in: query
+        name: model_multi_cat_relation
+        schema:
+          type: array
+          items:
+            type: integer
+        explode: true
+        style: form
+      - in: query
+        name: model_single_cat
+        schema:
+          type: string
+          enum:
+          - A
+          - B
+        description: |-
+          some category description
+
+          * `A` - aaa
+          * `B` - b
+      - in: query
+        name: number_id
+        schema:
+          type: number
+        description: some injected help text
+      - in: query
+        name: number_id_ext
+        schema:
+          type: number
+      - in: query
+        name: ordering
+        schema:
+          type: array
+          items:
+            type: string
+            enum:
+            - -in_stock
+            - -price
+            - in_stock
+            - price
+        description: |-
+          Ordering
+
+          * `price` - Price
+          * `-price` - Price (descending)
+          * `in_stock` - in stock
+          * `-in_stock` - in stock (descending)
+        explode: false
+        style: form
+      - in: query
+        name: other_sub_product__uuid
+        schema:
+          type: string
+          format: uuid
+      - in: query
+        name: price_range_max
+        schema:
+          type: number
+          format: double
+      - in: query
+        name: price_range_min
+        schema:
+          type: number
+          format: double
+      - in: query
+        name: price_range_vat_decorated_max
+        schema:
+          type: integer
+      - in: query
+        name: price_range_vat_decorated_min
+        schema:
+          type: integer
+      - in: query
+        name: price_range_vat_max
+        schema:
+          type: number
+          format: double
+      - in: query
+        name: price_range_vat_min
+        schema:
+          type: number
+          format: double
+      - in: query
+        name: sub
+        schema:
+          type: integer
+      - in: query
+        name: subproduct__sub_price
+        schema:
+          type: number
+          format: float
+      - in: query
+        name: untyped_choice_field_method_with_explicit_choices
+        schema:
+          type: integer
+          enum:
+          - 1
+        description: '* `1` - one'
+      - in: query
+        name: untyped_multiple_choice_field_method_with_explicit_choices
+        schema:
+          type: array
+          items:
+            type: integer
+            enum:
+            - 1
+        description: '* `1` - one'
+        explode: true
+        style: form
+      tags:
+      - products
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+          description: ''
+  /products/{id}/:
+    get:
+      operationId: products_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this product.
+        required: true
+      tags:
+      - products
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+          description: ''
+components:
+  schemas:
+    CategoryEnum:
+      enum:
+      - A
+      - B
+      type: string
+      description: |-
+        * `A` - aaa
+        * `B` - b
+    Product:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        category:
+          allOf:
+          - $ref: '#/components/schemas/CategoryEnum'
+          description: |-
+            some category description
+
+            * `A` - aaa
+            * `B` - b
+        in_stock:
+          type: boolean
+        price:
+          type: number
+          format: double
+        other_sub_product:
+          type: integer
+      required:
+      - category
+      - id
+      - in_stock
+      - other_sub_product
+      - price
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid

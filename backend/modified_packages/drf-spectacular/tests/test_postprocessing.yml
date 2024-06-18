@@ -1,0 +1,98 @@
+openapi: 3.0.3
+info:
+  title: ''
+  version: 0.0.0
+paths:
+  /a/:
+    get:
+      operationId: a_list
+      tags:
+      - a
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/A'
+          description: ''
+  /a/selection/:
+    get:
+      operationId: a_selection_retrieve
+      tags:
+      - a
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/B'
+          description: ''
+components:
+  schemas:
+    A:
+      type: object
+      properties:
+        language:
+          $ref: '#/components/schemas/LanguageEnum'
+        vote:
+          $ref: '#/components/schemas/VoteEnum'
+      required:
+      - language
+      - vote
+    B:
+      type: object
+      properties:
+        language:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/LanguageEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+          - $ref: '#/components/schemas/NullEnum'
+      required:
+      - language
+    BlankEnum:
+      enum:
+      - ''
+    LanguageEnum:
+      enum:
+      - en
+      - es
+      - ru
+      - cn
+      type: string
+      description: |-
+        * `en` - en
+        * `es` - es
+        * `ru` - ru
+        * `cn` - cn
+    NullEnum:
+      enum:
+      - null
+    VoteEnum:
+      enum:
+      - 1
+      - 0
+      - -1
+      type: integer
+      description: |-
+        * `1` - Positive
+        * `0` - Neutral
+        * `-1` - Negative
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid

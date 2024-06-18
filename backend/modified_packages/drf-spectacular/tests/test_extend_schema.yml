@@ -1,0 +1,440 @@
+openapi: 3.0.3
+info:
+  title: ''
+  version: 0.0.0
+paths:
+  /doesitall/:
+    post:
+      operationId: customname_create
+      description: this weird endpoint needs some explaining
+      summary: short summary
+      parameters:
+      - in: query
+        name: expiration_date
+        schema:
+          type: string
+          format: date-time
+        description: time the object will expire at
+      - in: header
+        name: test_mode
+        schema:
+          type: boolean
+          enum:
+          - false
+          - true
+          default: false
+        description: creation will be in the sandbox
+      tags:
+      - custom_tag
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Alpha'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Alpha'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Alpha'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      deprecated: true
+      responses:
+        '200':
+          headers:
+            X-Api-Version:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Beta'
+          description: ''
+        '201':
+          headers:
+            X-Api-Version:
+              schema:
+                type: string
+            Location:
+              schema:
+                type: string
+                format: uri
+              description: URL of the created resource
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GammaEpsilon'
+          description: ''
+        '500':
+          headers:
+            X-Api-Version:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorDetail'
+          description: ''
+  /doesitall/{id}/subscribe/:
+    post:
+      operationId: doesitall_subscribe_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - doesitall
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '201':
+          description: No response body
+  /doesitall/callback/{ephemeral}/:
+    post:
+      operationId: doesitall_callback_create
+      parameters:
+      - in: path
+        name: ephemeral
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - doesitall
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: {}
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              additionalProperties: {}
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: {}
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '201':
+          description: No response body
+  /doesitall/custom_request_override/:
+    post:
+      operationId: doesitall_custom_request_override_create
+      tags:
+      - doesitall
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: {}
+          application/pdf:
+            schema:
+              type: string
+              format: binary
+          text/html:
+            schema:
+              type: string
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /doesitall/document/:
+    get:
+      operationId: doesitall_document_retrieve
+      tags:
+      - doesitall
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+          description: ''
+  /doesitall/manual/:
+    post:
+      operationId: manual_endpoint
+      description: fallback mechanism where can go all out
+      tags:
+      - manual_tag
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Alpha'
+      deprecated: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Gamma'
+          description: ''
+  /doesitall/non_required_body/:
+    post:
+      operationId: doesitall_non_required_body_create
+      tags:
+      - doesitall
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Delta'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Delta'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Delta'
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Alpha'
+          description: ''
+  /doesitall/only-response-override/:
+    post:
+      operationId: doesitall_only_response_override_create
+      tags:
+      - doesitall
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Alpha'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Alpha'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Alpha'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '204':
+          description: No response body
+  /doesitall/serializer-query/:
+    get:
+      operationId: doesitall_serializer_query_retrieve
+      parameters:
+      - in: query
+        name: contains
+        schema:
+          type: string
+          maxLength: 10
+          minLength: 3
+        description: filter by containing string
+      - in: query
+        name: nested
+        schema:
+          $ref: '#/components/schemas/Query'
+      - in: query
+        name: order_by
+        schema:
+          type: array
+          items:
+            enum:
+            - a
+            - b
+            - c
+            type: string
+            description: |-
+              * `a` - a
+              * `b` - b
+              * `c` - c
+          default:
+          - a
+      - in: query
+        name: stars
+        schema:
+          type: integer
+          maximum: 5
+          minimum: 1
+        description: filter by rating stars
+        required: true
+      - in: query
+        name: tag
+        schema:
+          type: string
+          minLength: 1
+      tags:
+      - doesitall
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Alpha'
+          description: ''
+components:
+  schemas:
+    Alpha:
+      type: object
+      properties:
+        field_a:
+          type: string
+        field_b:
+          type: integer
+      required:
+      - field_a
+      - field_b
+    Beta:
+      type: object
+      properties:
+        field_a:
+          type: string
+        field_b:
+          type: integer
+        field_c: {}
+      required:
+      - field_a
+      - field_b
+      - field_c
+    Delta:
+      type: object
+      properties:
+        field_a:
+          type: string
+        field_b:
+          type: integer
+    ErrorDetail:
+      type: object
+      properties:
+        field_i:
+          type: string
+          format: date-time
+          readOnly: true
+        field_j:
+          allOf:
+          - $ref: '#/components/schemas/Inline'
+          nullable: true
+          readOnly: true
+        field_k:
+          type: array
+          items:
+            $ref: '#/components/schemas/Inline'
+          readOnly: true
+        field_l:
+          allOf:
+          - $ref: '#/components/schemas/FieldLEnum'
+          readOnly: true
+        field_m:
+          type: array
+          items:
+            type: integer
+          readOnly: true
+      required:
+      - field_i
+      - field_j
+      - field_k
+      - field_l
+      - field_m
+    FieldLEnum:
+      enum:
+      - a
+      - b
+      type: string
+      description: |-
+        * `a` - a
+        * `b` - b
+    GammaEpsilon:
+      type: object
+      properties:
+        encoding:
+          type: string
+        image_data:
+          type: string
+          format: byte
+        custom_url_field:
+          type: string
+          format: byte
+      required:
+      - custom_url_field
+      - encoding
+      - image_data
+    Inline:
+      type: object
+      properties:
+        inline_b:
+          type: boolean
+        inline_i:
+          type: integer
+      required:
+      - inline_b
+      - inline_i
+    OrderByEnum:
+      enum:
+      - a
+      - b
+      - c
+      type: string
+      description: |-
+        * `a` - a
+        * `b` - b
+        * `c` - c
+    Query:
+      type: object
+      properties:
+        stars:
+          type: integer
+          maximum: 5
+          minimum: 1
+          description: filter by rating stars
+        contains:
+          type: string
+          description: filter by containing string
+          maxLength: 10
+          minLength: 3
+        order_by:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderByEnum'
+          default:
+          - a
+        tag:
+          type: string
+      required:
+      - stars
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid

@@ -1,0 +1,130 @@
+openapi: 3.0.3
+info:
+  title: ''
+  version: 0.0.0
+paths:
+  /IsAuthenticatedOrTokenHasScope/:
+    get:
+      operationId: IsAuthenticatedOrTokenHasScope_list
+      tags:
+      - IsAuthenticatedOrTokenHasScope
+      security:
+      - oauth2:
+        - extra_scope
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/X'
+          description: ''
+  /OASRequirements/:
+    get:
+      operationId: OASRequirements_list
+      tags:
+      - OASRequirements
+      security:
+      - oauth2:
+        - read
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/X'
+          description: ''
+    post:
+      operationId: OASRequirements_create
+      tags:
+      - OASRequirements
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/X'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/X'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/X'
+        required: true
+      security:
+      - oauth2:
+        - create1
+        - scope2
+      - oauth2:
+        - alt-scope3
+      - oauth2:
+        - alt-scope4
+        - alt-scope5
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/X'
+          description: ''
+  /TokenHasReadWriteScope/:
+    get:
+      operationId: TokenHasReadWriteScope_list
+      tags:
+      - TokenHasReadWriteScope
+      security:
+      - oauth2:
+        - read
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/X'
+          description: ''
+  /TokenHasResourceScope/:
+    get:
+      operationId: TokenHasResourceScope_list
+      tags:
+      - TokenHasResourceScope
+      security:
+      - oauth2:
+        - extra_scope:read
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/X'
+          description: ''
+components:
+  schemas:
+    X:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+      required:
+      - uuid
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+    oauth2:
+      type: oauth2
+      flows:
+        implicit:
+          authorizationUrl: http://127.0.0.1:8000/o/authorize
+          refreshUrl: http://127.0.0.1:8000/o/refresh
+          scopes:
+            read: Reading scope
+            write: Writing scope
+            extra_scope: Extra Scope

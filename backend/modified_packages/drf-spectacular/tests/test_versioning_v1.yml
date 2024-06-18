@@ -1,0 +1,63 @@
+openapi: 3.0.3
+info:
+  title: ''
+  version: 0.0.0 (v1)
+paths:
+  /v1/x/:
+    get:
+      operationId: v1_x_list
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Xv1'
+          description: ''
+  /v1/x/{id}/:
+    get:
+      operationId: v1_x_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this simple model.
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Xv1'
+          description: ''
+components:
+  schemas:
+    Xv1:
+      type: object
+      properties:
+        id:
+          type: integer
+      required:
+      - id
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid

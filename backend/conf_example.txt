@@ -1,0 +1,12 @@
+[postgres]
+hostname = localhost
+username = gnss_data_osu
+password = dynagnss_data_osu
+database = gps
+port = 5432
+
+[django]
+
+secret_key = 0-og@hcu&cz(9#8cr^fyh#y&c2oc6$vbk_+4n_1jzf93xa#da(
+debug = True
+media_relative_path = media
