@@ -208,12 +208,28 @@ class Network(object):
         cluster_labels = []
         station_labels = []
         cluster_ties = []
+
+        # init'ed outside of the loop for efficiency...
+        stat_labs = stations.labels_array()
         for row, cluster in enumerate(OC):
-            station_labels.append(stations[cluster])
+            # Create 'station collections' for compat
+            my_stations = StationCollection()
+            my_cluster_ties = StationCollection()
+            # strip out station id's per cluster...
+            for station in stat_labs[cluster]:
+              	# rebuild as a 'station collection list'
+                my_stations.append(stations[str(station)])
+            # append to a regular list for integer indexing at line ~400
+            station_labels.append(my_stations)
             cluster_labels.append(np.ones((1, np.sum(cluster)),
-                                          dtype=np.int_).squeeze()*row)
-            cluster_ties.append(stations[ties[np.isin(ties,
-                                                      np.where(cluster)[0])]])
+                                           dtype=np.int_).squeeze()*row)
+            # strip out station id's for tie points....
+            for statn in stat_labs[ties[np.isin(ties, np.where(cluster)[0])]]:
+                # rebuild as a 'station collection list'
+                my_cluster_ties.append(stations[str(statn)])
+            # append to a regular list for integer indexing at line ~400
+            cluster_ties.append(my_cluster_ties)
+
         # put everything in a dictionary
         clusters = {'centroids': points[central_points],
                     'labels': cluster_labels,
