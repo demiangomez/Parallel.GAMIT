@@ -37,6 +37,7 @@ from scipy.spatial import Delaunay, distance
 
 # app
 from pyGamitSession import GamitSession
+from pyStation import StationCollection
 
 BACKBONE_NET = 45
 NET_LIMIT = 40
@@ -77,15 +78,13 @@ class Network(object):
         # find out if this project-day has been processed before
         db_subnets = cnn.query_float('SELECT * FROM gamit_subnets '
                                      'WHERE "Project" = \'%s\' AND "Year" = %i AND '
-                                     '"DOY" = %i ORDER BY "subnet"'
-                                     % (self.name, date.year, date.doy), as_dict=True)
+                                     '"DOY" = %i ORDER BY "subnet"' % (self.name, date.year, date.doy), as_dict=True)
 
         stn_active = stations.get_active_stations(date)
         chk_active = check_stations.get_active_stations(date)
 
         if len(db_subnets) > 0:
-            tqdm.write(' >> %s %s %s -> Processing already exists'
-                       % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            tqdm.write(' >> %s %s %s -> Processing already exists' % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                           self.name, date.yyyyddd()))
 
             # sub-network already exist, put information in lists
@@ -151,7 +150,8 @@ class Network(object):
                                            subnet=subnet['subnet'],
                                            system=subnet['system'])
 
-                            tqdm.write(' -- %s in sub-network %s%02i system %s did not produce a solution and will be reprocessed' % (stn, self.org, subnet['subnet'], subnet['system']))
+                            tqdm.write(' -- %s in sub-network %s%02i system %s did not produce a solution and will be '
+                            'reprocessed' % (stn, self.org, subnet['subnet'], subnet['system']))
 
         else:
             tqdm.write(' >> %s %s %s -> Creating network clusters' %
