@@ -16,6 +16,7 @@ from . import models
 import django.contrib.auth.hashers
 from django.test import Client
 
+
 class PermissionsTest(TestCase):
     def authenticate_admin(self):
         url = reverse("token_obtain_pair")
@@ -42,7 +43,6 @@ class PermissionsTest(TestCase):
 
         self.assertIsNotNone(self.token)
         self.client.defaults['HTTP_AUTHORIZATION'] = "Bearer " + self.token
-
 
     def authenticate_underprivileged_api(self):
         url = reverse("token_obtain_pair")
@@ -72,16 +72,16 @@ class PermissionsTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
 
-        response = self.client.post(url,{
-                "antenna_code": "ANT1",
-                "antenna_description": "test description"
-            })
+        response = self.client.post(url, {
+            "antenna_code": "ANT1",
+            "antenna_description": "test description"
+        })
 
         self.assertEqual(response.status_code, 201)
-    
+
     def test_disabled_role(self):
         self.authenticate_underprivileged_api()
-        
+
         # test user is enabled
 
         url = reverse("station_list")
@@ -94,13 +94,16 @@ class PermissionsTest(TestCase):
 
         self.authenticate_admin()
 
-        url = reverse("role_detail", kwargs={"pk": models.User.objects.get(username="underprivileged_api").role.id})
+        url = reverse("role_detail", kwargs={"pk": models.User.objects.get(
+            username="underprivileged_api").role.id})
 
-        response = self.client.patch(url, data = {"is_active": False}, content_type='application/json')
+        response = self.client.patch(
+            url, data={"is_active": False}, content_type='application/json')
 
         self.assertEqual(response.status_code, 200)
 
-        self.assertEqual(models.User.objects.get(username="underprivileged_api").role.is_active, False)
+        self.assertEqual(models.User.objects.get(
+            username="underprivileged_api").role.is_active, False)
 
         # check user is disabled
 
@@ -111,13 +114,15 @@ class PermissionsTest(TestCase):
 
         self.assertEqual(response.status_code, 401)
 
-        #check user cannot be enable until role is active
+        # check user cannot be enable until role is active
 
         self.authenticate_admin()
 
-        url = reverse("user_detail", kwargs={"pk": models.User.objects.get(username="underprivileged_api").id})
+        url = reverse("user_detail", kwargs={
+                      "pk": models.User.objects.get(username="underprivileged_api").id})
 
-        response = self.client.patch(url, data = {"is_active": True}, content_type='multipart/form-data')
+        response = self.client.patch(
+            url, data={"is_active": True}, content_type='multipart/form-data')
 
         self.assertEqual(response.status_code, 400)
 
@@ -129,7 +134,8 @@ class PermissionsTest(TestCase):
 
         user.save()
 
-        self.assertEqual(models.User.objects.get(username="underprivileged_api").is_active, True)
+        self.assertEqual(models.User.objects.get(
+            username="underprivileged_api").is_active, True)
 
         self.authenticate_underprivileged_api()
 
@@ -143,9 +149,11 @@ class PermissionsTest(TestCase):
 
         self.authenticate_admin()
 
-        url = reverse("role_detail", kwargs={"pk": models.User.objects.get(username="underprivileged_api").role.id})
+        url = reverse("role_detail", kwargs={"pk": models.User.objects.get(
+            username="underprivileged_api").role.id})
 
-        response = self.client.patch(url, data = {"is_active": True}, content_type='application/json')
+        response = self.client.patch(
+            url, data={"is_active": True}, content_type='application/json')
 
         self.assertEqual(response.status_code, 200)
 
@@ -166,17 +174,17 @@ class PermissionsTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
 
-        response = self.client.post(url,{
-                "station_code": "ST1",
-                "station_name": "test station"
-            })
+        response = self.client.post(url, {
+            "station_code": "ST1",
+            "station_name": "test station"
+        })
 
         self.assertEqual(response.status_code, 403)
 
         url = reverse("antennas_list")
 
         response = self.client.get(url)
-        
+
         self.assertEqual(response.status_code, 403)
 
     def test_underprivileged_api_role(self):
@@ -188,18 +196,251 @@ class PermissionsTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
 
-        response = self.client.post(url,{
-                "station_code": "ST1",
-                "station_name": "test station"
-            })
+        response = self.client.post(url, {
+            "station_code": "ST1",
+            "station_name": "test station"
+        })
 
         self.assertEqual(response.status_code, 403)
 
         url = reverse("antennas_list")
 
         response = self.client.get(url)
-        
+
         self.assertEqual(response.status_code, 403)
+
+
+class StationGapsTest(TestCase):
+    """
+    Test gaps validation when retrieving stations
+    """
+
+    def setUp(self):
+
+        def authenticate():
+            url = reverse("token_obtain_pair")
+
+            response = self.client.post(
+                url, {"username": "admin", "password": "admin"})
+
+            self.assertEqual(response.status_code, 200)
+
+            self.token = response.json()["access"]
+
+            self.assertIsNotNone(self.token)
+            self.client.defaults['HTTP_AUTHORIZATION'] = "Bearer " + self.token
+
+        authenticate()
+
+    def test_gaps(self):
+        def test_create_antennas():
+            url = reverse("antennas_list")
+            data = {
+                "antenna_code": "ANT1",
+                "antenna_description": "test description"
+            }
+            response = self.client.post(url, data)
+
+            self.assertEqual(models.Antennas.objects.count(), 1)
+            self.assertEqual(response.status_code, 201)
+            self.assertEqual(response.json()["antenna_code"], 'ANT1')
+
+        def test_create_receivers():
+            url = reverse("receivers_list")
+            data = {
+                "receiver_code": "RC1",
+                "receiver_description": "test description"
+            }
+            response = self.client.post(
+                url, data)
+
+            self.assertEqual(models.Receivers.objects.count(), 1)
+            self.assertEqual(response.status_code, 201)
+            self.assertEqual(response.json()["receiver_code"], 'RC1')
+
+        def test_create_networks():
+            url = reverse("network_list")
+
+            data = {
+                "network_code": "NT1",
+                "network_name": "test network"
+            }
+
+            response = self.client.post(
+                url, data)
+
+            self.assertEqual(models.Networks.objects.count(), 1)
+            self.assertEqual(response.status_code, 201)
+            self.assertEqual(response.json()["network_code"], 'NT1')
+
+        def test_create_gamit_htc():
+            url = reverse("gamit_htc_list")
+
+            data = {
+                "antenna_code": 'ANT1',
+                "height_code": 'HT1'
+            }
+
+            response = self.client.post(
+                url, data)
+
+            self.assertEqual(models.GamitHtc.objects.count(), 1)
+            self.assertEqual(response.status_code, 201)
+            self.assertEqual(response.json()["height_code"], 'HT1')
+
+        def test_create_station():
+            url = reverse("station_list")
+
+            data = {
+                "network_code": 'NT1',
+                "station_code": 'ST1',
+                "station_name": 'test station',
+                "country_code": 'USA'
+            }
+
+            response = self.client.post(
+                url, data)
+
+            self.assertEqual(models.Stations.objects.count(), 1)
+            self.assertEqual(response.status_code, 201)
+            self.assertEqual(response.json()["station_code"], 'ST1')
+
+        def test_create_first_stationinfo():
+            
+            url = reverse("station_info_list")
+
+            data = {
+                "network_code": 'NT1',
+                "station_code": 'ST1',
+                "antenna_code": 'ANT1',
+                "receiver_code": 'RC1',
+                "height_code": 'HT1',
+                "country_code": 'USA',
+                "date_start": "2020-01-01T00:00:00",
+                "date_end": "2021-01-01T00:00:00",
+                "radome_code": "R1",
+            }
+
+            response = self.client.post(
+                url, data)
+            
+            self.assertEqual(response.status_code, 201)
+
+        def test_create_second_stationinfo():
+
+            url = reverse("station_info_list")
+            
+            # create second stationinfo, creating a gap between the date-end of the first one and the date-start of the second one
+            data = {
+                "network_code": 'NT1',
+                "station_code": 'ST1',
+                "antenna_code": 'ANT1',
+                "receiver_code": 'RC1',
+                "height_code": 'HT1',
+                "country_code": 'USA',
+                "date_start": "2021-01-02T00:00:00",
+                "radome_code": "R1",
+            }
+
+            response = self.client.post(
+                url, data)
+
+            self.assertEqual(response.status_code, 201)
+
+            self.assertEqual(models.Stationinfo.objects.count(), 2)
+            self.assertEqual(response.json()["network_code"], 'NT1')
+
+        def test_station_doesnt_have_gaps():
+            url = reverse("station_list")
+
+            response = self.client.get(url)
+
+            self.assertEqual(response.status_code, 200)
+
+            self.assertEqual(response.json()["data"][0]["has_gaps"], False)
+
+        def test_create_rinex():
+            url = reverse("rinex_list")
+
+            data = {
+                "network_code": 'NT1',
+                "station_code": 'ST1',
+                "observation_year": 2021,
+                "observation_month": 1,
+                "observation_day": 1,
+                "observation_doy": 1,
+                "observation_f_year": 2021.0013698630137,
+                "observation_s_time": "2021-01-01T12:00:00",
+                "observation_e_time": "2021-01-01T13:00:00",
+                "interval": 15.0,
+                "completion": 0.6
+            }
+
+            response = self.client.post(
+                url, data)
+            
+            self.assertEqual(response.status_code, 201)
+
+            # get rinex
+            url = reverse("rinex_list")
+
+            response = self.client.get(url)
+
+            self.assertEqual(response.status_code, 200)
+
+        def test_station_has_gaps():
+            url = reverse("station_list")
+
+            response = self.client.get(url)
+
+            self.assertEqual(response.status_code, 200)
+
+            self.assertEqual(response.json()["data"][0]["has_gaps"], True)
+
+        def delete_rinex():
+            url = reverse("rinex_detail", kwargs={
+                "pk": models.Rinex.objects.all().first().api_id})
+
+            response = self.client.delete(url)
+
+            self.assertEqual(response.status_code, 204)
+        
+        def test_create_rinex_before_stationinfo_date():
+            url = reverse("rinex_list")
+
+            data = {
+                "network_code": 'NT1',
+                "station_code": 'ST1',
+                "observation_year": 2019,
+                "observation_month": 1,
+                "observation_day": 1,
+                "observation_doy": 1,
+                "observation_f_year": 2019.0013698630137,
+                "observation_s_time": "2019-01-01T12:00:00",
+                "observation_e_time": "2019-01-01T13:00:00",
+                "interval": 15.0,
+                "completion": 0.6
+            }
+
+            response = self.client.post(
+                url, data)
+            
+            self.assertEqual(response.status_code, 201)
+               
+        test_create_antennas()
+        test_create_receivers()
+        test_create_networks()
+        test_create_gamit_htc()
+        test_create_station()
+        test_create_first_stationinfo()
+        test_create_second_stationinfo()
+        test_station_doesnt_have_gaps()
+        test_create_rinex()
+        test_station_has_gaps()
+        delete_rinex()
+        test_station_doesnt_have_gaps()
+        test_create_rinex_before_stationinfo_date()
+        test_station_has_gaps()
 
 class StationInfoTest(TestCase):
     """

@@ -38,3 +38,57 @@ class RinexFilter(filters.FilterSet):
     class Meta:
         model = models.Rinex
         fields = ['network_code', 'station_code']
+
+
+class RolePersonStationFilter(filters.FilterSet):
+    station_api_id = filters.CharFilter(
+        field_name='station')
+
+    class Meta:
+        model = models.RolePersonStation
+        fields = ['station_api_id']
+
+
+class StationImagesFilter(filters.FilterSet):
+    station_api_id = filters.CharFilter(
+        field_name='station')
+
+    class Meta:
+        model = models.StationImages
+        fields = ['station_api_id']
+
+
+class StationAttachedFilesFilter(filters.FilterSet):
+    station_api_id = filters.CharFilter(
+        field_name='station')
+
+    class Meta:
+        model = models.StationAttachedFiles
+        fields = ['station_api_id']
+
+
+class VisitAttachedFilesFilter(filters.FilterSet):
+    visit_api_id = filters.CharFilter(
+        field_name='visit')
+
+    class Meta:
+        model = models.VisitAttachedFiles
+        fields = ['visit_api_id']
+
+
+class VisitImagesFilter(filters.FilterSet):
+    visit_api_id = filters.CharFilter(
+        field_name='visit')
+
+    class Meta:
+        model = models.VisitImages
+        fields = ['visit_api_id']
+
+
+class VisitGNSSDataFilesFilter(filters.FilterSet):
+    visit_api_id = filters.CharFilter(
+        field_name='visit')
+
+    class Meta:
+        model = models.VisitGNSSDataFiles
+        fields = ['visit_api_id']

@@ -3,6 +3,114 @@ from . import models
 from . import exceptions
 import numpy
 
+from django.db import connection
+import django.utils.timezone
+
+class StationMetaUtils:
+    @staticmethod
+    def update_has_gaps_status():
+            
+            records = models.StationMeta.objects.all()
+            previous_time = datetime.datetime.now()
+            records_updated_count = 0
+
+            for record in records:
+                
+                if hasattr(record, 'station') and record.has_gaps_update_needed:
+                    records_updated_count += 1
+                    record.has_gaps = StationMetaUtils.station_has_gaps(record.station)
+                    record.has_gaps_update_needed = False
+                    record.has_gaps_last_update_datetime = django.utils.timezone.now()
+                
+                    record.save()
+            
+            if records_updated_count > 0:
+                print(' \'has_gaps\' status updated. Total stations updated: ', records_updated_count, ' - Time taken: ', (datetime.datetime.now() - previous_time).total_seconds())
+
+    @staticmethod
+    def station_has_gaps(station_object):
+        """
+        This function checks any missing station info (gaps) or any data outside the first and last station info
+        """
+
+        def dictfetchall(cursor):
+            "Return all rows from a cursor as a dict"
+            columns = [col[0] for col in cursor.description]
+            return [
+                dict(zip(columns, row))
+                for row in cursor.fetchall()
+    ]
+
+        def get_rinex_count(station_object, edate, sdate):
+                                    
+            with connection.cursor() as cursor:
+                cursor.execute(
+                            """SELECT count(*) as rcount FROM rinex_proc 
+                            WHERE "NetworkCode" = %s AND "StationCode" = %s AND
+                            "ObservationETime" > %s AND "ObservationSTime" < %s AND
+                            "Completion" >= 0.5""", [station_object.network_code.network_code, station_object.station_code, edate, sdate])
+                rows = dictfetchall(cursor)
+
+                return rows[0]["rcount"]
+            
+        def get_first_and_last_rinex(station_object):
+
+            with connection.cursor() as cursor:
+                cursor.execute(
+                            """SELECT min("ObservationSTime") as first_obs, max("ObservationSTime") as last_obs
+                            FROM rinex_proc WHERE "NetworkCode" = %s AND "StationCode" = %s
+                            AND "Completion" >= 0.5""", [station_object.network_code.network_code, station_object.station_code])
+                rows = dictfetchall(cursor)
+
+                return rows[0]
+
+        def has_gaps_between_stationinfo_records(station_object, station_info_records):
+            
+            if station_info_records.count() > 1:
+                # convert station_info_records to a list
+                station_info_records = list(station_info_records)
+                # get gaps between stninfo records
+                for erecord, srecord in zip(station_info_records[0:-1], station_info_records[1:]):
+
+                    sdate = srecord.date_start
+                    edate = erecord.date_end
+
+                    # if the delta between previous and current session exceeds one second, check if any rinex falls
+                    # in that gap
+                    if (sdate - edate).total_seconds() > 1:
+
+                        if get_rinex_count(station_object, edate, sdate) != 0:
+                            return True
+
+            return False
+
+        def has_gaps_outside_stationinfo_records(station_object, station_info_records):
+            """
+                There should not be RINEX data outside the station info window
+            """
+            rnxtbl = get_first_and_last_rinex(station_object)
+
+            if rnxtbl["first_obs"] is not None and station_info_records.count() > 0:
+
+                # to avoid empty stations (no rinex data)
+                if station_info_records.first().date_start is not None and rnxtbl["first_obs"] < station_info_records.first().date_start:
+                    return True
+                
+                if station_info_records.last().date_end is not None and rnxtbl["first_obs"] > station_info_records.last().date_end:
+                    return True
+
+            return False
+
+        station_info_records = models.Stationinfo.objects.filter(
+            network_code=station_object.network_code.network_code, station_code=station_object.station_code)
+
+        # check if station_object has the required fields
+        if not hasattr(station_object, 'network_code') or not hasattr(station_object, 'station_code'):
+            return False
+
+        return (has_gaps_between_stationinfo_records(station_object, station_info_records) or has_gaps_outside_stationinfo_records(station_object, station_info_records))
+
+
 class PageUtils:
     def group_pages_by_url(pages):
         """
@@ -19,6 +127,7 @@ class PageUtils:
 
         return pages_by_url
 
+
 class EndpointsClusterUtils:
     def group_clusters_by_resource(clusters):
         """
@@ -34,6 +143,7 @@ class EndpointsClusterUtils:
             clusters_by_resource[resource].append(cluster)
 
         return clusters_by_resource
+
 
 class StationInfoUtils:
     @staticmethod
@@ -173,4 +283,3 @@ class StationInfoUtils:
             ), field.name) for field in models.Stationinfo._meta.get_fields()}
 
         return values
-

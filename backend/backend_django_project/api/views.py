@@ -1,3 +1,4 @@
+from django.shortcuts import get_object_or_404
 from rest_framework import generics, status
 from . import models
 from django.contrib.auth import get_user_model
@@ -20,6 +21,9 @@ from django.http import FileResponse, Http404, HttpResponseServerError
 from rest_framework.views import APIView
 from django.conf import settings
 import os.path
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample
+from drf_spectacular.types import OpenApiTypes
+from rest_framework import status
 
 
 def response_is_paginated(response_data):
@@ -62,6 +66,8 @@ class CustomListCreateAPIView(AddCountMixin, generics.ListCreateAPIView):
 
 
 class UserPhoto(APIView):
+    serializer_class = serializers.DummySerializer
+
     def get_object(self, pk):
         try:
             user = models.User.objects.get(pk=pk)
@@ -73,6 +79,7 @@ class UserPhoto(APIView):
             else:
                 return user.photo.path
 
+    @extend_schema(responses={200: OpenApiResponse(description="Image returned, content type is image/jpeg")})
     def get(self, request, pk, format=None):
         relative_photo_path = self.get_object(pk)
 
@@ -118,9 +125,11 @@ class RoleDetail(generics.RetrieveUpdateAPIView):
         is_active_after_update = self.get_object().is_active
 
         if (is_active_before_update == True and is_active_after_update == False):
-            models.User.objects.filter(role=self.get_object().id).update(is_active=False)
+            models.User.objects.filter(
+                role=self.get_object().id).update(is_active=False)
 
         return response
+
 
 class PageList(CustomListCreateAPIView):
     queryset = models.Page.objects.all()
@@ -132,11 +141,12 @@ class PageList(CustomListCreateAPIView):
         response = super().list(request, *args, **kwargs)
 
         if response.status_code == status.HTTP_200_OK:
-                
-                response.data['data'] = utils.PageUtils.group_pages_by_url(
-                    response.data['data'])
-                
+
+            response.data['data'] = utils.PageUtils.group_pages_by_url(
+                response.data['data'])
+
         return response
+
 
 class PageDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = models.Page.objects.all()
@@ -147,9 +157,11 @@ class EndpointList(CustomListCreateAPIView):
     queryset = models.Endpoint.objects.all()
     serializer_class = serializers.EndpointSerializer
 
+
 class EndpointDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = models.Endpoint.objects.all()
     serializer_class = serializers.EndpointSerializer
+
 
 class EndpointsClusterList(CustomListCreateAPIView):
     queryset = models.EndPointsCluster.objects.all()
@@ -161,18 +173,17 @@ class EndpointsClusterList(CustomListCreateAPIView):
         response = super().list(request, *args, **kwargs)
 
         if response.status_code == status.HTTP_200_OK:
-                
-                response.data['data'] = utils.EndpointsClusterUtils.group_clusters_by_resource(
-                    response.data['data'])
-                
-        return response
-                
 
+            response.data['data'] = utils.EndpointsClusterUtils.group_clusters_by_resource(
+                response.data['data'])
+
+        return response
 
 
 class EndpointsClusterDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = models.EndPointsCluster.objects.all()
     serializer_class = serializers.EndpointsClusterSerializer
+
 
 class StationinfoList(CustomListCreateAPIView):
     queryset = models.Stationinfo.objects.all()
@@ -192,6 +203,16 @@ class NetworkList(CustomListCreateAPIView):
 class NetworkDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = models.Networks.objects.all()
     serializer_class = serializers.NetworkSerializer
+
+
+class MonumentTypeList(CustomListCreateAPIView):
+    queryset = models.MonumentType.objects.all()
+    serializer_class = serializers.MonumentTypeSerializer
+
+
+class MonumentTypeDetail(generics.RetrieveUpdateDestroyAPIView):
+    queryset = models.MonumentType.objects.all()
+    serializer_class = serializers.MonumentTypeSerializer
 
 
 class ReceiverList(CustomListCreateAPIView):
@@ -244,6 +265,144 @@ class StationCodesList(CustomListAPIView):
                                      for station in response.data["data"]]
 
         return response
+
+
+class StationMetaList(CustomListCreateAPIView):
+    queryset = models.StationMeta.objects.all()
+    serializer_class = serializers.StationMetaSerializer
+
+
+class StationMetaDetail(generics.RetrieveUpdateDestroyAPIView):
+    queryset = models.StationMeta.objects.all()
+    serializer_class = serializers.StationMetaSerializer
+    lookup_field = 'station_id'
+
+
+class StationStatusList(CustomListCreateAPIView):
+    queryset = models.StationStatus.objects.all()
+    serializer_class = serializers.StationStatusSerializer
+
+
+class StationStatusDetail(generics.RetrieveUpdateDestroyAPIView):
+    queryset = models.StationStatus.objects.all()
+    serializer_class = serializers.StationStatusSerializer
+
+
+class StationTypeList(CustomListCreateAPIView):
+    queryset = models.StationType.objects.all()
+    serializer_class = serializers.StationTypeSerializer
+
+
+class StationTypeDetail(generics.RetrieveUpdateDestroyAPIView):
+    queryset = models.StationType.objects.all()
+    serializer_class = serializers.StationTypeSerializer
+
+
+class StationAttachedFilesList(CustomListCreateAPIView):
+    queryset = models.StationAttachedFiles.objects.all()
+    serializer_class = serializers.StationAttachedFilesSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = filters.StationAttachedFilesFilter
+
+
+class StationAttachedFilesDetail(generics.RetrieveUpdateDestroyAPIView):
+    queryset = models.StationAttachedFiles.objects.all()
+    serializer_class = serializers.StationAttachedFilesSerializer
+
+
+class StationImagesList(CustomListCreateAPIView):
+    queryset = models.StationImages.objects.all()
+    serializer_class = serializers.StationImagesSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = filters.StationImagesFilter
+
+
+class StationImagesDetail(generics.RetrieveUpdateDestroyAPIView):
+    queryset = models.StationImages.objects.all()
+    serializer_class = serializers.StationImagesSerializer
+
+
+class CampaignList(CustomListCreateAPIView):
+    queryset = models.Campaigns.objects.all()
+    serializer_class = serializers.CampaignSerializer
+
+
+class CampaignDetail(generics.RetrieveUpdateDestroyAPIView):
+    queryset = models.Campaigns.objects.all()
+    serializer_class = serializers.CampaignSerializer
+
+
+class VisitList(CustomListCreateAPIView):
+    queryset = models.Visits.objects.all()
+    serializer_class = serializers.VisitSerializer
+
+
+class VisitDetail(generics.RetrieveUpdateDestroyAPIView):
+    queryset = models.Visits.objects.all()
+    serializer_class = serializers.VisitSerializer
+
+
+class VisitAttachedFilesList(CustomListCreateAPIView):
+    queryset = models.VisitAttachedFiles.objects.all()
+    serializer_class = serializers.VisitAttachedFilesSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = filters.VisitAttachedFilesFilter
+
+
+class VisitAttachedFilesDetail(generics.RetrieveUpdateDestroyAPIView):
+    queryset = models.VisitAttachedFiles.objects.all()
+    serializer_class = serializers.VisitAttachedFilesSerializer
+
+
+class VisitImagesList(CustomListCreateAPIView):
+    queryset = models.VisitImages.objects.all()
+    serializer_class = serializers.VisitImagesSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = filters.VisitImagesFilter
+
+
+class VisitImagesDetail(generics.RetrieveUpdateDestroyAPIView):
+    queryset = models.VisitImages.objects.all()
+    serializer_class = serializers.VisitImagesSerializer
+
+
+class VisitGNSSDataFilesList(CustomListCreateAPIView):
+    queryset = models.VisitGNSSDataFiles.objects.all()
+    serializer_class = serializers.VisitGNSSDataFilesSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = filters.VisitGNSSDataFilesFilter
+
+
+class VisitGNSSDataFilesDetail(generics.RetrieveUpdateDestroyAPIView):
+    queryset = models.VisitGNSSDataFiles.objects.all()
+    serializer_class = serializers.VisitGNSSDataFilesSerializer
+
+
+class RolePersonStationList(CustomListCreateAPIView):
+    queryset = models.RolePersonStation.objects.all()
+    serializer_class = serializers.RolePersonStationSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = filters.RolePersonStationFilter
+
+
+class RolePersonStationDetail(generics.RetrieveUpdateDestroyAPIView):
+    queryset = models.RolePersonStation.objects.all()
+    serializer_class = serializers.RolePersonStationSerializer
+
+
+class StationRolesList(CustomListCreateAPIView):
+    queryset = models.StationRole.objects.all()
+    serializer_class = serializers.StationRoleSerializer
+
+
+class StationRolesDetail(generics.RetrieveUpdateDestroyAPIView):
+    queryset = models.StationRole.objects.all()
+    serializer_class = serializers.StationRoleSerializer
+
+
+class RolePersonStationDetail(generics.RetrieveUpdateDestroyAPIView):
+    queryset = models.RolePersonStation.objects.all()
+    serializer_class = serializers.RolePersonStationSerializer
 
 
 class AprCoordsList(CustomListCreateAPIView):
@@ -421,6 +580,16 @@ class LocksList(CustomListCreateAPIView):
 class LocksDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = models.Locks.objects.all()
     serializer_class = serializers.LocksSerializer
+
+
+class PersonList(CustomListCreateAPIView):
+    queryset = models.Person.objects.all()
+    serializer_class = serializers.PersonSerializer
+
+
+class PersonDetail(generics.RetrieveUpdateDestroyAPIView):
+    queryset = models.Person.objects.all()
+    serializer_class = serializers.PersonSerializer
 
 
 class PppSolnList(CustomListCreateAPIView):

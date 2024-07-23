@@ -6,7 +6,9 @@ database = gps
 port = 5432
 
 [django]
-
+has_gaps_background_job_time_interval_seconds = 60
 secret_key = 0-og@hcu&cz(9#8cr^fyh#y&c2oc6$vbk_+4n_1jzf93xa#da(
 debug = True
 media_relative_path = media
+max_size_image_mb = 2
+max_size_file_mb = 10

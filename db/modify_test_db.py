@@ -4,49 +4,42 @@ from dotenv import load_dotenv
 import psycopg2
 import sys
 import json
+def table_is_from_django_app(table_name):
+    PREFIXES = ["api_", "auth_", "django_", "auditlog_"]
+    
+    for prefix in PREFIXES:
+        if table_name.startswith(prefix):
+            return True
+    
+    return False
 
+def get_all_django_tables(conn, cur):
+    cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';")
+    
+    tables = cur.fetchall()
+
+    tables = [table[0] for table in tables if table_is_from_django_app(table[0])]
+
+    return tables
 
 def remove_tables(conn, cur):
-    tables_to_remove = [
-        "django_admin_log",
-        "django_content_type",
-        "django_migrations",
-        "django_session",
-        "auditlog_logentry",
-        "api_clustertype",
-        "api_endpointscluster",
-        "api_endpointscluster_endpoints",
-        "api_endpointscluster_endpoints",
-        "api_page_endpoints_clusters",
-        "api_role_endpoints_clusters",
-        "api_role_pages",
-        "api_pageendpoints",
-        "api_endpoint",
-        "api_monumenttype",
-        "api_country",
-        "api_resource",
-        "api_page",
-        "api_role",
-        "api_roleendpoint",
-        "api_rolepage",
-        "api_roleuserstation",
-        "api_stationmeta",
-        "api_stationrole",
-        "api_stationstatus",
-        "api_user",
-        "api_user_groups",
-        "api_user_user_permissions",
-        "auth_group",
-        "auth_group_permissions",
-        "auth_permission"
-    ]
-
-    for table in tables_to_remove:
+    for table in get_all_django_tables(conn, cur):
         query = f"DROP TABLE IF EXISTS {table} CASCADE;"
         print("Executing: ", query)
         cur.execute(query)
     conn.commit()
 
+
+def remove_functions(conn, cur):
+    functions_to_remove = [
+        "update_has_gaps_update_needed_field",
+    ]
+
+    for function in functions_to_remove:
+        query = f"DROP FUNCTION IF EXISTS {function} CASCADE;"
+        print("Executing: ", query)
+        cur.execute(query)
+    conn.commit()
 
 if (__name__ == "__main__"):
 
@@ -58,7 +51,9 @@ if (__name__ == "__main__"):
 
     cur = conn.cursor()
 
+    # remove some database objects
     remove_tables(conn, cur)
+    remove_functions(conn, cur)
 
     # Close communication with the database
     cur.close()

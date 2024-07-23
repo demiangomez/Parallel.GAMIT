@@ -75,6 +75,7 @@ class AwsSync(models.Model):
         db_table = 'aws_sync'
         unique_together = (('network_code', 'station_code', 'year', 'doy'),)
 
+
 class DataSource(models.Model):
     network_code = models.CharField(db_column='NetworkCode', max_length=3)
     # Field name made lowercase.
@@ -827,10 +828,10 @@ class Country(models.Model):
     name = models.CharField(max_length=100, unique=True)
     two_digits_code = models.CharField(max_length=2, unique=True)
     three_digits_code = models.CharField(max_length=3, unique=True)
-    
 
     def __str__(self):
         return self.name
+
 
 class Endpoint(models.Model):
     path = models.CharField(max_length=100)
@@ -862,13 +863,15 @@ class ClusterType(models.Model):
 
     def __str__(self):
         return self.name
-    
+
+
 class Resource(models.Model):
     name = models.CharField(max_length=100, unique=True)
 
     def __str__(self):
         return self.name
-    
+
+
 class EndPointsCluster(models.Model):
     resource = models.ForeignKey(Resource, models.CASCADE)
     description = models.CharField(max_length=100, blank=True)
@@ -880,7 +883,8 @@ class EndPointsCluster(models.Model):
             models.UniqueConstraint(
                 fields=['resource', 'cluster_type', 'description'], name='resource_cluster_type_description_unique')
         ]
-    
+
+
 class Page(models.Model):
     url = models.CharField(max_length=100)
     description = models.CharField(max_length=100, blank=True)
@@ -889,7 +893,7 @@ class Page(models.Model):
     def __str__(self):
         return self.url
 
-    
+
 class Role(models.Model):
     name = models.CharField(max_length=100, unique=True)
     role_api = models.BooleanField()
@@ -922,16 +926,35 @@ class StationRole(models.Model):
         return self.name
 
 
-class RoleUserStation(models.Model):
+class Person(models.Model):
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100)
+    email = models.EmailField(max_length=100, blank=True)
+    phone = models.CharField(max_length=15, blank=True)
+    address = models.CharField(max_length=100, blank=True)
+    photo = models.ImageField(upload_to='person_photos/', blank=True)
+    user = models.ForeignKey(User, models.SET_NULL, blank=True, null=True)
+
+    def __str__(self):
+        return self.first_name + ' ' + self.last_name
+
+
+class RolePersonStation(models.Model):
     role = models.ForeignKey(StationRole, models.CASCADE)
-    user = models.ForeignKey(User, models.CASCADE)
+    person = models.ForeignKey(Person, models.CASCADE)
     station = models.ForeignKey(Stations, models.CASCADE)
 
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=['role', 'user', 'station'], name='role_user_station_unique')
+                fields=['role', 'person', 'station'], name='role_person_station_unique')
         ]
+
+
+class StationImages(models.Model):
+    station = models.ForeignKey(Stations, models.CASCADE)
+    image = models.ImageField(upload_to='station_images/')
+    description = models.CharField(max_length=100, blank=True)
 
 
 class StationStatus(models.Model):
@@ -943,67 +966,119 @@ class StationStatus(models.Model):
 
 class MonumentType(models.Model):
     name = models.CharField(max_length=100, unique=True)
+    photo_path = models.ImageField(
+        upload_to='monument_type_photos/', blank=True)
 
     def __str__(self):
         return self.name
 
 
+class StationType(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+
+
+class StationAttachedFiles(models.Model):
+    station = models.ForeignKey(Stations, models.CASCADE)
+    file = models.FileField(upload_to='station_files/')
+    filename = models.CharField(max_length=100)
+    description = models.CharField(max_length=100, blank=True)
+
+
 class StationMeta(models.Model):
     station = models.ForeignKey(Stations, models.CASCADE)
-    status = models.ForeignKey(StationStatus, models.CASCADE)
-    monument_type = models.ForeignKey(MonumentType, models.CASCADE)
-    remote_access_link = models.CharField(max_length=100, blank=True)
-    has_battery = models.BooleanField()
+    status = models.ForeignKey(
+        StationStatus, models.SET_NULL, blank=True, null=True)
+    monument_type = models.ForeignKey(
+        MonumentType, models.SET_NULL, blank=True, null=True)
+    remote_access_link = models.URLField(blank=True)
+    has_battery = models.BooleanField(default=False)
     battery_description = models.CharField(max_length=100, blank=True)
-    has_communications = models.BooleanField()
+    has_communications = models.BooleanField(default=False)
     communications_description = models.CharField(max_length=100, blank=True)
-    comments = models.CharField(max_length=100, blank=True)
+    station_type = models.ForeignKey(
+        StationType, models.SET_NULL, blank=True, null=True)
+    observations_file = models.FileField(
+        upload_to='station_observations_files/', blank=True)
+    observations_filename = models.CharField(max_length=100, blank=True)
+    navigation_file = models.FileField(
+        upload_to='station_navigation_files/', blank=True)
+    navigation_filename = models.CharField(max_length=100, blank=True)
+    has_gaps = models.BooleanField(default=False)
+    has_gaps_last_update_datetime = models.DateTimeField(blank=True, null=True)
+    has_gaps_update_needed = models.BooleanField(default=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['station'], name='station_unique')
+        ]
+
+
+class Campaigns(models.Model):
+    start_date = models.DateField()
+    end_date = models.DateField()
+    people = models.ManyToManyField(Person)
+
+
+class Visits(models.Model):
+    date = models.DateField()
+    campaign = models.ForeignKey(
+        Campaigns, models.SET_NULL, blank=True, null=True)
+    people = models.ManyToManyField(Person, blank=True)
+    observations_file = models.FileField(
+        upload_to='visit_observations_files/', blank=True)
+    observations_filename = models.CharField(max_length=100, blank=True)
+    navigation_file = models.FileField(
+        upload_to='visit_navigation_files/', blank=True)
+    navigation_filename = models.CharField(max_length=100, blank=True)
+
+
+class VisitImages(models.Model):
+    visit = models.ForeignKey(Visits, models.CASCADE)
+    image = models.ImageField(upload_to='visit_images/')
+    description = models.CharField(max_length=100, blank=True)
+
+
+class VisitAttachedFiles(models.Model):
+    visit = models.ForeignKey(Visits, models.CASCADE)
+    file = models.FileField(upload_to='visit_files/')
+    filename = models.CharField(max_length=100)
+    description = models.CharField(max_length=100, blank=True)
+
+
+class VisitGNSSDataFiles(models.Model):
+    visit = models.ForeignKey(Visits, models.CASCADE)
+    file = models.FileField(upload_to='visit_gnss_data_files/')
+    filename = models.CharField(max_length=100)
+    description = models.CharField(max_length=100, blank=True)
 
 
 def enable_automatic_auditlog():
-    auditlog.register(Networks)
     auditlog.register(Antennas)
-    auditlog.register(AprCoords)
-    auditlog.register(AwsSync)
-    auditlog.register(Country)
-    auditlog.register(DataSource)
-    auditlog.register(Earthquakes)
-    auditlog.register(EtmParams)
-    auditlog.register(Etms)
-    auditlog.register(Events)
-    auditlog.register(Executions)
-    auditlog.register(GamitHtc)
-    auditlog.register(GamitSoln)
-    auditlog.register(GamitSolnExcl)
-    auditlog.register(GamitStats)
-    auditlog.register(GamitSubnets)
-    auditlog.register(GamitZtd)
-    auditlog.register(Keys)
-    auditlog.register(Locks)
     auditlog.register(Networks)
-    auditlog.register(PppSoln)
-    auditlog.register(PppSolnExcl)
+    auditlog.register(Person)
     auditlog.register(Receivers)
     auditlog.register(Rinex)
-    auditlog.register(RinexSourcesInfo)
-    auditlog.register(RinexTankStruct)
-    auditlog.register(SourcesFormats)
-    auditlog.register(SourcesServers)
-    auditlog.register(SourcesStations)
-    auditlog.register(Stacks)
-    auditlog.register(Stationalias)
     auditlog.register(Stationinfo)
     auditlog.register(Stations)
     auditlog.register(Role)
+    auditlog.register(Resource)
+    auditlog.register(ClusterType)
     auditlog.register(User)
     auditlog.register(Page)
     auditlog.register(Endpoint)
-    auditlog.register(StationRole)
-    auditlog.register(RoleUserStation)
-    auditlog.register(StationStatus)
-    auditlog.register(MonumentType)
+    auditlog.register(RolePersonStation)
     auditlog.register(StationMeta)
     auditlog.register(EndPointsCluster)
+    auditlog.register(StationAttachedFiles)
+    auditlog.register(StationImages)
+    auditlog.register(SourcesServers)
+    auditlog.register(SourcesStations)
+    auditlog.register(Campaigns)
+    auditlog.register(Visits)
+    auditlog.register(VisitImages)
+    auditlog.register(VisitAttachedFiles)
+    auditlog.register(VisitGNSSDataFiles)
 
 
 enable_automatic_auditlog()

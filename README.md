@@ -1,12 +1,12 @@
 # Installation
 
-## Prerequirements
+### Prerequirements
 
 1. Docker installed
 
-## DB Setup
+### DB Setup
 
-Skip this part if you are using an existing db.
+Skip this part if you are using an existing db
 
 1. bash command as postgres user: createuser gnss_data_osu;
 2. bash command as postgres user: createdb gnss;
@@ -17,7 +17,7 @@ Skip this part if you are using an existing db.
 7. set postgresql.conf file properly
 8. set pg_hba.conf file properly
 
-## Procedure
+### Procedure
 
 1. Define a conf file named "gnss_data.cfg" following the example under 'backend/' following 'backend/conf_example.txt'
 2. From the root directory:
@@ -25,10 +25,10 @@ Skip this part if you are using an existing db.
    ```
    cd backend
    sudo docker build -t gnss-backend .
-   sudo docker run -d --network host --mount type=bind,src="$(pwd)",target=/code gnss-backend
+   sudo docker run -d --network host --restart always --mount type=bind,src="$(pwd)",target=/code gnss-backend
    ```
 
-## Tests
+# Tests
 
 There are some test created. Before running them, you need to manually create an empty database with the same schema as the one used in production.
 
