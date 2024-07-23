@@ -22,11 +22,11 @@ Skip this part if you are using an existing db
 1. Define a conf file named "gnss_data.cfg" following the example under 'backend/' following 'backend/conf_example.txt'
 2. From the root directory:
 
-   ```
+```
    cd backend
    sudo docker build -t gnss-backend .
    sudo docker run -d --network host --restart always --mount type=bind,src="$(pwd)",target=/code gnss-backend
-   ```
+```
 
 # Tests
 
@@ -39,7 +39,17 @@ set .env under 'db' folder file with test db credentials.
 
 To run the tests, under root directory
 
-    ```
+```
     cd backend/backend_django_project/
     python manage.py test --keepdb
-    ```
+```
+
+# Docs
+
+There's a file called 'schema.yml' under 'backend/docs/' with the API documentation. It follows the OpenApi specification. In order to generate the client, run the following command under 'backend/docs/':
+
+```
+    sudo docker run -p 8080:8080 -e SWAGGER_JSON=/schema.yml -v ${PWD}/schema.yml:/schema.yml swaggerapi/swagger-ui
+```
+
+Now open any web browser and type 'localhost:8080' to use the API client.

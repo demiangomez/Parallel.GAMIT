@@ -23,10 +23,10 @@ import configparser
 config = configparser.ConfigParser()
 
 # Docker container path
-#config.read('/code/gnss_data.cfg')
-config.read('/home/leandro/repos/gps/backend/gnss_data.cfg')
+config.read('/code/gnss_data.cfg')
 
-HAS_GAPS_BACKGROUND_JOB_TIME_INTERVAL_SECONDS = config['django']['has_gaps_background_job_time_interval_seconds']
+HAS_GAPS_BACKGROUND_JOB_TIME_INTERVAL_SECONDS = config[
+    'django']['has_gaps_background_job_time_interval_seconds']
 
 MAX_SIZE_IMAGE_MB = config['django']['max_size_image_mb']
 
