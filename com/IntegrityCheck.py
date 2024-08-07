@@ -957,9 +957,10 @@ def main():
                              "It also changes the rinex filenames in the archive to match those of the new destiny "
                              "station. Only a single station can be given as the origin and destiny. "
                              "Limit the date range using the -d option. If origin station is empty (no RINEX files) "
-                             "after rename/merge, the station is deleted from the database if --delete is invoked.")
+                             "after rename/merge, the station is deleted from the database if --delete_station "
+                             "is invoked.")
 
-    parser.add_argument('-del', '--delete', action='store_true', default=False,
+    parser.add_argument('-del_stn', '--delete_station', action='store_true', default=False,
                         help='Switch to enable station deletion after rename/merge operation. Only works when invoking '
                              '--rename.')
 
@@ -1083,7 +1084,7 @@ def main():
 
             RenameStation(cnn, stnlist[0]['NetworkCode'], stnlist[0]['StationCode'],
                           DestNetworkCode, DestStationCode,
-                          dates[0], dates[1], Config.archive_path, args.delete)
+                          dates[0], dates[1], Config.archive_path, args.delete_station)
 
     JobServer.close_cluster()
 
