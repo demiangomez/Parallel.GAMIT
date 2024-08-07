@@ -32,6 +32,7 @@ class RinexStruct(object):
     def __init__(self, cnn):
 
         self.cnn = cnn
+        self.archiveroot = None
 
         # read the structure definition table
         self.levels = cnn.query('SELECT rinex_tank_struct.*, keys.* FROM rinex_tank_struct '
@@ -259,7 +260,7 @@ class RinexStruct(object):
             if key not in fields.keys():
                 raise ValueError('Parameter ' + key + ' is not a field in table ' + table)
 
-            elif key is not 'ObservationFYear':
+            elif key != 'ObservationFYear':
                 # avoid FYear due to round off problems
                 arg = kwargs[key]
 
@@ -274,8 +275,6 @@ class RinexStruct(object):
             sql += 'WHERE ' + ' AND '.join(psql)
 
         return self.cnn.query(sql).dictresult()
-
-    
 
     def scan_archive_struct(self, rootdir, progress_bar=None):
         self.archiveroot = rootdir
