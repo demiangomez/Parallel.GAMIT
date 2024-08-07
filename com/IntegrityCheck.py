@@ -22,6 +22,7 @@ import argparse
 import platform
 from math import ceil
 
+import pg
 # deps
 from tqdm import tqdm
 
@@ -649,56 +650,86 @@ def RenameStation(cnn, NetworkCode, StationCode, DestNetworkCode, DestStationCod
 
                 dest_file = src_file.replace(StationCode, DestStationCode)
 
-                cnn.begin_transac()
-
-                # update the NetworkCode and StationCode and filename information in the db
-                cnn.query(
-                    'UPDATE rinex SET "NetworkCode" = \'%s\', "StationCode" = \'%s\', "Filename" = \'%s\' '
-                    'WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "ObservationYear" = %i AND '
-                    '"ObservationDOY" = %i AND "Filename" = \'%s\''
-                    % (DestNetworkCode, DestStationCode, dest_file.replace('d.Z', 'o'), NetworkCode,
-                       StationCode, src_rinex['ObservationYear'], src_rinex['ObservationDOY'], src_rinex['Filename']))
-
-                # DO NOT USE pyArchiveStruct because we have an active transaction and the change is not visible yet
-                # because we don't know anything about the archive's structure,
-                # we just try to replace the names and that should suffice
-                dest_path = src_path.replace(StationCode, DestStationCode).replace(NetworkCode, DestNetworkCode)
-
-                # check that the destination path exists (it should, but...)
-                if not os.path.isdir(dest_path):
-                    os.makedirs(dest_path)
-
-                shutil.move(os.path.join(src_path,  src_file),
-                            os.path.join(dest_path, dest_file))
-
-                # if we are here, we are good. Commit
-                cnn.commit_transac()
-
                 date = pyDate.Date(year=int(src_rinex['ObservationYear']),
-                                   doy =int(src_rinex['ObservationDOY']))
+                                   doy=int(src_rinex['ObservationDOY']))
 
-                # commited transaction, add an event
-                rnx = src_rinex['Filename']
-                event = pyEvents.Event(Description=f'RINEX file {rnx} from {NetworkCode}.{StationCode} was merged into '
-                                                   f'{DestNetworkCode}.{DestStationCode}. A separate event will be '
-                                                   f'created to report on the station information merge (if needed).',
-                                       NetworkCode = NetworkCode,
-                                       EventType   = 'info',
-                                       StationCode = StationCode,
-                                       Year        = int(date.year),
-                                       DOY         = int(date.doy))
+                try:
+                    cnn.begin_transac()
+                    # update the NetworkCode and StationCode and filename information in the db
+                    cnn.query(
+                        'UPDATE rinex SET "NetworkCode" = \'%s\', "StationCode" = \'%s\', "Filename" = \'%s\' '
+                        'WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "ObservationYear" = %i AND '
+                        '"ObservationDOY" = %i AND "Filename" = \'%s\''
+                        % (DestNetworkCode, DestStationCode, dest_file.replace('d.Z', 'o'), NetworkCode,
+                           StationCode, src_rinex['ObservationYear'], src_rinex['ObservationDOY'],
+                           src_rinex['Filename']))
 
-                cnn.insert_event(event)
+                    # DO NOT USE pyArchiveStruct because we have an active transaction and the change is not visible yet
+                    # because we don't know anything about the archive's structure,
+                    # we just try to replace the names and that should suffice
+                    dest_path = src_path.replace(StationCode, DestStationCode).replace(NetworkCode, DestNetworkCode)
 
-                # now insert record for new RINEX in station
-                event = pyEvents.Event(Description='A new RINEX was added to the archive: %s'
-                                                   % dest_file.replace('d.Z', 'o'),
-                                       NetworkCode=DestNetworkCode,
-                                       StationCode=DestStationCode,
-                                       Year=int(date.year),
-                                       DOY=int(date.doy))
+                    # check that the destination path exists (it should, but...)
+                    if not os.path.isdir(dest_path):
+                        os.makedirs(dest_path)
 
-                cnn.insert_event(event)
+                    shutil.move(os.path.join(src_path,  src_file),
+                                os.path.join(dest_path, dest_file))
+
+                    # if we are here, we are good. Commit
+                    cnn.commit_transac()
+
+                    # commited transaction, add an event
+                    rnx = src_rinex['Filename']
+                    event = pyEvents.Event(Description=f'RINEX file {rnx} from {NetworkCode}.{StationCode} was merged '
+                                                       f'into {DestNetworkCode}.{DestStationCode}. A separate event '
+                                                       f'will be created to report on the station information merge '
+                                                       f'(if needed).',
+                                           NetworkCode = NetworkCode,
+                                           EventType   = 'info',
+                                           StationCode = StationCode,
+                                           Year        = int(date.year),
+                                           DOY         = int(date.doy))
+
+                    cnn.insert_event(event)
+
+                    # now insert record for new RINEX in station
+                    event = pyEvents.Event(Description='A new RINEX was added to the archive: %s'
+                                                       % dest_file.replace('d.Z', 'o'),
+                                           NetworkCode=DestNetworkCode,
+                                           StationCode=DestStationCode,
+                                           Year=int(date.year),
+                                           DOY=int(date.doy))
+
+                    cnn.insert_event(event)
+                except pg.IntegrityError as e:
+
+                    cnn.rollback_transac()
+
+                    tqdm.write(f' -- RINEX file {src_file} could not be moved because it already exists in '
+                               f'{DestNetworkCode}.{DestStationCode}. RINEX will be removed. ({str(e)})')
+
+                    # delete the file
+                    os.remove(os.path.join(src_path,  src_file))
+                    # remove the rinex record
+                    cnn.query(
+                        'DELETE FROM rinex WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND '
+                        '"ObservationYear" = %i AND "ObservationDOY" = %i AND "Filename" = \'%s\''
+                        % (NetworkCode, StationCode, src_rinex['ObservationYear'], src_rinex['ObservationDOY'],
+                           src_rinex['Filename']))
+
+                    # commited transaction, add an event
+                    rnx = src_rinex['Filename']
+                    event = pyEvents.Event(Description=f'RINEX file {rnx} from {NetworkCode}.{StationCode} was deleted '
+                                                       f'while merging to {DestNetworkCode}.{DestStationCode} because '
+                                                       f'the file already existed in destiny station.',
+                                           NetworkCode=NetworkCode,
+                                           EventType='info',
+                                           StationCode=StationCode,
+                                           Year=int(date.year),
+                                           DOY=int(date.doy))
+
+                    cnn.insert_event(event)
 
                 # Station info transfer
                 try:
