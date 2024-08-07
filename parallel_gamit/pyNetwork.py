@@ -85,8 +85,7 @@ class Network(object):
         chk_active = check_stations.get_active_stations(date)
 
         if len(db_subnets) > 0:
-            tqdm.write(' >> %s %s %s -> Processing already exists'
-                       % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            tqdm.write(' >> %s %s %s -> Processing already exists' % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                           self.name, date.yyyyddd()))
 
             # sub-network already exist, put information in lists
@@ -152,8 +151,8 @@ class Network(object):
                                            subnet=subnet['subnet'],
                                            system=subnet['system'])
 
-                            tqdm.write(' -- %s in sub-network %s%02i system %s did not produce a solution and will be reprocessed' % (stn, self.org, subnet['subnet'], subnet['system']))
-
+                            tqdm.write(' -- %s in sub-network %s%02i system %s did not produce a solution and will be '
+                            'reprocessed' % (stn, self.org, subnet['subnet'], subnet['system']))
         else:
             tqdm.write(' >> %s %s %s -> Creating network clusters' %
                        (datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
@@ -209,6 +208,7 @@ class Network(object):
         cluster_labels = []
         station_labels = []
         cluster_ties = []
+        
         # init'ed outside of the loop for efficiency...
         stat_labs = stations.labels_array()
         for row, cluster in enumerate(OC):
@@ -222,25 +222,14 @@ class Network(object):
             # append to a regular list for integer indexing at line ~400
             station_labels.append(my_stations)
             cluster_labels.append(np.ones((1, np.sum(cluster)),
-                                          dtype=np.int_).squeeze()*row)
+                                           dtype=np.int_).squeeze()*row)
             # strip out station id's for tie points....
-            for station in stat_labs[ties[np.isin(ties, np.where(cluster)[0])]]:
+            for statn in stat_labs[ties[np.isin(ties, np.where(cluster)[0])]]:
                 # rebuild as a 'station collection list'
-                my_cluster_ties.append(stations[str(station)])
+                my_cluster_ties.append(stations[str(statn)])
             # append to a regular list for integer indexing at line ~400
             cluster_ties.append(my_cluster_ties)
-       
-        # compatibility parsing...
-        #my_stations = StationCollection()
-        #for cluster in station_labels:
-        #   for station in cluster:
-        #  	    my_stations.append(stations[str(station)])
-        
-        #my_cluster_ties = StationCollection()
-        #for cluster in cluster_ties:
-        #    for station in cluster:
-	    #        my_cluster_ties.append(stations[str(station)])
-            
+
         # put everything in a dictionary
         clusters = {'centroids': points[central_points],
                     'labels': cluster_labels,

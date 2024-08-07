@@ -286,6 +286,11 @@ class StationCollection(list):
       	# return np.array([stn.netstn for stn in self if date in stn.good_rinex])
         return np.array([stn.netstn for stn in self])
 
+    def labels_array(self):
+      	# pyNetwork already filters to active stations, so check isn't needed
+      	# np.array([stn.netstn for stn in self if date in stn.good_rinex])
+        return np.array([stn.netstn for stn in self])
+
     def append(self, station):
         # DDG: deprecated, aliases are now fixed and kept constant
         # DDG: removed arg check_aliases=True
