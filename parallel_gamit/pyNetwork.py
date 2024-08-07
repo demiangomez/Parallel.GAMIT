@@ -78,7 +78,8 @@ class Network(object):
         # find out if this project-day has been processed before
         db_subnets = cnn.query_float('SELECT * FROM gamit_subnets '
                                      'WHERE "Project" = \'%s\' AND "Year" = %i AND '
-                                     '"DOY" = %i ORDER BY "subnet"' % (self.name, date.year, date.doy), as_dict=True)
+                                     '"DOY" = %i ORDER BY "subnet"'
+                                     % (self.name, date.year, date.doy), as_dict=True)
 
         stn_active = stations.get_active_stations(date)
         chk_active = check_stations.get_active_stations(date)
@@ -152,7 +153,6 @@ class Network(object):
 
                             tqdm.write(' -- %s in sub-network %s%02i system %s did not produce a solution and will be '
                             'reprocessed' % (stn, self.org, subnet['subnet'], subnet['system']))
-
         else:
             tqdm.write(' >> %s %s %s -> Creating network clusters' %
                        (datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
@@ -208,7 +208,7 @@ class Network(object):
         cluster_labels = []
         station_labels = []
         cluster_ties = []
-
+        
         # init'ed outside of the loop for efficiency...
         stat_labs = stations.labels_array()
         for row, cluster in enumerate(OC):

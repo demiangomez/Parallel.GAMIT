@@ -18,19 +18,28 @@ from pyETM import (DEFAULT_FREQUENCIES,
                    DEFAULT_RELAXATION)
 
 
+class SmartFormatter(argparse.HelpFormatter):
+
+    def _split_lines(self, text, width):
+        if text.startswith('R|'):
+            return text[2:].splitlines()
+        # this is the RawTextHelpFormatter._split_lines
+        return argparse.HelpFormatter._split_lines(self, text, width)
+
+
 def main():
 
     parser = argparse.ArgumentParser(description='Program to alter the default ETM parameters for each station. '
                                                  'The command can be executed on several stations at the same time. '
                                                  'It is also possible to alter parameters for PPP and GAMIT '
-                                                 'simultaneously.')
+                                                 'simultaneously.', formatter_class=SmartFormatter)
 
     parser.add_argument('stnlist', type=str, nargs='+', metavar='all|net.stnm',
                         help=station_list_help())
 
     parser.add_argument('-fun', '--function_type', nargs='+', metavar=('function', 'argument'), default=[],
-                        help="Specifies the type of function to work with. Can be polynomial (p), jump (j), "
-                             "periodic (q) or bulk earthquake jump removal (t). Each one accepts a list of arguments. "
+                        help="R|Specifies the type of function to work with. Can be polynomial (p), jump (j), "
+                             "periodic (q) or bulk earthquake jump removal (t). Each one accepts a list of arguments.\n"
                              "p {terms} where terms equals the number of polynomial terms in the ETM, i.e. "
                              "terms = 2 is constant velocity and terms = 3 is velocity + acceleration, etc.\n"
                              "j {action} {type} {date} {relax} where action can be + or -. A + indicates that a jump "
@@ -39,10 +48,10 @@ def main():
                              "date is the date of the event in all the accepted formats "
                              "(yyyy/mm/dd yyyy_doy gpswk-wkday fyear); and relax is a list of relaxation times for the "
                              "logarithmic decays (only used when type = 1, they are ignored when type = 0).\n"
-                             "q {periods} where periods is a list expressed in days (1 yr = 365.25). "
+                             "q {periods} where periods is a list expressed in days (1 yr = 365.25).\n"
                              "t {max_magnitude} {stack_name} removes any earthquake Mw <= max_magnitude from "
                              "the specified stations' trajectory models; if GAMIT solutions are invoked, provide the "
-                             "stack_name to obtain the ETMs of the stations. "
+                             "stack_name to obtain the ETMs of the stations.\n"
                              "m {stack_name} [start_date] [end_date|days] removes mechanical jumps between given dates "
                              "from the specified stations' trajectory models; if no dates are provided, remove all "
                              "mechanical jumps. If only first date is provided, remove starting at that date until "
