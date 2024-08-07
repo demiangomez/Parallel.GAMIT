@@ -217,9 +217,9 @@ def main():
                         for i in [0, 1]:
                             print(' %s %6.3f %6.3f %6.3f'
                                   % (pyDate.Date(mjd = etm.soln.mjd[lres == slres[i]]).yyyyddd(),
-                                     etm.R[0, lres == slres[i]],
-                                     etm.R[1, lres == slres[i]],
-                                     etm.R[2, lres == slres[i]]))
+                                     etm.R[0, lres == slres[i]][0],
+                                     etm.R[1, lres == slres[i]][0],
+                                     etm.R[2, lres == slres[i]][0]))
 
                 if args.interactive:
                     xfile = None

@@ -606,7 +606,8 @@ def PrintStationInfo(cnn, stnlist, short=False):
             sys.stderr.write(str(e) + '\n')
 
 
-def RenameStation(cnn, NetworkCode, StationCode, DestNetworkCode, DestStationCode, start_date, end_date, archive_path):
+def RenameStation(cnn, NetworkCode, StationCode, DestNetworkCode, DestStationCode, start_date, end_date, archive_path,
+                  delete_if_empty=True):
 
     # make sure the destiny station exists
     try:
@@ -632,6 +633,9 @@ def RenameStation(cnn, NetworkCode, StationCode, DestNetworkCode, DestStationCod
             print(" >> Beginning transfer of %i rinex files from %s.%s to %s.%s" \
                   % (len(original_rs), NetworkCode, StationCode, DestNetworkCode, DestStationCode))
 
+            if delete_if_empty:
+                print(' -- Station will be deleted at the end of the process if no further RINEX files are found.')
+
             for src_rinex in tqdm(original_rs):
                 # rename files
                 Archive = pyArchiveStruct.RinexStruct(cnn)  # type: pyArchiveStruct.RinexStruct
@@ -652,11 +656,11 @@ def RenameStation(cnn, NetworkCode, StationCode, DestNetworkCode, DestStationCod
                     'UPDATE rinex SET "NetworkCode" = \'%s\', "StationCode" = \'%s\', "Filename" = \'%s\' '
                     'WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' AND "ObservationYear" = %i AND '
                     '"ObservationDOY" = %i AND "Filename" = \'%s\''
-                    % (DestNetworkCode, DestStationCode, dest_file.replace('d.Z', 'o'), NetworkCode, StationCode,
-                       src_rinex['ObservationYear'], src_rinex['ObservationDOY'], src_rinex['Filename']))
+                    % (DestNetworkCode, DestStationCode, dest_file.replace('d.Z', 'o'), NetworkCode,
+                       StationCode, src_rinex['ObservationYear'], src_rinex['ObservationDOY'], src_rinex['Filename']))
 
                 # DO NOT USE pyArchiveStruct because we have an active transaction and the change is not visible yet
-                # because we don't know anything about the archive's stucture,
+                # because we don't know anything about the archive's structure,
                 # we just try to replace the names and that should suffice
                 dest_path = src_path.replace(StationCode, DestStationCode).replace(NetworkCode, DestNetworkCode)
 
@@ -672,6 +676,30 @@ def RenameStation(cnn, NetworkCode, StationCode, DestNetworkCode, DestStationCod
 
                 date = pyDate.Date(year=int(src_rinex['ObservationYear']),
                                    doy =int(src_rinex['ObservationDOY']))
+
+                # commited transaction, add an event
+                rnx = src_rinex['Filename']
+                event = pyEvents.Event(Description=f'RINEX file {rnx} from {NetworkCode}.{StationCode} was merged into '
+                                                   f'{DestNetworkCode}.{DestStationCode}. A separate event will be '
+                                                   f'created to report on the station information merge (if needed).',
+                                       NetworkCode = NetworkCode,
+                                       EventType   = 'info',
+                                       StationCode = StationCode,
+                                       Year        = int(date.year),
+                                       DOY         = int(date.doy))
+
+                cnn.insert(event)
+
+                # now insert record for new RINEX in station
+                event = pyEvents.Event(Description='A new RINEX was added to the archive: %s'
+                                                   % dest_file.replace('d.Z', 'o'),
+                                       NetworkCode=DestNetworkCode,
+                                       StationCode=DestStationCode,
+                                       Year=int(date.year),
+                                       DOY=int(date.doy))
+
+                cnn.insert(event)
+
                 # Station info transfer
                 try:
                     _ = pyStationInfo.StationInfo(cnn, DestNetworkCode, DestStationCode, date)
@@ -692,6 +720,57 @@ def RenameStation(cnn, NetworkCode, StationCode, DestNetworkCode, DestStationCod
                     except pyStationInfo.pyStationInfoException as e:
                         # if there is no station info for this station either, warn the user!
                         tqdm.write(' -- Error while updating Station Information! %s' % (str(e)))
+
+            # now delete the station if requested and empty
+            if delete_if_empty:
+                # if there is no more data in the original station, drop the station
+                rs = cnn.query(
+                    'SELECT * FROM rinex WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\''
+                    % (NetworkCode, StationCode))
+
+                original_rs = rs.dictresult()
+
+                if len(original_rs) == 0:
+                    # empty station, drop
+                    # DDG Aug 07 2024: records on new tables associated with API REST are dropped automatically by
+                    # database trigger (same with station information
+
+                    # before triggering the deletion, backup station info as an event
+                    cnn.begin_transac()
+
+                    # retrieve the entire station info records
+                    stninf = pyStationInfo.StationInfo(cnn, NetworkCode, StationCode, allow_empty=True).return_stninfo()
+
+                    event = pyEvents.Event(
+                        Description=f'Station {NetworkCode}.{StationCode} will be deleted from the database. Station '
+                                    f'information records will be backed up in this event. Records follow:\n'
+                                    f'%s' % stninf if len(stninf) > 0 else 'NO RECORDS FOUND',
+                        NetworkCode=NetworkCode,
+                        EventType='info',
+                        StationCode=StationCode)
+
+                    cnn.insert(event)
+
+                    tables = ['data_source', 'etms', 'etm_params', 'gamit_soln', 'gamit_soln_excl', 'gamit_ztd',
+                              'ppp_soln', 'ppp_soln_excl', 'sources_stations', 'stacks', 'stationalias', 'stations']
+
+                    for table in tables:
+                        cnn.query('DELETE FROM %s WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\''
+                                  % (table, NetworkCode, StationCode))
+
+                    event = pyEvents.Event(
+                        Description=f'Station {NetworkCode}.{StationCode} was removed from the database after merge '
+                                    f'operation with {DestNetworkCode}.{DestStationCode}',
+                        NetworkCode=NetworkCode,
+                        EventType='info',
+                        StationCode=StationCode)
+
+                    cnn.insert(event)
+                    cnn.commit_transac()
+
+                    tqdm.write(' -- Station successfully deleted after rename/merge process.')
+                else:
+                    tqdm.write(' -- Could not delete station: %i remaining RINEX files' % (len(original_rs)))
 
     except Exception:
         cnn.rollback_transac()
@@ -877,7 +956,12 @@ def main():
                         help="Takes the data from the station list and renames (merges) it to net.stnm. "
                              "It also changes the rinex filenames in the archive to match those of the new destiny "
                              "station. Only a single station can be given as the origin and destiny. "
-                             "Limit the date range using the -d option.")
+                             "Limit the date range using the -d option. If origin station is empty (no RINEX files) "
+                             "after rename/merge, the station is deleted from the database if --delete is invoked.")
+
+    parser.add_argument('-del', '--delete', action='store_true', default=False,
+                        help='Switch to enable station deletion after rename/merge operation. Only works when invoking '
+                             '--rename.')
 
     parser.add_argument('-es', '--exclude_solutions', metavar=('{start_date}', '{end_date}'), nargs=2,
                         help='Exclude PPP solutions (by adding them to the excluded table) between {start_date} '
@@ -999,7 +1083,7 @@ def main():
 
             RenameStation(cnn, stnlist[0]['NetworkCode'], stnlist[0]['StationCode'],
                           DestNetworkCode, DestStationCode,
-                          dates[0], dates[1], Config.archive_path)
+                          dates[0], dates[1], Config.archive_path, args.delete)
 
     JobServer.close_cluster()
 
