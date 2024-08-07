@@ -33,6 +33,8 @@ def remove_tables(conn, cur):
 def remove_functions(conn, cur):
     functions_to_remove = [
         "update_has_gaps_update_needed_field",
+        "update_has_stationinfo_field",
+        "delete_rows_referencing_stations",
     ]
 
     for function in functions_to_remove:

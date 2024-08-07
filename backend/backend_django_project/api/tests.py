@@ -6,6 +6,7 @@ from django.db import connection
 import django.apps
 import datetime
 from unittest import TestCase
+from api.utils import StationMetaUtils
 
 # tests.py
 
@@ -299,11 +300,25 @@ class StationGapsTest(TestCase):
             }
 
             response = self.client.post(
-                url, data)
+                url, data)  
 
             self.assertEqual(models.Stations.objects.count(), 1)
             self.assertEqual(response.status_code, 201)
             self.assertEqual(response.json()["station_code"], 'ST1')
+
+            return response.json()["api_id"]
+
+        def test_create_stationmeta(station_api_id):
+            url = reverse("station_meta_list")
+
+            data = {
+                "station": station_api_id,
+            }
+
+            response = self.client.post(
+                url, data)
+            
+            self.assertEqual(response.status_code, 201)
 
         def test_create_first_stationinfo():
             
@@ -349,6 +364,9 @@ class StationGapsTest(TestCase):
 
             self.assertEqual(models.Stationinfo.objects.count(), 2)
             self.assertEqual(response.json()["network_code"], 'NT1')
+        
+        def update_has_gaps_status():
+            StationMetaUtils.update_has_gaps_status()
 
         def test_station_doesnt_have_gaps():
             url = reverse("station_list")
@@ -431,15 +449,20 @@ class StationGapsTest(TestCase):
         test_create_receivers()
         test_create_networks()
         test_create_gamit_htc()
-        test_create_station()
+        test_create_stationmeta(
+        test_create_station())
         test_create_first_stationinfo()
         test_create_second_stationinfo()
+        update_has_gaps_status()
         test_station_doesnt_have_gaps()
         test_create_rinex()
+        update_has_gaps_status()
         test_station_has_gaps()
         delete_rinex()
+        update_has_gaps_status()
         test_station_doesnt_have_gaps()
         test_create_rinex_before_stationinfo_date()
+        update_has_gaps_status()
         test_station_has_gaps()
 
 class StationInfoTest(TestCase):

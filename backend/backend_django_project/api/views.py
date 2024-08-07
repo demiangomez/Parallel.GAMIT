@@ -305,7 +305,7 @@ class StationAttachedFilesList(CustomListCreateAPIView):
     filterset_class = filters.StationAttachedFilesFilter
 
 
-class StationAttachedFilesDetail(generics.RetrieveUpdateDestroyAPIView):
+class StationAttachedFilesDetail(generics.RetrieveDestroyAPIView):
     queryset = models.StationAttachedFiles.objects.all()
     serializer_class = serializers.StationAttachedFilesSerializer
 
@@ -317,7 +317,7 @@ class StationImagesList(CustomListCreateAPIView):
     filterset_class = filters.StationImagesFilter
 
 
-class StationImagesDetail(generics.RetrieveUpdateDestroyAPIView):
+class StationImagesDetail(generics.RetrieveDestroyAPIView):
     queryset = models.StationImages.objects.all()
     serializer_class = serializers.StationImagesSerializer
 
@@ -349,7 +349,7 @@ class VisitAttachedFilesList(CustomListCreateAPIView):
     filterset_class = filters.VisitAttachedFilesFilter
 
 
-class VisitAttachedFilesDetail(generics.RetrieveUpdateDestroyAPIView):
+class VisitAttachedFilesDetail(generics.RetrieveDestroyAPIView):
     queryset = models.VisitAttachedFiles.objects.all()
     serializer_class = serializers.VisitAttachedFilesSerializer
 
@@ -361,7 +361,7 @@ class VisitImagesList(CustomListCreateAPIView):
     filterset_class = filters.VisitImagesFilter
 
 
-class VisitImagesDetail(generics.RetrieveUpdateDestroyAPIView):
+class VisitImagesDetail(generics.RetrieveDestroyAPIView):
     queryset = models.VisitImages.objects.all()
     serializer_class = serializers.VisitImagesSerializer
 
@@ -373,7 +373,7 @@ class VisitGNSSDataFilesList(CustomListCreateAPIView):
     filterset_class = filters.VisitGNSSDataFilesFilter
 
 
-class VisitGNSSDataFilesDetail(generics.RetrieveUpdateDestroyAPIView):
+class VisitGNSSDataFilesDetail(generics.RetrieveDestroyAPIView):
     queryset = models.VisitGNSSDataFiles.objects.all()
     serializer_class = serializers.VisitGNSSDataFilesSerializer
 
@@ -925,7 +925,7 @@ class StationinfoList(CustomListCreateAPIView):
 class StationinfoDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = models.Stationinfo.objects.all()
     serializer_class = serializers.StationinfoSerializer
-
+    http_method_names = ["get", "put", "delete"]
     def put(self, request, *args, **kwargs):
 
         def overlaps_at_least_one_record(serializer):

@@ -198,6 +198,7 @@ class StationinfoSerializer(serializers.ModelSerializer):
         """
             Check that antenna_code and height_code exist in 'gamit_htc' table,
             since Django doesn't support composite foreign keys.
+            Also check date_end is greater than date_start
         """
         try:
             models.GamitHtc.objects.get(
@@ -205,8 +206,24 @@ class StationinfoSerializer(serializers.ModelSerializer):
         except models.GamitHtc.DoesNotExist:
             raise serializers.ValidationError(
                 'The combination of antenna_code and height_code does not exist in the gamit_htc table')
-        else:
-            return data
+
+        if 'date_start' in data and 'date_end' in data and isinstance(data['date_start'], datetime.datetime) and isinstance(data['date_end'], datetime.datetime):
+            if data['date_start'] > data['date_end']:
+                raise serializers.ValidationError(
+                    'date_end must be greater or equal than date_start')
+            
+        if 'date_start' in data and isinstance(data['date_start'], datetime.datetime):
+            if data['date_start'] >= datetime.datetime(9999, 12, 31) :
+                raise serializers.ValidationError(
+                    'date_start must be less than 9999-12-31')
+            
+        if 'date_end' in data and isinstance(data['date_end'], datetime.datetime):
+            if data['date_end'] >= datetime.datetime(9999, 12, 31) :
+                raise serializers.ValidationError(
+                    'date_end must be less than 9999-12-31')
+            
+        return data
+
 
     def to_internal_value(self, data):
         """
@@ -250,7 +267,6 @@ class StationSerializer(serializers.ModelSerializer):
 
 
 class StationMetaSerializer(serializers.ModelSerializer):
-    observations_actual_file = serializers.SerializerMethodField()
     navigation_actual_file = serializers.SerializerMethodField()
 
     class Meta:
@@ -258,21 +274,12 @@ class StationMetaSerializer(serializers.ModelSerializer):
         fields = '__all__'
         lookup_field = "station__api_id"
         extra_kwargs = {
-            'observations_file': {'write_only': True},
-            'navigation_file': {'write_only': True}
+            'navigation_file': {'write_only': True},
+            'has_gaps_last_update_datetime': {'read_only': True},
+            'has_gaps_update_needed': {'read_only': True},
+            'has_gaps': {'read_only': True},
+            'has_stationinfo': {'read_only': True}
         }
-
-    def get_observations_actual_file(self, obj):
-        """Returns the actual file encoded in base64"""
-
-        if obj.observations_file and obj.observations_file.name:
-            try:
-                with open(obj.observations_file.path, 'rb') as file:
-                    return base64.b64encode(file.read()).decode('utf-8')
-            except FileNotFoundError:
-                return None
-        else:
-            return None
 
     def get_navigation_actual_file(self, obj):
         """Returns the actual file encoded in base64"""
@@ -290,17 +297,11 @@ class StationMetaSerializer(serializers.ModelSerializer):
         """Set filename fields"""
         internal_value = super().to_internal_value(data)
 
-        if 'observations_file' in data and not isinstance(data['observations_file'], str):
-            internal_value['observations_filename'] = data['observations_file'].name
-
         if 'navigation_file' in data and not isinstance(data['navigation_file'], str):
             internal_value['navigation_filename'] = data['navigation_file'].name
 
         return internal_value
-
-    def validate_observations_file(self, value):
-        return validate_file_size(value)
-
+    
     def validate_navigation_file(self, value):
         return validate_file_size(value)
 
@@ -382,14 +383,14 @@ class CampaignSerializer(serializers.ModelSerializer):
 
 class VisitSerializer(serializers.ModelSerializer):
     campaign_people = serializers.SerializerMethodField()
-    observations_actual_file = serializers.SerializerMethodField()
+    log_sheet_actual_file = serializers.SerializerMethodField()
     navigation_actual_file = serializers.SerializerMethodField()
 
     class Meta:
         model = models.Visits
         fields = '__all__'
         extra_kwargs = {
-            'observations_file': {'write_only': True},
+            'log_sheet_file': {'write_only': True},
             'navigation_file': {'write_only': True}
         }
 
@@ -400,12 +401,12 @@ class VisitSerializer(serializers.ModelSerializer):
         else:
             return None
 
-    def get_observations_actual_file(self, obj):
+    def get_log_sheet_actual_file(self, obj):
         """Returns the actual file encoded in base64"""
 
-        if obj.observations_file and obj.observations_file.name:
+        if obj.log_sheet_file and obj.log_sheet_file.name:
             try:
-                with open(obj.observations_file.path, 'rb') as file:
+                with open(obj.log_sheet_file.path, 'rb') as file:
                     return base64.b64encode(file.read()).decode('utf-8')
             except FileNotFoundError:
                 return None
@@ -428,15 +429,15 @@ class VisitSerializer(serializers.ModelSerializer):
         """Set filename fields"""
         internal_value = super().to_internal_value(data)
 
-        if 'observations_file' in data and not isinstance(data['observations_file'], str):
-            internal_value['observations_filename'] = data['observations_file'].name
+        if 'log_sheet_file' in data and not isinstance(data['log_sheet_file'], str):
+            internal_value['log_sheet_filename'] = data['log_sheet_file'].name
 
         if 'navigation_file' in data and not isinstance(data['navigation_file'], str):
             internal_value['navigation_filename'] = data['navigation_file'].name
 
         return internal_value
 
-    def validate_observations_file(self, value):
+    def validate_log_sheet_file(self, value):
         return validate_file_size(value)
 
     def validate_navigation_file(self, value):

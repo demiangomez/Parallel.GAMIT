@@ -67,6 +67,7 @@ INSTALLED_APPS = [
     'drf_spectacular',
     'auditlog',
     'drf_standardized_errors',
+    'django_cleanup.apps.CleanupConfig',
 ]
 
 CORS_ALLOW_ALL_ORIGINS = True

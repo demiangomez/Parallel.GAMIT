@@ -231,10 +231,10 @@ class StationInfoUtils:
                                                                           serializer.validated_data['height_code']))
             else:
 
-                if 'antenna_height' in serializer.validated_data:
+                if 'antenna_height' in serializer.validated_data and serializer.validated_data['antenna_height'] is not None:
                     serializer.validated_data['antenna_height'] = numpy.sqrt(numpy.square(float(serializer.validated_data['antenna_height'])) -
-                                                                             numpy.square(float(htc[0]['h_offset']))) - float(htc[0]['v_offset'])
-                if 'comments' in serializer.validated_data:
+                                                                             numpy.square(float(htc.h_offset))) - float(htc.v_offset)
+                if 'comments' in serializer.validated_data and isinstance(serializer.validated_data['comments'], str):
                     serializer.validated_data['comments'] = serializer.validated_data['comments'] + '\nChanged from %s to DHARP by Django API.\n' \
                         % serializer.validated_data['height_code']
                 else:
@@ -261,7 +261,7 @@ class StationInfoUtils:
             else:
 
                 record['antenna_height'] = numpy.sqrt(numpy.square(float(record['antenna_height'])) -
-                                                      numpy.square(float(htc[0]['h_offset']))) - float(htc[0]['v_offset'])
+                                                      numpy.square(float(htc.h_offset))) - float(htc.v_offset)
                 if record['comments'] is not None:
                     record['comments'] = record['comments'] + '\nChanged from %s to DHARP by Django API.\n' \
                         % record['height_code']

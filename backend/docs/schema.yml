@@ -30926,148 +30926,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/Stationinfo'
           description: ''
-    patch:
-      operationId: station_info_partial_update
-      parameters:
-      - in: path
-        name: api_id
-        schema:
-          type: integer
-        description: A unique integer value identifying this stationinfo.
-        required: true
-      tags:
-      - station-info
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedStationinfo'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedStationinfo'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedStationinfo'
-      security:
-      - jwtAuth: []
-      responses:
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/StationInfoPartialUpdateErrorResponse400'
-          description: ''
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse401'
-              examples:
-                AuthenticationFailed:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: authentication_failed
-                      detail: Incorrect authentication credentials.
-                      attr: null
-                NotAuthenticated:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: not_authenticated
-                      detail: Authentication credentials were not provided.
-                      attr: null
-          description: ''
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse403'
-              examples:
-                PermissionDenied:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: permission_denied
-                      detail: You do not have permission to perform this action.
-                      attr: null
-          description: ''
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse404'
-              examples:
-                NotFound:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: not_found
-                      detail: Not found.
-                      attr: null
-          description: ''
-        '405':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse405'
-              examples:
-                MethodNotAllowed:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: method_not_allowed
-                      detail: Method "get" not allowed.
-                      attr: null
-          description: ''
-        '406':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse406'
-              examples:
-                NotAcceptable:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: not_acceptable
-                      detail: Could not satisfy the request Accept header.
-                      attr: null
-          description: ''
-        '415':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse415'
-              examples:
-                UnsupportedMediaType:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: unsupported_media_type
-                      detail: Unsupported media type "application/json" in request.
-                      attr: null
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse500'
-              examples:
-                APIException:
-                  value:
-                    type: server_error
-                    errors:
-                    - code: error
-                      detail: A server error occurred.
-                      attr: null
-          description: ''
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Stationinfo'
-          description: ''
     delete:
       operationId: station_info_destroy
       description: Adds an event when the object is succesfully deleted
@@ -43039,6 +42897,9 @@ components:
         id:
           type: integer
           readOnly: true
+        name:
+          type: string
+          maxLength: 100
         start_date:
           type: string
           format: date
@@ -43052,6 +42913,7 @@ components:
       required:
       - end_date
       - id
+      - name
       - people
       - start_date
     CampaignsCreateEndDateErrorComponent:
@@ -43083,6 +42945,7 @@ components:
     CampaignsCreateError:
       oneOf:
       - $ref: '#/components/schemas/CampaignsCreateNonFieldErrorsErrorComponent'
+      - $ref: '#/components/schemas/CampaignsCreateNameErrorComponent'
       - $ref: '#/components/schemas/CampaignsCreateStartDateErrorComponent'
       - $ref: '#/components/schemas/CampaignsCreateEndDateErrorComponent'
       - $ref: '#/components/schemas/CampaignsCreatePeopleErrorComponent'
@@ -43090,6 +42953,7 @@ components:
         propertyName: attr
         mapping:
           non_field_errors: '#/components/schemas/CampaignsCreateNonFieldErrorsErrorComponent'
+          name: '#/components/schemas/CampaignsCreateNameErrorComponent'
           start_date: '#/components/schemas/CampaignsCreateStartDateErrorComponent'
           end_date: '#/components/schemas/CampaignsCreateEndDateErrorComponent'
           people: '#/components/schemas/CampaignsCreatePeopleErrorComponent'
@@ -43102,6 +42966,38 @@ components:
         mapping:
           validation_error: '#/components/schemas/CampaignsCreateValidationError'
           client_error: '#/components/schemas/ParseErrorResponse'
+    CampaignsCreateNameErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - name
+          type: string
+          description: '* `name` - name'
+        code:
+          enum:
+          - blank
+          - invalid
+          - max_length
+          - 'null'
+          - null_characters_not_allowed
+          - required
+          - surrogate_characters_not_allowed
+          type: string
+          description: |-
+            * `blank` - blank
+            * `invalid` - invalid
+            * `max_length` - max_length
+            * `null` - null
+            * `null_characters_not_allowed` - null_characters_not_allowed
+            * `required` - required
+            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
     CampaignsCreateNonFieldErrorsErrorComponent:
       type: object
       properties:
@@ -43232,6 +43128,7 @@ components:
     CampaignsPartialUpdateError:
       oneOf:
       - $ref: '#/components/schemas/CampaignsPartialUpdateNonFieldErrorsErrorComponent'
+      - $ref: '#/components/schemas/CampaignsPartialUpdateNameErrorComponent'
       - $ref: '#/components/schemas/CampaignsPartialUpdateStartDateErrorComponent'
       - $ref: '#/components/schemas/CampaignsPartialUpdateEndDateErrorComponent'
       - $ref: '#/components/schemas/CampaignsPartialUpdatePeopleErrorComponent'
@@ -43239,6 +43136,7 @@ components:
         propertyName: attr
         mapping:
           non_field_errors: '#/components/schemas/CampaignsPartialUpdateNonFieldErrorsErrorComponent'
+          name: '#/components/schemas/CampaignsPartialUpdateNameErrorComponent'
           start_date: '#/components/schemas/CampaignsPartialUpdateStartDateErrorComponent'
           end_date: '#/components/schemas/CampaignsPartialUpdateEndDateErrorComponent'
           people: '#/components/schemas/CampaignsPartialUpdatePeopleErrorComponent'
@@ -43251,6 +43149,38 @@ components:
         mapping:
           validation_error: '#/components/schemas/CampaignsPartialUpdateValidationError'
           client_error: '#/components/schemas/ParseErrorResponse'
+    CampaignsPartialUpdateNameErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - name
+          type: string
+          description: '* `name` - name'
+        code:
+          enum:
+          - blank
+          - invalid
+          - max_length
+          - 'null'
+          - null_characters_not_allowed
+          - required
+          - surrogate_characters_not_allowed
+          type: string
+          description: |-
+            * `blank` - blank
+            * `invalid` - invalid
+            * `max_length` - max_length
+            * `null` - null
+            * `null_characters_not_allowed` - null_characters_not_allowed
+            * `required` - required
+            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
     CampaignsPartialUpdateNonFieldErrorsErrorComponent:
       type: object
       properties:
@@ -43374,6 +43304,7 @@ components:
     CampaignsUpdateError:
       oneOf:
       - $ref: '#/components/schemas/CampaignsUpdateNonFieldErrorsErrorComponent'
+      - $ref: '#/components/schemas/CampaignsUpdateNameErrorComponent'
       - $ref: '#/components/schemas/CampaignsUpdateStartDateErrorComponent'
       - $ref: '#/components/schemas/CampaignsUpdateEndDateErrorComponent'
       - $ref: '#/components/schemas/CampaignsUpdatePeopleErrorComponent'
@@ -43381,6 +43312,7 @@ components:
         propertyName: attr
         mapping:
           non_field_errors: '#/components/schemas/CampaignsUpdateNonFieldErrorsErrorComponent'
+          name: '#/components/schemas/CampaignsUpdateNameErrorComponent'
           start_date: '#/components/schemas/CampaignsUpdateStartDateErrorComponent'
           end_date: '#/components/schemas/CampaignsUpdateEndDateErrorComponent'
           people: '#/components/schemas/CampaignsUpdatePeopleErrorComponent'
@@ -43393,6 +43325,38 @@ components:
         mapping:
           validation_error: '#/components/schemas/CampaignsUpdateValidationError'
           client_error: '#/components/schemas/ParseErrorResponse'
+    CampaignsUpdateNameErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - name
+          type: string
+          description: '* `name` - name'
+        code:
+          enum:
+          - blank
+          - invalid
+          - max_length
+          - 'null'
+          - null_characters_not_allowed
+          - required
+          - surrogate_characters_not_allowed
+          type: string
+          description: |-
+            * `blank` - blank
+            * `invalid` - invalid
+            * `max_length` - max_length
+            * `null` - null
+            * `null_characters_not_allowed` - null_characters_not_allowed
+            * `required` - required
+            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
     CampaignsUpdateNonFieldErrorsErrorComponent:
       type: object
       properties:
@@ -62689,6 +62653,9 @@ components:
         id:
           type: integer
           readOnly: true
+        name:
+          type: string
+          maxLength: 100
         start_date:
           type: string
           format: date
@@ -64147,7 +64114,7 @@ components:
         id:
           type: integer
           readOnly: true
-        observations_actual_file:
+        log_sheet_actual_file:
           type: string
           readOnly: true
         navigation_actual_file:
@@ -64167,11 +64134,11 @@ components:
         communications_description:
           type: string
           maxLength: 100
-        observations_file:
+        log_sheet_file:
           type: string
           format: uri
           writeOnly: true
-        observations_filename:
+        log_sheet_filename:
           type: string
           maxLength: 100
         navigation_file:
@@ -64188,6 +64155,8 @@ components:
           format: date-time
           nullable: true
         has_gaps_update_needed:
+          type: boolean
+        has_stationinfo:
           type: boolean
         station:
           type: integer
@@ -64242,79 +64211,6 @@ components:
         station_alias:
           type: string
           maxLength: 4
-    PatchedStationinfo:
-      type: object
-      properties:
-        api_id:
-          type: integer
-          readOnly: true
-        network_code:
-          type: string
-          maxLength: 3
-        station_code:
-          type: string
-          maxLength: 4
-        receiver_code:
-          type: string
-          maxLength: 22
-        receiver_serial:
-          type: string
-          nullable: true
-          maxLength: 22
-        receiver_firmware:
-          type: string
-          nullable: true
-          maxLength: 10
-        antenna_code:
-          type: string
-          maxLength: 22
-        antenna_serial:
-          type: string
-          nullable: true
-          maxLength: 20
-        antenna_height:
-          type: number
-          format: double
-          maximum: 10
-          minimum: -10
-          exclusiveMaximum: true
-          exclusiveMinimum: true
-          nullable: true
-        antenna_north:
-          type: number
-          format: double
-          maximum: 10000000
-          minimum: -10000000
-          exclusiveMaximum: true
-          exclusiveMinimum: true
-          nullable: true
-        antenna_east:
-          type: number
-          format: double
-          maximum: 10000000
-          minimum: -10000000
-          exclusiveMaximum: true
-          exclusiveMinimum: true
-          nullable: true
-        height_code:
-          type: string
-        radome_code:
-          type: string
-          maxLength: 7
-        date_start:
-          type: string
-          format: date-time
-        date_end:
-          type: string
-          format: date-time
-          nullable: true
-        receiver_vers:
-          type: string
-          nullable: true
-          maxLength: 22
-        comments:
-          type: string
-          nullable: true
     PatchedUser:
       type: object
       properties:
@@ -64367,7 +64263,7 @@ components:
         campaign_people:
           type: string
           readOnly: true
-        observations_actual_file:
+        log_sheet_actual_file:
           type: string
           readOnly: true
         navigation_actual_file:
@@ -64376,11 +64272,11 @@ components:
         date:
           type: string
           format: date
-        observations_file:
+        log_sheet_file:
           type: string
           format: uri
           writeOnly: true
-        observations_filename:
+        log_sheet_filename:
           type: string
           maxLength: 100
         navigation_file:
@@ -64393,6 +64289,8 @@ components:
         campaign:
           type: integer
           nullable: true
+        station:
+          type: integer
         people:
           type: array
           items:
@@ -76089,7 +75987,6 @@ components:
       required:
       - actual_file
       - file
-      - filename
       - id
       - station
     StationAttachedFilesCreateDescriptionErrorComponent:
@@ -76184,21 +76081,17 @@ components:
           description: '* `filename` - filename'
         code:
           enum:
-          - blank
           - invalid
           - max_length
           - 'null'
           - null_characters_not_allowed
-          - required
           - surrogate_characters_not_allowed
           type: string
           description: |-
-            * `blank` - blank
             * `invalid` - invalid
             * `max_length` - max_length
             * `null` - null
             * `null_characters_not_allowed` - null_characters_not_allowed
-            * `required` - required
             * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
         detail:
           type: string
@@ -76409,21 +76302,17 @@ components:
           description: '* `filename` - filename'
         code:
           enum:
-          - blank
           - invalid
           - max_length
           - 'null'
           - null_characters_not_allowed
-          - required
           - surrogate_characters_not_allowed
           type: string
           description: |-
-            * `blank` - blank
             * `invalid` - invalid
             * `max_length` - max_length
             * `null` - null
             * `null_characters_not_allowed` - null_characters_not_allowed
-            * `required` - required
             * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
         detail:
           type: string
@@ -76587,21 +76476,17 @@ components:
           description: '* `filename` - filename'
         code:
           enum:
-          - blank
           - invalid
           - max_length
           - 'null'
           - null_characters_not_allowed
-          - required
           - surrogate_characters_not_allowed
           type: string
           description: |-
-            * `blank` - blank
             * `invalid` - invalid
             * `max_length` - max_length
             * `null` - null
             * `null_characters_not_allowed` - null_characters_not_allowed
-            * `required` - required
             * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
         detail:
           type: string
@@ -77797,546 +77682,6 @@ components:
       required:
       - errors
       - type
-    StationInfoPartialUpdateAntennaCodeErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - antenna_code
-          type: string
-          description: '* `antenna_code` - antenna_code'
-        code:
-          enum:
-          - blank
-          - invalid
-          - max_length
-          - 'null'
-          - null_characters_not_allowed
-          - required
-          - surrogate_characters_not_allowed
-          type: string
-          description: |-
-            * `blank` - blank
-            * `invalid` - invalid
-            * `max_length` - max_length
-            * `null` - null
-            * `null_characters_not_allowed` - null_characters_not_allowed
-            * `required` - required
-            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    StationInfoPartialUpdateAntennaEastErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - antenna_east
-          type: string
-          description: '* `antenna_east` - antenna_east'
-        code:
-          enum:
-          - invalid
-          - max_decimal_places
-          - max_digits
-          - max_string_length
-          - max_whole_digits
-          type: string
-          description: |-
-            * `invalid` - invalid
-            * `max_decimal_places` - max_decimal_places
-            * `max_digits` - max_digits
-            * `max_string_length` - max_string_length
-            * `max_whole_digits` - max_whole_digits
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    StationInfoPartialUpdateAntennaHeightErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - antenna_height
-          type: string
-          description: '* `antenna_height` - antenna_height'
-        code:
-          enum:
-          - invalid
-          - max_decimal_places
-          - max_digits
-          - max_string_length
-          - max_whole_digits
-          type: string
-          description: |-
-            * `invalid` - invalid
-            * `max_decimal_places` - max_decimal_places
-            * `max_digits` - max_digits
-            * `max_string_length` - max_string_length
-            * `max_whole_digits` - max_whole_digits
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    StationInfoPartialUpdateAntennaNorthErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - antenna_north
-          type: string
-          description: '* `antenna_north` - antenna_north'
-        code:
-          enum:
-          - invalid
-          - max_decimal_places
-          - max_digits
-          - max_string_length
-          - max_whole_digits
-          type: string
-          description: |-
-            * `invalid` - invalid
-            * `max_decimal_places` - max_decimal_places
-            * `max_digits` - max_digits
-            * `max_string_length` - max_string_length
-            * `max_whole_digits` - max_whole_digits
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    StationInfoPartialUpdateAntennaSerialErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - antenna_serial
-          type: string
-          description: '* `antenna_serial` - antenna_serial'
-        code:
-          enum:
-          - invalid
-          - max_length
-          - null_characters_not_allowed
-          - surrogate_characters_not_allowed
-          type: string
-          description: |-
-            * `invalid` - invalid
-            * `max_length` - max_length
-            * `null_characters_not_allowed` - null_characters_not_allowed
-            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    StationInfoPartialUpdateCommentsErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - comments
-          type: string
-          description: '* `comments` - comments'
-        code:
-          enum:
-          - invalid
-          - null_characters_not_allowed
-          - surrogate_characters_not_allowed
-          type: string
-          description: |-
-            * `invalid` - invalid
-            * `null_characters_not_allowed` - null_characters_not_allowed
-            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    StationInfoPartialUpdateDateEndErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - date_end
-          type: string
-          description: '* `date_end` - date_end'
-        code:
-          enum:
-          - date
-          - invalid
-          - make_aware
-          - overflow
-          type: string
-          description: |-
-            * `date` - date
-            * `invalid` - invalid
-            * `make_aware` - make_aware
-            * `overflow` - overflow
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    StationInfoPartialUpdateDateStartErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - date_start
-          type: string
-          description: '* `date_start` - date_start'
-        code:
-          enum:
-          - date
-          - invalid
-          - make_aware
-          - 'null'
-          - overflow
-          - required
-          type: string
-          description: |-
-            * `date` - date
-            * `invalid` - invalid
-            * `make_aware` - make_aware
-            * `null` - null
-            * `overflow` - overflow
-            * `required` - required
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    StationInfoPartialUpdateError:
-      oneOf:
-      - $ref: '#/components/schemas/StationInfoPartialUpdateNonFieldErrorsErrorComponent'
-      - $ref: '#/components/schemas/StationInfoPartialUpdateNetworkCodeErrorComponent'
-      - $ref: '#/components/schemas/StationInfoPartialUpdateStationCodeErrorComponent'
-      - $ref: '#/components/schemas/StationInfoPartialUpdateReceiverCodeErrorComponent'
-      - $ref: '#/components/schemas/StationInfoPartialUpdateReceiverSerialErrorComponent'
-      - $ref: '#/components/schemas/StationInfoPartialUpdateReceiverFirmwareErrorComponent'
-      - $ref: '#/components/schemas/StationInfoPartialUpdateAntennaCodeErrorComponent'
-      - $ref: '#/components/schemas/StationInfoPartialUpdateAntennaSerialErrorComponent'
-      - $ref: '#/components/schemas/StationInfoPartialUpdateAntennaHeightErrorComponent'
-      - $ref: '#/components/schemas/StationInfoPartialUpdateAntennaNorthErrorComponent'
-      - $ref: '#/components/schemas/StationInfoPartialUpdateAntennaEastErrorComponent'
-      - $ref: '#/components/schemas/StationInfoPartialUpdateHeightCodeErrorComponent'
-      - $ref: '#/components/schemas/StationInfoPartialUpdateRadomeCodeErrorComponent'
-      - $ref: '#/components/schemas/StationInfoPartialUpdateDateStartErrorComponent'
-      - $ref: '#/components/schemas/StationInfoPartialUpdateDateEndErrorComponent'
-      - $ref: '#/components/schemas/StationInfoPartialUpdateReceiverVersErrorComponent'
-      - $ref: '#/components/schemas/StationInfoPartialUpdateCommentsErrorComponent'
-      discriminator:
-        propertyName: attr
-        mapping:
-          non_field_errors: '#/components/schemas/StationInfoPartialUpdateNonFieldErrorsErrorComponent'
-          network_code: '#/components/schemas/StationInfoPartialUpdateNetworkCodeErrorComponent'
-          station_code: '#/components/schemas/StationInfoPartialUpdateStationCodeErrorComponent'
-          receiver_code: '#/components/schemas/StationInfoPartialUpdateReceiverCodeErrorComponent'
-          receiver_serial: '#/components/schemas/StationInfoPartialUpdateReceiverSerialErrorComponent'
-          receiver_firmware: '#/components/schemas/StationInfoPartialUpdateReceiverFirmwareErrorComponent'
-          antenna_code: '#/components/schemas/StationInfoPartialUpdateAntennaCodeErrorComponent'
-          antenna_serial: '#/components/schemas/StationInfoPartialUpdateAntennaSerialErrorComponent'
-          antenna_height: '#/components/schemas/StationInfoPartialUpdateAntennaHeightErrorComponent'
-          antenna_north: '#/components/schemas/StationInfoPartialUpdateAntennaNorthErrorComponent'
-          antenna_east: '#/components/schemas/StationInfoPartialUpdateAntennaEastErrorComponent'
-          height_code: '#/components/schemas/StationInfoPartialUpdateHeightCodeErrorComponent'
-          radome_code: '#/components/schemas/StationInfoPartialUpdateRadomeCodeErrorComponent'
-          date_start: '#/components/schemas/StationInfoPartialUpdateDateStartErrorComponent'
-          date_end: '#/components/schemas/StationInfoPartialUpdateDateEndErrorComponent'
-          receiver_vers: '#/components/schemas/StationInfoPartialUpdateReceiverVersErrorComponent'
-          comments: '#/components/schemas/StationInfoPartialUpdateCommentsErrorComponent'
-    StationInfoPartialUpdateErrorResponse400:
-      oneOf:
-      - $ref: '#/components/schemas/StationInfoPartialUpdateValidationError'
-      - $ref: '#/components/schemas/ParseErrorResponse'
-      discriminator:
-        propertyName: type
-        mapping:
-          validation_error: '#/components/schemas/StationInfoPartialUpdateValidationError'
-          client_error: '#/components/schemas/ParseErrorResponse'
-    StationInfoPartialUpdateHeightCodeErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - height_code
-          type: string
-          description: '* `height_code` - height_code'
-        code:
-          enum:
-          - blank
-          - invalid
-          - 'null'
-          - null_characters_not_allowed
-          - required
-          - surrogate_characters_not_allowed
-          type: string
-          description: |-
-            * `blank` - blank
-            * `invalid` - invalid
-            * `null` - null
-            * `null_characters_not_allowed` - null_characters_not_allowed
-            * `required` - required
-            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    StationInfoPartialUpdateNetworkCodeErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - network_code
-          type: string
-          description: '* `network_code` - network_code'
-        code:
-          enum:
-          - blank
-          - invalid
-          - max_length
-          - 'null'
-          - null_characters_not_allowed
-          - required
-          - surrogate_characters_not_allowed
-          type: string
-          description: |-
-            * `blank` - blank
-            * `invalid` - invalid
-            * `max_length` - max_length
-            * `null` - null
-            * `null_characters_not_allowed` - null_characters_not_allowed
-            * `required` - required
-            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    StationInfoPartialUpdateNonFieldErrorsErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - non_field_errors
-          type: string
-          description: '* `non_field_errors` - non_field_errors'
-        code:
-          enum:
-          - invalid
-          - unique
-          type: string
-          description: |-
-            * `invalid` - invalid
-            * `unique` - unique
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    StationInfoPartialUpdateRadomeCodeErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - radome_code
-          type: string
-          description: '* `radome_code` - radome_code'
-        code:
-          enum:
-          - blank
-          - invalid
-          - max_length
-          - 'null'
-          - null_characters_not_allowed
-          - required
-          - surrogate_characters_not_allowed
-          type: string
-          description: |-
-            * `blank` - blank
-            * `invalid` - invalid
-            * `max_length` - max_length
-            * `null` - null
-            * `null_characters_not_allowed` - null_characters_not_allowed
-            * `required` - required
-            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    StationInfoPartialUpdateReceiverCodeErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - receiver_code
-          type: string
-          description: '* `receiver_code` - receiver_code'
-        code:
-          enum:
-          - blank
-          - invalid
-          - max_length
-          - 'null'
-          - null_characters_not_allowed
-          - required
-          - surrogate_characters_not_allowed
-          type: string
-          description: |-
-            * `blank` - blank
-            * `invalid` - invalid
-            * `max_length` - max_length
-            * `null` - null
-            * `null_characters_not_allowed` - null_characters_not_allowed
-            * `required` - required
-            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    StationInfoPartialUpdateReceiverFirmwareErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - receiver_firmware
-          type: string
-          description: '* `receiver_firmware` - receiver_firmware'
-        code:
-          enum:
-          - invalid
-          - max_length
-          - null_characters_not_allowed
-          - surrogate_characters_not_allowed
-          type: string
-          description: |-
-            * `invalid` - invalid
-            * `max_length` - max_length
-            * `null_characters_not_allowed` - null_characters_not_allowed
-            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    StationInfoPartialUpdateReceiverSerialErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - receiver_serial
-          type: string
-          description: '* `receiver_serial` - receiver_serial'
-        code:
-          enum:
-          - invalid
-          - max_length
-          - null_characters_not_allowed
-          - surrogate_characters_not_allowed
-          type: string
-          description: |-
-            * `invalid` - invalid
-            * `max_length` - max_length
-            * `null_characters_not_allowed` - null_characters_not_allowed
-            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    StationInfoPartialUpdateReceiverVersErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - receiver_vers
-          type: string
-          description: '* `receiver_vers` - receiver_vers'
-        code:
-          enum:
-          - invalid
-          - max_length
-          - null_characters_not_allowed
-          - surrogate_characters_not_allowed
-          type: string
-          description: |-
-            * `invalid` - invalid
-            * `max_length` - max_length
-            * `null_characters_not_allowed` - null_characters_not_allowed
-            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    StationInfoPartialUpdateStationCodeErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - station_code
-          type: string
-          description: '* `station_code` - station_code'
-        code:
-          enum:
-          - blank
-          - invalid
-          - max_length
-          - 'null'
-          - null_characters_not_allowed
-          - required
-          - surrogate_characters_not_allowed
-          type: string
-          description: |-
-            * `blank` - blank
-            * `invalid` - invalid
-            * `max_length` - max_length
-            * `null` - null
-            * `null_characters_not_allowed` - null_characters_not_allowed
-            * `required` - required
-            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    StationInfoPartialUpdateValidationError:
-      type: object
-      properties:
-        type:
-          $ref: '#/components/schemas/ValidationErrorEnum'
-        errors:
-          type: array
-          items:
-            $ref: '#/components/schemas/StationInfoPartialUpdateError'
-      required:
-      - errors
-      - type
     StationInfoRetrieveErrorResponse400:
       oneOf:
       - $ref: '#/components/schemas/ParseErrorResponse'
@@ -78890,7 +78235,7 @@ components:
         id:
           type: integer
           readOnly: true
-        observations_actual_file:
+        log_sheet_actual_file:
           type: string
           readOnly: true
         navigation_actual_file:
@@ -78910,11 +78255,11 @@ components:
         communications_description:
           type: string
           maxLength: 100
-        observations_file:
+        log_sheet_file:
           type: string
           format: uri
           writeOnly: true
-        observations_filename:
+        log_sheet_filename:
           type: string
           maxLength: 100
         navigation_file:
@@ -78932,6 +78277,8 @@ components:
           nullable: true
         has_gaps_update_needed:
           type: boolean
+        has_stationinfo:
+          type: boolean
         station:
           type: integer
         status:
@@ -78945,8 +78292,8 @@ components:
           nullable: true
       required:
       - id
+      - log_sheet_actual_file
       - navigation_actual_file
-      - observations_actual_file
       - station
     StationMetaCreateBatteryDescriptionErrorComponent:
       type: object
@@ -79012,13 +78359,14 @@ components:
       - $ref: '#/components/schemas/StationMetaCreateBatteryDescriptionErrorComponent'
       - $ref: '#/components/schemas/StationMetaCreateHasCommunicationsErrorComponent'
       - $ref: '#/components/schemas/StationMetaCreateCommunicationsDescriptionErrorComponent'
-      - $ref: '#/components/schemas/StationMetaCreateObservationsFileErrorComponent'
-      - $ref: '#/components/schemas/StationMetaCreateObservationsFilenameErrorComponent'
+      - $ref: '#/components/schemas/StationMetaCreateLogSheetFileErrorComponent'
+      - $ref: '#/components/schemas/StationMetaCreateLogSheetFilenameErrorComponent'
       - $ref: '#/components/schemas/StationMetaCreateNavigationFileErrorComponent'
       - $ref: '#/components/schemas/StationMetaCreateNavigationFilenameErrorComponent'
       - $ref: '#/components/schemas/StationMetaCreateHasGapsErrorComponent'
       - $ref: '#/components/schemas/StationMetaCreateHasGapsLastUpdateDatetimeErrorComponent'
       - $ref: '#/components/schemas/StationMetaCreateHasGapsUpdateNeededErrorComponent'
+      - $ref: '#/components/schemas/StationMetaCreateHasStationinfoErrorComponent'
       - $ref: '#/components/schemas/StationMetaCreateStationErrorComponent'
       - $ref: '#/components/schemas/StationMetaCreateStatusErrorComponent'
       - $ref: '#/components/schemas/StationMetaCreateMonumentTypeErrorComponent'
@@ -79032,13 +78380,14 @@ components:
           battery_description: '#/components/schemas/StationMetaCreateBatteryDescriptionErrorComponent'
           has_communications: '#/components/schemas/StationMetaCreateHasCommunicationsErrorComponent'
           communications_description: '#/components/schemas/StationMetaCreateCommunicationsDescriptionErrorComponent'
-          observations_file: '#/components/schemas/StationMetaCreateObservationsFileErrorComponent'
-          observations_filename: '#/components/schemas/StationMetaCreateObservationsFilenameErrorComponent'
+          log_sheet_file: '#/components/schemas/StationMetaCreateLogSheetFileErrorComponent'
+          log_sheet_filename: '#/components/schemas/StationMetaCreateLogSheetFilenameErrorComponent'
           navigation_file: '#/components/schemas/StationMetaCreateNavigationFileErrorComponent'
           navigation_filename: '#/components/schemas/StationMetaCreateNavigationFilenameErrorComponent'
           has_gaps: '#/components/schemas/StationMetaCreateHasGapsErrorComponent'
           has_gaps_last_update_datetime: '#/components/schemas/StationMetaCreateHasGapsLastUpdateDatetimeErrorComponent'
           has_gaps_update_needed: '#/components/schemas/StationMetaCreateHasGapsUpdateNeededErrorComponent'
+          has_stationinfo: '#/components/schemas/StationMetaCreateHasStationinfoErrorComponent'
           station: '#/components/schemas/StationMetaCreateStationErrorComponent'
           status: '#/components/schemas/StationMetaCreateStatusErrorComponent'
           monument_type: '#/components/schemas/StationMetaCreateMonumentTypeErrorComponent'
@@ -79166,6 +78515,84 @@ components:
       - attr
       - code
       - detail
+    StationMetaCreateHasStationinfoErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - has_stationinfo
+          type: string
+          description: '* `has_stationinfo` - has_stationinfo'
+        code:
+          enum:
+          - invalid
+          - 'null'
+          type: string
+          description: |-
+            * `invalid` - invalid
+            * `null` - null
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    StationMetaCreateLogSheetFileErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - log_sheet_file
+          type: string
+          description: '* `log_sheet_file` - log_sheet_file'
+        code:
+          enum:
+          - empty
+          - invalid
+          - max_length
+          - no_name
+          - 'null'
+          type: string
+          description: |-
+            * `empty` - empty
+            * `invalid` - invalid
+            * `max_length` - max_length
+            * `no_name` - no_name
+            * `null` - null
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    StationMetaCreateLogSheetFilenameErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - log_sheet_filename
+          type: string
+          description: '* `log_sheet_filename` - log_sheet_filename'
+        code:
+          enum:
+          - invalid
+          - max_length
+          - 'null'
+          - null_characters_not_allowed
+          - surrogate_characters_not_allowed
+          type: string
+          description: |-
+            * `invalid` - invalid
+            * `max_length` - max_length
+            * `null` - null
+            * `null_characters_not_allowed` - null_characters_not_allowed
+            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
     StationMetaCreateMonumentTypeErrorComponent:
       type: object
       properties:
@@ -79257,62 +78684,6 @@ components:
           - invalid
           type: string
           description: '* `invalid` - invalid'
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    StationMetaCreateObservationsFileErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - observations_file
-          type: string
-          description: '* `observations_file` - observations_file'
-        code:
-          enum:
-          - empty
-          - invalid
-          - max_length
-          - no_name
-          - 'null'
-          type: string
-          description: |-
-            * `empty` - empty
-            * `invalid` - invalid
-            * `max_length` - max_length
-            * `no_name` - no_name
-            * `null` - null
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    StationMetaCreateObservationsFilenameErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - observations_filename
-          type: string
-          description: '* `observations_filename` - observations_filename'
-        code:
-          enum:
-          - invalid
-          - max_length
-          - 'null'
-          - null_characters_not_allowed
-          - surrogate_characters_not_allowed
-          type: string
-          description: |-
-            * `invalid` - invalid
-            * `max_length` - max_length
-            * `null` - null
-            * `null_characters_not_allowed` - null_characters_not_allowed
-            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
         detail:
           type: string
       required:
@@ -79507,13 +78878,14 @@ components:
       - $ref: '#/components/schemas/StationMetaPartialUpdateBatteryDescriptionErrorComponent'
       - $ref: '#/components/schemas/StationMetaPartialUpdateHasCommunicationsErrorComponent'
       - $ref: '#/components/schemas/StationMetaPartialUpdateCommunicationsDescriptionErrorComponent'
-      - $ref: '#/components/schemas/StationMetaPartialUpdateObservationsFileErrorComponent'
-      - $ref: '#/components/schemas/StationMetaPartialUpdateObservationsFilenameErrorComponent'
+      - $ref: '#/components/schemas/StationMetaPartialUpdateLogSheetFileErrorComponent'
+      - $ref: '#/components/schemas/StationMetaPartialUpdateLogSheetFilenameErrorComponent'
       - $ref: '#/components/schemas/StationMetaPartialUpdateNavigationFileErrorComponent'
       - $ref: '#/components/schemas/StationMetaPartialUpdateNavigationFilenameErrorComponent'
       - $ref: '#/components/schemas/StationMetaPartialUpdateHasGapsErrorComponent'
       - $ref: '#/components/schemas/StationMetaPartialUpdateHasGapsLastUpdateDatetimeErrorComponent'
       - $ref: '#/components/schemas/StationMetaPartialUpdateHasGapsUpdateNeededErrorComponent'
+      - $ref: '#/components/schemas/StationMetaPartialUpdateHasStationinfoErrorComponent'
       - $ref: '#/components/schemas/StationMetaPartialUpdateStationErrorComponent'
       - $ref: '#/components/schemas/StationMetaPartialUpdateStatusErrorComponent'
       - $ref: '#/components/schemas/StationMetaPartialUpdateMonumentTypeErrorComponent'
@@ -79527,13 +78899,14 @@ components:
           battery_description: '#/components/schemas/StationMetaPartialUpdateBatteryDescriptionErrorComponent'
           has_communications: '#/components/schemas/StationMetaPartialUpdateHasCommunicationsErrorComponent'
           communications_description: '#/components/schemas/StationMetaPartialUpdateCommunicationsDescriptionErrorComponent'
-          observations_file: '#/components/schemas/StationMetaPartialUpdateObservationsFileErrorComponent'
-          observations_filename: '#/components/schemas/StationMetaPartialUpdateObservationsFilenameErrorComponent'
+          log_sheet_file: '#/components/schemas/StationMetaPartialUpdateLogSheetFileErrorComponent'
+          log_sheet_filename: '#/components/schemas/StationMetaPartialUpdateLogSheetFilenameErrorComponent'
           navigation_file: '#/components/schemas/StationMetaPartialUpdateNavigationFileErrorComponent'
           navigation_filename: '#/components/schemas/StationMetaPartialUpdateNavigationFilenameErrorComponent'
           has_gaps: '#/components/schemas/StationMetaPartialUpdateHasGapsErrorComponent'
           has_gaps_last_update_datetime: '#/components/schemas/StationMetaPartialUpdateHasGapsLastUpdateDatetimeErrorComponent'
           has_gaps_update_needed: '#/components/schemas/StationMetaPartialUpdateHasGapsUpdateNeededErrorComponent'
+          has_stationinfo: '#/components/schemas/StationMetaPartialUpdateHasStationinfoErrorComponent'
           station: '#/components/schemas/StationMetaPartialUpdateStationErrorComponent'
           status: '#/components/schemas/StationMetaPartialUpdateStatusErrorComponent'
           monument_type: '#/components/schemas/StationMetaPartialUpdateMonumentTypeErrorComponent'
@@ -79661,6 +79034,84 @@ components:
       - attr
       - code
       - detail
+    StationMetaPartialUpdateHasStationinfoErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - has_stationinfo
+          type: string
+          description: '* `has_stationinfo` - has_stationinfo'
+        code:
+          enum:
+          - invalid
+          - 'null'
+          type: string
+          description: |-
+            * `invalid` - invalid
+            * `null` - null
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    StationMetaPartialUpdateLogSheetFileErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - log_sheet_file
+          type: string
+          description: '* `log_sheet_file` - log_sheet_file'
+        code:
+          enum:
+          - empty
+          - invalid
+          - max_length
+          - no_name
+          - 'null'
+          type: string
+          description: |-
+            * `empty` - empty
+            * `invalid` - invalid
+            * `max_length` - max_length
+            * `no_name` - no_name
+            * `null` - null
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    StationMetaPartialUpdateLogSheetFilenameErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - log_sheet_filename
+          type: string
+          description: '* `log_sheet_filename` - log_sheet_filename'
+        code:
+          enum:
+          - invalid
+          - max_length
+          - 'null'
+          - null_characters_not_allowed
+          - surrogate_characters_not_allowed
+          type: string
+          description: |-
+            * `invalid` - invalid
+            * `max_length` - max_length
+            * `null` - null
+            * `null_characters_not_allowed` - null_characters_not_allowed
+            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
     StationMetaPartialUpdateMonumentTypeErrorComponent:
       type: object
       properties:
@@ -79752,62 +79203,6 @@ components:
           - invalid
           type: string
           description: '* `invalid` - invalid'
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    StationMetaPartialUpdateObservationsFileErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - observations_file
-          type: string
-          description: '* `observations_file` - observations_file'
-        code:
-          enum:
-          - empty
-          - invalid
-          - max_length
-          - no_name
-          - 'null'
-          type: string
-          description: |-
-            * `empty` - empty
-            * `invalid` - invalid
-            * `max_length` - max_length
-            * `no_name` - no_name
-            * `null` - null
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    StationMetaPartialUpdateObservationsFilenameErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - observations_filename
-          type: string
-          description: '* `observations_filename` - observations_filename'
-        code:
-          enum:
-          - invalid
-          - max_length
-          - 'null'
-          - null_characters_not_allowed
-          - surrogate_characters_not_allowed
-          type: string
-          description: |-
-            * `invalid` - invalid
-            * `max_length` - max_length
-            * `null` - null
-            * `null_characters_not_allowed` - null_characters_not_allowed
-            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
         detail:
           type: string
       required:
@@ -79995,13 +79390,14 @@ components:
       - $ref: '#/components/schemas/StationMetaUpdateBatteryDescriptionErrorComponent'
       - $ref: '#/components/schemas/StationMetaUpdateHasCommunicationsErrorComponent'
       - $ref: '#/components/schemas/StationMetaUpdateCommunicationsDescriptionErrorComponent'
-      - $ref: '#/components/schemas/StationMetaUpdateObservationsFileErrorComponent'
-      - $ref: '#/components/schemas/StationMetaUpdateObservationsFilenameErrorComponent'
+      - $ref: '#/components/schemas/StationMetaUpdateLogSheetFileErrorComponent'
+      - $ref: '#/components/schemas/StationMetaUpdateLogSheetFilenameErrorComponent'
       - $ref: '#/components/schemas/StationMetaUpdateNavigationFileErrorComponent'
       - $ref: '#/components/schemas/StationMetaUpdateNavigationFilenameErrorComponent'
       - $ref: '#/components/schemas/StationMetaUpdateHasGapsErrorComponent'
       - $ref: '#/components/schemas/StationMetaUpdateHasGapsLastUpdateDatetimeErrorComponent'
       - $ref: '#/components/schemas/StationMetaUpdateHasGapsUpdateNeededErrorComponent'
+      - $ref: '#/components/schemas/StationMetaUpdateHasStationinfoErrorComponent'
       - $ref: '#/components/schemas/StationMetaUpdateStationErrorComponent'
       - $ref: '#/components/schemas/StationMetaUpdateStatusErrorComponent'
       - $ref: '#/components/schemas/StationMetaUpdateMonumentTypeErrorComponent'
@@ -80015,13 +79411,14 @@ components:
           battery_description: '#/components/schemas/StationMetaUpdateBatteryDescriptionErrorComponent'
           has_communications: '#/components/schemas/StationMetaUpdateHasCommunicationsErrorComponent'
           communications_description: '#/components/schemas/StationMetaUpdateCommunicationsDescriptionErrorComponent'
-          observations_file: '#/components/schemas/StationMetaUpdateObservationsFileErrorComponent'
-          observations_filename: '#/components/schemas/StationMetaUpdateObservationsFilenameErrorComponent'
+          log_sheet_file: '#/components/schemas/StationMetaUpdateLogSheetFileErrorComponent'
+          log_sheet_filename: '#/components/schemas/StationMetaUpdateLogSheetFilenameErrorComponent'
           navigation_file: '#/components/schemas/StationMetaUpdateNavigationFileErrorComponent'
           navigation_filename: '#/components/schemas/StationMetaUpdateNavigationFilenameErrorComponent'
           has_gaps: '#/components/schemas/StationMetaUpdateHasGapsErrorComponent'
           has_gaps_last_update_datetime: '#/components/schemas/StationMetaUpdateHasGapsLastUpdateDatetimeErrorComponent'
           has_gaps_update_needed: '#/components/schemas/StationMetaUpdateHasGapsUpdateNeededErrorComponent'
+          has_stationinfo: '#/components/schemas/StationMetaUpdateHasStationinfoErrorComponent'
           station: '#/components/schemas/StationMetaUpdateStationErrorComponent'
           status: '#/components/schemas/StationMetaUpdateStatusErrorComponent'
           monument_type: '#/components/schemas/StationMetaUpdateMonumentTypeErrorComponent'
@@ -80149,6 +79546,84 @@ components:
       - attr
       - code
       - detail
+    StationMetaUpdateHasStationinfoErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - has_stationinfo
+          type: string
+          description: '* `has_stationinfo` - has_stationinfo'
+        code:
+          enum:
+          - invalid
+          - 'null'
+          type: string
+          description: |-
+            * `invalid` - invalid
+            * `null` - null
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    StationMetaUpdateLogSheetFileErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - log_sheet_file
+          type: string
+          description: '* `log_sheet_file` - log_sheet_file'
+        code:
+          enum:
+          - empty
+          - invalid
+          - max_length
+          - no_name
+          - 'null'
+          type: string
+          description: |-
+            * `empty` - empty
+            * `invalid` - invalid
+            * `max_length` - max_length
+            * `no_name` - no_name
+            * `null` - null
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    StationMetaUpdateLogSheetFilenameErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - log_sheet_filename
+          type: string
+          description: '* `log_sheet_filename` - log_sheet_filename'
+        code:
+          enum:
+          - invalid
+          - max_length
+          - 'null'
+          - null_characters_not_allowed
+          - surrogate_characters_not_allowed
+          type: string
+          description: |-
+            * `invalid` - invalid
+            * `max_length` - max_length
+            * `null` - null
+            * `null_characters_not_allowed` - null_characters_not_allowed
+            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
     StationMetaUpdateMonumentTypeErrorComponent:
       type: object
       properties:
@@ -80240,62 +79715,6 @@ components:
           - invalid
           type: string
           description: '* `invalid` - invalid'
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    StationMetaUpdateObservationsFileErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - observations_file
-          type: string
-          description: '* `observations_file` - observations_file'
-        code:
-          enum:
-          - empty
-          - invalid
-          - max_length
-          - no_name
-          - 'null'
-          type: string
-          description: |-
-            * `empty` - empty
-            * `invalid` - invalid
-            * `max_length` - max_length
-            * `no_name` - no_name
-            * `null` - null
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    StationMetaUpdateObservationsFilenameErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - observations_filename
-          type: string
-          description: '* `observations_filename` - observations_filename'
-        code:
-          enum:
-          - invalid
-          - max_length
-          - 'null'
-          - null_characters_not_allowed
-          - surrogate_characters_not_allowed
-          type: string
-          description: |-
-            * `invalid` - invalid
-            * `max_length` - max_length
-            * `null` - null
-            * `null_characters_not_allowed` - null_characters_not_allowed
-            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
         detail:
           type: string
       required:
@@ -84868,7 +84287,7 @@ components:
         campaign_people:
           type: string
           readOnly: true
-        observations_actual_file:
+        log_sheet_actual_file:
           type: string
           readOnly: true
         navigation_actual_file:
@@ -84877,11 +84296,11 @@ components:
         date:
           type: string
           format: date
-        observations_file:
+        log_sheet_file:
           type: string
           format: uri
           writeOnly: true
-        observations_filename:
+        log_sheet_filename:
           type: string
           maxLength: 100
         navigation_file:
@@ -84894,6 +84313,8 @@ components:
         campaign:
           type: integer
           nullable: true
+        station:
+          type: integer
         people:
           type: array
           items:
@@ -84902,8 +84323,9 @@ components:
       - campaign_people
       - date
       - id
+      - log_sheet_actual_file
       - navigation_actual_file
-      - observations_actual_file
+      - station
     VisitAttachedFiles:
       type: object
       properties:
@@ -84928,7 +84350,6 @@ components:
       required:
       - actual_file
       - file
-      - filename
       - id
       - visit
     VisitAttachedFilesCreateDescriptionErrorComponent:
@@ -85023,21 +84444,17 @@ components:
           description: '* `filename` - filename'
         code:
           enum:
-          - blank
           - invalid
           - max_length
           - 'null'
           - null_characters_not_allowed
-          - required
           - surrogate_characters_not_allowed
           type: string
           description: |-
-            * `blank` - blank
             * `invalid` - invalid
             * `max_length` - max_length
             * `null` - null
             * `null_characters_not_allowed` - null_characters_not_allowed
-            * `required` - required
             * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
         detail:
           type: string
@@ -85248,21 +84665,17 @@ components:
           description: '* `filename` - filename'
         code:
           enum:
-          - blank
           - invalid
           - max_length
           - 'null'
           - null_characters_not_allowed
-          - required
           - surrogate_characters_not_allowed
           type: string
           description: |-
-            * `blank` - blank
             * `invalid` - invalid
             * `max_length` - max_length
             * `null` - null
             * `null_characters_not_allowed` - null_characters_not_allowed
-            * `required` - required
             * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
         detail:
           type: string
@@ -85426,21 +84839,17 @@ components:
           description: '* `filename` - filename'
         code:
           enum:
-          - blank
           - invalid
           - max_length
           - 'null'
           - null_characters_not_allowed
-          - required
           - surrogate_characters_not_allowed
           type: string
           description: |-
-            * `blank` - blank
             * `invalid` - invalid
             * `max_length` - max_length
             * `null` - null
             * `null_characters_not_allowed` - null_characters_not_allowed
-            * `required` - required
             * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
         detail:
           type: string
@@ -85529,7 +84938,6 @@ components:
       required:
       - actual_file
       - file
-      - filename
       - id
       - visit
     VisitGnssDataFilesCreateDescriptionErrorComponent:
@@ -85624,21 +85032,17 @@ components:
           description: '* `filename` - filename'
         code:
           enum:
-          - blank
           - invalid
           - max_length
           - 'null'
           - null_characters_not_allowed
-          - required
           - surrogate_characters_not_allowed
           type: string
           description: |-
-            * `blank` - blank
             * `invalid` - invalid
             * `max_length` - max_length
             * `null` - null
             * `null_characters_not_allowed` - null_characters_not_allowed
-            * `required` - required
             * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
         detail:
           type: string
@@ -85849,21 +85253,17 @@ components:
           description: '* `filename` - filename'
         code:
           enum:
-          - blank
           - invalid
           - max_length
           - 'null'
           - null_characters_not_allowed
-          - required
           - surrogate_characters_not_allowed
           type: string
           description: |-
-            * `blank` - blank
             * `invalid` - invalid
             * `max_length` - max_length
             * `null` - null
             * `null_characters_not_allowed` - null_characters_not_allowed
-            * `required` - required
             * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
         detail:
           type: string
@@ -86027,21 +85427,17 @@ components:
           description: '* `filename` - filename'
         code:
           enum:
-          - blank
           - invalid
           - max_length
           - 'null'
           - null_characters_not_allowed
-          - required
           - surrogate_characters_not_allowed
           type: string
           description: |-
-            * `blank` - blank
             * `invalid` - invalid
             * `max_length` - max_length
             * `null` - null
             * `null_characters_not_allowed` - null_characters_not_allowed
-            * `required` - required
             * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
         detail:
           type: string
@@ -86659,22 +86055,24 @@ components:
       oneOf:
       - $ref: '#/components/schemas/VisitsCreateNonFieldErrorsErrorComponent'
       - $ref: '#/components/schemas/VisitsCreateDateErrorComponent'
-      - $ref: '#/components/schemas/VisitsCreateObservationsFileErrorComponent'
-      - $ref: '#/components/schemas/VisitsCreateObservationsFilenameErrorComponent'
+      - $ref: '#/components/schemas/VisitsCreateLogSheetFileErrorComponent'
+      - $ref: '#/components/schemas/VisitsCreateLogSheetFilenameErrorComponent'
       - $ref: '#/components/schemas/VisitsCreateNavigationFileErrorComponent'
       - $ref: '#/components/schemas/VisitsCreateNavigationFilenameErrorComponent'
       - $ref: '#/components/schemas/VisitsCreateCampaignErrorComponent'
+      - $ref: '#/components/schemas/VisitsCreateStationErrorComponent'
       - $ref: '#/components/schemas/VisitsCreatePeopleErrorComponent'
       discriminator:
         propertyName: attr
         mapping:
           non_field_errors: '#/components/schemas/VisitsCreateNonFieldErrorsErrorComponent'
           date: '#/components/schemas/VisitsCreateDateErrorComponent'
-          observations_file: '#/components/schemas/VisitsCreateObservationsFileErrorComponent'
-          observations_filename: '#/components/schemas/VisitsCreateObservationsFilenameErrorComponent'
+          log_sheet_file: '#/components/schemas/VisitsCreateLogSheetFileErrorComponent'
+          log_sheet_filename: '#/components/schemas/VisitsCreateLogSheetFilenameErrorComponent'
           navigation_file: '#/components/schemas/VisitsCreateNavigationFileErrorComponent'
           navigation_filename: '#/components/schemas/VisitsCreateNavigationFilenameErrorComponent'
           campaign: '#/components/schemas/VisitsCreateCampaignErrorComponent'
+          station: '#/components/schemas/VisitsCreateStationErrorComponent'
           people: '#/components/schemas/VisitsCreatePeopleErrorComponent'
     VisitsCreateErrorResponse400:
       oneOf:
@@ -86685,6 +86083,62 @@ components:
         mapping:
           validation_error: '#/components/schemas/VisitsCreateValidationError'
           client_error: '#/components/schemas/ParseErrorResponse'
+    VisitsCreateLogSheetFileErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - log_sheet_file
+          type: string
+          description: '* `log_sheet_file` - log_sheet_file'
+        code:
+          enum:
+          - empty
+          - invalid
+          - max_length
+          - no_name
+          - 'null'
+          type: string
+          description: |-
+            * `empty` - empty
+            * `invalid` - invalid
+            * `max_length` - max_length
+            * `no_name` - no_name
+            * `null` - null
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    VisitsCreateLogSheetFilenameErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - log_sheet_filename
+          type: string
+          description: '* `log_sheet_filename` - log_sheet_filename'
+        code:
+          enum:
+          - invalid
+          - max_length
+          - 'null'
+          - null_characters_not_allowed
+          - surrogate_characters_not_allowed
+          type: string
+          description: |-
+            * `invalid` - invalid
+            * `max_length` - max_length
+            * `null` - null
+            * `null_characters_not_allowed` - null_characters_not_allowed
+            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
     VisitsCreateNavigationFileErrorComponent:
       type: object
       properties:
@@ -86752,64 +86206,11 @@ components:
         code:
           enum:
           - invalid
-          type: string
-          description: '* `invalid` - invalid'
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    VisitsCreateObservationsFileErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - observations_file
-          type: string
-          description: '* `observations_file` - observations_file'
-        code:
-          enum:
-          - empty
-          - invalid
-          - max_length
-          - no_name
-          - 'null'
-          type: string
-          description: |-
-            * `empty` - empty
-            * `invalid` - invalid
-            * `max_length` - max_length
-            * `no_name` - no_name
-            * `null` - null
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    VisitsCreateObservationsFilenameErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - observations_filename
-          type: string
-          description: '* `observations_filename` - observations_filename'
-        code:
-          enum:
-          - invalid
-          - max_length
-          - 'null'
-          - null_characters_not_allowed
-          - surrogate_characters_not_allowed
+          - unique
           type: string
           description: |-
             * `invalid` - invalid
-            * `max_length` - max_length
-            * `null` - null
-            * `null_characters_not_allowed` - null_characters_not_allowed
-            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
+            * `unique` - unique
         detail:
           type: string
       required:
@@ -86836,6 +86237,32 @@ components:
             * `incorrect_type` - incorrect_type
             * `not_a_list` - not_a_list
             * `null` - null
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    VisitsCreateStationErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - station
+          type: string
+          description: '* `station` - station'
+        code:
+          enum:
+          - does_not_exist
+          - incorrect_type
+          - 'null'
+          - required
+          type: string
+          description: |-
+            * `does_not_exist` - does_not_exist
+            * `incorrect_type` - incorrect_type
+            * `null` - null
+            * `required` - required
         detail:
           type: string
       required:
@@ -86920,22 +86347,24 @@ components:
       oneOf:
       - $ref: '#/components/schemas/VisitsPartialUpdateNonFieldErrorsErrorComponent'
       - $ref: '#/components/schemas/VisitsPartialUpdateDateErrorComponent'
-      - $ref: '#/components/schemas/VisitsPartialUpdateObservationsFileErrorComponent'
-      - $ref: '#/components/schemas/VisitsPartialUpdateObservationsFilenameErrorComponent'
+      - $ref: '#/components/schemas/VisitsPartialUpdateLogSheetFileErrorComponent'
+      - $ref: '#/components/schemas/VisitsPartialUpdateLogSheetFilenameErrorComponent'
       - $ref: '#/components/schemas/VisitsPartialUpdateNavigationFileErrorComponent'
       - $ref: '#/components/schemas/VisitsPartialUpdateNavigationFilenameErrorComponent'
       - $ref: '#/components/schemas/VisitsPartialUpdateCampaignErrorComponent'
+      - $ref: '#/components/schemas/VisitsPartialUpdateStationErrorComponent'
       - $ref: '#/components/schemas/VisitsPartialUpdatePeopleErrorComponent'
       discriminator:
         propertyName: attr
         mapping:
           non_field_errors: '#/components/schemas/VisitsPartialUpdateNonFieldErrorsErrorComponent'
           date: '#/components/schemas/VisitsPartialUpdateDateErrorComponent'
-          observations_file: '#/components/schemas/VisitsPartialUpdateObservationsFileErrorComponent'
-          observations_filename: '#/components/schemas/VisitsPartialUpdateObservationsFilenameErrorComponent'
+          log_sheet_file: '#/components/schemas/VisitsPartialUpdateLogSheetFileErrorComponent'
+          log_sheet_filename: '#/components/schemas/VisitsPartialUpdateLogSheetFilenameErrorComponent'
           navigation_file: '#/components/schemas/VisitsPartialUpdateNavigationFileErrorComponent'
           navigation_filename: '#/components/schemas/VisitsPartialUpdateNavigationFilenameErrorComponent'
           campaign: '#/components/schemas/VisitsPartialUpdateCampaignErrorComponent'
+          station: '#/components/schemas/VisitsPartialUpdateStationErrorComponent'
           people: '#/components/schemas/VisitsPartialUpdatePeopleErrorComponent'
     VisitsPartialUpdateErrorResponse400:
       oneOf:
@@ -86946,6 +86375,62 @@ components:
         mapping:
           validation_error: '#/components/schemas/VisitsPartialUpdateValidationError'
           client_error: '#/components/schemas/ParseErrorResponse'
+    VisitsPartialUpdateLogSheetFileErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - log_sheet_file
+          type: string
+          description: '* `log_sheet_file` - log_sheet_file'
+        code:
+          enum:
+          - empty
+          - invalid
+          - max_length
+          - no_name
+          - 'null'
+          type: string
+          description: |-
+            * `empty` - empty
+            * `invalid` - invalid
+            * `max_length` - max_length
+            * `no_name` - no_name
+            * `null` - null
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    VisitsPartialUpdateLogSheetFilenameErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - log_sheet_filename
+          type: string
+          description: '* `log_sheet_filename` - log_sheet_filename'
+        code:
+          enum:
+          - invalid
+          - max_length
+          - 'null'
+          - null_characters_not_allowed
+          - surrogate_characters_not_allowed
+          type: string
+          description: |-
+            * `invalid` - invalid
+            * `max_length` - max_length
+            * `null` - null
+            * `null_characters_not_allowed` - null_characters_not_allowed
+            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
     VisitsPartialUpdateNavigationFileErrorComponent:
       type: object
       properties:
@@ -87013,64 +86498,11 @@ components:
         code:
           enum:
           - invalid
-          type: string
-          description: '* `invalid` - invalid'
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    VisitsPartialUpdateObservationsFileErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - observations_file
-          type: string
-          description: '* `observations_file` - observations_file'
-        code:
-          enum:
-          - empty
-          - invalid
-          - max_length
-          - no_name
-          - 'null'
-          type: string
-          description: |-
-            * `empty` - empty
-            * `invalid` - invalid
-            * `max_length` - max_length
-            * `no_name` - no_name
-            * `null` - null
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    VisitsPartialUpdateObservationsFilenameErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - observations_filename
-          type: string
-          description: '* `observations_filename` - observations_filename'
-        code:
-          enum:
-          - invalid
-          - max_length
-          - 'null'
-          - null_characters_not_allowed
-          - surrogate_characters_not_allowed
+          - unique
           type: string
           description: |-
             * `invalid` - invalid
-            * `max_length` - max_length
-            * `null` - null
-            * `null_characters_not_allowed` - null_characters_not_allowed
-            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
+            * `unique` - unique
         detail:
           type: string
       required:
@@ -87097,6 +86529,32 @@ components:
             * `incorrect_type` - incorrect_type
             * `not_a_list` - not_a_list
             * `null` - null
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    VisitsPartialUpdateStationErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - station
+          type: string
+          description: '* `station` - station'
+        code:
+          enum:
+          - does_not_exist
+          - incorrect_type
+          - 'null'
+          - required
+          type: string
+          description: |-
+            * `does_not_exist` - does_not_exist
+            * `incorrect_type` - incorrect_type
+            * `null` - null
+            * `required` - required
         detail:
           type: string
       required:
@@ -87174,22 +86632,24 @@ components:
       oneOf:
       - $ref: '#/components/schemas/VisitsUpdateNonFieldErrorsErrorComponent'
       - $ref: '#/components/schemas/VisitsUpdateDateErrorComponent'
-      - $ref: '#/components/schemas/VisitsUpdateObservationsFileErrorComponent'
-      - $ref: '#/components/schemas/VisitsUpdateObservationsFilenameErrorComponent'
+      - $ref: '#/components/schemas/VisitsUpdateLogSheetFileErrorComponent'
+      - $ref: '#/components/schemas/VisitsUpdateLogSheetFilenameErrorComponent'
       - $ref: '#/components/schemas/VisitsUpdateNavigationFileErrorComponent'
       - $ref: '#/components/schemas/VisitsUpdateNavigationFilenameErrorComponent'
       - $ref: '#/components/schemas/VisitsUpdateCampaignErrorComponent'
+      - $ref: '#/components/schemas/VisitsUpdateStationErrorComponent'
       - $ref: '#/components/schemas/VisitsUpdatePeopleErrorComponent'
       discriminator:
         propertyName: attr
         mapping:
           non_field_errors: '#/components/schemas/VisitsUpdateNonFieldErrorsErrorComponent'
           date: '#/components/schemas/VisitsUpdateDateErrorComponent'
-          observations_file: '#/components/schemas/VisitsUpdateObservationsFileErrorComponent'
-          observations_filename: '#/components/schemas/VisitsUpdateObservationsFilenameErrorComponent'
+          log_sheet_file: '#/components/schemas/VisitsUpdateLogSheetFileErrorComponent'
+          log_sheet_filename: '#/components/schemas/VisitsUpdateLogSheetFilenameErrorComponent'
           navigation_file: '#/components/schemas/VisitsUpdateNavigationFileErrorComponent'
           navigation_filename: '#/components/schemas/VisitsUpdateNavigationFilenameErrorComponent'
           campaign: '#/components/schemas/VisitsUpdateCampaignErrorComponent'
+          station: '#/components/schemas/VisitsUpdateStationErrorComponent'
           people: '#/components/schemas/VisitsUpdatePeopleErrorComponent'
     VisitsUpdateErrorResponse400:
       oneOf:
@@ -87200,6 +86660,62 @@ components:
         mapping:
           validation_error: '#/components/schemas/VisitsUpdateValidationError'
           client_error: '#/components/schemas/ParseErrorResponse'
+    VisitsUpdateLogSheetFileErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - log_sheet_file
+          type: string
+          description: '* `log_sheet_file` - log_sheet_file'
+        code:
+          enum:
+          - empty
+          - invalid
+          - max_length
+          - no_name
+          - 'null'
+          type: string
+          description: |-
+            * `empty` - empty
+            * `invalid` - invalid
+            * `max_length` - max_length
+            * `no_name` - no_name
+            * `null` - null
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    VisitsUpdateLogSheetFilenameErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - log_sheet_filename
+          type: string
+          description: '* `log_sheet_filename` - log_sheet_filename'
+        code:
+          enum:
+          - invalid
+          - max_length
+          - 'null'
+          - null_characters_not_allowed
+          - surrogate_characters_not_allowed
+          type: string
+          description: |-
+            * `invalid` - invalid
+            * `max_length` - max_length
+            * `null` - null
+            * `null_characters_not_allowed` - null_characters_not_allowed
+            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
     VisitsUpdateNavigationFileErrorComponent:
       type: object
       properties:
@@ -87267,64 +86783,11 @@ components:
         code:
           enum:
           - invalid
-          type: string
-          description: '* `invalid` - invalid'
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    VisitsUpdateObservationsFileErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - observations_file
-          type: string
-          description: '* `observations_file` - observations_file'
-        code:
-          enum:
-          - empty
-          - invalid
-          - max_length
-          - no_name
-          - 'null'
-          type: string
-          description: |-
-            * `empty` - empty
-            * `invalid` - invalid
-            * `max_length` - max_length
-            * `no_name` - no_name
-            * `null` - null
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    VisitsUpdateObservationsFilenameErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - observations_filename
-          type: string
-          description: '* `observations_filename` - observations_filename'
-        code:
-          enum:
-          - invalid
-          - max_length
-          - 'null'
-          - null_characters_not_allowed
-          - surrogate_characters_not_allowed
+          - unique
           type: string
           description: |-
             * `invalid` - invalid
-            * `max_length` - max_length
-            * `null` - null
-            * `null_characters_not_allowed` - null_characters_not_allowed
-            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
+            * `unique` - unique
         detail:
           type: string
       required:
@@ -87351,6 +86814,32 @@ components:
             * `incorrect_type` - incorrect_type
             * `not_a_list` - not_a_list
             * `null` - null
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    VisitsUpdateStationErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - station
+          type: string
+          description: '* `station` - station'
+        code:
+          enum:
+          - does_not_exist
+          - incorrect_type
+          - 'null'
+          - required
+          type: string
+          description: |-
+            * `does_not_exist` - does_not_exist
+            * `incorrect_type` - incorrect_type
+            * `null` - null
+            * `required` - required
         detail:
           type: string
       required:

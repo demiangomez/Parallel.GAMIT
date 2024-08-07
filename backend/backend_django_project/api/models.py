@@ -5,7 +5,7 @@ from auditlog.registry import auditlog
 from . import custom_fields
 import sys
 import inspect
-
+import os.path
 # ------------------------------MODELS BASED ON EXISTING DB-----------------------------
 
 
@@ -20,6 +20,7 @@ class Antennas(models.Model):
 
     class Meta:
         managed = False
+        ordering = ["antenna_code"]
         db_table = 'antennas'
 
 
@@ -240,6 +241,7 @@ class GamitHtc(models.Model):
     class Meta:
         managed = False
         db_table = 'gamit_htc'
+        ordering = ["antenna_code", "height_code"]
         unique_together = (('antenna_code', 'height_code'),)
 
 
@@ -519,6 +521,7 @@ class Receivers(models.Model):
 
     class Meta:
         managed = False
+        ordering = ["receiver_code"]
         db_table = 'receivers'
 
 
@@ -824,6 +827,42 @@ class Stations(models.Model):
 
 # ----------------------------------API-SPECIFIC MODELS-------------------------------------
 
+def station_attached_files_path(instance, filename):
+    return os.path.join("stations", f"{instance.station.network_code.network_code}", f"{instance.station.station_code}", "attached_files", filename)
+
+
+def station_images_path(instance, filename):
+    return os.path.join("stations", f"{instance.station.network_code.network_code}", f"{instance.station.station_code}", "images", filename)
+
+
+def station_log_sheet_file_path(instance, filename):
+    return os.path.join("stations", f"{instance.station.network_code.network_code}", f"{instance.station.station_code}", "log_sheet_file", filename)
+
+
+def station_navigation_file_path(instance, filename):
+    return os.path.join("stations", f"{instance.station.network_code.network_code}", f"{instance.station.station_code}", "navigation_file", filename)
+
+
+def visits_attached_files_path(instance, filename):
+    return os.path.join("stations", f"{instance.visit.station.network_code.network_code}", f"{instance.visit.station.station_code}", "visits", f"{instance.visit.date}", "attached_files", filename)
+
+
+def visits_images_path(instance, filename):
+    return os.path.join("stations", f"{instance.visit.station.network_code.network_code}", f"{instance.visit.station.station_code}", "visits", f"{instance.visit.date}", "images", filename)
+
+
+def visits_log_sheet_file_path(instance, filename):
+    return os.path.join("stations", f"{instance.station.network_code.network_code}", f"{instance.station.station_code}", "visits", f"{instance.date}", "log_sheet_file", filename)
+
+
+def visits_navigation_file_path(instance, filename):
+    return os.path.join("stations", f"{instance.station.network_code.network_code}", f"{instance.station.station_code}", "visits", f"{instance.date}", "navigation_file", filename)
+
+
+def visits_gnss_data_files_path(instance, filename):
+    return os.path.join("stations", f"{instance.visit.station.network_code.network_code}", f"{instance.visit.station.station_code}", "visits", f"{instance.visit.date}", "gnss_data_files", filename)
+
+
 class Country(models.Model):
     name = models.CharField(max_length=100, unique=True)
     two_digits_code = models.CharField(max_length=2, unique=True)
@@ -953,7 +992,7 @@ class RolePersonStation(models.Model):
 
 class StationImages(models.Model):
     station = models.ForeignKey(Stations, models.CASCADE)
-    image = models.ImageField(upload_to='station_images/')
+    image = models.ImageField(upload_to=station_images_path)
     description = models.CharField(max_length=100, blank=True)
 
 
@@ -979,8 +1018,8 @@ class StationType(models.Model):
 
 class StationAttachedFiles(models.Model):
     station = models.ForeignKey(Stations, models.CASCADE)
-    file = models.FileField(upload_to='station_files/')
-    filename = models.CharField(max_length=100)
+    file = models.FileField(upload_to=station_attached_files_path)
+    filename = models.CharField(max_length=100, blank=True)
     description = models.CharField(max_length=100, blank=True)
 
 
@@ -997,15 +1036,14 @@ class StationMeta(models.Model):
     communications_description = models.CharField(max_length=100, blank=True)
     station_type = models.ForeignKey(
         StationType, models.SET_NULL, blank=True, null=True)
-    observations_file = models.FileField(
-        upload_to='station_observations_files/', blank=True)
-    observations_filename = models.CharField(max_length=100, blank=True)
+    comments = models.CharField(blank=True)
     navigation_file = models.FileField(
-        upload_to='station_navigation_files/', blank=True)
+        upload_to=station_navigation_file_path, blank=True)
     navigation_filename = models.CharField(max_length=100, blank=True)
     has_gaps = models.BooleanField(default=False)
     has_gaps_last_update_datetime = models.DateTimeField(blank=True, null=True)
     has_gaps_update_needed = models.BooleanField(default=True)
+    has_stationinfo = models.BooleanField(default=False)
 
     class Meta:
         constraints = [
@@ -1015,6 +1053,7 @@ class StationMeta(models.Model):
 
 
 class Campaigns(models.Model):
+    name = models.CharField(max_length=100)
     start_date = models.DateField()
     end_date = models.DateField()
     people = models.ManyToManyField(Person)
@@ -1024,32 +1063,39 @@ class Visits(models.Model):
     date = models.DateField()
     campaign = models.ForeignKey(
         Campaigns, models.SET_NULL, blank=True, null=True)
+    station = models.ForeignKey(Stations, models.CASCADE)
     people = models.ManyToManyField(Person, blank=True)
-    observations_file = models.FileField(
-        upload_to='visit_observations_files/', blank=True)
-    observations_filename = models.CharField(max_length=100, blank=True)
+    log_sheet_file = models.FileField(
+        upload_to=visits_log_sheet_file_path, blank=True)
+    log_sheet_filename = models.CharField(max_length=100, blank=True)
     navigation_file = models.FileField(
-        upload_to='visit_navigation_files/', blank=True)
+        upload_to=visits_navigation_file_path, blank=True)
     navigation_filename = models.CharField(max_length=100, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['station', 'date'], name='station_date_unique')
+        ]
 
 
 class VisitImages(models.Model):
     visit = models.ForeignKey(Visits, models.CASCADE)
-    image = models.ImageField(upload_to='visit_images/')
+    image = models.ImageField(upload_to=visits_images_path)
     description = models.CharField(max_length=100, blank=True)
 
 
 class VisitAttachedFiles(models.Model):
     visit = models.ForeignKey(Visits, models.CASCADE)
-    file = models.FileField(upload_to='visit_files/')
-    filename = models.CharField(max_length=100)
+    file = models.FileField(upload_to=visits_attached_files_path)
+    filename = models.CharField(max_length=100, blank=True)
     description = models.CharField(max_length=100, blank=True)
 
 
 class VisitGNSSDataFiles(models.Model):
     visit = models.ForeignKey(Visits, models.CASCADE)
-    file = models.FileField(upload_to='visit_gnss_data_files/')
-    filename = models.CharField(max_length=100)
+    file = models.FileField(upload_to=visits_gnss_data_files_path)
+    filename = models.CharField(max_length=100, blank=True)
     description = models.CharField(max_length=100, blank=True)
 
 
