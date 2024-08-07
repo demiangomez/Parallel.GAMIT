@@ -280,6 +280,11 @@ class StationCollection(list):
         super(StationCollection, self).__init__()
         if stations:
             self.append(stations)
+            
+    def labels_array(self):
+      	# pyNetwork already filters to active stations, so check isn't needed...
+      	# return np.array([stn.netstn for stn in self if date in stn.good_rinex])
+        return np.array([stn.netstn for stn in self])
 
     def append(self, station):
         # DDG: deprecated, aliases are now fixed and kept constant

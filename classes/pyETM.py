@@ -4,7 +4,7 @@ Project: Parallel.Archive
 Date: 3/3/17 11:27 AM
 Author: Demian D. Gomez
 """
-
+import datetime
 from os.path import getmtime
 from pprint import pprint
 import traceback
@@ -23,6 +23,7 @@ from numpy import sin, cos, pi
 from scipy.stats import chi2
 import pg
 import matplotlib
+import pyOkada
 
 if not os.environ.get('DISPLAY', None):
     matplotlib.use('Agg')
@@ -115,9 +116,9 @@ def toc(text):
 LIMIT = 2.5
 
 type_dict = {-1: 'UNDETERMINED',
-             1: 'GENERIC_JUMP',
-             2: 'ANTENNA_CHANGE',
-             5: 'REFERENCE_FRAME_JUMP',
+              1: 'GENERIC_JUMP',
+              2: 'ANTENNA_CHANGE',
+              5: 'REFERENCE_FRAME_JUMP',
              10: 'CO_SEISMIC_JUMP_DECAY',
              15: 'CO_SEISMIC_JUMP',
              20: 'CO_SEISMIC_DECAY'}
@@ -154,6 +155,93 @@ DATABASE = 1
 VERSION = '1.2.2'
 
 
+class Model(object):
+    VEL = 1
+    LOG = 2
+
+    def __init__(self, m_type, **kwargs):
+        """
+        Interface to remove pre-determined model from time series. Currently only velocity (VEL) and postseismic
+        deformation (LOG) implemented. For velocity, pass m_type = Model.VEL, date = reference date of velocity, and
+        velocity = ndarray((3,1)). For postseismic, poss m_type = Model.LOG, date = jump datetime, relaxation =
+        ndarray((n,1)), log_amplitude = ndarray((n,3)). To eval the model, call eval with the t vector corresponding to
+        the time series.
+        """
+        self.type = m_type
+        self.date = None
+
+        # parse args
+        for key in kwargs:
+            arg = kwargs[key]
+            key = key.lower()
+
+            if key == 'relaxation':
+                if isinstance(arg, list):
+                    self.relaxation = np.array(arg)
+                elif isinstance(arg, np.ndarray):
+                    self.relaxation = arg
+                elif isinstance(arg, float):
+                    self.relaxation = np.array(arg)
+                else:
+                    raise pyETMException_Model('\'relaxation\' must be list, numpy.ndarray, or float')
+            elif key == 'velocity':
+                if isinstance(arg, list):
+                    self.velocity = np.array(arg)
+                elif isinstance(arg, np.ndarray):
+                    self.velocity = arg
+                else:
+                    raise pyETMException_Model('\'velocity\' must be list or numpy.ndarray')
+            elif key == 'log_amplitude':
+                if isinstance(arg, list):
+                    self.log_amplitude = np.array(arg)
+                elif isinstance(arg, np.ndarray):
+                    self.log_amplitude = arg
+                else:
+                    raise pyETMException_Model('\'log_amplitude\' must be list or numpy.ndarray')
+            elif key == 'date':
+                if isinstance(arg, pyDate.Date):
+                    self.date = arg
+                elif isinstance(arg, datetime.datetime):
+                    self.date = pyDate.Date(datetime=arg)
+                else:
+                    raise pyETMException_Model('\'date\' must be pyDate.Date or datetime')
+            elif key == 'fit':
+                if isinstance(arg, bool):
+                    self.fit = arg
+                else:
+                    raise pyETMException_Model('\'fit\' must be boolean')
+
+        if m_type == self.LOG:
+            # validate the dimensions of relaxation and amplitude
+            if self.log_amplitude.shape[0] != self.relaxation.shape[0]:
+                raise pyETMException_Model('\'log_amplitude\' dimension 0 must match the elements in relaxation')
+
+    def eval(self, t):
+        model = np.zeros((3, t.shape[0]))
+        if self.date is None:
+            # use the minimum date as the ref date
+            self.date = pyDate.Date(fyear=t.min())
+
+        for i in range(3):
+            if self.type == self.VEL:
+                logger.info('Applying velocity for reference date %s' % self.date.yyyyddd())
+                model[i] = (t - self.date.fyear) * self.velocity[i]
+
+            elif self.type == self.LOG:
+                logger.info('Applying log model for event %s' % self.date.yyyyddd())
+                # log parameters passed, check each relaxation to see if one has to be removed
+                for j, r in enumerate(self.relaxation):
+                    # for each relaxation, evaluate the model to subtract it from self.l
+                    hl = np.zeros((t.shape[0],))
+                    pmodel = np.zeros((3, t.shape[0]))
+                    hl[t > self.date.fyear] = np.log10(1. + (t[t > self.date.fyear] - self.date.fyear) / r)
+                    # apply the amplitudes
+                    amp = self.log_amplitude[j][i]
+                    model[i] += amp * hl
+
+        return model
+
+
 class pyETMException(Exception):
 
     def __init__(self, value):
@@ -167,6 +255,8 @@ class pyETMException(Exception):
 class pyETMException_NoDesignMatrix(pyETMException):
     pass
 
+class pyETMException_Model(pyETMException):
+    pass
 
 def distance(lon1, lat1, lon2, lat2):
     """
@@ -341,6 +431,15 @@ class GamitSoln:
 
         stn_id = stationID(self)
 
+        # get the project name that initiated the stack
+        prj = cnn.query_float(
+            'SELECT "Project" FROM stacks WHERE name = \'%s\' AND '
+            '"NetworkCode" = \'%s\' AND "StationCode" = \'%s\' LIMIT 1'
+            % (stack_name, NetworkCode, StationCode), as_dict=True)
+        # check if len > 0, sometimes some stations don't have any data!
+        if len(prj) > 0:
+            self.project = prj[0]['Project']
+
         self.stack_name = stack_name
         self.hash = 0
 
@@ -451,13 +550,12 @@ class ListSoln(GamitSoln):
 
 class JumpTable:
 
-    def __init__(self, cnn, NetworkCode, StationCode, soln, t, FitEarthquakes=True, FitGenericJumps=True,
-                 postseismic=None):
+    def __init__(self, cnn, NetworkCode, StationCode, soln, t, FitEarthquakes=True, FitGenericJumps=True, models=()):
 
         self.table = []
 
         # get earthquakes for this station
-        self.earthquakes = Earthquakes(cnn, NetworkCode, StationCode, soln, t, FitEarthquakes, postseismic)
+        self.earthquakes = Earthquakes(cnn, NetworkCode, StationCode, soln, t, FitEarthquakes, models)
         self.generic_jumps = GenericJumps(cnn, NetworkCode, StationCode, soln, t, FitGenericJumps)
 
         jumps = self.earthquakes.table + self.generic_jumps.table
@@ -862,12 +960,8 @@ class Jump(EtmFunction):
 class CoSeisJump(Jump):
 
     def __init__(self, NetworkCode, StationCode, soln, t, date, relaxation, metadata,
-                 dtype=CO_SEISMIC_JUMP_DECAY, magnitude=0., action='A', fit=True, postseismic=None, epi_distance=0.):
-        # postseismic input is a list of dictionaries such that:
-        # 'events'        : [{date: pyDate, relaxation: list, amplitude: [list, list]},
-        #                    {date: pyDate, relaxation: list, amplitude: [list, list]}, ...]
-        #    'relaxation' : [T0, T1, ...]
-        #     'amplitude' : [[N, E, U], [N, E, U], ...]
+                 dtype=CO_SEISMIC_JUMP_DECAY, magnitude=0., action='A', fit=True, models=(), epi_distance=0.):
+        # model input is a list of objects of type pyETM.Model (see definition)
 
         # super-class initialization
         Jump.__init__(self, NetworkCode, StationCode, soln, t, date, metadata, dtype, action, fit)
@@ -916,14 +1010,16 @@ class CoSeisJump(Jump):
                     % (self.date.yyyyddd(), type_dict[dtype], magnitude, action, 'T' if self.fit else 'F'))
 
         # DDG: New feature -> include a postseismic relaxation to remove from the data before performing the fit
-        # if post-seismic component is passed, then subtract from the data (this step is done in __init__.
+        # if post-seismic component is passed, then subtract from the data (this step is done in __init__).
 
-        if postseismic and self.p.jump_type in (CO_SEISMIC_JUMP_DECAY, CO_SEISMIC_DECAY, CO_SEISMIC_JUMP):
+        postseismic = [m for m in models if m.type == Model.LOG]
+
+        if postseismic is not None and self.p.jump_type in (CO_SEISMIC_JUMP_DECAY, CO_SEISMIC_DECAY, CO_SEISMIC_JUMP):
             # only run the code if fit == True
             for event in postseismic:
-                if event['date'] == self.date and self.fit:
+                if event.date == self.date and self.fit:
                     # postseismic parameters passed, check each relaxation to see if one has to be removed
-                    for i, r in enumerate(event['relaxation']):
+                    for i, r in enumerate(event.relaxation):
                         if r in self.p.relaxation:
                             # this relaxation was supposed to be adjusted, remove
                             self.p.relaxation = np.array([rr for rr in self.p.relaxation if rr != r])
@@ -933,9 +1029,9 @@ class CoSeisJump(Jump):
                             logger.info('Geophysical Jump -> Modifying %s: removing log decay with T=%.3f '
                                         'and NEU amplitudes of %6.3f %6.3f %6.3f '
                                         '(model provided)' % (self.date.yyyyddd(), r,
-                                                              event['amplitude'][i][0],
-                                                              event['amplitude'][i][1],
-                                                              event['amplitude'][i][2]))
+                                                              event.log_amplitude[i][0],
+                                                              event.log_amplitude[i][1],
+                                                              event.log_amplitude[i][2]))
 
                             # check if any relaxation components were left: if none, then turn to
                             # CO_SEISMIC_JUMP_DECAY into CO_SEISMIC_JUMP
@@ -997,7 +1093,7 @@ class CoSeisJump(Jump):
 
 class Earthquakes:
 
-    def __init__(self, cnn, NetworkCode, StationCode, soln, t, FitEarthquakes=True, postseismic=None):
+    def __init__(self, cnn, NetworkCode, StationCode, soln, t, FitEarthquakes=True, models=()):
 
         self.StationCode = StationCode
         self.NetworkCode = NetworkCode
@@ -1019,42 +1115,13 @@ class Earthquakes:
         sdate = pyDate.Date(fyear=t.min())
         edate = pyDate.Date(fyear=t.max())
 
-        # get the earthquakes based on Mike's expression
-        # earthquakes before the start data: only magnitude 7+
-        jumps = cnn.query_float('SELECT * FROM earthquakes '
-                                'WHERE date BETWEEN \'%s\' AND \'%s\' UNION '
-                                'SELECT * FROM earthquakes '
-                                'WHERE date BETWEEN \'%s\' AND \'%s\' AND mag >= 7 '
-                                'ORDER BY date'
-                                % (sdate.yyyymmdd(), edate.yyyymmdd(),
-                                   pyDate.Date(fyear=t.min() - 5).yyyymmdd(), sdate.yyyymmdd()), as_dict=True)
+        # get all possible events using the
+        s_events = pyOkada.ScoreTable(cnn, lat, lon, sdate, edate)
 
         # check if data range returned any jumps
-        if jumps and FitEarthquakes:
-            eq = [[float(jump['lat']), float(jump['lon']), float(jump['mag']),
-                   int(jump['date'].year), int(jump['date'].month), int(jump['date'].day),
-                   int(jump['date'].hour), int(jump['date'].minute), int(jump['date'].second)]
-                  for jump in jumps]
+        if s_events.table and FitEarthquakes:
 
-            eq = np.array(list(eq))
-
-            dist = distance(lon, lat, eq[:, 1], eq[:, 0])
-
-            # Mike's s-score
-            # m = -0.8717 * (np.log10(dist) - 2.25) + 0.4901 * (eq[:, 2] - 6.6928)
-            # new s-score from Gómez et al (in prep)
-            m = 0.526 * eq[:, 2] - 1.148 - np.log10(dist)
-            # NGL's modified expression
-            # m = np.power(10, 0.5*eq[:, 2] - 0.79) - dist
-
-            # build the earthquake jump table
-            # remove event events that happened the same day
-            # DDG: now save the distance to earthquake
-            eq_jumps = sorted({(float(eqs[2]), pyDate.Date(year=int(eqs[3]), month=int(eqs[4]), day=int(eqs[5]),
-                                                           hour=int(eqs[6]), minute=int(eqs[7]), second=int(eqs[8])),
-                                eqs[1], eqs[0])
-                               for eqs in eq[m > 0, :]},
-                              key=lambda x: (x[1], -x[0]))
+            eq_jumps = s_events.table
 
             # open the jumps table
             jp = cnn.query_float('SELECT * FROM etm_params WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' '
@@ -1067,7 +1134,7 @@ class Earthquakes:
             f_jumps = []
             next_date = None
 
-            for mag, date, epi_lon, epi_lat in eq_jumps:
+            for mag, date, epi_lon, epi_lat, j_type in eq_jumps:
 
                 # jumps are analyzed in windows that are EQ_MIN_DAYS long
                 # a date should not be analyzed if it's < next_date
@@ -1076,14 +1143,15 @@ class Earthquakes:
                         continue
 
                 # obtain jumps in a EQ_MIN_DAYS window
-                jumps = [(m, d, elon, elat) for m, d, elon, elat in eq_jumps if date <= d < date + EQ_MIN_DAYS]
+                jumps = [(m, d, elon, elat, j_type) for m, d, elon, elat, j_type in eq_jumps
+                         if date <= d < date + EQ_MIN_DAYS]
 
                 if len(jumps) > 1:
                     # if more than one jump, get the max magnitude
-                    mmag = max(m for m, _, _ , _ in jumps)
+                    mmag = max(m for m, _, _ , _, _ in jumps)
 
                     # only keep the earthquake with the largest magnitude
-                    for m, d, epi_lon, epi_lat in jumps:
+                    for m, d, epi_lon, epi_lat, j_type in jumps:
 
                         epi_dist = float(distance(lon, lat, epi_lon, epi_lat))
 
@@ -1100,7 +1168,7 @@ class Earthquakes:
                         if m == mmag and '-' not in table:
                             f_jumps.append(CoSeisJump(NetworkCode, StationCode, soln, t, d, relaxation,
                                                       'mag=%.1f' % m, magnitude=m, action='+' if '+' in table else 'A',
-                                                      postseismic=postseismic, epi_distance=epi_dist))
+                                                      models=models, epi_distance=epi_dist, dtype=j_type))
                             # once the jump was added, exit for loop
                             break
                         elif '+' in table:
@@ -1108,13 +1176,13 @@ class Earthquakes:
 
                             f_jumps.append(CoSeisJump(NetworkCode, StationCode, soln, t, d,
                                                       relaxation, 'mag=%.1f' % m, magnitude=m, action='+',
-                                                      postseismic=postseismic, epi_distance=epi_dist))
+                                                      models=models, epi_distance=epi_dist, dtype=j_type))
                             # once the jump was added, exit for loop
                             break
                         else:
                             f_jumps.append(CoSeisJump(NetworkCode, StationCode, soln, t, d,
                                                       relaxation, 'mag=%.1f' % m, action='-', fit=False,
-                                                      postseismic=postseismic, epi_distance=epi_dist))
+                                                      models=models, epi_distance=epi_dist, dtype=j_type))
                 else:
                     epi_dist = float(distance(lon, lat, epi_lon, epi_lat))
 
@@ -1132,12 +1200,12 @@ class Earthquakes:
                         f_jumps.append(CoSeisJump(NetworkCode, StationCode, soln, t, date,
                                                   relaxation, 'mag=%.1f' % mag, magnitude=mag,
                                                   action='+' if '+' in table else 'A',
-                                                  postseismic=postseismic, epi_distance=epi_dist))
+                                                  models=models, epi_distance=epi_dist, dtype=j_type))
                     else:
                         # add it with NO_EFFECT for display purposes
                         f_jumps.append(CoSeisJump(NetworkCode, StationCode, soln, t, date,
                                                   relaxation, 'mag=%.1f' % mag, magnitude=mag, action='-', fit=False,
-                                                  postseismic=postseismic, epi_distance=epi_dist))
+                                                  models=models, epi_distance=epi_dist, dtype=j_type))
 
                 next_date = date + EQ_MIN_DAYS
 
@@ -1389,7 +1457,7 @@ class Periodic(EtmFunction):
 class Polynomial(EtmFunction):
     """"class to build the linear portion of the design matrix"""
 
-    def __init__(self, cnn, NetworkCode, StationCode, soln, t, t_ref=0, interseismic=None):
+    def __init__(self, cnn, NetworkCode, StationCode, soln, t, t_ref=0, models=()):
 
         super(Polynomial, self).__init__(NetworkCode=NetworkCode, StationCode=StationCode, soln=soln)
 
@@ -1399,25 +1467,22 @@ class Polynomial(EtmFunction):
 
         self.p.object = 'polynomial'
         self.p.t_ref = t_ref
-        self.interseismic = np.zeros((3, t.shape[0]))
 
-        if interseismic:
+        # see if any model invoked VEL
+        model = [m for m in models if m.type == Model.VEL]
+
+        if len(model) > 0 and not model[0].fit:
             logger.info('Polynomial -> Interseismic velocity provided: removing velocity from fit')
             # interseismic model provided, do not fit linear (remove trend)
-            tt = (t - t_ref)
-            if type(interseismic) is list:
-                interseismic = np.array(interseismic)
 
-            # convert to np if list is given
-            for i in range(3):
-                self.interseismic[i] = tt * interseismic[i]
+            inter = model[0].velocity
 
             self.terms = 1
-            self.format_str = LABEL('position') + ' (%.3f' % t_ref + \
-                              ') X: {:.3f} Y: {:.3f} Z: {:.3f} [m]\n' \
-                              + LABEL('velocity') + ' (' \
-                              + LABEL('from_model') + ')' + \
-                              ' N: {:.2f} E: {:.2f} U: {:.2f} [mm/yr]'.format(*(interseismic * 1000))
+            self.format_str = (LABEL('position') + ' (%.3f' % t_ref + ') X: {:.3f} Y: {:.3f} Z: {:.3f} [m]\n'
+                               + LABEL('velocity') + ' (' + LABEL('from_model') + ')' +
+                               ' N: {:.2f} E: {:.2f} U: {:.2f} [mm/yr]'.format(inter[0, 0] * 1000,
+                                                                               inter[1, 0] * 1000,
+                                                                               inter[2, 0] * 1000))
             self.p.metadata = '[[n:pos, n:vel],[e:pos, e:vel],[u:pos, u:vel]]'
         else:
             try:
@@ -1613,7 +1678,7 @@ class Design(np.ndarray):
 class ETM:
 
     def __init__(self, cnn, soln, no_model=False, FitEarthquakes=True, FitGenericJumps=True, FitPeriodic=True,
-                 plotit=False, ignore_db_params=False, interseismic=None, postseismic=None, plot_remove_jumps=False,
+                 plotit=False, ignore_db_params=False, models=(), plot_remove_jumps=False,
                  plot_polynomial_removed=False):
 
         # to display more verbose warnings
@@ -1641,22 +1706,18 @@ class ETM:
         self.NetworkCode = soln.NetworkCode
         self.StationCode = soln.StationCode
 
+        self.models = models
+
         stn_id = stationID(self)
 
         logger.info('Creating ETM object for %s' % stn_id)
         logger.info('First obs %.3f last obs %.3f nobs %i' % (np.min(soln.t), np.max(soln.t), soln.t.size))
 
-        if postseismic or interseismic:
-            # reading data from the database and invoking postseismic or interseismic parameters can cause problems
-            logger.info('Ignoring database parameters because postseismic or interseismic models were invoked')
-            ignore_db_params = True
-
         # save the function objects
-        self.Linear = Polynomial(cnn, soln.NetworkCode, soln.StationCode, self.soln, self.soln.t,
-                                 interseismic=interseismic)
+        self.Linear = Polynomial(cnn, soln.NetworkCode, soln.StationCode, self.soln, self.soln.t, models=models)
         self.Periodic = Periodic(cnn, soln.NetworkCode, soln.StationCode, self.soln, self.soln.t, FitPeriodic)
         self.Jumps = JumpTable(cnn, soln.NetworkCode, soln.StationCode, self.soln, self.soln.t, FitEarthquakes,
-                               FitGenericJumps, postseismic=postseismic)
+                               FitGenericJumps, models)
 
         # calculate the hash value for this station
         # now hash also includes the timestamp of the last time pyETM was modified.
@@ -1685,12 +1746,15 @@ class ETM:
                                             self.soln.z - self.soln.auto_z]))
 
         # remove the interseismic component if passed (here, objects already initialized)
-        if interseismic:
-            self.l -= self.Linear.interseismic
+        if len(models) > 0:
+            # reading data from the database and invoking postseismic or interseismic parameters can cause problems
+            logger.info('Ignoring database parameters because models were invoked')
+            ignore_db_params = True
+            for model in models:
+                self.l -= model.eval(self.soln.t)
+            # for consistency, transform the XYZ coordinates as well
+            self.L = self.rotate_2xyz(self.l) + np.array([self.soln.auto_x, self.soln.auto_y, self.soln.auto_z])
 
-        # same for postseismic
-        if postseismic:
-            self.apply_postseismic_model(postseismic)
         self.run_adjustment(cnn, self.l, self.soln, ignore_db_params=ignore_db_params)
 
         # save the parameters to the db
@@ -1698,8 +1762,8 @@ class ETM:
             self.save_parameters(cnn)
 
         # after running the adjustment, introduce jump parameters removed (if postseismic passed)
-        if postseismic:
-            self.display_postseismic_params(postseismic)
+        # if postseismic is not None:
+        #    self.display_postseismic_params(postseismic)
 
         if plotit:
             self.plot()
@@ -1812,10 +1876,11 @@ class ETM:
                             % (db_hash_sum, ob_hash_sum))
                 # signal the outside world that the parameters were estimated (and need to be saves)
                 self.param_origin = ESTIMATION
-                # purge table and recompute
-                cnn.query('DELETE FROM etms WHERE "NetworkCode" = \'%s\' AND '
-                          '"StationCode" = \'%s\' AND soln = \'%s\' AND stack = \'%s\''
-                          % (self.NetworkCode, self.StationCode, self.soln.type, self.soln.stack_name))
+                # purge table and recompute (only if MODELS not invoked!)
+                if len(self.models) == 0:
+                    cnn.query('DELETE FROM etms WHERE "NetworkCode" = \'%s\' AND '
+                              '"StationCode" = \'%s\' AND soln = \'%s\' AND stack = \'%s\''
+                              % (self.NetworkCode, self.StationCode, self.soln.type, self.soln.stack_name))
 
                 if self.soln.type == 'dra':
                     # if the solution is of type 'dra', delete the excluded solutions
@@ -1892,7 +1957,8 @@ class ETM:
             # DDG: new method to compute the minimum-entropy sigma for constant velocity
             entropy_sigmas = self.entropy_sigma()
             # do not replace values if sigmas come back with 0
-            if np.all(entropy_sigmas > 0):
+            # DDG: if self.Linear.p.sigmas.shape[1] is not > 1, then interseismic model applied, do not use sigmas
+            if np.all(entropy_sigmas > 0) and self.Linear.p.sigmas.shape[1] > 1:
                 self.Linear.p.sigmas[:, 1] = entropy_sigmas
             # load the covariances using the correlations
             self.process_covariance()
@@ -2476,6 +2542,9 @@ class ETM:
                 c = 'r'
             elif jump.p.jump_type == CO_SEISMIC_JUMP:
                 c = 'tab:purple'
+            elif jump.p.jump_type == CO_SEISMIC_DECAY:
+                # DDG: now plot the decay start
+                c = 'tab:orange'
             else:
                 continue
             ax.axvline(jump.date.fyear, color=c, linestyle=':')
@@ -2903,22 +2972,22 @@ class ETM:
 
 class PPPETM(ETM):
 
-    def __init__(self, cnn, NetworkCode, StationCode, plotit=False, no_model=False, interseismic=None,
-                 postseismic=None, ignore_db_params=False, plot_remove_jumps=False, plot_polynomial_removed=False):
+    def __init__(self, cnn, NetworkCode, StationCode, plotit=False, no_model=False, models=(), ignore_db_params=False,
+                 plot_remove_jumps=False, plot_polynomial_removed=False):
         # load all the PPP coordinates available for this station
         # exclude ppp solutions in the exclude table and any solution that is more than 100 meters from the auto coord
 
         self.ppp_soln = PppSoln(cnn, NetworkCode, StationCode)
 
-        ETM.__init__(self, cnn, self.ppp_soln, no_model, plotit=plotit, interseismic=interseismic,
-                     postseismic=postseismic, ignore_db_params=ignore_db_params, plot_remove_jumps=plot_remove_jumps,
+        ETM.__init__(self, cnn, self.ppp_soln, no_model, plotit=plotit, models=models,
+                     ignore_db_params=ignore_db_params, plot_remove_jumps=plot_remove_jumps,
                      plot_polynomial_removed=plot_polynomial_removed)
 
 
 class GamitETM(ETM):
 
     def __init__(self, cnn, NetworkCode, StationCode, plotit=False, no_model=False, gamit_soln=None,
-                 stack_name=None, interseismic=None, postseismic=None, ignore_db_params=False, plot_remove_jumps=False,
+                 stack_name=None, models=(), ignore_db_params=False, plot_remove_jumps=False,
                  plot_polynomial_removed=False):
 
         if gamit_soln is None:
@@ -2935,7 +3004,7 @@ class GamitETM(ETM):
             self.gamit_soln = gamit_soln
 
         ETM.__init__(self, cnn, self.gamit_soln, no_model, plotit=plotit, ignore_db_params=ignore_db_params,
-                     interseismic=interseismic, postseismic=postseismic, plot_remove_jumps=plot_remove_jumps,
+                     models=models, plot_remove_jumps=plot_remove_jumps,
                      plot_polynomial_removed=plot_polynomial_removed)
 
     def get_etm_soln_list(self, use_ppp_model=False, cnn=None):

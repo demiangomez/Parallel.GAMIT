@@ -13,92 +13,76 @@ from scipy.stats import chi2
 # app
 from Utils import ct2lg
 
-def robust_lsq(A, P, L, max_iter=10, gcc=True, limit=2.5, lat=0, lon=0):
+LIMIT = 2.5
 
-    # goodness of fit test variable
-    cst_pass = False
-    # iteration count
-    iteration = 0
-    # current sigma zero
-    So = 1
-    # degrees of freedom
+
+def adjust_lsq(A, L, limit=LIMIT):
+
+    factor = 1.
+    So = 1.
     dof = (A.shape[0] - A.shape[1])
-    # chi2 limits
-    X1 = chi2.ppf(1 - 0.05 / 2, dof)
-    X2 = chi2.ppf(0.05 / 2, dof)
+    X1 = chi2.ppf(1 - 0.05 / 2., dof)
+    X2 = chi2.ppf(0.05 / 2., dof)
 
-    # multiplication factor / sigma estimation
-    factor = np.ones(3)
+    s = np.array([])
+    v = np.array([])
+    C = np.array([])
 
-    # lists to store the variables of each component
-    nsig = [None, None, None]
-    v    = [None, None, None]
-    C    = [None, None, None]
+    P = np.ones_like(L)
 
-    while not cst_pass and iteration <= max_iter:
+    for _ in range(11):
+        W = np.sqrt(P)
 
-        # each iteration fits the three axis: x y z
-        for i in range(3):
+        Aw = np.multiply(W, A)
+        Lw = np.multiply(W, L)
 
-            W = np.sqrt(P)
+        C = np.linalg.lstsq(Aw, Lw, rcond=-1)[0]
 
-            Aw = np.multiply(W[:, None], A)
-            Lw = np.multiply(W, L[i])
-
-            # adjust
-            C[i] = np.linalg.lstsq(Aw, Lw, rcond=-1)[0]
-
-            v[i] = L[i] - np.dot(A, C[i])
-
-        if not gcc:
-            # rotate residuals to NEU
-            v[0], v[1], v[2] = rotate_vector(v, lat, lon)
+        v = L - A @ C
 
         # unit variance
-        So = np.sqrt(np.dot(v, np.multiply(P, v)) / dof)
+        So = np.sqrt(np.dot(v.transpose(), np.multiply(P, v)) / dof)
 
         x = np.power(So, 2) * dof
 
         # obtain the overall uncertainty predicted by lsq
-        factor[i] = factor[i] * So
+        factor = factor * So
 
         # calculate the normalized sigmas
-        nsig[i] = np.abs(np.divide(v[i], factor[i]))
+        s = np.abs(np.divide(v, factor))
 
         if x < X2 or x > X1:
             # if it falls in here it's because it didn't pass the Chi2 test
-            cst_pass = False
 
             # reweigh by Mike's method of equal weight until 2 sigma
-            f = np.ones((v.shape[0],))
+            f = np.ones_like(v)
+
             # f[s > LIMIT] = 1. / (np.power(10, LIMIT - s[s > LIMIT]))
             # do not allow sigmas > 100 m, which is basically not putting
             # the observation in. Otherwise, due to a model problem
             # (missing jump, etc) you end up with very unstable inversions
             # f[f > 500] = 500
-            sw = np.power(10, LIMIT - s[s > LIMIT])
+            sw = np.power(10, limit - s[s > limit])
             sw[sw < np.finfo(float).eps] = np.finfo(float).eps
-            f[s > LIMIT] = 1. / sw
+            f[s > limit] = sw
 
-            P = np.diag(np.divide(1, np.square(factor * f)))
+            P = np.square(np.divide(f, factor))
         else:
-            cst_pass = True
+            break  # cst_pass = True
 
-        iteration += 1
-
-    # make sure there are no values below eps. Otherwise matrix becomes singular
+    # make sure there are no values below eps. Otherwise, matrix becomes singular
     P[P < np.finfo(float).eps] = 1e-6
+
     # some statistics
-    SS = np.linalg.inv(np.dot(np.dot(A.transpose(), P), A))
+    SS = np.linalg.inv(A.transpose() @ np.multiply(P, A))
 
     sigma = So * np.sqrt(np.diag(SS))
 
     # mark observations with sigma <= LIMIT
-    index = Ai.remove_constrains(s <= LIMIT)
+    index = s <= limit
 
-    v = Ai.remove_constrains(v)
-
-    return C, sigma, index, v, factor, np.diag(P)
+    # DDG: output the full covariance matrix too
+    return C, sigma, index, v, factor, P, np.square(So) * SS
 
 
 def rotate_vector(ecef, lat, lon):
