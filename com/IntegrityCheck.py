@@ -688,7 +688,7 @@ def RenameStation(cnn, NetworkCode, StationCode, DestNetworkCode, DestStationCod
                                        Year        = int(date.year),
                                        DOY         = int(date.doy))
 
-                cnn.insert(event)
+                cnn.insert_event(event)
 
                 # now insert record for new RINEX in station
                 event = pyEvents.Event(Description='A new RINEX was added to the archive: %s'
@@ -698,7 +698,7 @@ def RenameStation(cnn, NetworkCode, StationCode, DestNetworkCode, DestStationCod
                                        Year=int(date.year),
                                        DOY=int(date.doy))
 
-                cnn.insert(event)
+                cnn.insert_event(event)
 
                 # Station info transfer
                 try:
@@ -749,7 +749,7 @@ def RenameStation(cnn, NetworkCode, StationCode, DestNetworkCode, DestStationCod
                         EventType='info',
                         StationCode=StationCode)
 
-                    cnn.insert(event)
+                    cnn.insert_event(event)
 
                     tables = ['data_source', 'etms', 'etm_params', 'gamit_soln', 'gamit_soln_excl', 'gamit_ztd',
                               'ppp_soln', 'ppp_soln_excl', 'sources_stations', 'stacks', 'stationalias', 'stations']
@@ -765,7 +765,7 @@ def RenameStation(cnn, NetworkCode, StationCode, DestNetworkCode, DestStationCod
                         EventType='info',
                         StationCode=StationCode)
 
-                    cnn.insert(event)
+                    cnn.insert_event(event)
                     cnn.commit_transac()
 
                     tqdm.write(' -- Station successfully deleted after rename/merge process.')
