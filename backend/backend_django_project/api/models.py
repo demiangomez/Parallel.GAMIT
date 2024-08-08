@@ -585,6 +585,7 @@ class Rinex(models.Model):
     class Meta:
         managed = False
         db_table = 'rinex'
+        ordering = ["observation_s_time"]
         unique_together = (('network_code', 'station_code', 'observation_year',
                            'observation_doy', 'interval', 'completion'),)
 

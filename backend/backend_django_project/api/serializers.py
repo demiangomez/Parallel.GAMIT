@@ -258,6 +258,7 @@ class StationSerializer(serializers.ModelSerializer):
         try:
             stationmeta = models.StationMeta.objects.get(station=instance)
             representation["has_gaps"] = stationmeta.has_gaps
+            representation["has_stationinfo"] = stationmeta.has_stationinfo
         except models.StationMeta.DoesNotExist:
             representation["has_gaps"] = None
         except models.StationMeta.MultipleObjectsReturned:
@@ -268,6 +269,7 @@ class StationSerializer(serializers.ModelSerializer):
 
 class StationMetaSerializer(serializers.ModelSerializer):
     navigation_actual_file = serializers.SerializerMethodField()
+    station_type_name = serializers.SerializerMethodField()
 
     class Meta:
         model = models.StationMeta
@@ -276,6 +278,7 @@ class StationMetaSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             'navigation_file': {'write_only': True},
             'has_gaps_last_update_datetime': {'read_only': True},
+            'station_type_name': {'read_only': True},
             'has_gaps_update_needed': {'read_only': True},
             'has_gaps': {'read_only': True},
             'has_stationinfo': {'read_only': True}
@@ -290,6 +293,15 @@ class StationMetaSerializer(serializers.ModelSerializer):
                     return base64.b64encode(file.read()).decode('utf-8')
             except FileNotFoundError:
                 return None
+        else:
+            return None
+        
+
+    def get_station_type_name(self, obj):
+        """Returns the station type name"""
+
+        if hasattr(obj, "station_type") and obj.station_type is not None:
+            return obj.station_type.name
         else:
             return None
 
