@@ -96,7 +96,7 @@ class StationMetaUtils:
                 if station_info_records.first().date_start is not None and rnxtbl["first_obs"] < station_info_records.first().date_start:
                     return True
                 
-                if station_info_records.last().date_end is not None and rnxtbl["first_obs"] > station_info_records.last().date_end:
+                if station_info_records.last().date_end is not None and rnxtbl["last_obs"] > station_info_records.last().date_end:
                     return True
 
             return False

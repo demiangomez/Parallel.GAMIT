@@ -522,13 +522,6 @@ def insert_station_status(apps, schema_editor):
     StationStatus.objects.get_or_create(name="Destroyed")
     StationStatus.objects.get_or_create(name="Unknown")
 
-
-def insert_monument_types(apps, schema_editor):
-    # TODO: LOAD REAL VALUES
-    MonumentType = apps.get_model("api", "MonumentType")
-    MonumentType.objects.get_or_create(name="unknown")
-
-
 def insert_default_station_meta(apps, schema_editor):
     Station = apps.get_model("api", "Stations")
     StationMeta = apps.get_model("api", "StationMeta")
@@ -538,8 +531,7 @@ def insert_default_station_meta(apps, schema_editor):
     stations = Station.objects.all()
 
     for station in stations:
-        StationMeta.objects.get_or_create(station=station, status=StationStatus.objects.get(name="Active Online"), monument_type=MonumentTypes.objects.get(
-            name="unknown"), has_gaps=False, has_gaps_last_update_datetime=None, has_gaps_update_needed=True)
+        StationMeta.objects.get_or_create(station=station, status=StationStatus.objects.get(name="Active Online"), has_gaps=False, has_gaps_last_update_datetime=None, has_gaps_update_needed=True)
 
 
 def create_gaps_function(apps, schema_editor):
@@ -789,7 +781,6 @@ class Migration(migrations.Migration):
         migrations.RunPython(create_underprivileged_front_user),
         migrations.RunPython(create_underprivileged_api_user),
         migrations.RunPython(insert_station_status),
-        migrations.RunPython(insert_monument_types),
         migrations.RunPython(insert_default_station_meta),
         migrations.RunPython(create_gaps_function),
         migrations.RunPython(create_gaps_triggers),

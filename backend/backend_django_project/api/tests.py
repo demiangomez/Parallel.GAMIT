@@ -354,6 +354,7 @@ class StationGapsTest(TestCase):
                 "height_code": 'HT1',
                 "country_code": 'USA',
                 "date_start": "2021-01-02T00:00:00",
+                "date_end": "2022-01-01T00:00:00",
                 "radome_code": "R1",
             }
 
@@ -444,6 +445,28 @@ class StationGapsTest(TestCase):
                 url, data)
             
             self.assertEqual(response.status_code, 201)
+            
+        def test_create_rinex_after_stationinfo_date():
+            url = reverse("rinex_list")
+
+            data = {
+                "network_code": 'NT1',
+                "station_code": 'ST1',
+                "observation_year": 2023,
+                "observation_month": 1,
+                "observation_day": 1,
+                "observation_doy": 1,
+                "observation_f_year": 2023.0013698630137,
+                "observation_s_time": "2023-01-01T12:00:00",
+                "observation_e_time": "2023-01-01T13:00:00",
+                "interval": 15.0,
+                "completion": 0.6
+            }
+
+            response = self.client.post(
+                url, data)
+            
+            self.assertEqual(response.status_code, 201)
                
         test_create_antennas()
         test_create_receivers()
@@ -462,6 +485,10 @@ class StationGapsTest(TestCase):
         update_has_gaps_status()
         test_station_doesnt_have_gaps()
         test_create_rinex_before_stationinfo_date()
+        update_has_gaps_status()
+        test_station_has_gaps()
+        delete_rinex()
+        test_create_rinex_after_stationinfo_date()
         update_has_gaps_status()
         test_station_has_gaps()
 
