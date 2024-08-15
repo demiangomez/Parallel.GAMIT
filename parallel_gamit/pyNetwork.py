@@ -32,7 +32,7 @@ import copy
 # deps
 from tqdm import tqdm
 import numpy as np
-from overcluster import over_cluster, select_central_point, BisectingQMeans
+from utils import over_cluster, select_central_point, BisectingQMeans
 from scipy.spatial import Delaunay, distance
 
 # app
