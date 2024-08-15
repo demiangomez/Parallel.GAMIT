@@ -3,52 +3,22 @@
 # Author: Shane Grigsby (espg) <refuge@rocktalus.com>
 # Created: August 2024 (clustering functions)
 
+import warnings
 import numpy as np
+import scipy.sparse as sp
+
 from sklearn.neighbors import NearestNeighbors
-from sklearn.cluster import BisectingKMeans
 
-def slow_bisecting_kmeans(coords):
-    """Slow brute force initial clustering using bisecting kmeans
-
-    This uses a 'perfect' even distribution of cluster members to estimate
-    the initial number of target clusters, and then iterates upwards from
-    there until the termination condition is met. Will be replaced."""
-
-    nclust = (len(coords)//50) + 1
-    kmean = BisectingKMeans(n_clusters=nclust, init='k-means++', n_init=50,
-                            algorithm='elkan', max_iter=8000,
-                            bisecting_strategy='largest_cluster')
-    kmean.fit(coords)
-
-    sizes = []
-
-    for i in np.unique(kmean.labels_):
-        sizes.append(np.sum(kmean.labels_ == i))
-
-    minsize = np.array(sizes).min()
-    maxsize = np.array(sizes).max()
-
-    while (maxsize > 24) and (minsize > 3):
-        nclust += 1
-        kmean = BisectingKMeans(n_clusters=nclust, init='k-means++',
-                                n_init=50, algorithm='elkan', max_iter=8000,
-                                bisecting_strategy='largest_cluster')
-
-        kmean.fit(coords)
-
-        sizes = []
-
-        for i in np.unique(kmean.labels_):
-            sizes.append(np.sum(kmean.labels_ == i))
-
-        minsize = np.array(sizes).min()
-        maxsize = np.array(sizes).max()
-
-    kmean = BisectingKMeans(n_clusters=nclust-1, init='k-means++',
-                            n_init=50, algorithm='elkan', max_iter=8000,
-                            bisecting_strategy='largest_cluster')
-    kmean.fit(coords)
-    return kmean
+from sklearn.base import _fit_context
+from sklearn.utils._openmp_helpers import _openmp_effective_n_threads
+from sklearn.utils._param_validation import Integral, Interval, StrOptions
+from sklearn.utils.extmath import row_norms
+from sklearn.utils.validation import (_check_sample_weight, check_is_fitted,
+                                      check_random_state)
+from sklearn.cluster._k_means_common import _inertia_dense, _inertia_sparse
+from sklearn.cluster._kmeans import (_labels_inertia_threadpool_limit,
+                                     _BaseKMeans, _kmeans_single_elkan,
+                                     _kmeans_single_lloyd)
 
 
 def select_central_point(labels, coordinates, centroids,
@@ -235,22 +205,6 @@ def over_cluster(labels, coordinates, metric='haversine', neighborhood=5,
 # Modified from sklearn _bisecting_k_means.py
 # Original bisecting_k_means author: Michal Krawczyk <mkrwczyk.1@gmail.com>
 # Modifications by: Shane Grigsby <refuge@rocktalus.com>
-
-import warnings
-
-import numpy as np
-import scipy.sparse as sp
-
-from sklearn.base import _fit_context
-from sklearn.utils._openmp_helpers import _openmp_effective_n_threads
-from sklearn.utils._param_validation import Integral, Interval, StrOptions
-from sklearn.utils.extmath import row_norms
-from sklearn.utils.validation import (_check_sample_weight, check_is_fitted,
-                                      check_random_state)
-from sklearn.cluster._k_means_common import _inertia_dense, _inertia_sparse
-from sklearn.cluster._kmeans import (_labels_inertia_threadpool_limit,
-                                     _BaseKMeans, _kmeans_single_elkan,
-                                     _kmeans_single_lloyd)
 
 
 class _BisectingTree:
