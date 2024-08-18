@@ -193,8 +193,9 @@ class Network(object):
 
     def make_clusters(self, points, stations, net_limit=NET_LIMIT):
         # Run initial clustering using bisecting 'q-means'
-        qmean = BisectingQMeans(n_clusters=2, init='random', n_init=50,
-                                algorithm='lloyd', max_iter=8000)
+        qmean = BisectingQMeans(min_clust_size=4, opt_clust_size=20,
+                                init='random', n_init=50, algorithm='lloyd',
+                                max_iter=8000, random_state=42, n_clusters=2)
         qmean.fit(points)
         # snap centroids to closest station coordinate
         central_points = select_central_point(qmean.labels_, points,
