@@ -232,8 +232,7 @@ class _BisectingTree:
         """Return the cluster node to bisect next.
 
         It's based on the score of the cluster, which can be either the number
-        of data points assigned to that cluster or the inertia of that cluster
-        (see `bisecting_strategy` for details).
+        of data points assigned to that cluster or the inertia of that cluster.
         """
         max_score = None
 
@@ -260,16 +259,29 @@ class BisectingQMeans(_BaseKMeans):
     """Bisecting Q-Means clustering; modified from sklearn Bisecting K-means.
 
     In contrast to Bisecting K-Means, Bisecting Q-Means clustering will infer
-    the number of clustered based on a termination condition. For this
-    implementation, bisecting termination occurs according to minimum and
-    optimum cluster sizes.
+    the number of clusters based on a termination condition. For this
+    implementation the bisecting termination occurs according to the minimum
+    and optimum cluster sizes, which are set by the `opt_clust_size` and
+    `min_clust_size` parameters respectively. The child cluster of the bisected
+    root cluster with the biggest inertia as determined by SSE (Sum of Squared
+    Errors) will be selected bisection-- provided that the child cluster
+    exceeds the set `*clust_size` boundary conditions. Cluster bisection
+    terminates when there are no child clusters remaining that fulfill the user
+    set boundary conditions.
 
     Parameters
     ----------
-    n_clusters : int, default=2
-        The number of clusters to seed prior to recursively bisecting. This
-        parameter is updated at inference time and will reflect the number of
-        clusters identified after calling `fit`.
+    min_clust_size : int, default=4
+        The minimum acceptable cluster size. Clusters of size <= to this
+        parameter will **not** be produced by this algorithm.
+
+    opt_clust_size : int, default=20
+        Target optimum cluster size. If the sum membership of a proposed
+        cluster bisection is less than this value, the cluster will not be
+        bisected. When combined with the `min_clust_size` parameter above,
+        these conditions together mean that clusters of sizes smaller than
+        (`opt_clust_size` - `min_clust_size`) are *a priori* ineligible to be
+        bisected.
 
     init : {'k-means++', 'random'} or callable, default='random'
         Method for initialization:
@@ -326,20 +338,10 @@ class BisectingQMeans(_BaseKMeans):
         more memory intensive due to the allocation of an extra array of shape
         `(n_samples, n_clusters)`.
 
-    bisecting_strategy : {"biggest_inertia", "largest_cluster"},\
-            default="biggest_inertia"
-        Defines how bisection should be performed:
-
-         - "biggest_inertia" means that BisectingKMeans will always check
-            all calculated cluster for cluster with biggest SSE
-            (Sum of squared errors) and bisect it. This approach concentrates
-            on precision, but may be costly in terms of execution time
-            (especially for larger amount of data points).
-
-         - "largest_cluster" - BisectingKMeans will always split cluster with
-            largest amount of points assigned to it from all clusters
-            previously calculated. That should work faster than picking by SSE
-            ('biggest_inertia') and may produce similar results in most cases.
+    n_clusters : int, default=2
+        The number of clusters to seed prior to recursively bisecting. This
+        parameter is updated at inference time and will reflect the number of
+        clusters identified after calling `fit`.
 
     Attributes
     ----------
@@ -366,27 +368,6 @@ class BisectingQMeans(_BaseKMeans):
     --------
     KMeans : Original implementation of K-Means algorithm.
 
-    Notes
-    -----
-    It might be inefficient when n_cluster is less than 3, due to unnecessary
-    calculations for that case.
-
-    Examples
-    --------
-    >>> from overcluster import BisectingQMeans
-    >>> import numpy as np
-    >>> X = np.array([[1, 1], [10, 1], [3, 1],
-    ...               [10, 0], [2, 1], [10, 2],
-    ...               [10, 8], [10, 9], [10, 10]])
-    >>> bisect_means = BisectingQMeans(random_state=0).fit(X)
-    >>> bisect_means.labels_
-    array([0, 2, 0, 2, 0, 2, 1, 1, 1], dtype=int32)
-    >>> bisect_means.predict([[0, 0], [12, 3]])
-    array([0, 2], dtype=int32)
-    >>> bisect_means.cluster_centers_
-    array([[ 2., 1.],
-           [10., 9.],
-           [10., 1.]])
     """
 
     _parameter_constraints: dict = {
@@ -394,13 +375,12 @@ class BisectingQMeans(_BaseKMeans):
         "init": [StrOptions({"k-means++", "random"}), callable],
         "n_init": [Interval(Integral, 1, None, closed="left")],
         "copy_x": ["boolean"],
-        "algorithm": [StrOptions({"lloyd", "elkan"})],
-        "bisecting_strategy": [StrOptions({"biggest_inertia",
-                                           "largest_cluster"})], }
+        "algorithm": [StrOptions({"lloyd", "elkan"})], }
 
     def __init__(
         self,
-        n_clusters=8,
+        min_clust_size=4,
+        opt_clust_size=20,
         *,
         init="random",
         n_init=1,
@@ -410,7 +390,7 @@ class BisectingQMeans(_BaseKMeans):
         tol=1e-4,
         copy_x=True,
         algorithm="lloyd",
-        bisecting_strategy="biggest_inertia",
+        n_clusters=2,
     ):
         super().__init__(
             n_clusters=n_clusters,
@@ -422,9 +402,10 @@ class BisectingQMeans(_BaseKMeans):
             n_init=n_init,
         )
 
+        self.min_clust_size = min_clust_size
+        self.opt_clust_size = opt_clust_size
         self.copy_x = copy_x
         self.algorithm = algorithm
-        self.bisecting_strategy = bisecting_strategy
         self.bisect = True
 
     def _warn_mkl_vcomp(self, n_active_threads):
@@ -525,22 +506,17 @@ class BisectingQMeans(_BaseKMeans):
         if self.verbose:
             print(f"New centroids from bisection: {best_centers}")
 
-        if self.bisecting_strategy == "biggest_inertia":
-            scores = self._inertia_per_cluster(
-                X, best_centers, best_labels, sample_weight
-            )
-            counts = np.bincount(best_labels, minlength=2)
-            # scores = np.bincount(best_labels, minlength=2)
-            scores[np.where(counts < 16)] = -np.inf
-        else:  # bisecting_strategy == "largest_cluster"
-            # Using minlength to make sure that we have the counts for both
-            # labels even if all samples are labelled 0.
-            scores = np.bincount(best_labels, minlength=2)
+        scores = self._inertia_per_cluster(X, best_centers, best_labels,
+                                           sample_weight)
+        counts = np.bincount(best_labels, minlength=2)
+        scores[np.where(counts <
+                        (self.opt_clust_size - self.min_clust_size))] = -np.inf
         # case where bisecting is not optimum
-        if (counts[0] + counts[1]) < 20:
+        if (counts[0] + counts[1]) < self.opt_clust_size:
             cluster_to_bisect.score = -np.inf
         # bisect as long as the smallest child has membership of at least 4
-        elif (counts[0] > 3) and (counts[1] > 3):
+        elif ((counts[0] >= self.min_clust_size) and
+              (counts[1] >= self.min_clust_size)):
             cluster_to_bisect.split(best_labels, best_centers, scores)
         # one child will have membership of 3 or less; don't split
         else:
