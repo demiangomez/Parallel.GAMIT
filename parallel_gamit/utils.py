@@ -13,60 +13,22 @@ from sklearn.base import _fit_context
 from sklearn.utils._openmp_helpers import _openmp_effective_n_threads
 from sklearn.utils._param_validation import Integral, Interval, StrOptions
 from sklearn.utils.extmath import row_norms
-from sklearn.utils.validation import (_check_sample_weight, check_is_fitted,
-                                      check_random_state)
+from sklearn.utils.validation import (_check_sample_weight, check_random_state)
 from sklearn.cluster._k_means_common import _inertia_dense, _inertia_sparse
-from sklearn.cluster._kmeans import (_labels_inertia_threadpool_limit,
-                                     _BaseKMeans, _kmeans_single_elkan,
+from sklearn.cluster._kmeans import (_BaseKMeans, _kmeans_single_elkan,
                                      _kmeans_single_lloyd)
 
 
 def select_central_point(labels, coordinates, centroids,
                          metric='euclidean'):
-    """Select the nearest central point in a given nieghborhood
+    """Select the nearest central point in a given neighborhood
 
-    Note this code explicitly assumes that centroids are passed from an
+    Note this code explicitly assumes that centroids are passed from a
     sklearn clustering result (i.e., kmeans, or bisecting kmeans); those
     centroids are ordered as monotonically increasing labels. In other words,
     the output indices will match the labeling order of the input centroids.
-    """
-    nbrs = NearestNeighbors(n_neighbors=1, algorithm='ball_tree',
-                            metric=metric).fit(coordinates)
-    idxs = nbrs.kneighbors(centroids, return_distance=False)
-    return idxs.squeeze()
-    # return labels[I], I #coordinates[I].squeeze()
-
-
-def over_cluster(labels, coordinates, metric='haversine', neighborhood=5,
-                 overlap_points=2,  method='edge', include_centroid=False,
-                 rejection_threshold=None, centriod_labels=None):
-    """Expand cluster membership to include edge points of neighbor clusters
-
-    Expands an existing clustering to create overlapping membership between
-    clusters. Existing clusters are processed sequentially by removing
-    the current cluster, and looking up nearest neighbors from adjacent
-    clusters. Once the `overlapping_points` for the first neighbor have
-    been determined and added to current cluster, the first neighbor is
-    removed and distance query is rerun, repeating the process N times as
-    set by the `neighborhood` parameter. For stability, only original points
-    are included for subsequent neighborhood searches. Nearest neighbor
-    distances are either from the most central point of the current cluster,
-    or the shortest distance of all original members of the current cluster.
-
-    Function requires an initial vector of cluster labels from a prior
-    clustering, and coordinates in an ordering that matches the labels. This
-    function also assumes that all points have been assigned a label (i.e.,
-    there are no unlabeled points, or points labeled as 'noise').
-
-    For method 'center', the algorithm will build a reachability graph using
-    the corresponding OPTICS method, select point with the shortest
-    reachability value as the central point for distance queries; this
-    approximates the densest portion of the cluster, rather than the
-    geometric center. For method 'user', a vector of indices corresponding
-    to central cluster points will be used. The `include_centroid` flag
-    will add the central most point of a neighbor cluster to output
-    groupings, and uses the previously mentioned OPTICS logic to determine
-    centrality, unless `method` is set to 'user'.
+    Note that `n_features` refers to the dimensionality of coordinate system,
+    i.e., 2 for lat/lon, 3 for ECEF (Earth-Centered Earth-Fixed), etc.
 
     Parameters
     ----------
@@ -76,25 +38,77 @@ def over_cluster(labels, coordinates, metric='haversine', neighborhood=5,
     coordinates : ndarray of shape (n_samples, n_features)
         Coordinates do not need to match what was used for the prior
         clustering; i.e., if 'Euclidean' was used to calculate the prior
-        clustering in an X,Y,Z projection, those coordinates can be provided
-        in spherical coordinates, provided that 'haversine' is selected for
-        the `metric` parameter.
-    metric : str or callable, default='haversine'
-        Metric to use for distance computation. Any metric from scikit-learn
-        or scipy.spatial.distance can be used. Note that latitude and
-        longitude values will need to be converted to radians if using
-        the default 'haversine' distance metric.
+        clustering in an X,Y,Z projection, those coordinates can be provided in
+        spherical coordinates, provided that 'haversine' is selected for the
+        `metric` parameter.
+    centroids : ndarray of shape (n_clusters, n_features)
+        Coordinates of the cluster centroids; distance metric for centroids
+        should match both `coordinates` and the `metric` parameter.
+    metric : str or callable, default='euclidean'
+        Metric to use for distance computation. Any metric from scikit-learn or
+        scipy.spatial.distance can be used. If metric is a callable function,
+        it is called on each pair of instances (rows) and the resulting value
+        recorded. See scikit-learn documentation for additional details.
 
-        If metric is a callable function, it is called on each
-        pair of instances (rows) and the resulting value recorded. The callable
-        should take two arrays as input and return one value indicating the
-        distance between them. This works for Scipy's metrics, but is less
-        efficient than passing the metric name as a string.
+    Returns
+    -------
+    central_points_idxs : bool array of shape (n_clusters, n_features)
+        Indices of the central most point for each cluster, matching the
+        `labels` ordering.
+    """
+    nbrs = NearestNeighbors(n_neighbors=1, algorithm='ball_tree',
+                            metric=metric).fit(coordinates)
+    idxs = nbrs.kneighbors(centroids, return_distance=False)
+    return idxs.squeeze()
+
+
+def over_cluster(labels, coordinates, metric='haversine', neighborhood=5,
+                 overlap_points=2,  method='edge', include_centroid=False,
+                 rejection_threshold=None, centriod_labels=None):
+    """Expand cluster membership to include edge points of neighbor clusters
+
+    Expands an existing clustering to create overlapping membership between
+    clusters. Existing clusters are processed sequentially by looking up
+    nearest neighbors as an intersection of the current cluster membership and
+    all cluster's point membership.  Once the `overlap_points` for a given
+    neighbor cluster have been determined and added to current cluster, the
+    remainder of that neighboring cluster is removed from consideration and
+    distance query is rerun, with the process repeating until a number of
+    clusters equal to the `neighborhood` parameter is reached. For stability,
+    only original points are included for subsequent neighborhood searches;
+    that is, Nearest neighbor distances are run as the shortest distance from
+    all **original** members of the current cluster.
+
+    Function requires an initial vector of cluster labels from a prior
+    clustering, and coordinates in an ordering that matches the labels. This
+    function also assumes that all points have been assigned a label (i.e.,
+    there are no unlabeled points, or points labeled as 'noise').
+
+    Parameters
+    ----------
+
+    labels : ndarray of type int, and shape (n_samples,)
+        Cluster labels for each point in the dataset from prior clustering.
+    coordinates : ndarray of shape (n_samples, n_features)
+        Coordinates do not need to match what was used for the prior
+        clustering; i.e., if 'Euclidean' was used to calculate the prior
+        clustering in an X,Y,Z projection, those coordinates can be provided in
+        spherical coordinates, provided that 'haversine' is selected for the
+        `metric` parameter.
+    metric : str or callable, default='haversine'
+        Metric to use for distance computation. Any metric from scikit-learn or
+        scipy.spatial.distance can be used. Note that latitude and longitude
+        values will need to be converted to radians if using the default
+        'haversine' distance metric.
+
+        If metric is a callable function, it is called on each pair of
+        instances (rows) and the resulting value recorded. The callable should
+        take two arrays as input and return one value indicating the distance
+        between them. This works for Scipy's metrics, but is less efficient
+        than passing the metric name as a string.
 
         Use of "precomputed", i.e., a N-by-N distance matrix, has not been
-        tested, nor have sparse matrices. These may or may not work, but
-        are likely to break if OPTICS is being used to calculate centrality
-        of either the source or neighbor cluster.
+        tested, nor have sparse matrices. These may or may not work.
 
         Valid values for metric are:
 
@@ -106,9 +120,8 @@ def over_cluster(labels, coordinates, metric='haversine', neighborhood=5,
           'minkowski', 'rogerstanimoto', 'russellrao', 'seuclidean',
           'sokalmichener', 'sokalsneath', 'sqeuclidean', 'yule']
 
-        Sparse matrices are only supported by scikit-learn metrics.
-        See the documentation for scipy.spatial.distance for details on these
-        metrics.
+        Sparse matrices are only supported by scikit-learn metrics.  See the
+        documentation for scipy.spatial.distance for details on these metrics.
 
     neighborhood : int greater than or equal to 1, default=3
         Number of adjacent clusters to include when adding cluster membership
@@ -118,22 +131,6 @@ def over_cluster(labels, coordinates, metric='haversine', neighborhood=5,
         Should not exceed the size of the smallest cluster in `labels`, or
         one less than that when `include_centroid` is set to 'True'.
 
-    method : {'edge', 'center', 'user'}, str, default='edge'
-        The method used to determine distance when selecting nearest points
-        of overlap. The default 'edge' will use the shortest distance
-        considering all points in the source cluster; 'center' will determine
-        the point in source cluster occupying the densest area of the cluster,
-        and select the shortest distance from that point to any point outside
-        of the source cluster. If selecting 'user', `centroid_labels` must be
-        provided, and will be used for minimizing distances.
-
-    include_centroids : bool, default=False
-        Whether or not the most central point of adjacent clusters should be
-        added as overlap points. If this option is set to 'True', returned
-        cluster membership will be original cluster sizes + `overlap_points`
-        + 1. Centroid points will be determined by OPTICS unless `method` is
-        set to 'user' .
-
     rejection_threshold : float, default=None
         Determines if any potential overlapping points should be rejected for
         being too far (from source centroid or nearest source edge point).
@@ -141,18 +138,14 @@ def over_cluster(labels, coordinates, metric='haversine', neighborhood=5,
         Note that if value other than 'None' is used, there is no guarantee
         that all clusters will have overlap points added.
 
-    centroid_labels : ndarray of type int, shape (n_clusters,), default=None
-        The indices corresponding to centroid points of each labeled cluster.
-        Used only when ``method='user'``.
-
     Returns
     -------
     expanded_clusters : bool array of shape (n_clusters, n_coordinates)
         The updated labels, one-hot encoded. Each row is a boolean index to
-        extract cluster membership for a given label. If labels are
-        continuous integers starting at 0, then the row number will match the
-        cluster label; if not, rows are ordered to monotonically increase
-        from the smallest cluster label.
+        extract cluster membership for a given label. If labels are continuous
+        integers starting at 0, then the row number will match the cluster
+        label; if not, rows are ordered to monotonically increase from the
+        smallest cluster label.
 """
 
     # Returns already sorted
@@ -169,36 +162,38 @@ def over_cluster(labels, coordinates, metric='haversine', neighborhood=5,
         output[cluster, members] = True
         nonmembers = ~members
 
-        if method == 'edge':
-            # Build index tree on members
-            nbrs = NearestNeighbors(n_neighbors=1, algorithm='ball_tree',
-                                    metric=metric).fit(coordinates[members])
-            # Could be set to '1';
-            # using same check as while loop for consistency
+        # Implements 'edge' method of overlap expansion
+        # Build index tree on members
+        nbrs = NearestNeighbors(n_neighbors=1, algorithm='ball_tree',
+                                metric=metric).fit(coordinates[members])
+        # Could be set to '1';
+        # using same check as while loop for consistency
+        coverage = len(np.unique(labels[output[cluster, :]]))
+        while coverage <= neighborhood:
+            # intersect search tree with non-members
+            D, _ = nbrs.kneighbors(coordinates[nonmembers, :])
+            # Rejection threshold is lightly tested...
+            if rejection_threshold:
+                if np.min(D) > rejection_threshold:
+                    break
+            # Select closest external point to add to member cluster
+            new_member = ridx[nonmembers][np.argmin(D)]
+            # Remove point from future coordinate distance queries
+            nonmembers[new_member] = 0
+            # Add to member label array
+            output[cluster, new_member] = 1
+            # Update current count of over-clustered neighbors
             coverage = len(np.unique(labels[output[cluster, :]]))
-            while coverage <= neighborhood:
-                # intersect search tree with non-members
-                D, _ = nbrs.kneighbors(coordinates[nonmembers, :])
-                # Rejection threshold is lightly tested...
-                if rejection_threshold:
-                    if np.min(D) > rejection_threshold:
-                        break
-                # Select closest external point to add to member cluster
-                new_member = ridx[nonmembers][np.argmin(D)]
-                # Remove point from future coordinate distance queries
-                nonmembers[new_member] = 0
-                # Add to member label array
-                output[cluster, new_member] = 1
-                # Update current count of over-clustered nieghbors
-                coverage = len(np.unique(labels[output[cluster, :]]))
-                # Grab label of new member for overlap check
-                nm_label = labels[new_member]
-                # Check if we've exceeded our overlap allotment...
-                if sum(labels[output[cluster, :]] == nm_label) >= overlap_points:
-                    # ...if so, remove entire nieghboring cluster
-                    remove = nm_label == labels
-                    nonmembers[remove] = False
+            # Grab label of new member for overlap check
+            nm_label = labels[new_member]
+            # Check if we've exceeded our overlap allotment...
+            if sum(labels[output[cluster, :]] == nm_label) >= overlap_points:
+                # ...if so, remove entire neighboring cluster
+                remove = nm_label == labels
+                nonmembers[remove] = False
+
     return output
+
 
 """Bisecting Q-means clustering."""
 
