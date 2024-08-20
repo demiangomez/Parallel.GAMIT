@@ -1,4 +1,4 @@
-name: pg
+name: pgamit
 channels:
   - conda-forge
   - defaults
