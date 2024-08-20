@@ -19,9 +19,7 @@ dependencies:
   - cryptography==37.0.4
   - cycler==0.10.0
   - dirsync>=2.2.4
-    #- earthquake-impact-utils==0.8.27
-    #- earthscope-cli==0.8.2
-    #- earthscope-sdk==0.2.0
+  - impactutils==0.8.40
   - Fiona>=1.8.19
   - geographiclib==2.0
   - geopy==2.4.1
@@ -69,4 +67,5 @@ dependencies:
     - PyGreSQL==5.2.5
     - country-converter #>=1.2
     - et-xmlfile #>=1.1.0
-
+    - earthscope-cli==0.8.2
+    - earthscope-sdk==0.2.0
