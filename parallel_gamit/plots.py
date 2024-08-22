@@ -32,7 +32,6 @@ def plot_global_network(central_points, OC, labels, points,
         The expanded cluster labels, one-hot encoded. Each row is a boolean
         index to extract cluster membership for a given label. This is the
         output from `utils.over_cluster`
-        Cluster labels for each point in the dataset from prior clustering.
     labels : ndarray of type int, and shape (n_samples,)
         Cluster labels for each point in the dataset from prior clustering.
     points : ndarray of shape (n_samples, n_features)
