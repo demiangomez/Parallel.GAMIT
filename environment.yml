@@ -6,6 +6,7 @@ dependencies:
   - python>=3.10.1 # Compatibility with Planetary Computer Base Install
   - attrs==21.2.0
   - bcrypt>=4.0.0
+  - basemap==1.4.0
   - cached-property==1.5.2
   - certifi>=2021.5.30
   - cffi==1.15.1
@@ -32,6 +33,7 @@ dependencies:
   - munch==2.5.0
   - netifaces==0.10.9
   - numpy==1.21.6
+  - networkx==3.3
   - openpyxl==3.0.7
   - pandas==1.4.1
   - paramiko==2.11.0
