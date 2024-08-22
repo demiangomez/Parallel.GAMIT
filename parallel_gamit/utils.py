@@ -52,8 +52,8 @@ def select_central_point(labels, coordinates, centroids,
 
     Returns
     -------
-    central_points_idxs : bool array of shape (n_clusters, n_features)
-        Indices of the central most point for each cluster, matching the
+    central_points_idxs : int array of shape (n_clusters,)
+        Indices of the central most point for each cluster; indices match the
         `labels` ordering.
     """
     nbrs = NearestNeighbors(n_neighbors=1, algorithm='ball_tree',
