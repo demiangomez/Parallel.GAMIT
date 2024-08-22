@@ -30,9 +30,10 @@ from datetime import datetime
 import time
 import copy
 # deps
-from tqdm import tqdm
+from tqdm import tqdm 
 import numpy as np
 from utils import over_cluster, select_central_point, BisectingQMeans
+from plots import plot_global_network
 from scipy.spatial import Delaunay, distance
 
 # app
@@ -235,6 +236,11 @@ class Network(object):
         clusters = {'centroids': points[central_points],
                     'labels': cluster_labels,
                     'stations': station_labels}
+
+        # generate plot of the network segmentation
+        plot_global_network(central_points, OC, qmean.labels_, points,
+                            output_path="",
+                            lat_lon=False)
 
         return clusters, cluster_ties
 
