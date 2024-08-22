@@ -9,16 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.basemap import Basemap
 from pyproj import Proj, transform
-
-
-# Use of the transform object below is depreciated in pyproj,
-# and may cease to work in future versions (works in pyproj version 3.6.1)
-def ecef_to_LL(x, y, z):
-    ecef = Proj(proj='geocent', ellps='WGS84', datum='WGS84')
-    lla = Proj(proj='latlong', ellps='WGS84', datum='WGS84')
-    lat, lon, alt = transform(ecef, lla, x, y, z, radians=False)
-
-    return lat, lon, alt
+from ..classes.Utils import ecef2lla
 
 
 def plot_global_network(central_points, OC, labels, points,
@@ -62,8 +53,8 @@ def plot_global_network(central_points, OC, labels, points,
         LL = points
     else:
         LL = np.zeros((len(labels), 2))
-        lat, lon, _ = ecef_to_LL(points[:, 0], points[:, 1], points[:, 2])
-        LL[:, 0], LL[:, 1] = lat, lon
+        lat, lon, _ = ecef2lla(points)
+        LL[:, 0], LL[:, 1] = lon, lat # x,y ordering for plotting convention
 
     fig = plt.figure(figsize=(8, 12))
 
