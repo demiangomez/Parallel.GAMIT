@@ -237,10 +237,11 @@ class Network(object):
                     'labels': cluster_labels,
                     'stations': station_labels}
 
+        # define output path for plot
+        path = str(self.name) + '_' + str(self.date.yyyyddd()) + '.png'
         # generate plot of the network segmentation
         plot_global_network(central_points, OC, qmean.labels_, points,
-                            output_path="",
-                            lat_lon=False)
+                            output_path=path, lat_lon=False)
 
         return clusters, cluster_ties
 
