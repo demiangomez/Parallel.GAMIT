@@ -8,7 +8,7 @@ import networkx as nx
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.basemap import Basemap
-from ..classes.Utils import ecef2lla
+from ..classes import Utils
 
 
 def plot_global_network(central_points, OC, labels, points,
@@ -51,7 +51,7 @@ def plot_global_network(central_points, OC, labels, points,
         LL = points
     else:
         LL = np.zeros((len(labels), 2))
-        lat, lon, _ = ecef2lla(points)
+        lat, lon, _ = Utils.ecef2lla(points)
         LL[:, 0], LL[:, 1] = lon, lat  # x,y ordering for plotting convention
 
     fig = plt.figure(figsize=(8, 12))
