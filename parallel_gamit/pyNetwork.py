@@ -238,7 +238,10 @@ class Network(object):
                     'stations': station_labels}
 
         # define output path for plot
-        path = str(self.name) + '_' + str(self.date.yyyyddd()) + '.png'
+        solution_base = self.GamitConfig.GamitOpts['solutions_dir'].rstrip('/')
+        last_path = '/%s/%s/%s' % (date.yyyy(), date.ddd(), self.name)
+        path = solution_base + last_path + '_cluster.png'
+
         # generate plot of the network segmentation
         plot_global_network(central_points, OC, qmean.labels_, points,
                             output_path=path, lat_lon=False)
