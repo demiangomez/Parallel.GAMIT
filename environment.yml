@@ -1,0 +1,13 @@
+name: pgamit
+dependencies:
+  - python>=3.9
+  - numpy>=1.19.5
+  - scipy
+  - PyGreSQL>=5.2.4
+  - sklearn>=1.1
+  - matplotlib
+  - pandas
+  - tqdm
+  - dispy
+  - scandir>=1.6
+
