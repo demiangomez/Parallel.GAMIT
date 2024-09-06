@@ -387,9 +387,13 @@ def ecef2lla(ecefArr):
     # test data : test_coord = [2297292.91, 1016894.94, -5843939.62]
     # expected result : -66.8765400174 23.876539914 999.998386689
 
-    x = float(ecefArr[0])
-    y = float(ecefArr[1])
-    z = float(ecefArr[2])
+    # force what input (list, tuple, etc) to be a numpy array
+    ecefArr = numpy.atleast_1d(ecefArr)
+
+    # transpose to work on both vectors and scalars
+    x = ecefArr.T[0]
+    y = ecefArr.T[1]
+    z = ecefArr.T[2]
 
     a = 6378137
     e = 8.1819190842622e-2
@@ -413,7 +417,7 @@ def ecef2lla(ecefArr):
     lon = lon * 180 / numpy.pi
     lat = lat * 180 / numpy.pi
 
-    return numpy.array([lat]), numpy.array([lon]), numpy.array([alt])
+    return lat.ravel(), lon.ravel(), alt.ravel()
 
 
 def process_date_str(arg, allow_days=False):
