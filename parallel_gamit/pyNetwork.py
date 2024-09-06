@@ -238,7 +238,7 @@ class Network(object):
                     'stations': station_labels}
 
         # define output path for plot
-        solution_base = self.GamitConfig.GamitOpts['solutions_dir'].rstrip('/')
+        solution_base = self.GamitConfig.gamitopt['solutions_dir'].rstrip('/')
         end_path = '/%s/%s/%s' % (self.date.yyyy(), self.date.ddd(), self.name)
         path = solution_base + end_path + '_cluster.png'
 
