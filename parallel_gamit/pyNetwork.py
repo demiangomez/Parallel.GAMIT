@@ -30,9 +30,10 @@ from datetime import datetime
 import time
 import copy
 # deps
-from tqdm import tqdm
+from tqdm import tqdm 
 import numpy as np
-from overcluster import over_cluster, select_central_point, BisectingQMeans
+from utils import over_cluster, select_central_point, BisectingQMeans
+from plots import plot_global_network
 from scipy.spatial import Delaunay, distance
 
 # app
@@ -193,8 +194,9 @@ class Network(object):
 
     def make_clusters(self, points, stations, net_limit=NET_LIMIT):
         # Run initial clustering using bisecting 'q-means'
-        qmean = BisectingQMeans(n_clusters=2, init='random', n_init=50,
-                                algorithm='lloyd', max_iter=8000)
+        qmean = BisectingQMeans(min_clust_size=4, opt_clust_size=20,
+                                init='random', n_init=50, algorithm='lloyd',
+                                max_iter=8000, random_state=42, n_clusters=2)
         qmean.fit(points)
         # snap centroids to closest station coordinate
         central_points = select_central_point(qmean.labels_, points,
@@ -208,7 +210,7 @@ class Network(object):
         cluster_labels = []
         station_labels = []
         cluster_ties = []
-        
+
         # init'ed outside of the loop for efficiency...
         stat_labs = stations.labels_array()
         for row, cluster in enumerate(OC):
@@ -217,7 +219,7 @@ class Network(object):
             my_cluster_ties = StationCollection()
             # strip out station id's per cluster...
             for station in stat_labs[cluster]:
-              	# rebuild as a 'station collection list'
+                # rebuild as a 'station collection list'
                 my_stations.append(stations[str(station)])
             # append to a regular list for integer indexing at line ~400
             station_labels.append(my_stations)
@@ -234,6 +236,15 @@ class Network(object):
         clusters = {'centroids': points[central_points],
                     'labels': cluster_labels,
                     'stations': station_labels}
+
+        # define output path for plot
+        solution_base = self.GamitConfig.GamitOpts['solutions_dir'].rstrip('/')
+        end_path = '/%s/%s/%s' % (self.date.yyyy(), self.date.ddd(), self.name)
+        path = solution_base + end_path + '_cluster.png'
+
+        # generate plot of the network segmentation
+        plot_global_network(central_points, OC, qmean.labels_, points,
+                            output_path=path, lat_lon=False)
 
         return clusters, cluster_ties
 
