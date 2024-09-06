@@ -9,45 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.basemap import Basemap
 
-# from ..classes.Utils import ecef2lla
-
-
-def ecef2lla(ecefArr):
-    # convert ECEF coordinates to LLA
-    # test data : test_coord = [2297292.91, 1016894.94, -5843939.62]
-    # expected result : -66.8765400174 23.876539914 999.998386689
-
-    # force what input (list, tuple, etc) to be a np array
-    ecefArr = np.atleast_1d(ecefArr)
-
-    # transpose to work on both vectors and scalars
-    x = ecefArr.T[0]
-    y = ecefArr.T[1]
-    z = ecefArr.T[2]
-
-    a = 6378137
-    e = 8.1819190842622e-2
-
-    asq = np.power(a, 2)
-    esq = np.power(e, 2)
-
-    b = np.sqrt(asq * (1 - esq))
-    bsq = np.power(b, 2)
-
-    ep = np.sqrt((asq - bsq) / bsq)
-    p = np.sqrt(np.power(x, 2) + np.power(y, 2))
-    th = np.arctan2(a * z, b * p)
-
-    lon = np.arctan2(y, x)
-    lat = np.arctan2((z + np.power(ep, 2) * b * np.power(np.sin(th), 3)),
-                     (p - esq * a * np.power(np.cos(th), 3)))
-    N = a / (np.sqrt(1 - esq * np.power(np.sin(lat), 2)))
-    alt = p / np.cos(lat) - N
-
-    lon = lon * 180 / np.pi
-    lat = lat * 180 / np.pi
-
-    return lat.ravel(), lon.ravel(), alt.ravel()
+from Utils import ecef2lla
 
 
 def plot_global_network(central_points, OC, labels, points,
