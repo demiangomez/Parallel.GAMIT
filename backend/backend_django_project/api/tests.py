@@ -169,6 +169,13 @@ class PermissionsTest(TestCase):
     def test_underprivileged_front_role(self):
         self.authenticate_underprivileged_front()
 
+        url = reverse("get_user_photo", kwargs={
+                      "pk": models.User.objects.get(username="underprivileged_front").id})
+
+        response = self.client.get(url)
+
+        self.assertIn(response.status_code, [200, 404])
+
         url = reverse("station_list")
 
         response = self.client.get(url)
@@ -182,7 +189,7 @@ class PermissionsTest(TestCase):
 
         self.assertEqual(response.status_code, 403)
 
-        url = reverse("antennas_list")
+        url = reverse("station_meta_list")
 
         response = self.client.get(url)
 
@@ -190,6 +197,13 @@ class PermissionsTest(TestCase):
 
     def test_underprivileged_api_role(self):
         self.authenticate_underprivileged_api()
+
+        url = reverse("get_user_photo", kwargs={
+                      "pk": models.User.objects.get(username="underprivileged_api").id})
+
+        response = self.client.get(url)
+
+        self.assertIn(response.status_code, [200, 404])
 
         url = reverse("station_list")
 
@@ -300,7 +314,7 @@ class StationGapsTest(TestCase):
             }
 
             response = self.client.post(
-                url, data)  
+                url, data)
 
             self.assertEqual(models.Stations.objects.count(), 1)
             self.assertEqual(response.status_code, 201)
@@ -317,11 +331,11 @@ class StationGapsTest(TestCase):
 
             response = self.client.post(
                 url, data)
-            
+
             self.assertEqual(response.status_code, 201)
 
         def test_create_first_stationinfo():
-            
+
             url = reverse("station_info_list")
 
             data = {
@@ -338,13 +352,13 @@ class StationGapsTest(TestCase):
 
             response = self.client.post(
                 url, data)
-            
+
             self.assertEqual(response.status_code, 201)
 
         def test_create_second_stationinfo():
 
             url = reverse("station_info_list")
-            
+
             # create second stationinfo, creating a gap between the date-end of the first one and the date-start of the second one
             data = {
                 "network_code": 'NT1',
@@ -365,7 +379,7 @@ class StationGapsTest(TestCase):
 
             self.assertEqual(models.Stationinfo.objects.count(), 2)
             self.assertEqual(response.json()["network_code"], 'NT1')
-        
+
         def update_has_gaps_status():
             StationMetaUtils.update_has_gaps_status()
 
@@ -397,7 +411,7 @@ class StationGapsTest(TestCase):
 
             response = self.client.post(
                 url, data)
-            
+
             self.assertEqual(response.status_code, 201)
 
             # get rinex
@@ -423,7 +437,7 @@ class StationGapsTest(TestCase):
             response = self.client.delete(url)
 
             self.assertEqual(response.status_code, 204)
-        
+
         def test_create_rinex_before_stationinfo_date():
             url = reverse("rinex_list")
 
@@ -443,9 +457,9 @@ class StationGapsTest(TestCase):
 
             response = self.client.post(
                 url, data)
-            
+
             self.assertEqual(response.status_code, 201)
-            
+
         def test_create_rinex_after_stationinfo_date():
             url = reverse("rinex_list")
 
@@ -465,15 +479,15 @@ class StationGapsTest(TestCase):
 
             response = self.client.post(
                 url, data)
-            
+
             self.assertEqual(response.status_code, 201)
-               
+
         test_create_antennas()
         test_create_receivers()
         test_create_networks()
         test_create_gamit_htc()
         test_create_stationmeta(
-        test_create_station())
+            test_create_station())
         test_create_first_stationinfo()
         test_create_second_stationinfo()
         update_has_gaps_status()
@@ -491,6 +505,7 @@ class StationGapsTest(TestCase):
         test_create_rinex_after_stationinfo_date()
         update_has_gaps_status()
         test_station_has_gaps()
+
 
 class StationInfoTest(TestCase):
     """

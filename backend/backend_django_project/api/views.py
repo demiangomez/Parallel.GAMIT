@@ -131,28 +131,6 @@ class RoleDetail(generics.RetrieveUpdateAPIView):
         return response
 
 
-class PageList(CustomListCreateAPIView):
-    queryset = models.Page.objects.all()
-    serializer_class = serializers.PageSerializer
-
-    def list(request, *args, **kwargs):
-        """ If response status is 200, group pages by url"""
-
-        response = super().list(request, *args, **kwargs)
-
-        if response.status_code == status.HTTP_200_OK:
-
-            response.data['data'] = utils.PageUtils.group_pages_by_url(
-                response.data['data'])
-
-        return response
-
-
-class PageDetail(generics.RetrieveUpdateDestroyAPIView):
-    queryset = models.Page.objects.all()
-    serializer_class = serializers.PageSerializer
-
-
 class EndpointList(CustomListCreateAPIView):
     queryset = models.Endpoint.objects.all()
     serializer_class = serializers.EndpointSerializer
@@ -166,6 +144,8 @@ class EndpointDetail(generics.RetrieveUpdateDestroyAPIView):
 class EndpointsClusterList(CustomListCreateAPIView):
     queryset = models.EndPointsCluster.objects.all()
     serializer_class = serializers.EndpointsClusterSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = filters.EndpointsClusterFilter
 
     def list(request, *args, **kwargs):
         """ If response status is 200, group clusters by resource"""
@@ -183,17 +163,6 @@ class EndpointsClusterList(CustomListCreateAPIView):
 class EndpointsClusterDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = models.EndPointsCluster.objects.all()
     serializer_class = serializers.EndpointsClusterSerializer
-
-
-class StationinfoList(CustomListCreateAPIView):
-    queryset = models.Stationinfo.objects.all()
-    serializer_class = serializers.StationinfoSerializer
-
-
-class StationinfoDetail(generics.RetrieveUpdateDestroyAPIView):
-    queryset = models.Stationinfo.objects.all()
-    serializer_class = serializers.StationinfoSerializer
-
 
 class NetworkList(CustomListCreateAPIView):
     queryset = models.Networks.objects.all()
@@ -236,15 +205,61 @@ class AntennaDetail(generics.RetrieveUpdateDestroyAPIView):
 
 
 class StationList(CustomListCreateAPIView):
-    queryset = models.Stations.objects.all()
+    queryset = models.Stations.objects.select_related('network_code').all()
     serializer_class = serializers.StationSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_class = filters.StationFilter
+
+    def list(request, *args, **kwargs):
+        """If the response status is 200, add some fields of the related stationmeta object"""
+
+        response = super().list(request, *args, **kwargs)
+
+        if response.status_code == status.HTTP_200_OK:
+            # Fetch and convert the station_meta_fields into a dictionary
+
+            station_meta_query = models.StationMeta.objects.values_list(
+                'station', 'has_gaps', 'has_stationinfo')
+
+            station_meta_dict = {
+                station_meta_object[0]: (
+                    station_meta_object[1],
+                    station_meta_object[2]
+                )
+                for station_meta_object in station_meta_query
+            }
+
+            # Update the response data with the information from station_meta_dict
+            for station in response.data["data"]:
+                if 'api_id' in station:
+
+                    if station['api_id'] in station_meta_dict:
+                        has_gaps, has_stationinfo = station_meta_dict[station['api_id']]
+                        station["has_gaps"] = has_gaps
+                        station["has_stationinfo"] = has_stationinfo
+
+        return response
 
 
 class StationDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = models.Stations.objects.all()
     serializer_class = serializers.StationSerializer
+
+    def retrieve(self, request, *args, **kwargs):
+        """If response is 200, add some related station meta fields"""
+
+        response = super().retrieve(request, *args, **kwargs)
+
+        if response.status_code == status.HTTP_200_OK:
+
+            if 'api_id' in response.data:
+
+                stationmeta = models.StationMeta.objects.only(
+                    'has_gaps', 'has_stationinfo').get(station=response.data['api_id'])
+                response.data["has_gaps"] = stationmeta.has_gaps
+                response.data["has_stationinfo"] = stationmeta.has_stationinfo
+
+        return response
 
 
 class StationCodesList(CustomListAPIView):
@@ -276,6 +291,14 @@ class StationMetaDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = models.StationMeta.objects.all()
     serializer_class = serializers.StationMetaSerializer
     lookup_field = 'station_id'
+
+    @extend_schema(description="In order to delete navigation_file, send 'navigation_file_delete' as true.")
+    def put(self, request, *args, **kwargs):
+        return super().update(request, *args, **kwargs)
+
+    @extend_schema(description="In order to delete navigation_file, send 'navigation_file_delete' as true.")
+    def patch(self, request, *args, **kwargs):
+        return super().update(request, *args, **kwargs)
 
 
 class StationStatusList(CustomListCreateAPIView):
@@ -316,6 +339,10 @@ class StationImagesList(CustomListCreateAPIView):
     filter_backends = [DjangoFilterBackend]
     filterset_class = filters.StationImagesFilter
 
+    @extend_schema(description="In the filesystem, image name will be the same as uploaded image unless 'name' parameter is specified (also specify image extension in 'name'). If 'name' is an empty string, it will be treated as no name either.")
+    def post(self, request, *args, **kwargs):
+        return super().post(request, *args, **kwargs)
+
 
 class StationImagesDetail(generics.RetrieveDestroyAPIView):
     queryset = models.StationImages.objects.all()
@@ -335,11 +362,79 @@ class CampaignDetail(generics.RetrieveUpdateDestroyAPIView):
 class VisitList(CustomListCreateAPIView):
     queryset = models.Visits.objects.all()
     serializer_class = serializers.VisitSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = filters.VisitFilter
+
+    def list(request, *args, **kwargs):
+        """If the response status is 200, add some fields of the related station object"""
+
+        response = super().list(request, *args, **kwargs)
+
+        if response.status_code == status.HTTP_200_OK:
+            # Add people name to people array
+
+            people_list = models.Person.objects.values_list(
+                'id', 'first_name', 'last_name')
+
+            people_dict = {
+                person[0]: person[1] + ' ' + person[2]
+                for person in people_list
+            }
+
+            for visit in response.data["data"]:
+
+                if 'people' in visit:
+                    people_ids = visit["people"].copy()
+
+                    visit["people"].clear()
+
+                    for people_id in people_ids:
+                        if people_id in people_dict:
+                            visit["people"].append(
+                                {'id': people_id, 'name': people_dict[people_id]})
+
+        return response
 
 
 class VisitDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = models.Visits.objects.all()
     serializer_class = serializers.VisitSerializer
+
+    def retrieve(self, request, *args, **kwargs):
+        """If response is 200, add some related station fields"""
+
+        response = super().retrieve(request, *args, **kwargs)
+
+        if response.status_code == status.HTTP_200_OK:
+            # Add people name to people array
+
+            people_list = models.Person.objects.values_list(
+                'id', 'first_name', 'last_name')
+
+            people_dict = {
+                person[0]: person[1] + ' ' + person[2]
+                for person in people_list
+            }
+
+            if 'people' in response.data:
+                people_ids = response.data["people"].copy()
+
+                response.data["people"].clear()
+
+                for people_id in people_ids:
+                    if people_id in people_dict:
+                        response.data["people"].append(
+                            {'id': people_id, 'name': people_dict[people_id]})
+
+        return response
+
+    @extend_schema(description="In order to delete log_sheet_file, send 'log_sheet_file_delete' as true. The same applies with 'navigation_file_delete' for the navigation_file.")
+    def put(self, request, *args, **kwargs):
+        return self.update(request, *args, **kwargs)
+
+    @extend_schema(description="In order to delete log_sheet_file, send 'log_sheet_file_delete' as true. The same applies with 'navigation_file_delete' for the navigation_file.")
+    def patch(self, request, *args, **kwargs):
+        return self.update(request, *args, **kwargs)
 
 
 class VisitAttachedFilesList(CustomListCreateAPIView):
@@ -359,6 +454,10 @@ class VisitImagesList(CustomListCreateAPIView):
     serializer_class = serializers.VisitImagesSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_class = filters.VisitImagesFilter
+
+    @extend_schema(description="In the filesystem, image name will be the same as uploaded image unless 'name' parameter is specified (also specify image extension in 'name'). If 'name' is an empty string, it will be treated as no name either.")
+    def post(self, request, *args, **kwargs):
+        return super().post(request, *args, **kwargs)
 
 
 class VisitImagesDetail(generics.RetrieveDestroyAPIView):
@@ -493,6 +592,25 @@ class ExecutionsList(CustomListCreateAPIView):
 class ExecutionsDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = models.Executions.objects.all()
     serializer_class = serializers.ExecutionsSerializer
+
+
+class HealthCheck(APIView):
+    @extend_schema(
+        description="Returns a success message if the API is up and connected to the database.",
+        responses={
+            200: OpenApiResponse(
+                description="API is up and connected to the database",
+                examples={
+                    "application/json": {
+                        "result": "API is up and connected to database"
+                    }
+                }
+            ),
+        },
+        tags=["health-check"]
+    )
+    def get(self, request, format=None):
+        return Response({'result': "API is up and connected to database"}, status=200)
 
 
 class GamitHtcList(CustomListCreateAPIView):
@@ -926,6 +1044,7 @@ class StationinfoDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = models.Stationinfo.objects.all()
     serializer_class = serializers.StationinfoSerializer
     http_method_names = ["get", "put", "delete"]
+
     def put(self, request, *args, **kwargs):
 
         def overlaps_at_least_one_record(serializer):

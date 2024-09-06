@@ -66,6 +66,13 @@ class StationAttachedFilesFilter(filters.FilterSet):
         model = models.StationAttachedFiles
         fields = ['station_api_id']
 
+class VisitFilter(filters.FilterSet):
+    station_api_id = filters.CharFilter(
+        field_name='station')
+
+    class Meta:
+        model = models.Visits
+        fields = ['station_api_id']
 
 class VisitAttachedFilesFilter(filters.FilterSet):
     visit_api_id = filters.CharFilter(
@@ -92,3 +99,10 @@ class VisitGNSSDataFilesFilter(filters.FilterSet):
     class Meta:
         model = models.VisitGNSSDataFiles
         fields = ['visit_api_id']
+
+class EndpointsClusterFilter(filters.FilterSet):
+    role_type = filters.CharFilter(field_name='role_type', lookup_expr='icontains')
+
+    class Meta:
+        model = models.EndPointsCluster
+        fields = ['role_type']

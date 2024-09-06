@@ -7,9 +7,31 @@ import sys
 import inspect
 import os.path
 # ------------------------------MODELS BASED ON EXISTING DB-----------------------------
+from decimal import Decimal
 
 
-class Antennas(models.Model):
+class BaseModel(models.Model):
+    """
+    This model is used to remove trailing zeros from Decimal fields that map to a numeric field with no given precision in the database.
+    If the numeric field has a specified precision, there is no way to avoid saving the trailing zeros as Postgres itself adds them.
+    """
+    class Meta:
+        abstract = True  # This model will not create a database table
+
+    def save(self, *args, **kwargs):
+        # Normalize decimal fields before saving
+        for field in self._meta.get_fields():
+            if isinstance(field, models.DecimalField):
+                value = getattr(self, field.name)
+                if value is not None:
+                    normalized_value = Decimal(value).normalize()
+                    setattr(self, field.name, normalized_value)
+
+        # Call the parent class's save method
+        super(BaseModel, self).save(*args, **kwargs)
+
+
+class Antennas(BaseModel):
     # Field name made lowercase.
     antenna_code = models.CharField(
         db_column='AntennaCode', max_length=22)
@@ -24,7 +46,7 @@ class Antennas(models.Model):
         db_table = 'antennas'
 
 
-class AprCoords(models.Model):
+class AprCoords(BaseModel):
     network_code = models.CharField(db_column='NetworkCode', max_length=3)
     # Field name made lowercase.
     station_code = models.CharField(db_column='StationCode')
@@ -56,7 +78,7 @@ class AprCoords(models.Model):
         unique_together = (('network_code', 'station_code', 'year', 'doy'),)
 
 
-class AwsSync(models.Model):
+class AwsSync(BaseModel):
     network_code = models.CharField(db_column='NetworkCode', max_length=3)
     # Field name made lowercase.
     station_code = models.CharField(db_column='StationCode')
@@ -77,7 +99,7 @@ class AwsSync(models.Model):
         unique_together = (('network_code', 'station_code', 'year', 'doy'),)
 
 
-class DataSource(models.Model):
+class DataSource(BaseModel):
     network_code = models.CharField(db_column='NetworkCode', max_length=3)
     # Field name made lowercase.
     station_code = models.CharField(db_column='StationCode', max_length=4)
@@ -96,7 +118,7 @@ class DataSource(models.Model):
         unique_together = (('network_code', 'station_code', 'try_order'),)
 
 
-class Earthquakes(models.Model):
+class Earthquakes(BaseModel):
     # The composite primary key (date, lat, lon) found, that is not supported. The first column is selected.
     date = models.DateTimeField()
     lat = models.DecimalField(max_digits=65535, decimal_places=65535)
@@ -127,7 +149,7 @@ class Earthquakes(models.Model):
         unique_together = (('date', 'lat', 'lon'),)
 
 
-class EtmParams(models.Model):
+class EtmParams(BaseModel):
     network_code = models.CharField(db_column='NetworkCode', max_length=3)
     # Field name made lowercase.
     station_code = models.CharField(db_column='StationCode', max_length=4)
@@ -155,7 +177,7 @@ class EtmParams(models.Model):
         db_table = 'etm_params'
 
 
-class Etms(models.Model):
+class Etms(BaseModel):
     network_code = models.CharField(db_column='NetworkCode', max_length=3)
     # Field name made lowercase.
     station_code = models.CharField(db_column='StationCode', max_length=4)
@@ -185,7 +207,7 @@ class Etms(models.Model):
         db_table = 'etms'
 
 
-class Events(models.Model):
+class Events(BaseModel):
     # The composite primary key (event_id, EventDate) found, that is not supported. The first column is selected.
     event_id = models.BigAutoField(primary_key=True)
     # Field name made lowercase.
@@ -216,7 +238,7 @@ class Events(models.Model):
         unique_together = (('event_id', 'event_date'),)
 
 
-class Executions(models.Model):
+class Executions(BaseModel):
     script = models.CharField(max_length=40, blank=True, null=True)
     exec_date = models.DateTimeField(blank=True, null=True)
     api_id = models.AutoField(primary_key=True)
@@ -226,7 +248,7 @@ class Executions(models.Model):
         db_table = 'executions'
 
 
-class GamitHtc(models.Model):
+class GamitHtc(BaseModel):
     # Field name made lowercase. The composite primary key (AntennaCode, HeightCode) found, that is not supported. The first column is selected.
     antenna_code = models.CharField(db_column='AntennaCode', max_length=22)
     # Field name made lowercase.
@@ -245,7 +267,7 @@ class GamitHtc(models.Model):
         unique_together = (('antenna_code', 'height_code'),)
 
 
-class GamitSoln(models.Model):
+class GamitSoln(BaseModel):
     # Field name made lowercase.
     network_code = models.CharField(db_column='NetworkCode', max_length=3)
     # Field name made lowercase.
@@ -294,7 +316,7 @@ class GamitSoln(models.Model):
             ('network_code', 'station_code', 'project', 'year', 'doy'),)
 
 
-class GamitSolnExcl(models.Model):
+class GamitSolnExcl(BaseModel):
     network_code = models.CharField(db_column='NetworkCode', max_length=3)
     # Field name made lowercase.
     station_code = models.CharField(db_column='StationCode', max_length=4)
@@ -314,7 +336,7 @@ class GamitSolnExcl(models.Model):
             ('network_code', 'station_code', 'project', 'year', 'doy'),)
 
 
-class GamitStats(models.Model):
+class GamitStats(BaseModel):
     # Field name made lowercase. The composite primary key (Project, subnet, Year, DOY, system) found, that is not supported. The first column is selected.
     project = models.CharField(
         db_column='Project', max_length=20)
@@ -352,7 +374,7 @@ class GamitStats(models.Model):
         unique_together = (('project', 'subnet', 'year', 'doy', 'system'),)
 
 
-class GamitSubnets(models.Model):
+class GamitSubnets(BaseModel):
     # Field name made lowercase. The composite primary key (Project, subnet, Year, DOY) found, that is not supported. The first column is selected.
     project = models.CharField(
         db_column='Project', max_length=20)
@@ -376,7 +398,7 @@ class GamitSubnets(models.Model):
         unique_together = (('project', 'subnet', 'year', 'doy'),)
 
 
-class GamitZtd(models.Model):
+class GamitZtd(BaseModel):
     network_code = models.CharField(db_column='NetworkCode', max_length=3)
     # Field name made lowercase.
     station_code = models.CharField(db_column='StationCode', max_length=4)
@@ -405,7 +427,7 @@ class GamitZtd(models.Model):
                            'date', 'project', 'year', 'doy'),)
 
 
-class Keys(models.Model):
+class Keys(BaseModel):
     # Field name made lowercase.
     key_code = models.CharField(
         db_column='KeyCode', max_length=7)
@@ -422,7 +444,7 @@ class Keys(models.Model):
         db_table = 'keys'
 
 
-class Locks(models.Model):
+class Locks(BaseModel):
     filename = models.TextField()
     network_code = models.CharField(db_column='NetworkCode', max_length=3)
     # Field name made lowercase.
@@ -435,7 +457,7 @@ class Locks(models.Model):
         db_table = 'locks'
 
 
-class Networks(models.Model):
+class Networks(BaseModel):
     # Field name made lowercase.
     network_code = models.CharField(db_column='NetworkCode', unique=True)
     # Field name made lowercase.
@@ -448,7 +470,7 @@ class Networks(models.Model):
         db_table = 'networks'
 
 
-class PppSoln(models.Model):
+class PppSoln(BaseModel):
     network_code = models.CharField(db_column='NetworkCode', max_length=3)
     # Field name made lowercase.
     station_code = models.CharField(db_column='StationCode')
@@ -492,7 +514,7 @@ class PppSoln(models.Model):
                            'year', 'doy', 'reference_frame'),)
 
 
-class PppSolnExcl(models.Model):
+class PppSolnExcl(BaseModel):
     network_code = models.CharField(db_column='NetworkCode', max_length=3)
     # Field name made lowercase.
     station_code = models.CharField(db_column='StationCode', max_length=4)
@@ -510,7 +532,7 @@ class PppSolnExcl(models.Model):
         unique_together = (('network_code', 'station_code', 'year', 'doy'),)
 
 
-class Receivers(models.Model):
+class Receivers(BaseModel):
     # Field name made lowercase.
     receiver_code = models.CharField(
         db_column='ReceiverCode', max_length=22)
@@ -525,7 +547,7 @@ class Receivers(models.Model):
         db_table = 'receivers'
 
 
-class Rinex(models.Model):
+class Rinex(BaseModel):
     network_code = models.CharField(db_column='NetworkCode', max_length=3)
     # Field name made lowercase.
     station_code = models.CharField(db_column='StationCode')
@@ -590,7 +612,7 @@ class Rinex(models.Model):
                            'observation_doy', 'interval', 'completion'),)
 
 
-class RinexSourcesInfo(models.Model):
+class RinexSourcesInfo(BaseModel):
     name = models.CharField(max_length=20)
     fqdn = models.CharField()
     protocol = models.CharField()
@@ -605,7 +627,7 @@ class RinexSourcesInfo(models.Model):
         db_table = 'rinex_sources_info'
 
 
-class RinexTankStruct(models.Model):
+class RinexTankStruct(BaseModel):
     # Field name made lowercase.
     level = models.IntegerField(db_column='Level')
     # Field name made lowercase.
@@ -618,7 +640,7 @@ class RinexTankStruct(models.Model):
         db_table = 'rinex_tank_struct'
 
 
-class SourcesFormats(models.Model):
+class SourcesFormats(BaseModel):
     format = models.CharField()
     api_id = models.AutoField(primary_key=True)
 
@@ -627,7 +649,7 @@ class SourcesFormats(models.Model):
         db_table = 'sources_formats'
 
 
-class SourcesServers(models.Model):
+class SourcesServers(BaseModel):
     server_id = models.AutoField(primary_key=True)
     protocol = models.CharField()
     fqdn = models.CharField()
@@ -642,7 +664,7 @@ class SourcesServers(models.Model):
         db_table = 'sources_servers'
 
 
-class SourcesStations(models.Model):
+class SourcesStations(BaseModel):
     network_code = models.CharField(db_column='NetworkCode', max_length=3)
     station_code = models.CharField(db_column='StationCode', max_length=4)
     try_order = models.SmallIntegerField()
@@ -659,7 +681,7 @@ class SourcesStations(models.Model):
         unique_together = (('network_code', 'station_code', 'try_order'),)
 
 
-class Stacks(models.Model):
+class Stacks(BaseModel):
     # Field name made lowercase. The composite primary key (NetworkCode, StationCode, Year, DOY, name) found, that is not supported. The first column is selected.
     network_code = models.CharField(db_column='NetworkCode', max_length=3)
     # Field name made lowercase.
@@ -709,7 +731,7 @@ class Stacks(models.Model):
             ('network_code', 'station_code', 'year', 'doy', 'name'),)
 
 
-class Stationalias(models.Model):
+class Stationalias(BaseModel):
     # Field name made lowercase.
     network_code = models.CharField(db_column='NetworkCode', max_length=3)
     # Field name made lowercase.
@@ -725,7 +747,7 @@ class Stationalias(models.Model):
         unique_together = (('network_code', 'station_code'),)
 
 
-class Stationinfo(models.Model):
+class Stationinfo(BaseModel):
     # Field name made lowercase.
     network_code = models.CharField(db_column='NetworkCode', max_length=3)
     # Field name made lowercase.
@@ -780,7 +802,7 @@ class Stationinfo(models.Model):
         ]
 
 
-class Stations(models.Model):
+class Stations(BaseModel):
     # Field name made lowercase.
     network_code = models.ForeignKey(
         Networks, models.DO_NOTHING, db_column='NetworkCode', to_field="network_code")
@@ -824,16 +846,24 @@ class Stations(models.Model):
         ordering = ["api_id"]
         unique_together = (('network_code', 'station_code'),
                            ('network_code', 'station_code'),)
-
-
 # ----------------------------------API-SPECIFIC MODELS-------------------------------------
+
 
 def station_attached_files_path(instance, filename):
     return os.path.join("stations", f"{instance.station.network_code.network_code}", f"{instance.station.station_code}", "attached_files", filename)
 
 
+def get_image_name(instance, filename):
+    # Save with specified name if provided. Save with image name otherwise.
+    if hasattr(instance, 'name') and isinstance(instance.name, str) and instance.name != "":
+        return instance.name
+    else:
+        return filename
+
+
 def station_images_path(instance, filename):
-    return os.path.join("stations", f"{instance.station.network_code.network_code}", f"{instance.station.station_code}", "images", filename)
+
+    return os.path.join("stations", f"{instance.station.network_code.network_code}", f"{instance.station.station_code}", "images", get_image_name(instance, filename))
 
 
 def station_log_sheet_file_path(instance, filename):
@@ -849,7 +879,7 @@ def visits_attached_files_path(instance, filename):
 
 
 def visits_images_path(instance, filename):
-    return os.path.join("stations", f"{instance.visit.station.network_code.network_code}", f"{instance.visit.station.station_code}", "visits", f"{instance.visit.date}", "images", filename)
+    return os.path.join("stations", f"{instance.visit.station.network_code.network_code}", f"{instance.visit.station.station_code}", "visits", f"{instance.visit.date}", "images", get_image_name(instance, filename))
 
 
 def visits_log_sheet_file_path(instance, filename):
@@ -864,7 +894,7 @@ def visits_gnss_data_files_path(instance, filename):
     return os.path.join("stations", f"{instance.visit.station.network_code.network_code}", f"{instance.visit.station.station_code}", "visits", f"{instance.visit.date}", "gnss_data_files", filename)
 
 
-class Country(models.Model):
+class Country(BaseModel):
     name = models.CharField(max_length=100, unique=True)
     two_digits_code = models.CharField(max_length=2, unique=True)
     three_digits_code = models.CharField(max_length=3, unique=True)
@@ -873,7 +903,7 @@ class Country(models.Model):
         return self.name
 
 
-class Endpoint(models.Model):
+class Endpoint(BaseModel):
     path = models.CharField(max_length=100)
     description = models.CharField(max_length=100, blank=True)
 
@@ -898,48 +928,46 @@ class Endpoint(models.Model):
         return self.path
 
 
-class ClusterType(models.Model):
+class ClusterType(BaseModel):
     name = models.CharField(max_length=100, unique=True)
 
     def __str__(self):
         return self.name
 
 
-class Resource(models.Model):
+class Resource(BaseModel):
     name = models.CharField(max_length=100, unique=True)
 
     def __str__(self):
         return self.name
 
 
-class EndPointsCluster(models.Model):
+class EndPointsCluster(BaseModel):
     resource = models.ForeignKey(Resource, models.CASCADE)
     description = models.CharField(max_length=100, blank=True)
     endpoints = models.ManyToManyField(Endpoint)
     cluster_type = models.ForeignKey(ClusterType, models.CASCADE)
 
+    ROLE_TYPE_CHOICES = [("FRONT", "FRONT"), ("API", "API"),
+                         ("FRONT AND API", "FRONT AND API")]
+
+    role_type = models.CharField(
+        max_length=15,
+        choices=ROLE_TYPE_CHOICES,
+    )
+
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=['resource', 'cluster_type', 'description'], name='resource_cluster_type_description_unique')
+                fields=['resource', 'cluster_type', 'role_type', 'description'], name='resource_cluster_type_role_type_description_unique')
         ]
 
 
-class Page(models.Model):
-    url = models.CharField(max_length=100)
-    description = models.CharField(max_length=100, blank=True)
-    endpoints_clusters = models.ManyToManyField(EndPointsCluster)
-
-    def __str__(self):
-        return self.url
-
-
-class Role(models.Model):
+class Role(BaseModel):
     name = models.CharField(max_length=100, unique=True)
     role_api = models.BooleanField()
     allow_all = models.BooleanField()
     endpoints_clusters = models.ManyToManyField(EndPointsCluster, blank=True)
-    pages = models.ManyToManyField(Page, blank=True)
     is_active = models.BooleanField(default=True)
 
     def __str__(self):
@@ -959,14 +987,14 @@ class User(AbstractUser):
         return self.username
 
 
-class StationRole(models.Model):
+class StationRole(BaseModel):
     name = models.CharField(max_length=100, unique=True)
 
     def __str__(self):
         return self.name
 
 
-class Person(models.Model):
+class Person(BaseModel):
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
     email = models.EmailField(max_length=100, blank=True)
@@ -979,7 +1007,7 @@ class Person(models.Model):
         return self.first_name + ' ' + self.last_name
 
 
-class RolePersonStation(models.Model):
+class RolePersonStation(BaseModel):
     role = models.ForeignKey(StationRole, models.CASCADE)
     person = models.ForeignKey(Person, models.CASCADE)
     station = models.ForeignKey(Stations, models.CASCADE)
@@ -991,20 +1019,21 @@ class RolePersonStation(models.Model):
         ]
 
 
-class StationImages(models.Model):
+class StationImages(BaseModel):
     station = models.ForeignKey(Stations, models.CASCADE)
     image = models.ImageField(upload_to=station_images_path)
-    description = models.CharField(max_length=100, blank=True)
+    name = models.CharField(max_length=255, blank=True)
+    description = models.CharField(max_length=500, blank=True)
 
 
-class StationStatus(models.Model):
+class StationStatus(BaseModel):
     name = models.CharField(max_length=100, unique=True)
 
     def __str__(self):
         return self.name
 
 
-class MonumentType(models.Model):
+class MonumentType(BaseModel):
     name = models.CharField(max_length=100, unique=True)
     photo_path = models.ImageField(
         upload_to='monument_type_photos/', blank=True)
@@ -1013,24 +1042,24 @@ class MonumentType(models.Model):
         return self.name
 
 
-class StationType(models.Model):
+class StationType(BaseModel):
     name = models.CharField(max_length=100, unique=True)
 
 
-class StationAttachedFiles(models.Model):
+class StationAttachedFiles(BaseModel):
     station = models.ForeignKey(Stations, models.CASCADE)
     file = models.FileField(upload_to=station_attached_files_path)
-    filename = models.CharField(max_length=100, blank=True)
-    description = models.CharField(max_length=100, blank=True)
+    filename = models.CharField(max_length=255, blank=True)
+    description = models.CharField(max_length=500, blank=True)
 
 
-class StationMeta(models.Model):
+class StationMeta(BaseModel):
     station = models.ForeignKey(Stations, models.CASCADE)
     status = models.ForeignKey(
         StationStatus, models.SET_NULL, blank=True, null=True)
     monument_type = models.ForeignKey(
         MonumentType, models.SET_NULL, blank=True, null=True)
-    remote_access_link = models.URLField(blank=True)
+    remote_access_link = models.CharField(max_length=500, blank=True)
     has_battery = models.BooleanField(default=False)
     battery_description = models.CharField(max_length=100, blank=True)
     has_communications = models.BooleanField(default=False)
@@ -1040,7 +1069,7 @@ class StationMeta(models.Model):
     comments = models.CharField(blank=True)
     navigation_file = models.FileField(
         upload_to=station_navigation_file_path, blank=True)
-    navigation_filename = models.CharField(max_length=100, blank=True)
+    navigation_filename = models.CharField(max_length=255, blank=True)
     has_gaps = models.BooleanField(default=False)
     has_gaps_last_update_datetime = models.DateTimeField(blank=True, null=True)
     has_gaps_update_needed = models.BooleanField(default=True)
@@ -1053,25 +1082,27 @@ class StationMeta(models.Model):
         ]
 
 
-class Campaigns(models.Model):
+class Campaigns(BaseModel):
     name = models.CharField(max_length=100)
     start_date = models.DateField()
     end_date = models.DateField()
-    people = models.ManyToManyField(Person)
+
+    class Meta:
+        ordering = ["-start_date"]
 
 
-class Visits(models.Model):
+class Visits(BaseModel):
     date = models.DateField()
     campaign = models.ForeignKey(
         Campaigns, models.SET_NULL, blank=True, null=True)
     station = models.ForeignKey(Stations, models.CASCADE)
     people = models.ManyToManyField(Person, blank=True)
     log_sheet_file = models.FileField(
-        upload_to=visits_log_sheet_file_path, blank=True)
-    log_sheet_filename = models.CharField(max_length=100, blank=True)
+        upload_to=visits_log_sheet_file_path, blank=True, null=True)
+    log_sheet_filename = models.CharField(max_length=255, blank=True)
     navigation_file = models.FileField(
         upload_to=visits_navigation_file_path, blank=True)
-    navigation_filename = models.CharField(max_length=100, blank=True)
+    navigation_filename = models.CharField(max_length=255, blank=True)
 
     class Meta:
         constraints = [
@@ -1080,24 +1111,25 @@ class Visits(models.Model):
         ]
 
 
-class VisitImages(models.Model):
+class VisitImages(BaseModel):
     visit = models.ForeignKey(Visits, models.CASCADE)
     image = models.ImageField(upload_to=visits_images_path)
-    description = models.CharField(max_length=100, blank=True)
+    name = models.CharField(max_length=255, blank=True)
+    description = models.CharField(max_length=500, blank=True)
 
 
-class VisitAttachedFiles(models.Model):
+class VisitAttachedFiles(BaseModel):
     visit = models.ForeignKey(Visits, models.CASCADE)
     file = models.FileField(upload_to=visits_attached_files_path)
-    filename = models.CharField(max_length=100, blank=True)
-    description = models.CharField(max_length=100, blank=True)
+    filename = models.CharField(max_length=255, blank=True)
+    description = models.CharField(max_length=500, blank=True)
 
 
-class VisitGNSSDataFiles(models.Model):
+class VisitGNSSDataFiles(BaseModel):
     visit = models.ForeignKey(Visits, models.CASCADE)
     file = models.FileField(upload_to=visits_gnss_data_files_path)
-    filename = models.CharField(max_length=100, blank=True)
-    description = models.CharField(max_length=100, blank=True)
+    filename = models.CharField(max_length=255, blank=True)
+    description = models.CharField(max_length=500, blank=True)
 
 
 def enable_automatic_auditlog():
@@ -1112,7 +1144,6 @@ def enable_automatic_auditlog():
     auditlog.register(Resource)
     auditlog.register(ClusterType)
     auditlog.register(User)
-    auditlog.register(Page)
     auditlog.register(Endpoint)
     auditlog.register(RolePersonStation)
     auditlog.register(StationMeta)

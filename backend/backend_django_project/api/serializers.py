@@ -11,19 +11,23 @@ from django.conf import settings
 
 
 def validate_file_size(value):
-
-    if value.size > int(settings.MAX_SIZE_FILE_MB) * 1024 * 1024:
-        raise serializers.ValidationError(
-            f'File size must be less than {settings.MAX_SIZE_FILE_MB} MB')
+    if value is not None:
+        if value.size > int(settings.MAX_SIZE_FILE_MB) * 1024 * 1024:
+            raise serializers.ValidationError(
+                f'File size must be less than {settings.MAX_SIZE_FILE_MB} MB')
+        else:
+            return value
     else:
         return value
 
 
 def validate_image_size(value):
-
-    if value.size > int(settings.MAX_SIZE_IMAGE_MB) * 1024 * 1024:
-        raise serializers.ValidationError(
-            f'Image size must be less than {settings.MAX_SIZE_IMAGE_MB} MB')
+    if value is not None:
+        if value.size > int(settings.MAX_SIZE_IMAGE_MB) * 1024 * 1024:
+            raise serializers.ValidationError(
+                f'Image size must be less than {settings.MAX_SIZE_IMAGE_MB} MB')
+        else:
+            return value
     else:
         return value
 
@@ -61,11 +65,13 @@ class MonumentTypeSerializer(serializers.ModelSerializer):
 
 class PersonSerializer(serializers.ModelSerializer):
     photo_actual_file = serializers.SerializerMethodField()
+    user_name = serializers.SerializerMethodField()
 
     class Meta:
         model = models.Person
         fields = '__all__'
-        extra_kwargs = {'photo': {'write_only': True}}
+        extra_kwargs = {'photo': {'write_only': True},
+                        'user_name': {'read_only': True}}
 
     def get_photo_actual_file(self, obj):
         """Returns the actual image encoded in base64"""
@@ -81,6 +87,10 @@ class PersonSerializer(serializers.ModelSerializer):
 
     def validate_photo(self, value):
         return validate_image_size(value)
+
+    def get_user_name(self, obj):
+        """Retrieve the username from the related User model"""
+        return obj.user.username if obj.user else None
 
 
 class StationStatusSerializer(serializers.ModelSerializer):
@@ -141,12 +151,6 @@ class UserSerializer(serializers.ModelSerializer):
 
     def validate_photo(self, value):
         return validate_image_size(value)
-
-
-class PageSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = models.Page
-        fields = '__all__'
 
 
 class ClusterTypeSerializer(serializers.ModelSerializer):
@@ -211,19 +215,18 @@ class StationinfoSerializer(serializers.ModelSerializer):
             if data['date_start'] > data['date_end']:
                 raise serializers.ValidationError(
                     'date_end must be greater or equal than date_start')
-            
+
         if 'date_start' in data and isinstance(data['date_start'], datetime.datetime):
-            if data['date_start'] >= datetime.datetime(9999, 12, 31) :
+            if data['date_start'] >= datetime.datetime(9999, 12, 31):
                 raise serializers.ValidationError(
                     'date_start must be less than 9999-12-31')
-            
+
         if 'date_end' in data and isinstance(data['date_end'], datetime.datetime):
-            if data['date_end'] >= datetime.datetime(9999, 12, 31) :
+            if data['date_end'] >= datetime.datetime(9999, 12, 31):
                 raise serializers.ValidationError(
                     'date_end must be less than 9999-12-31')
-            
-        return data
 
+        return data
 
     def to_internal_value(self, data):
         """
@@ -244,32 +247,16 @@ class StationinfoSerializer(serializers.ModelSerializer):
 
 
 class StationSerializer(serializers.ModelSerializer):
-    # add read_only field to show stationmeta.has_gaps
-    has_gaps = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = models.Stations
         fields = '__all__'
 
-    def to_representation(self, instance):
-        """Add has_gaps field to representation"""
-        representation = super().to_representation(instance)
-
-        try:
-            stationmeta = models.StationMeta.objects.get(station=instance)
-            representation["has_gaps"] = stationmeta.has_gaps
-            representation["has_stationinfo"] = stationmeta.has_stationinfo
-        except models.StationMeta.DoesNotExist:
-            representation["has_gaps"] = None
-        except models.StationMeta.MultipleObjectsReturned:
-            representation["has_gaps"] = None
-
-        return representation
-
 
 class StationMetaSerializer(serializers.ModelSerializer):
     navigation_actual_file = serializers.SerializerMethodField()
     station_type_name = serializers.SerializerMethodField()
+    navigation_file_delete = serializers.BooleanField(write_only=True)
 
     class Meta:
         model = models.StationMeta
@@ -295,7 +282,6 @@ class StationMetaSerializer(serializers.ModelSerializer):
                 return None
         else:
             return None
-        
 
     def get_station_type_name(self, obj):
         """Returns the station type name"""
@@ -313,9 +299,25 @@ class StationMetaSerializer(serializers.ModelSerializer):
             internal_value['navigation_filename'] = data['navigation_file'].name
 
         return internal_value
-    
+
     def validate_navigation_file(self, value):
         return validate_file_size(value)
+
+    def update(self, instance, validated_data):
+
+        if 'navigation_file_delete' in validated_data and instance.navigation_file and validated_data['navigation_file_delete']:
+            instance.navigation_file.delete(save=False)
+            instance.navigation_filename = ''
+
+        return super().update(instance, validated_data)
+
+    def create(self, validated_data):
+        """Create a visit instance"""
+
+        # these fields are only needed when updating
+        del validated_data['navigation_file_delete']
+
+        return super().create(validated_data)
 
 
 class RolePersonStationSerializer(serializers.ModelSerializer):
@@ -371,6 +373,15 @@ class StationImagesSerializer(serializers.ModelSerializer):
         fields = '__all__'
         extra_kwargs = {'image': {'write_only': True}}
 
+    def to_internal_value(self, data):
+        """Set image name as name when no name is provided"""
+        internal_value = super().to_internal_value(data)
+
+        if 'name' not in data or data['name'] == '':
+            internal_value['name'] = data['image'].name
+
+        return internal_value
+
     def get_actual_image(self, obj):
         """Returns the actual image encoded in base64"""
 
@@ -392,11 +403,22 @@ class CampaignSerializer(serializers.ModelSerializer):
         model = models.Campaigns
         fields = '__all__'
 
+    def validate(self, data):
+        
+        # Check that date start is before date end.
+        start_date = data['start_date'] if 'start_date' in data else (self.instance.start_date if self.instance is not None and hasattr(self.instance, 'start_date') else None)
+        end_date = data['end_date'] if 'end_date' in data else (self.instance.end_date if self.instance is not None and hasattr(self.instance, 'end_date') else None)
+        
+        if start_date is not None and end_date is not None and start_date > end_date:
+            raise serializers.ValidationError("End Date must occur after Start Date")
+        return data
+
 
 class VisitSerializer(serializers.ModelSerializer):
-    campaign_people = serializers.SerializerMethodField()
     log_sheet_actual_file = serializers.SerializerMethodField()
     navigation_actual_file = serializers.SerializerMethodField()
+    log_sheet_file_delete = serializers.BooleanField(write_only=True)
+    navigation_file_delete = serializers.BooleanField(write_only=True)
 
     class Meta:
         model = models.Visits
@@ -406,12 +428,15 @@ class VisitSerializer(serializers.ModelSerializer):
             'navigation_file': {'write_only': True}
         }
 
-    def get_campaign_people(self, obj):
-        """Returns the people related to the campaign of the visit"""
-        if obj.campaign:
-            return [person.id for person in obj.campaign.people.all()]
-        else:
-            return None
+    def validate(self, data):
+        # Check that visit date in between campaing date range
+        campaign = data['campaign'] if 'campaign' in data else (self.instance.campaign if self.instance is not None and hasattr(self.instance, 'campaign') else None)
+        date = data['date'] if 'date' in data else (self.instance.date if self.instance is not None and hasattr(self.instance, 'date') else None)
+
+        if campaign is not None and date is not None:
+            if date < campaign.start_date or date > campaign.end_date:
+                raise serializers.ValidationError("The visit date is NOT within the campaign date range")
+        return data
 
     def get_log_sheet_actual_file(self, obj):
         """Returns the actual file encoded in base64"""
@@ -436,6 +461,27 @@ class VisitSerializer(serializers.ModelSerializer):
                 return None
         else:
             return None
+
+    def update(self, instance, validated_data):
+
+        if 'log_sheet_file_delete' in validated_data and instance.log_sheet_file and validated_data['log_sheet_file_delete']:
+            instance.log_sheet_file.delete(save=False)
+            instance.log_sheet_filename = ''
+
+        if 'navigation_file_delete' in validated_data and instance.navigation_file and validated_data['navigation_file_delete']:
+            instance.navigation_file.delete(save=False)
+            instance.navigation_filename = ''
+
+        return super().update(instance, validated_data)
+
+    def create(self, validated_data):
+        """Create a visit instance"""
+
+        # these fields are only needed when updating
+        del validated_data['log_sheet_file_delete']
+        del validated_data['navigation_file_delete']
+
+        return super().create(validated_data)
 
     def to_internal_value(self, data):
         """Set filename fields"""
@@ -496,6 +542,15 @@ class VisitImagesSerializer(serializers.ModelSerializer):
         model = models.VisitImages
         fields = '__all__'
         extra_kwargs = {'image': {'write_only': True}}
+
+    def to_internal_value(self, data):
+        """Set image name as name when no name is provided"""
+        internal_value = super().to_internal_value(data)
+
+        if 'name' not in data or data['name'] == '':
+            internal_value['name'] = data['image'].name
+
+        return internal_value
 
     def get_actual_image(self, obj):
         """Returns the actual image encoded in base64"""

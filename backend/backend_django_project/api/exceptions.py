@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from drf_standardized_errors.handler import ExceptionHandler
 from rest_framework.exceptions import APIException
-
+from  django.db.utils import DataError as DatabaseDataErrorException
 
 class CustomIntegrityErrorExceptionHandler(APIException):
     """
@@ -17,6 +17,10 @@ class CustomIntegrityErrorExceptionHandler(APIException):
     default_code = 'IntegrityError occurred in db.'
     default_detail = 'IntegrityError occurred in db.'
 
+class CustomDataErrorExceptionHandler(APIException):
+    status_code = 400
+    default_code = 'DataError occurred in db.'
+    default_detail = 'DataError occurred in db.'
 
 class CustomValidationErrorExceptionHandler(APIException):
     status_code = 400
@@ -39,5 +43,7 @@ class CustomExceptionHandler(ExceptionHandler):
     def convert_known_exceptions(self, exc: Exception) -> Exception:
         if isinstance(exc, IntegrityError):
             return CustomIntegrityErrorExceptionHandler(str(exc))
+        elif isinstance(exc, DatabaseDataErrorException):
+            return CustomDataErrorExceptionHandler(str(exc))
         else:
             return super().convert_known_exceptions(exc)

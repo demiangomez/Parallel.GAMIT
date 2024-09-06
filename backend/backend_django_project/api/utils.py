@@ -111,23 +111,6 @@ class StationMetaUtils:
         return (has_gaps_between_stationinfo_records(station_object, station_info_records) or has_gaps_outside_stationinfo_records(station_object, station_info_records))
 
 
-class PageUtils:
-    def group_pages_by_url(pages):
-        """
-        Group pages by url
-        """
-
-        pages_by_url = {}
-
-        for page in pages:
-            url = page['url']
-            if url not in pages_by_url:
-                pages_by_url[url] = []
-            pages_by_url[url].append(page)
-
-        return pages_by_url
-
-
 class EndpointsClusterUtils:
     def group_clusters_by_resource(clusters):
         """

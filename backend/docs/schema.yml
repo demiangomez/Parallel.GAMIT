@@ -5378,6 +5378,10 @@ paths:
         description: The initial index from which to return the results.
         schema:
           type: integer
+      - in: query
+        name: role_type
+        schema:
+          type: string
       tags:
       - endpoints-clusters
       security:
@@ -14588,6 +14592,115 @@ paths:
           description: ''
         '204':
           description: No response body
+  /api/health-check:
+    get:
+      operationId: health_check_retrieve
+      description: Returns a success message if the API is up and connected to the
+        database.
+      tags:
+      - health-check
+      security:
+      - jwtAuth: []
+      responses:
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthCheckRetrieveErrorResponse400'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse401'
+              examples:
+                AuthenticationFailed:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: authentication_failed
+                      detail: Incorrect authentication credentials.
+                      attr: null
+                NotAuthenticated:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: not_authenticated
+                      detail: Authentication credentials were not provided.
+                      attr: null
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse403'
+              examples:
+                PermissionDenied:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: permission_denied
+                      detail: You do not have permission to perform this action.
+                      attr: null
+          description: ''
+        '405':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse405'
+              examples:
+                MethodNotAllowed:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: method_not_allowed
+                      detail: Method "get" not allowed.
+                      attr: null
+          description: ''
+        '406':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse406'
+              examples:
+                NotAcceptable:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: not_acceptable
+                      detail: Could not satisfy the request Accept header.
+                      attr: null
+          description: ''
+        '415':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse415'
+              examples:
+                UnsupportedMediaType:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: unsupported_media_type
+                      detail: Unsupported media type "application/json" in request.
+                      attr: null
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse500'
+              examples:
+                APIException:
+                  value:
+                    type: server_error
+                    errors:
+                    - code: error
+                      detail: A server error occurred.
+                      attr: null
+          description: ''
+        '200':
+          description: API is up and connected to the database
   /api/keys:
     get:
       operationId: keys_list
@@ -17636,792 +17749,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/NetworksDestroyErrorResponse400'
-          description: ''
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse401'
-              examples:
-                AuthenticationFailed:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: authentication_failed
-                      detail: Incorrect authentication credentials.
-                      attr: null
-                NotAuthenticated:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: not_authenticated
-                      detail: Authentication credentials were not provided.
-                      attr: null
-          description: ''
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse403'
-              examples:
-                PermissionDenied:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: permission_denied
-                      detail: You do not have permission to perform this action.
-                      attr: null
-          description: ''
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse404'
-              examples:
-                NotFound:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: not_found
-                      detail: Not found.
-                      attr: null
-          description: ''
-        '405':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse405'
-              examples:
-                MethodNotAllowed:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: method_not_allowed
-                      detail: Method "get" not allowed.
-                      attr: null
-          description: ''
-        '406':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse406'
-              examples:
-                NotAcceptable:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: not_acceptable
-                      detail: Could not satisfy the request Accept header.
-                      attr: null
-          description: ''
-        '415':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse415'
-              examples:
-                UnsupportedMediaType:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: unsupported_media_type
-                      detail: Unsupported media type "application/json" in request.
-                      attr: null
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse500'
-              examples:
-                APIException:
-                  value:
-                    type: server_error
-                    errors:
-                    - code: error
-                      detail: A server error occurred.
-                      attr: null
-          description: ''
-        '204':
-          description: No response body
-  /api/pages:
-    get:
-      operationId: pages_list
-      parameters:
-      - name: limit
-        required: false
-        in: query
-        description: Number of results to return per page.
-        schema:
-          type: integer
-      - name: offset
-        required: false
-        in: query
-        description: The initial index from which to return the results.
-        schema:
-          type: integer
-      tags:
-      - pages
-      security:
-      - jwtAuth: []
-      responses:
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PagesListErrorResponse400'
-          description: ''
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse401'
-              examples:
-                AuthenticationFailed:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: authentication_failed
-                      detail: Incorrect authentication credentials.
-                      attr: null
-                NotAuthenticated:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: not_authenticated
-                      detail: Authentication credentials were not provided.
-                      attr: null
-          description: ''
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse403'
-              examples:
-                PermissionDenied:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: permission_denied
-                      detail: You do not have permission to perform this action.
-                      attr: null
-          description: ''
-        '405':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse405'
-              examples:
-                MethodNotAllowed:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: method_not_allowed
-                      detail: Method "get" not allowed.
-                      attr: null
-          description: ''
-        '406':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse406'
-              examples:
-                NotAcceptable:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: not_acceptable
-                      detail: Could not satisfy the request Accept header.
-                      attr: null
-          description: ''
-        '415':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse415'
-              examples:
-                UnsupportedMediaType:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: unsupported_media_type
-                      detail: Unsupported media type "application/json" in request.
-                      attr: null
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse500'
-              examples:
-                APIException:
-                  value:
-                    type: server_error
-                    errors:
-                    - code: error
-                      detail: A server error occurred.
-                      attr: null
-          description: ''
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedPageList'
-          description: ''
-    post:
-      operationId: pages_create
-      tags:
-      - pages
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Page'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Page'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Page'
-        required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PagesCreateErrorResponse400'
-          description: ''
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse401'
-              examples:
-                AuthenticationFailed:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: authentication_failed
-                      detail: Incorrect authentication credentials.
-                      attr: null
-                NotAuthenticated:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: not_authenticated
-                      detail: Authentication credentials were not provided.
-                      attr: null
-          description: ''
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse403'
-              examples:
-                PermissionDenied:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: permission_denied
-                      detail: You do not have permission to perform this action.
-                      attr: null
-          description: ''
-        '405':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse405'
-              examples:
-                MethodNotAllowed:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: method_not_allowed
-                      detail: Method "get" not allowed.
-                      attr: null
-          description: ''
-        '406':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse406'
-              examples:
-                NotAcceptable:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: not_acceptable
-                      detail: Could not satisfy the request Accept header.
-                      attr: null
-          description: ''
-        '415':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse415'
-              examples:
-                UnsupportedMediaType:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: unsupported_media_type
-                      detail: Unsupported media type "application/json" in request.
-                      attr: null
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse500'
-              examples:
-                APIException:
-                  value:
-                    type: server_error
-                    errors:
-                    - code: error
-                      detail: A server error occurred.
-                      attr: null
-          description: ''
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Page'
-          description: ''
-  /api/pages/{id}:
-    get:
-      operationId: pages_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        required: true
-      tags:
-      - pages
-      security:
-      - jwtAuth: []
-      responses:
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PagesRetrieveErrorResponse400'
-          description: ''
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse401'
-              examples:
-                AuthenticationFailed:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: authentication_failed
-                      detail: Incorrect authentication credentials.
-                      attr: null
-                NotAuthenticated:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: not_authenticated
-                      detail: Authentication credentials were not provided.
-                      attr: null
-          description: ''
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse403'
-              examples:
-                PermissionDenied:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: permission_denied
-                      detail: You do not have permission to perform this action.
-                      attr: null
-          description: ''
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse404'
-              examples:
-                NotFound:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: not_found
-                      detail: Not found.
-                      attr: null
-          description: ''
-        '405':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse405'
-              examples:
-                MethodNotAllowed:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: method_not_allowed
-                      detail: Method "get" not allowed.
-                      attr: null
-          description: ''
-        '406':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse406'
-              examples:
-                NotAcceptable:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: not_acceptable
-                      detail: Could not satisfy the request Accept header.
-                      attr: null
-          description: ''
-        '415':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse415'
-              examples:
-                UnsupportedMediaType:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: unsupported_media_type
-                      detail: Unsupported media type "application/json" in request.
-                      attr: null
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse500'
-              examples:
-                APIException:
-                  value:
-                    type: server_error
-                    errors:
-                    - code: error
-                      detail: A server error occurred.
-                      attr: null
-          description: ''
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Page'
-          description: ''
-    put:
-      operationId: pages_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        required: true
-      tags:
-      - pages
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Page'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Page'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Page'
-        required: true
-      security:
-      - jwtAuth: []
-      responses:
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PagesUpdateErrorResponse400'
-          description: ''
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse401'
-              examples:
-                AuthenticationFailed:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: authentication_failed
-                      detail: Incorrect authentication credentials.
-                      attr: null
-                NotAuthenticated:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: not_authenticated
-                      detail: Authentication credentials were not provided.
-                      attr: null
-          description: ''
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse403'
-              examples:
-                PermissionDenied:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: permission_denied
-                      detail: You do not have permission to perform this action.
-                      attr: null
-          description: ''
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse404'
-              examples:
-                NotFound:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: not_found
-                      detail: Not found.
-                      attr: null
-          description: ''
-        '405':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse405'
-              examples:
-                MethodNotAllowed:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: method_not_allowed
-                      detail: Method "get" not allowed.
-                      attr: null
-          description: ''
-        '406':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse406'
-              examples:
-                NotAcceptable:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: not_acceptable
-                      detail: Could not satisfy the request Accept header.
-                      attr: null
-          description: ''
-        '415':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse415'
-              examples:
-                UnsupportedMediaType:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: unsupported_media_type
-                      detail: Unsupported media type "application/json" in request.
-                      attr: null
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse500'
-              examples:
-                APIException:
-                  value:
-                    type: server_error
-                    errors:
-                    - code: error
-                      detail: A server error occurred.
-                      attr: null
-          description: ''
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Page'
-          description: ''
-    patch:
-      operationId: pages_partial_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        required: true
-      tags:
-      - pages
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedPage'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedPage'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedPage'
-      security:
-      - jwtAuth: []
-      responses:
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PagesPartialUpdateErrorResponse400'
-          description: ''
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse401'
-              examples:
-                AuthenticationFailed:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: authentication_failed
-                      detail: Incorrect authentication credentials.
-                      attr: null
-                NotAuthenticated:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: not_authenticated
-                      detail: Authentication credentials were not provided.
-                      attr: null
-          description: ''
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse403'
-              examples:
-                PermissionDenied:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: permission_denied
-                      detail: You do not have permission to perform this action.
-                      attr: null
-          description: ''
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse404'
-              examples:
-                NotFound:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: not_found
-                      detail: Not found.
-                      attr: null
-          description: ''
-        '405':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse405'
-              examples:
-                MethodNotAllowed:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: method_not_allowed
-                      detail: Method "get" not allowed.
-                      attr: null
-          description: ''
-        '406':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse406'
-              examples:
-                NotAcceptable:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: not_acceptable
-                      detail: Could not satisfy the request Accept header.
-                      attr: null
-          description: ''
-        '415':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse415'
-              examples:
-                UnsupportedMediaType:
-                  value:
-                    type: client_error
-                    errors:
-                    - code: unsupported_media_type
-                      detail: Unsupported media type "application/json" in request.
-                      attr: null
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse500'
-              examples:
-                APIException:
-                  value:
-                    type: server_error
-                    errors:
-                    - code: error
-                      detail: A server error occurred.
-                      attr: null
-          description: ''
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Page'
-          description: ''
-    delete:
-      operationId: pages_destroy
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        required: true
-      tags:
-      - pages
-      security:
-      - jwtAuth: []
-      responses:
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PagesDestroyErrorResponse400'
           description: ''
         '401':
           content:
@@ -29454,6 +28781,9 @@ paths:
           description: ''
     post:
       operationId: station_images_create
+      description: In the filesystem, image name will be the same as uploaded image
+        unless 'name' parameter is specified (also specify image extension in 'name').
+        If 'name' is an empty string, it will be treated as no name either.
       tags:
       - station-images
       requestBody:
@@ -30867,6 +30197,8 @@ paths:
           description: ''
     put:
       operationId: station_meta_update
+      description: In order to delete navigation_file, send 'navigation_file_delete'
+        as true.
       parameters:
       - in: path
         name: station_id
@@ -31009,6 +30341,8 @@ paths:
           description: ''
     patch:
       operationId: station_meta_partial_update
+      description: In order to delete navigation_file, send 'navigation_file_delete'
+        as true.
       parameters:
       - in: path
         name: station_id
@@ -37319,6 +36653,9 @@ paths:
           description: ''
     post:
       operationId: visit_images_create
+      description: In the filesystem, image name will be the same as uploaded image
+        unless 'name' parameter is specified (also specify image extension in 'name').
+        If 'name' is an empty string, it will be treated as no name either.
       tags:
       - visit-images
       requestBody:
@@ -37712,6 +37049,10 @@ paths:
         description: The initial index from which to return the results.
         schema:
           type: integer
+      - in: query
+        name: station_api_id
+        schema:
+          type: string
       tags:
       - visits
       security:
@@ -38075,6 +37416,8 @@ paths:
           description: ''
     put:
       operationId: visits_update
+      description: In order to delete log_sheet_file, send 'log_sheet_file_delete'
+        as true. The same applies with 'navigation_file_delete' for the navigation_file.
       parameters:
       - in: path
         name: id
@@ -38217,6 +37560,8 @@ paths:
           description: ''
     patch:
       operationId: visits_partial_update
+      description: In order to delete log_sheet_file, send 'log_sheet_file_delete'
+        as true. The same applies with 'navigation_file_delete' for the navigation_file.
       parameters:
       - in: path
         name: id
@@ -41491,15 +40836,10 @@ components:
         end_date:
           type: string
           format: date
-        people:
-          type: array
-          items:
-            type: integer
       required:
       - end_date
       - id
       - name
-      - people
       - start_date
     CampaignsCreateEndDateErrorComponent:
       type: object
@@ -41533,7 +40873,6 @@ components:
       - $ref: '#/components/schemas/CampaignsCreateNameErrorComponent'
       - $ref: '#/components/schemas/CampaignsCreateStartDateErrorComponent'
       - $ref: '#/components/schemas/CampaignsCreateEndDateErrorComponent'
-      - $ref: '#/components/schemas/CampaignsCreatePeopleErrorComponent'
       discriminator:
         propertyName: attr
         mapping:
@@ -41541,7 +40880,6 @@ components:
           name: '#/components/schemas/CampaignsCreateNameErrorComponent'
           start_date: '#/components/schemas/CampaignsCreateStartDateErrorComponent'
           end_date: '#/components/schemas/CampaignsCreateEndDateErrorComponent'
-          people: '#/components/schemas/CampaignsCreatePeopleErrorComponent'
     CampaignsCreateErrorResponse400:
       oneOf:
       - $ref: '#/components/schemas/CampaignsCreateValidationError'
@@ -41596,36 +40934,6 @@ components:
           - invalid
           type: string
           description: '* `invalid` - invalid'
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    CampaignsCreatePeopleErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - people
-          type: string
-          description: '* `people` - people'
-        code:
-          enum:
-          - does_not_exist
-          - empty
-          - incorrect_type
-          - not_a_list
-          - 'null'
-          - required
-          type: string
-          description: |-
-            * `does_not_exist` - does_not_exist
-            * `empty` - empty
-            * `incorrect_type` - incorrect_type
-            * `not_a_list` - not_a_list
-            * `null` - null
-            * `required` - required
         detail:
           type: string
       required:
@@ -41716,7 +41024,6 @@ components:
       - $ref: '#/components/schemas/CampaignsPartialUpdateNameErrorComponent'
       - $ref: '#/components/schemas/CampaignsPartialUpdateStartDateErrorComponent'
       - $ref: '#/components/schemas/CampaignsPartialUpdateEndDateErrorComponent'
-      - $ref: '#/components/schemas/CampaignsPartialUpdatePeopleErrorComponent'
       discriminator:
         propertyName: attr
         mapping:
@@ -41724,7 +41031,6 @@ components:
           name: '#/components/schemas/CampaignsPartialUpdateNameErrorComponent'
           start_date: '#/components/schemas/CampaignsPartialUpdateStartDateErrorComponent'
           end_date: '#/components/schemas/CampaignsPartialUpdateEndDateErrorComponent'
-          people: '#/components/schemas/CampaignsPartialUpdatePeopleErrorComponent'
     CampaignsPartialUpdateErrorResponse400:
       oneOf:
       - $ref: '#/components/schemas/CampaignsPartialUpdateValidationError'
@@ -41779,36 +41085,6 @@ components:
           - invalid
           type: string
           description: '* `invalid` - invalid'
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    CampaignsPartialUpdatePeopleErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - people
-          type: string
-          description: '* `people` - people'
-        code:
-          enum:
-          - does_not_exist
-          - empty
-          - incorrect_type
-          - not_a_list
-          - 'null'
-          - required
-          type: string
-          description: |-
-            * `does_not_exist` - does_not_exist
-            * `empty` - empty
-            * `incorrect_type` - incorrect_type
-            * `not_a_list` - not_a_list
-            * `null` - null
-            * `required` - required
         detail:
           type: string
       required:
@@ -41892,7 +41168,6 @@ components:
       - $ref: '#/components/schemas/CampaignsUpdateNameErrorComponent'
       - $ref: '#/components/schemas/CampaignsUpdateStartDateErrorComponent'
       - $ref: '#/components/schemas/CampaignsUpdateEndDateErrorComponent'
-      - $ref: '#/components/schemas/CampaignsUpdatePeopleErrorComponent'
       discriminator:
         propertyName: attr
         mapping:
@@ -41900,7 +41175,6 @@ components:
           name: '#/components/schemas/CampaignsUpdateNameErrorComponent'
           start_date: '#/components/schemas/CampaignsUpdateStartDateErrorComponent'
           end_date: '#/components/schemas/CampaignsUpdateEndDateErrorComponent'
-          people: '#/components/schemas/CampaignsUpdatePeopleErrorComponent'
     CampaignsUpdateErrorResponse400:
       oneOf:
       - $ref: '#/components/schemas/CampaignsUpdateValidationError'
@@ -41955,36 +41229,6 @@ components:
           - invalid
           type: string
           description: '* `invalid` - invalid'
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    CampaignsUpdatePeopleErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - people
-          type: string
-          description: '* `people` - people'
-        code:
-          enum:
-          - does_not_exist
-          - empty
-          - incorrect_type
-          - not_a_list
-          - 'null'
-          - required
-          type: string
-          description: |-
-            * `does_not_exist` - does_not_exist
-            * `empty` - empty
-            * `incorrect_type` - incorrect_type
-            * `not_a_list` - not_a_list
-            * `null` - null
-            * `required` - required
         detail:
           type: string
       required:
@@ -44720,6 +43964,8 @@ components:
         description:
           type: string
           maxLength: 100
+        role_type:
+          $ref: '#/components/schemas/RoleTypeEnum'
         resource:
           type: integer
         cluster_type:
@@ -44734,6 +43980,7 @@ components:
       - endpoints
       - id
       - resource
+      - role_type
     EndpointsClustersCreateClusterTypeErrorComponent:
       type: object
       properties:
@@ -44824,6 +44071,7 @@ components:
       oneOf:
       - $ref: '#/components/schemas/EndpointsClustersCreateNonFieldErrorsErrorComponent'
       - $ref: '#/components/schemas/EndpointsClustersCreateDescriptionErrorComponent'
+      - $ref: '#/components/schemas/EndpointsClustersCreateRoleTypeErrorComponent'
       - $ref: '#/components/schemas/EndpointsClustersCreateResourceErrorComponent'
       - $ref: '#/components/schemas/EndpointsClustersCreateClusterTypeErrorComponent'
       - $ref: '#/components/schemas/EndpointsClustersCreateEndpointsErrorComponent'
@@ -44832,6 +44080,7 @@ components:
         mapping:
           non_field_errors: '#/components/schemas/EndpointsClustersCreateNonFieldErrorsErrorComponent'
           description: '#/components/schemas/EndpointsClustersCreateDescriptionErrorComponent'
+          role_type: '#/components/schemas/EndpointsClustersCreateRoleTypeErrorComponent'
           resource: '#/components/schemas/EndpointsClustersCreateResourceErrorComponent'
           cluster_type: '#/components/schemas/EndpointsClustersCreateClusterTypeErrorComponent'
           endpoints: '#/components/schemas/EndpointsClustersCreateEndpointsErrorComponent'
@@ -44892,6 +44141,30 @@ components:
       - attr
       - code
       - detail
+    EndpointsClustersCreateRoleTypeErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - role_type
+          type: string
+          description: '* `role_type` - role_type'
+        code:
+          enum:
+          - invalid_choice
+          - 'null'
+          - required
+          type: string
+          description: |-
+            * `invalid_choice` - invalid_choice
+            * `null` - null
+            * `required` - required
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
     EndpointsClustersCreateValidationError:
       type: object
       properties:
@@ -44911,13 +44184,53 @@ components:
         propertyName: type
         mapping:
           client_error: '#/components/schemas/ParseErrorResponse'
+    EndpointsClustersListError:
+      oneOf:
+      - $ref: '#/components/schemas/EndpointsClustersListRoleTypeErrorComponent'
+      discriminator:
+        propertyName: attr
+        mapping:
+          role_type: '#/components/schemas/EndpointsClustersListRoleTypeErrorComponent'
     EndpointsClustersListErrorResponse400:
       oneOf:
+      - $ref: '#/components/schemas/EndpointsClustersListValidationError'
       - $ref: '#/components/schemas/ParseErrorResponse'
       discriminator:
         propertyName: type
         mapping:
+          validation_error: '#/components/schemas/EndpointsClustersListValidationError'
           client_error: '#/components/schemas/ParseErrorResponse'
+    EndpointsClustersListRoleTypeErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - role_type
+          type: string
+          description: '* `role_type` - role_type'
+        code:
+          enum:
+          - null_characters_not_allowed
+          type: string
+          description: '* `null_characters_not_allowed` - null_characters_not_allowed'
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    EndpointsClustersListValidationError:
+      type: object
+      properties:
+        type:
+          $ref: '#/components/schemas/ValidationErrorEnum'
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/EndpointsClustersListError'
+      required:
+      - errors
+      - type
     EndpointsClustersPartialUpdateClusterTypeErrorComponent:
       type: object
       properties:
@@ -45008,6 +44321,7 @@ components:
       oneOf:
       - $ref: '#/components/schemas/EndpointsClustersPartialUpdateNonFieldErrorsErrorComponent'
       - $ref: '#/components/schemas/EndpointsClustersPartialUpdateDescriptionErrorComponent'
+      - $ref: '#/components/schemas/EndpointsClustersPartialUpdateRoleTypeErrorComponent'
       - $ref: '#/components/schemas/EndpointsClustersPartialUpdateResourceErrorComponent'
       - $ref: '#/components/schemas/EndpointsClustersPartialUpdateClusterTypeErrorComponent'
       - $ref: '#/components/schemas/EndpointsClustersPartialUpdateEndpointsErrorComponent'
@@ -45016,6 +44330,7 @@ components:
         mapping:
           non_field_errors: '#/components/schemas/EndpointsClustersPartialUpdateNonFieldErrorsErrorComponent'
           description: '#/components/schemas/EndpointsClustersPartialUpdateDescriptionErrorComponent'
+          role_type: '#/components/schemas/EndpointsClustersPartialUpdateRoleTypeErrorComponent'
           resource: '#/components/schemas/EndpointsClustersPartialUpdateResourceErrorComponent'
           cluster_type: '#/components/schemas/EndpointsClustersPartialUpdateClusterTypeErrorComponent'
           endpoints: '#/components/schemas/EndpointsClustersPartialUpdateEndpointsErrorComponent'
@@ -45068,6 +44383,30 @@ components:
           description: |-
             * `does_not_exist` - does_not_exist
             * `incorrect_type` - incorrect_type
+            * `null` - null
+            * `required` - required
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    EndpointsClustersPartialUpdateRoleTypeErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - role_type
+          type: string
+          description: '* `role_type` - role_type'
+        code:
+          enum:
+          - invalid_choice
+          - 'null'
+          - required
+          type: string
+          description: |-
+            * `invalid_choice` - invalid_choice
             * `null` - null
             * `required` - required
         detail:
@@ -45185,6 +44524,7 @@ components:
       oneOf:
       - $ref: '#/components/schemas/EndpointsClustersUpdateNonFieldErrorsErrorComponent'
       - $ref: '#/components/schemas/EndpointsClustersUpdateDescriptionErrorComponent'
+      - $ref: '#/components/schemas/EndpointsClustersUpdateRoleTypeErrorComponent'
       - $ref: '#/components/schemas/EndpointsClustersUpdateResourceErrorComponent'
       - $ref: '#/components/schemas/EndpointsClustersUpdateClusterTypeErrorComponent'
       - $ref: '#/components/schemas/EndpointsClustersUpdateEndpointsErrorComponent'
@@ -45193,6 +44533,7 @@ components:
         mapping:
           non_field_errors: '#/components/schemas/EndpointsClustersUpdateNonFieldErrorsErrorComponent'
           description: '#/components/schemas/EndpointsClustersUpdateDescriptionErrorComponent'
+          role_type: '#/components/schemas/EndpointsClustersUpdateRoleTypeErrorComponent'
           resource: '#/components/schemas/EndpointsClustersUpdateResourceErrorComponent'
           cluster_type: '#/components/schemas/EndpointsClustersUpdateClusterTypeErrorComponent'
           endpoints: '#/components/schemas/EndpointsClustersUpdateEndpointsErrorComponent'
@@ -45245,6 +44586,30 @@ components:
           description: |-
             * `does_not_exist` - does_not_exist
             * `incorrect_type` - incorrect_type
+            * `null` - null
+            * `required` - required
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    EndpointsClustersUpdateRoleTypeErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - role_type
+          type: string
+          description: '* `role_type` - role_type'
+        code:
+          enum:
+          - invalid_choice
+          - 'null'
+          - required
+          type: string
+          description: |-
+            * `invalid_choice` - invalid_choice
             * `null` - null
             * `required` - required
         detail:
@@ -57932,6 +57297,13 @@ components:
       - attr
       - code
       - detail
+    HealthCheckRetrieveErrorResponse400:
+      oneOf:
+      - $ref: '#/components/schemas/ParseErrorResponse'
+      discriminator:
+        propertyName: type
+        mapping:
+          client_error: '#/components/schemas/ParseErrorResponse'
     Keys:
       type: object
       properties:
@@ -59773,476 +59145,6 @@ components:
       required:
       - errors
       - type
-    Page:
-      type: object
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        url:
-          type: string
-          maxLength: 100
-        description:
-          type: string
-          maxLength: 100
-        endpoints_clusters:
-          type: array
-          items:
-            type: integer
-      required:
-      - endpoints_clusters
-      - id
-      - url
-    PagesCreateDescriptionErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - description
-          type: string
-          description: '* `description` - description'
-        code:
-          enum:
-          - invalid
-          - max_length
-          - 'null'
-          - null_characters_not_allowed
-          - surrogate_characters_not_allowed
-          type: string
-          description: |-
-            * `invalid` - invalid
-            * `max_length` - max_length
-            * `null` - null
-            * `null_characters_not_allowed` - null_characters_not_allowed
-            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    PagesCreateEndpointsClustersErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - endpoints_clusters
-          type: string
-          description: '* `endpoints_clusters` - endpoints_clusters'
-        code:
-          enum:
-          - does_not_exist
-          - empty
-          - incorrect_type
-          - not_a_list
-          - 'null'
-          - required
-          type: string
-          description: |-
-            * `does_not_exist` - does_not_exist
-            * `empty` - empty
-            * `incorrect_type` - incorrect_type
-            * `not_a_list` - not_a_list
-            * `null` - null
-            * `required` - required
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    PagesCreateError:
-      oneOf:
-      - $ref: '#/components/schemas/PagesCreateNonFieldErrorsErrorComponent'
-      - $ref: '#/components/schemas/PagesCreateUrlErrorComponent'
-      - $ref: '#/components/schemas/PagesCreateDescriptionErrorComponent'
-      - $ref: '#/components/schemas/PagesCreateEndpointsClustersErrorComponent'
-      discriminator:
-        propertyName: attr
-        mapping:
-          non_field_errors: '#/components/schemas/PagesCreateNonFieldErrorsErrorComponent'
-          url: '#/components/schemas/PagesCreateUrlErrorComponent'
-          description: '#/components/schemas/PagesCreateDescriptionErrorComponent'
-          endpoints_clusters: '#/components/schemas/PagesCreateEndpointsClustersErrorComponent'
-    PagesCreateErrorResponse400:
-      oneOf:
-      - $ref: '#/components/schemas/PagesCreateValidationError'
-      - $ref: '#/components/schemas/ParseErrorResponse'
-      discriminator:
-        propertyName: type
-        mapping:
-          validation_error: '#/components/schemas/PagesCreateValidationError'
-          client_error: '#/components/schemas/ParseErrorResponse'
-    PagesCreateNonFieldErrorsErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - non_field_errors
-          type: string
-          description: '* `non_field_errors` - non_field_errors'
-        code:
-          enum:
-          - invalid
-          type: string
-          description: '* `invalid` - invalid'
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    PagesCreateUrlErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - url
-          type: string
-          description: '* `url` - url'
-        code:
-          enum:
-          - blank
-          - invalid
-          - max_length
-          - 'null'
-          - null_characters_not_allowed
-          - required
-          - surrogate_characters_not_allowed
-          type: string
-          description: |-
-            * `blank` - blank
-            * `invalid` - invalid
-            * `max_length` - max_length
-            * `null` - null
-            * `null_characters_not_allowed` - null_characters_not_allowed
-            * `required` - required
-            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    PagesCreateValidationError:
-      type: object
-      properties:
-        type:
-          $ref: '#/components/schemas/ValidationErrorEnum'
-        errors:
-          type: array
-          items:
-            $ref: '#/components/schemas/PagesCreateError'
-      required:
-      - errors
-      - type
-    PagesDestroyErrorResponse400:
-      oneOf:
-      - $ref: '#/components/schemas/ParseErrorResponse'
-      discriminator:
-        propertyName: type
-        mapping:
-          client_error: '#/components/schemas/ParseErrorResponse'
-    PagesListErrorResponse400:
-      oneOf:
-      - $ref: '#/components/schemas/ParseErrorResponse'
-      discriminator:
-        propertyName: type
-        mapping:
-          client_error: '#/components/schemas/ParseErrorResponse'
-    PagesPartialUpdateDescriptionErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - description
-          type: string
-          description: '* `description` - description'
-        code:
-          enum:
-          - invalid
-          - max_length
-          - 'null'
-          - null_characters_not_allowed
-          - surrogate_characters_not_allowed
-          type: string
-          description: |-
-            * `invalid` - invalid
-            * `max_length` - max_length
-            * `null` - null
-            * `null_characters_not_allowed` - null_characters_not_allowed
-            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    PagesPartialUpdateEndpointsClustersErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - endpoints_clusters
-          type: string
-          description: '* `endpoints_clusters` - endpoints_clusters'
-        code:
-          enum:
-          - does_not_exist
-          - empty
-          - incorrect_type
-          - not_a_list
-          - 'null'
-          - required
-          type: string
-          description: |-
-            * `does_not_exist` - does_not_exist
-            * `empty` - empty
-            * `incorrect_type` - incorrect_type
-            * `not_a_list` - not_a_list
-            * `null` - null
-            * `required` - required
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    PagesPartialUpdateError:
-      oneOf:
-      - $ref: '#/components/schemas/PagesPartialUpdateNonFieldErrorsErrorComponent'
-      - $ref: '#/components/schemas/PagesPartialUpdateUrlErrorComponent'
-      - $ref: '#/components/schemas/PagesPartialUpdateDescriptionErrorComponent'
-      - $ref: '#/components/schemas/PagesPartialUpdateEndpointsClustersErrorComponent'
-      discriminator:
-        propertyName: attr
-        mapping:
-          non_field_errors: '#/components/schemas/PagesPartialUpdateNonFieldErrorsErrorComponent'
-          url: '#/components/schemas/PagesPartialUpdateUrlErrorComponent'
-          description: '#/components/schemas/PagesPartialUpdateDescriptionErrorComponent'
-          endpoints_clusters: '#/components/schemas/PagesPartialUpdateEndpointsClustersErrorComponent'
-    PagesPartialUpdateErrorResponse400:
-      oneOf:
-      - $ref: '#/components/schemas/PagesPartialUpdateValidationError'
-      - $ref: '#/components/schemas/ParseErrorResponse'
-      discriminator:
-        propertyName: type
-        mapping:
-          validation_error: '#/components/schemas/PagesPartialUpdateValidationError'
-          client_error: '#/components/schemas/ParseErrorResponse'
-    PagesPartialUpdateNonFieldErrorsErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - non_field_errors
-          type: string
-          description: '* `non_field_errors` - non_field_errors'
-        code:
-          enum:
-          - invalid
-          type: string
-          description: '* `invalid` - invalid'
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    PagesPartialUpdateUrlErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - url
-          type: string
-          description: '* `url` - url'
-        code:
-          enum:
-          - blank
-          - invalid
-          - max_length
-          - 'null'
-          - null_characters_not_allowed
-          - required
-          - surrogate_characters_not_allowed
-          type: string
-          description: |-
-            * `blank` - blank
-            * `invalid` - invalid
-            * `max_length` - max_length
-            * `null` - null
-            * `null_characters_not_allowed` - null_characters_not_allowed
-            * `required` - required
-            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    PagesPartialUpdateValidationError:
-      type: object
-      properties:
-        type:
-          $ref: '#/components/schemas/ValidationErrorEnum'
-        errors:
-          type: array
-          items:
-            $ref: '#/components/schemas/PagesPartialUpdateError'
-      required:
-      - errors
-      - type
-    PagesRetrieveErrorResponse400:
-      oneOf:
-      - $ref: '#/components/schemas/ParseErrorResponse'
-      discriminator:
-        propertyName: type
-        mapping:
-          client_error: '#/components/schemas/ParseErrorResponse'
-    PagesUpdateDescriptionErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - description
-          type: string
-          description: '* `description` - description'
-        code:
-          enum:
-          - invalid
-          - max_length
-          - 'null'
-          - null_characters_not_allowed
-          - surrogate_characters_not_allowed
-          type: string
-          description: |-
-            * `invalid` - invalid
-            * `max_length` - max_length
-            * `null` - null
-            * `null_characters_not_allowed` - null_characters_not_allowed
-            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    PagesUpdateEndpointsClustersErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - endpoints_clusters
-          type: string
-          description: '* `endpoints_clusters` - endpoints_clusters'
-        code:
-          enum:
-          - does_not_exist
-          - empty
-          - incorrect_type
-          - not_a_list
-          - 'null'
-          - required
-          type: string
-          description: |-
-            * `does_not_exist` - does_not_exist
-            * `empty` - empty
-            * `incorrect_type` - incorrect_type
-            * `not_a_list` - not_a_list
-            * `null` - null
-            * `required` - required
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    PagesUpdateError:
-      oneOf:
-      - $ref: '#/components/schemas/PagesUpdateNonFieldErrorsErrorComponent'
-      - $ref: '#/components/schemas/PagesUpdateUrlErrorComponent'
-      - $ref: '#/components/schemas/PagesUpdateDescriptionErrorComponent'
-      - $ref: '#/components/schemas/PagesUpdateEndpointsClustersErrorComponent'
-      discriminator:
-        propertyName: attr
-        mapping:
-          non_field_errors: '#/components/schemas/PagesUpdateNonFieldErrorsErrorComponent'
-          url: '#/components/schemas/PagesUpdateUrlErrorComponent'
-          description: '#/components/schemas/PagesUpdateDescriptionErrorComponent'
-          endpoints_clusters: '#/components/schemas/PagesUpdateEndpointsClustersErrorComponent'
-    PagesUpdateErrorResponse400:
-      oneOf:
-      - $ref: '#/components/schemas/PagesUpdateValidationError'
-      - $ref: '#/components/schemas/ParseErrorResponse'
-      discriminator:
-        propertyName: type
-        mapping:
-          validation_error: '#/components/schemas/PagesUpdateValidationError'
-          client_error: '#/components/schemas/ParseErrorResponse'
-    PagesUpdateNonFieldErrorsErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - non_field_errors
-          type: string
-          description: '* `non_field_errors` - non_field_errors'
-        code:
-          enum:
-          - invalid
-          type: string
-          description: '* `invalid` - invalid'
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    PagesUpdateUrlErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - url
-          type: string
-          description: '* `url` - url'
-        code:
-          enum:
-          - blank
-          - invalid
-          - max_length
-          - 'null'
-          - null_characters_not_allowed
-          - required
-          - surrogate_characters_not_allowed
-          type: string
-          description: |-
-            * `blank` - blank
-            * `invalid` - invalid
-            * `max_length` - max_length
-            * `null` - null
-            * `null_characters_not_allowed` - null_characters_not_allowed
-            * `required` - required
-            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    PagesUpdateValidationError:
-      type: object
-      properties:
-        type:
-          $ref: '#/components/schemas/ValidationErrorEnum'
-        errors:
-          type: array
-          items:
-            $ref: '#/components/schemas/PagesUpdateError'
-      required:
-      - errors
-      - type
     PaginatedAntennaList:
       type: object
       properties:
@@ -60617,23 +59519,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Network'
-    PaginatedPageList:
-      type: object
-      properties:
-        count:
-          type: integer
-          example: 10
-          description: the number of objects retrieved AFTER pagination (if required)
-            and AFTER filtering
-        total_count:
-          type: integer
-          example: 10
-          description: the number of objects BEFORE pagination (if required) and AFTER
-            filtering
-        result:
-          type: array
-          items:
-            $ref: '#/components/schemas/Page'
     PaginatedPersonList:
       type: object
       properties:
@@ -61247,10 +60132,6 @@ components:
         end_date:
           type: string
           format: date
-        people:
-          type: array
-          items:
-            type: integer
     PatchedDataSource:
       type: object
       properties:
@@ -61392,6 +60273,8 @@ components:
         description:
           type: string
           maxLength: 100
+        role_type:
+          $ref: '#/components/schemas/RoleTypeEnum'
         resource:
           type: integer
         cluster_type:
@@ -62030,22 +60913,6 @@ components:
         network_name:
           type: string
           nullable: true
-    PatchedPage:
-      type: object
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        url:
-          type: string
-          maxLength: 100
-        description:
-          type: string
-          maxLength: 100
-        endpoints_clusters:
-          type: array
-          items:
-            type: integer
     PatchedPerson:
       type: object
       properties:
@@ -62053,6 +60920,9 @@ components:
           type: integer
           readOnly: true
         photo_actual_file:
+          type: string
+          readOnly: true
+        user_name:
           type: string
           readOnly: true
         first_name:
@@ -62367,10 +61237,6 @@ components:
           type: array
           items:
             type: integer
-        pages:
-          type: array
-          items:
-            type: integer
     PatchedRolePersonStation:
       type: object
       properties:
@@ -62554,9 +61420,6 @@ components:
         api_id:
           type: integer
           readOnly: true
-        has_gaps:
-          type: boolean
-          readOnly: true
         station_code:
           type: string
           maxLength: 4
@@ -62666,10 +61529,12 @@ components:
         station_type_name:
           type: string
           readOnly: true
+        navigation_file_delete:
+          type: boolean
+          writeOnly: true
         remote_access_link:
           type: string
-          format: uri
-          maxLength: 200
+          maxLength: 500
         has_battery:
           type: boolean
         battery_description:
@@ -62688,7 +61553,7 @@ components:
           writeOnly: true
         navigation_filename:
           type: string
-          maxLength: 100
+          maxLength: 255
         has_gaps:
           type: boolean
           readOnly: true
@@ -62805,15 +61670,18 @@ components:
         id:
           type: integer
           readOnly: true
-        campaign_people:
-          type: string
-          readOnly: true
         log_sheet_actual_file:
           type: string
           readOnly: true
         navigation_actual_file:
           type: string
           readOnly: true
+        log_sheet_file_delete:
+          type: boolean
+          writeOnly: true
+        navigation_file_delete:
+          type: boolean
+          writeOnly: true
         date:
           type: string
           format: date
@@ -62821,16 +61689,17 @@ components:
           type: string
           format: uri
           writeOnly: true
+          nullable: true
         log_sheet_filename:
           type: string
-          maxLength: 100
+          maxLength: 255
         navigation_file:
           type: string
           format: uri
           writeOnly: true
         navigation_filename:
           type: string
-          maxLength: 100
+          maxLength: 255
         campaign:
           type: integer
           nullable: true
@@ -63653,6 +62522,9 @@ components:
         photo_actual_file:
           type: string
           readOnly: true
+        user_name:
+          type: string
+          readOnly: true
         first_name:
           type: string
           maxLength: 100
@@ -63681,6 +62553,7 @@ components:
       - id
       - last_name
       - photo_actual_file
+      - user_name
     PppSoln:
       type: object
       properties:
@@ -69589,10 +68462,6 @@ components:
           type: array
           items:
             type: integer
-        pages:
-          type: array
-          items:
-            type: integer
       required:
       - allow_all
       - id
@@ -70078,6 +68947,16 @@ components:
       required:
       - errors
       - type
+    RoleTypeEnum:
+      enum:
+      - FRONT
+      - API
+      - FRONT AND API
+      type: string
+      description: |-
+        * `FRONT` - FRONT
+        * `API` - API
+        * `FRONT AND API` - FRONT AND API
     RolesCreateAllowAllErrorComponent:
       type: object
       properties:
@@ -70136,7 +69015,6 @@ components:
       - $ref: '#/components/schemas/RolesCreateAllowAllErrorComponent'
       - $ref: '#/components/schemas/RolesCreateIsActiveErrorComponent'
       - $ref: '#/components/schemas/RolesCreateEndpointsClustersErrorComponent'
-      - $ref: '#/components/schemas/RolesCreatePagesErrorComponent'
       discriminator:
         propertyName: attr
         mapping:
@@ -70146,7 +69024,6 @@ components:
           allow_all: '#/components/schemas/RolesCreateAllowAllErrorComponent'
           is_active: '#/components/schemas/RolesCreateIsActiveErrorComponent'
           endpoints_clusters: '#/components/schemas/RolesCreateEndpointsClustersErrorComponent'
-          pages: '#/components/schemas/RolesCreatePagesErrorComponent'
     RolesCreateErrorResponse400:
       oneOf:
       - $ref: '#/components/schemas/RolesCreateValidationError'
@@ -70225,32 +69102,6 @@ components:
           - invalid
           type: string
           description: '* `invalid` - invalid'
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    RolesCreatePagesErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - pages
-          type: string
-          description: '* `pages` - pages'
-        code:
-          enum:
-          - does_not_exist
-          - incorrect_type
-          - not_a_list
-          - 'null'
-          type: string
-          description: |-
-            * `does_not_exist` - does_not_exist
-            * `incorrect_type` - incorrect_type
-            * `not_a_list` - not_a_list
-            * `null` - null
         detail:
           type: string
       required:
@@ -70358,7 +69209,6 @@ components:
       - $ref: '#/components/schemas/RolesPartialUpdateAllowAllErrorComponent'
       - $ref: '#/components/schemas/RolesPartialUpdateIsActiveErrorComponent'
       - $ref: '#/components/schemas/RolesPartialUpdateEndpointsClustersErrorComponent'
-      - $ref: '#/components/schemas/RolesPartialUpdatePagesErrorComponent'
       discriminator:
         propertyName: attr
         mapping:
@@ -70368,7 +69218,6 @@ components:
           allow_all: '#/components/schemas/RolesPartialUpdateAllowAllErrorComponent'
           is_active: '#/components/schemas/RolesPartialUpdateIsActiveErrorComponent'
           endpoints_clusters: '#/components/schemas/RolesPartialUpdateEndpointsClustersErrorComponent'
-          pages: '#/components/schemas/RolesPartialUpdatePagesErrorComponent'
     RolesPartialUpdateErrorResponse400:
       oneOf:
       - $ref: '#/components/schemas/RolesPartialUpdateValidationError'
@@ -70447,32 +69296,6 @@ components:
           - invalid
           type: string
           description: '* `invalid` - invalid'
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    RolesPartialUpdatePagesErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - pages
-          type: string
-          description: '* `pages` - pages'
-        code:
-          enum:
-          - does_not_exist
-          - incorrect_type
-          - not_a_list
-          - 'null'
-          type: string
-          description: |-
-            * `does_not_exist` - does_not_exist
-            * `incorrect_type` - incorrect_type
-            * `not_a_list` - not_a_list
-            * `null` - null
         detail:
           type: string
       required:
@@ -70580,7 +69403,6 @@ components:
       - $ref: '#/components/schemas/RolesUpdateAllowAllErrorComponent'
       - $ref: '#/components/schemas/RolesUpdateIsActiveErrorComponent'
       - $ref: '#/components/schemas/RolesUpdateEndpointsClustersErrorComponent'
-      - $ref: '#/components/schemas/RolesUpdatePagesErrorComponent'
       discriminator:
         propertyName: attr
         mapping:
@@ -70590,7 +69412,6 @@ components:
           allow_all: '#/components/schemas/RolesUpdateAllowAllErrorComponent'
           is_active: '#/components/schemas/RolesUpdateIsActiveErrorComponent'
           endpoints_clusters: '#/components/schemas/RolesUpdateEndpointsClustersErrorComponent'
-          pages: '#/components/schemas/RolesUpdatePagesErrorComponent'
     RolesUpdateErrorResponse400:
       oneOf:
       - $ref: '#/components/schemas/RolesUpdateValidationError'
@@ -70669,32 +69490,6 @@ components:
           - invalid
           type: string
           description: '* `invalid` - invalid'
-        detail:
-          type: string
-      required:
-      - attr
-      - code
-      - detail
-    RolesUpdatePagesErrorComponent:
-      type: object
-      properties:
-        attr:
-          enum:
-          - pages
-          type: string
-          description: '* `pages` - pages'
-        code:
-          enum:
-          - does_not_exist
-          - incorrect_type
-          - not_a_list
-          - 'null'
-          type: string
-          description: |-
-            * `does_not_exist` - does_not_exist
-            * `incorrect_type` - incorrect_type
-            * `not_a_list` - not_a_list
-            * `null` - null
         detail:
           type: string
       required:
@@ -74343,9 +73138,6 @@ components:
         api_id:
           type: integer
           readOnly: true
-        has_gaps:
-          type: boolean
-          readOnly: true
         station_code:
           type: string
           maxLength: 4
@@ -74445,7 +73237,6 @@ components:
           type: string
       required:
       - api_id
-      - has_gaps
       - network_code
       - station_code
     StationAttachedFiles:
@@ -74463,10 +73254,10 @@ components:
           writeOnly: true
         filename:
           type: string
-          maxLength: 100
+          maxLength: 255
         description:
           type: string
-          maxLength: 100
+          maxLength: 500
         station:
           type: integer
       required:
@@ -74730,9 +73521,12 @@ components:
           type: string
           format: uri
           writeOnly: true
+        name:
+          type: string
+          maxLength: 255
         description:
           type: string
-          maxLength: 100
+          maxLength: 500
         station:
           type: integer
       required:
@@ -74772,6 +73566,7 @@ components:
       oneOf:
       - $ref: '#/components/schemas/StationImagesCreateNonFieldErrorsErrorComponent'
       - $ref: '#/components/schemas/StationImagesCreateImageErrorComponent'
+      - $ref: '#/components/schemas/StationImagesCreateNameErrorComponent'
       - $ref: '#/components/schemas/StationImagesCreateDescriptionErrorComponent'
       - $ref: '#/components/schemas/StationImagesCreateStationErrorComponent'
       discriminator:
@@ -74779,6 +73574,7 @@ components:
         mapping:
           non_field_errors: '#/components/schemas/StationImagesCreateNonFieldErrorsErrorComponent'
           image: '#/components/schemas/StationImagesCreateImageErrorComponent'
+          name: '#/components/schemas/StationImagesCreateNameErrorComponent'
           description: '#/components/schemas/StationImagesCreateDescriptionErrorComponent'
           station: '#/components/schemas/StationImagesCreateStationErrorComponent'
     StationImagesCreateErrorResponse400:
@@ -74816,6 +73612,34 @@ components:
             * `no_name` - no_name
             * `null` - null
             * `required` - required
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    StationImagesCreateNameErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - name
+          type: string
+          description: '* `name` - name'
+        code:
+          enum:
+          - invalid
+          - max_length
+          - 'null'
+          - null_characters_not_allowed
+          - surrogate_characters_not_allowed
+          type: string
+          description: |-
+            * `invalid` - invalid
+            * `max_length` - max_length
+            * `null` - null
+            * `null_characters_not_allowed` - null_characters_not_allowed
+            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
         detail:
           type: string
       required:
@@ -76114,10 +74938,12 @@ components:
         station_type_name:
           type: string
           readOnly: true
+        navigation_file_delete:
+          type: boolean
+          writeOnly: true
         remote_access_link:
           type: string
-          format: uri
-          maxLength: 200
+          maxLength: 500
         has_battery:
           type: boolean
         battery_description:
@@ -76136,7 +74962,7 @@ components:
           writeOnly: true
         navigation_filename:
           type: string
-          maxLength: 100
+          maxLength: 255
         has_gaps:
           type: boolean
           readOnly: true
@@ -76169,6 +74995,7 @@ components:
       - has_stationinfo
       - id
       - navigation_actual_file
+      - navigation_file_delete
       - station
       - station_type_name
     StationMetaCreateBatteryDescriptionErrorComponent:
@@ -76256,6 +75083,7 @@ components:
     StationMetaCreateError:
       oneOf:
       - $ref: '#/components/schemas/StationMetaCreateNonFieldErrorsErrorComponent'
+      - $ref: '#/components/schemas/StationMetaCreateNavigationFileDeleteErrorComponent'
       - $ref: '#/components/schemas/StationMetaCreateRemoteAccessLinkErrorComponent'
       - $ref: '#/components/schemas/StationMetaCreateHasBatteryErrorComponent'
       - $ref: '#/components/schemas/StationMetaCreateBatteryDescriptionErrorComponent'
@@ -76272,6 +75100,7 @@ components:
         propertyName: attr
         mapping:
           non_field_errors: '#/components/schemas/StationMetaCreateNonFieldErrorsErrorComponent'
+          navigation_file_delete: '#/components/schemas/StationMetaCreateNavigationFileDeleteErrorComponent'
           remote_access_link: '#/components/schemas/StationMetaCreateRemoteAccessLinkErrorComponent'
           has_battery: '#/components/schemas/StationMetaCreateHasBatteryErrorComponent'
           battery_description: '#/components/schemas/StationMetaCreateBatteryDescriptionErrorComponent'
@@ -76353,6 +75182,30 @@ components:
           description: |-
             * `does_not_exist` - does_not_exist
             * `incorrect_type` - incorrect_type
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    StationMetaCreateNavigationFileDeleteErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - navigation_file_delete
+          type: string
+          description: '* `navigation_file_delete` - navigation_file_delete'
+        code:
+          enum:
+          - invalid
+          - 'null'
+          - required
+          type: string
+          description: |-
+            * `invalid` - invalid
+            * `null` - null
+            * `required` - required
         detail:
           type: string
       required:
@@ -76643,6 +75496,7 @@ components:
     StationMetaPartialUpdateError:
       oneOf:
       - $ref: '#/components/schemas/StationMetaPartialUpdateNonFieldErrorsErrorComponent'
+      - $ref: '#/components/schemas/StationMetaPartialUpdateNavigationFileDeleteErrorComponent'
       - $ref: '#/components/schemas/StationMetaPartialUpdateRemoteAccessLinkErrorComponent'
       - $ref: '#/components/schemas/StationMetaPartialUpdateHasBatteryErrorComponent'
       - $ref: '#/components/schemas/StationMetaPartialUpdateBatteryDescriptionErrorComponent'
@@ -76659,6 +75513,7 @@ components:
         propertyName: attr
         mapping:
           non_field_errors: '#/components/schemas/StationMetaPartialUpdateNonFieldErrorsErrorComponent'
+          navigation_file_delete: '#/components/schemas/StationMetaPartialUpdateNavigationFileDeleteErrorComponent'
           remote_access_link: '#/components/schemas/StationMetaPartialUpdateRemoteAccessLinkErrorComponent'
           has_battery: '#/components/schemas/StationMetaPartialUpdateHasBatteryErrorComponent'
           battery_description: '#/components/schemas/StationMetaPartialUpdateBatteryDescriptionErrorComponent'
@@ -76740,6 +75595,30 @@ components:
           description: |-
             * `does_not_exist` - does_not_exist
             * `incorrect_type` - incorrect_type
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    StationMetaPartialUpdateNavigationFileDeleteErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - navigation_file_delete
+          type: string
+          description: '* `navigation_file_delete` - navigation_file_delete'
+        code:
+          enum:
+          - invalid
+          - 'null'
+          - required
+          type: string
+          description: |-
+            * `invalid` - invalid
+            * `null` - null
+            * `required` - required
         detail:
           type: string
       required:
@@ -77023,6 +75902,7 @@ components:
     StationMetaUpdateError:
       oneOf:
       - $ref: '#/components/schemas/StationMetaUpdateNonFieldErrorsErrorComponent'
+      - $ref: '#/components/schemas/StationMetaUpdateNavigationFileDeleteErrorComponent'
       - $ref: '#/components/schemas/StationMetaUpdateRemoteAccessLinkErrorComponent'
       - $ref: '#/components/schemas/StationMetaUpdateHasBatteryErrorComponent'
       - $ref: '#/components/schemas/StationMetaUpdateBatteryDescriptionErrorComponent'
@@ -77039,6 +75919,7 @@ components:
         propertyName: attr
         mapping:
           non_field_errors: '#/components/schemas/StationMetaUpdateNonFieldErrorsErrorComponent'
+          navigation_file_delete: '#/components/schemas/StationMetaUpdateNavigationFileDeleteErrorComponent'
           remote_access_link: '#/components/schemas/StationMetaUpdateRemoteAccessLinkErrorComponent'
           has_battery: '#/components/schemas/StationMetaUpdateHasBatteryErrorComponent'
           battery_description: '#/components/schemas/StationMetaUpdateBatteryDescriptionErrorComponent'
@@ -77120,6 +76001,30 @@ components:
           description: |-
             * `does_not_exist` - does_not_exist
             * `incorrect_type` - incorrect_type
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    StationMetaUpdateNavigationFileDeleteErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - navigation_file_delete
+          type: string
+          description: '* `navigation_file_delete` - navigation_file_delete'
+        code:
+          enum:
+          - invalid
+          - 'null'
+          - required
+          type: string
+          description: |-
+            * `invalid` - invalid
+            * `null` - null
+            * `required` - required
         detail:
           type: string
       required:
@@ -81764,15 +80669,18 @@ components:
         id:
           type: integer
           readOnly: true
-        campaign_people:
-          type: string
-          readOnly: true
         log_sheet_actual_file:
           type: string
           readOnly: true
         navigation_actual_file:
           type: string
           readOnly: true
+        log_sheet_file_delete:
+          type: boolean
+          writeOnly: true
+        navigation_file_delete:
+          type: boolean
+          writeOnly: true
         date:
           type: string
           format: date
@@ -81780,16 +80688,17 @@ components:
           type: string
           format: uri
           writeOnly: true
+          nullable: true
         log_sheet_filename:
           type: string
-          maxLength: 100
+          maxLength: 255
         navigation_file:
           type: string
           format: uri
           writeOnly: true
         navigation_filename:
           type: string
-          maxLength: 100
+          maxLength: 255
         campaign:
           type: integer
           nullable: true
@@ -81800,11 +80709,12 @@ components:
           items:
             type: integer
       required:
-      - campaign_people
       - date
       - id
       - log_sheet_actual_file
+      - log_sheet_file_delete
       - navigation_actual_file
+      - navigation_file_delete
       - station
     VisitAttachedFiles:
       type: object
@@ -81821,10 +80731,10 @@ components:
           writeOnly: true
         filename:
           type: string
-          maxLength: 100
+          maxLength: 255
         description:
           type: string
-          maxLength: 100
+          maxLength: 500
         visit:
           type: integer
       required:
@@ -82075,10 +80985,10 @@ components:
           writeOnly: true
         filename:
           type: string
-          maxLength: 100
+          maxLength: 255
         description:
           type: string
-          maxLength: 100
+          maxLength: 500
         visit:
           type: integer
       required:
@@ -82327,9 +81237,12 @@ components:
           type: string
           format: uri
           writeOnly: true
+        name:
+          type: string
+          maxLength: 255
         description:
           type: string
-          maxLength: 100
+          maxLength: 500
         visit:
           type: integer
       required:
@@ -82369,6 +81282,7 @@ components:
       oneOf:
       - $ref: '#/components/schemas/VisitImagesCreateNonFieldErrorsErrorComponent'
       - $ref: '#/components/schemas/VisitImagesCreateImageErrorComponent'
+      - $ref: '#/components/schemas/VisitImagesCreateNameErrorComponent'
       - $ref: '#/components/schemas/VisitImagesCreateDescriptionErrorComponent'
       - $ref: '#/components/schemas/VisitImagesCreateVisitErrorComponent'
       discriminator:
@@ -82376,6 +81290,7 @@ components:
         mapping:
           non_field_errors: '#/components/schemas/VisitImagesCreateNonFieldErrorsErrorComponent'
           image: '#/components/schemas/VisitImagesCreateImageErrorComponent'
+          name: '#/components/schemas/VisitImagesCreateNameErrorComponent'
           description: '#/components/schemas/VisitImagesCreateDescriptionErrorComponent'
           visit: '#/components/schemas/VisitImagesCreateVisitErrorComponent'
     VisitImagesCreateErrorResponse400:
@@ -82413,6 +81328,34 @@ components:
             * `no_name` - no_name
             * `null` - null
             * `required` - required
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    VisitImagesCreateNameErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - name
+          type: string
+          description: '* `name` - name'
+        code:
+          enum:
+          - invalid
+          - max_length
+          - 'null'
+          - null_characters_not_allowed
+          - surrogate_characters_not_allowed
+          type: string
+          description: |-
+            * `invalid` - invalid
+            * `max_length` - max_length
+            * `null` - null
+            * `null_characters_not_allowed` - null_characters_not_allowed
+            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
         detail:
           type: string
       required:
@@ -82588,6 +81531,8 @@ components:
     VisitsCreateError:
       oneOf:
       - $ref: '#/components/schemas/VisitsCreateNonFieldErrorsErrorComponent'
+      - $ref: '#/components/schemas/VisitsCreateLogSheetFileDeleteErrorComponent'
+      - $ref: '#/components/schemas/VisitsCreateNavigationFileDeleteErrorComponent'
       - $ref: '#/components/schemas/VisitsCreateDateErrorComponent'
       - $ref: '#/components/schemas/VisitsCreateLogSheetFileErrorComponent'
       - $ref: '#/components/schemas/VisitsCreateLogSheetFilenameErrorComponent'
@@ -82600,6 +81545,8 @@ components:
         propertyName: attr
         mapping:
           non_field_errors: '#/components/schemas/VisitsCreateNonFieldErrorsErrorComponent'
+          log_sheet_file_delete: '#/components/schemas/VisitsCreateLogSheetFileDeleteErrorComponent'
+          navigation_file_delete: '#/components/schemas/VisitsCreateNavigationFileDeleteErrorComponent'
           date: '#/components/schemas/VisitsCreateDateErrorComponent'
           log_sheet_file: '#/components/schemas/VisitsCreateLogSheetFileErrorComponent'
           log_sheet_filename: '#/components/schemas/VisitsCreateLogSheetFilenameErrorComponent'
@@ -82617,6 +81564,30 @@ components:
         mapping:
           validation_error: '#/components/schemas/VisitsCreateValidationError'
           client_error: '#/components/schemas/ParseErrorResponse'
+    VisitsCreateLogSheetFileDeleteErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - log_sheet_file_delete
+          type: string
+          description: '* `log_sheet_file_delete` - log_sheet_file_delete'
+        code:
+          enum:
+          - invalid
+          - 'null'
+          - required
+          type: string
+          description: |-
+            * `invalid` - invalid
+            * `null` - null
+            * `required` - required
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
     VisitsCreateLogSheetFileErrorComponent:
       type: object
       properties:
@@ -82631,14 +81602,12 @@ components:
           - invalid
           - max_length
           - no_name
-          - 'null'
           type: string
           description: |-
             * `empty` - empty
             * `invalid` - invalid
             * `max_length` - max_length
             * `no_name` - no_name
-            * `null` - null
         detail:
           type: string
       required:
@@ -82667,6 +81636,30 @@ components:
             * `null` - null
             * `null_characters_not_allowed` - null_characters_not_allowed
             * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    VisitsCreateNavigationFileDeleteErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - navigation_file_delete
+          type: string
+          description: '* `navigation_file_delete` - navigation_file_delete'
+        code:
+          enum:
+          - invalid
+          - 'null'
+          - required
+          type: string
+          description: |-
+            * `invalid` - invalid
+            * `null` - null
+            * `required` - required
         detail:
           type: string
       required:
@@ -82822,13 +81815,53 @@ components:
         propertyName: type
         mapping:
           client_error: '#/components/schemas/ParseErrorResponse'
+    VisitsListError:
+      oneOf:
+      - $ref: '#/components/schemas/VisitsListStationApiIdErrorComponent'
+      discriminator:
+        propertyName: attr
+        mapping:
+          station_api_id: '#/components/schemas/VisitsListStationApiIdErrorComponent'
     VisitsListErrorResponse400:
       oneOf:
+      - $ref: '#/components/schemas/VisitsListValidationError'
       - $ref: '#/components/schemas/ParseErrorResponse'
       discriminator:
         propertyName: type
         mapping:
+          validation_error: '#/components/schemas/VisitsListValidationError'
           client_error: '#/components/schemas/ParseErrorResponse'
+    VisitsListStationApiIdErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - station_api_id
+          type: string
+          description: '* `station_api_id` - station_api_id'
+        code:
+          enum:
+          - null_characters_not_allowed
+          type: string
+          description: '* `null_characters_not_allowed` - null_characters_not_allowed'
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    VisitsListValidationError:
+      type: object
+      properties:
+        type:
+          $ref: '#/components/schemas/ValidationErrorEnum'
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/VisitsListError'
+      required:
+      - errors
+      - type
     VisitsPartialUpdateCampaignErrorComponent:
       type: object
       properties:
@@ -82880,6 +81913,8 @@ components:
     VisitsPartialUpdateError:
       oneOf:
       - $ref: '#/components/schemas/VisitsPartialUpdateNonFieldErrorsErrorComponent'
+      - $ref: '#/components/schemas/VisitsPartialUpdateLogSheetFileDeleteErrorComponent'
+      - $ref: '#/components/schemas/VisitsPartialUpdateNavigationFileDeleteErrorComponent'
       - $ref: '#/components/schemas/VisitsPartialUpdateDateErrorComponent'
       - $ref: '#/components/schemas/VisitsPartialUpdateLogSheetFileErrorComponent'
       - $ref: '#/components/schemas/VisitsPartialUpdateLogSheetFilenameErrorComponent'
@@ -82892,6 +81927,8 @@ components:
         propertyName: attr
         mapping:
           non_field_errors: '#/components/schemas/VisitsPartialUpdateNonFieldErrorsErrorComponent'
+          log_sheet_file_delete: '#/components/schemas/VisitsPartialUpdateLogSheetFileDeleteErrorComponent'
+          navigation_file_delete: '#/components/schemas/VisitsPartialUpdateNavigationFileDeleteErrorComponent'
           date: '#/components/schemas/VisitsPartialUpdateDateErrorComponent'
           log_sheet_file: '#/components/schemas/VisitsPartialUpdateLogSheetFileErrorComponent'
           log_sheet_filename: '#/components/schemas/VisitsPartialUpdateLogSheetFilenameErrorComponent'
@@ -82909,6 +81946,30 @@ components:
         mapping:
           validation_error: '#/components/schemas/VisitsPartialUpdateValidationError'
           client_error: '#/components/schemas/ParseErrorResponse'
+    VisitsPartialUpdateLogSheetFileDeleteErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - log_sheet_file_delete
+          type: string
+          description: '* `log_sheet_file_delete` - log_sheet_file_delete'
+        code:
+          enum:
+          - invalid
+          - 'null'
+          - required
+          type: string
+          description: |-
+            * `invalid` - invalid
+            * `null` - null
+            * `required` - required
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
     VisitsPartialUpdateLogSheetFileErrorComponent:
       type: object
       properties:
@@ -82923,14 +81984,12 @@ components:
           - invalid
           - max_length
           - no_name
-          - 'null'
           type: string
           description: |-
             * `empty` - empty
             * `invalid` - invalid
             * `max_length` - max_length
             * `no_name` - no_name
-            * `null` - null
         detail:
           type: string
       required:
@@ -82959,6 +82018,30 @@ components:
             * `null` - null
             * `null_characters_not_allowed` - null_characters_not_allowed
             * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    VisitsPartialUpdateNavigationFileDeleteErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - navigation_file_delete
+          type: string
+          description: '* `navigation_file_delete` - navigation_file_delete'
+        code:
+          enum:
+          - invalid
+          - 'null'
+          - required
+          type: string
+          description: |-
+            * `invalid` - invalid
+            * `null` - null
+            * `required` - required
         detail:
           type: string
       required:
@@ -83165,6 +82248,8 @@ components:
     VisitsUpdateError:
       oneOf:
       - $ref: '#/components/schemas/VisitsUpdateNonFieldErrorsErrorComponent'
+      - $ref: '#/components/schemas/VisitsUpdateLogSheetFileDeleteErrorComponent'
+      - $ref: '#/components/schemas/VisitsUpdateNavigationFileDeleteErrorComponent'
       - $ref: '#/components/schemas/VisitsUpdateDateErrorComponent'
       - $ref: '#/components/schemas/VisitsUpdateLogSheetFileErrorComponent'
       - $ref: '#/components/schemas/VisitsUpdateLogSheetFilenameErrorComponent'
@@ -83177,6 +82262,8 @@ components:
         propertyName: attr
         mapping:
           non_field_errors: '#/components/schemas/VisitsUpdateNonFieldErrorsErrorComponent'
+          log_sheet_file_delete: '#/components/schemas/VisitsUpdateLogSheetFileDeleteErrorComponent'
+          navigation_file_delete: '#/components/schemas/VisitsUpdateNavigationFileDeleteErrorComponent'
           date: '#/components/schemas/VisitsUpdateDateErrorComponent'
           log_sheet_file: '#/components/schemas/VisitsUpdateLogSheetFileErrorComponent'
           log_sheet_filename: '#/components/schemas/VisitsUpdateLogSheetFilenameErrorComponent'
@@ -83194,6 +82281,30 @@ components:
         mapping:
           validation_error: '#/components/schemas/VisitsUpdateValidationError'
           client_error: '#/components/schemas/ParseErrorResponse'
+    VisitsUpdateLogSheetFileDeleteErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - log_sheet_file_delete
+          type: string
+          description: '* `log_sheet_file_delete` - log_sheet_file_delete'
+        code:
+          enum:
+          - invalid
+          - 'null'
+          - required
+          type: string
+          description: |-
+            * `invalid` - invalid
+            * `null` - null
+            * `required` - required
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
     VisitsUpdateLogSheetFileErrorComponent:
       type: object
       properties:
@@ -83208,14 +82319,12 @@ components:
           - invalid
           - max_length
           - no_name
-          - 'null'
           type: string
           description: |-
             * `empty` - empty
             * `invalid` - invalid
             * `max_length` - max_length
             * `no_name` - no_name
-            * `null` - null
         detail:
           type: string
       required:
@@ -83244,6 +82353,30 @@ components:
             * `null` - null
             * `null_characters_not_allowed` - null_characters_not_allowed
             * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    VisitsUpdateNavigationFileDeleteErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - navigation_file_delete
+          type: string
+          description: '* `navigation_file_delete` - navigation_file_delete'
+        code:
+          enum:
+          - invalid
+          - 'null'
+          - required
+          type: string
+          description: |-
+            * `invalid` - invalid
+            * `null` - null
+            * `required` - required
         detail:
           type: string
       required:

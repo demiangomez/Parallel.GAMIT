@@ -10,12 +10,48 @@ class RolePermission(permissions.BasePermission):
 
     def has_permission(self, request, view):
         if role_is_active(request):
-            if check_has_all_endpoints(request):
+            if endpoint_is_always_allowed(request):
+                return True
+            elif check_has_all_endpoints(request):
                 return True
             else:
                 return check_has_endpoint(request)
-        
+
         return False
+
+
+def endpoint_is_always_allowed(request):
+
+    if endpoint_is_user_photo(request) and user_is_requesting_its_photo(request):
+        return True
+    elif endpoint_is_health_check(request):
+        return True
+
+    return False
+
+
+def endpoint_is_health_check(request):
+    return request.path == "/api/health-check" and request.method == "GET"
+
+
+def endpoint_is_user_photo(request):
+    return replace_path_params(request.path) == "/api/users/<PATH_PARAM>/photo" and request.method == "GET"
+
+
+def user_is_requesting_its_photo(request):
+    return int(get_path_params_from_endpoint(request.path)[0]) == int(request.user.id)
+
+
+def get_path_params_from_endpoint(path):
+    path_parts = path.split("/")
+    path_params = []
+
+    for i in path_parts:
+        if remove_whitespaces(i).isnumeric():
+            path_params.append(remove_whitespaces(i))
+
+    return path_params
+
 
 def role_is_active(request):
     try:
@@ -27,6 +63,7 @@ def role_is_active(request):
         return True
     else:
         return True
+
 
 def check_has_all_endpoints(request):
     try:
@@ -47,26 +84,27 @@ def check_has_endpoint(request):
         return check_has_endpoint_api(request)
     else:
         return check_has_endpoint_frontend(request)
-    
+
+
 def check_has_endpoint_api(request):
     role = models.Role.objects.get(
-            id=request.user.role.id)
-    
-    for endpoint_cluster in role.endpoints_clusters.all():
-        if endpoint_cluster.endpoints.filter(path = replace_path_params(request.path), method__in = [request.method, "ALL"]).exists():
+        id=request.user.role.id)
+
+    for endpoint_cluster in role.endpoints_clusters.filter(role_type__icontains="API"):
+        if endpoint_cluster.endpoints.filter(path=replace_path_params(request.path), method__in=[request.method, "ALL"]).exists():
             return True
-        
+
     return False
+
 
 def check_has_endpoint_frontend(request):
     role = models.Role.objects.get(
-            id=request.user.role.id)
-    
-    for page in role.pages.all():
-        for endpoint_cluster in page.endpoints_clusters.all():
-            if endpoint_cluster.endpoints.filter(path = replace_path_params(request.path), method__in = [request.method, "ALL"]).exists():
-                return True
-        
+        id=request.user.role.id)
+
+    for endpoint_cluster in role.endpoints_clusters.filter(role_type__icontains="FRONT"):
+        if endpoint_cluster.endpoints.filter(path=replace_path_params(request.path), method__in=[request.method, "ALL"]).exists():
+            return True
+
     return False
 
 
