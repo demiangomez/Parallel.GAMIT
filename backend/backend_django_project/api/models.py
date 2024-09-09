@@ -1110,6 +1110,7 @@ class Visits(BaseModel):
             models.UniqueConstraint(
                 fields=['station', 'date'], name='station_date_unique')
         ]
+        ordering = ["-date"]
 
 
 class VisitImages(BaseModel):

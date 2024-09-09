@@ -411,6 +411,15 @@ class CampaignSerializer(serializers.ModelSerializer):
         
         if start_date is not None and end_date is not None and start_date > end_date:
             raise serializers.ValidationError("End Date must occur after Start Date")
+        
+        # check if all related visits date fall between campaign date range
+        if self.instance is not None:
+            visit_dates = models.Visits.objects.filter(campaign=self.instance).values_list('date', flat=True)
+
+            for visit_date in visit_dates:
+                if visit_date < start_date or visit_date > end_date:
+                    raise serializers.ValidationError("All visits related to this campaign must have their date within the campaign date range")
+        
         return data
 
 
