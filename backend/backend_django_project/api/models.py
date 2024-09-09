@@ -1103,6 +1103,7 @@ class Visits(BaseModel):
     navigation_file = models.FileField(
         upload_to=visits_navigation_file_path, blank=True)
     navigation_filename = models.CharField(max_length=255, blank=True)
+    comments = models.CharField(blank=True)
 
     class Meta:
         constraints = [

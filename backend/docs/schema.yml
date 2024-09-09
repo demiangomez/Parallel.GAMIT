@@ -61700,6 +61700,8 @@ components:
         navigation_filename:
           type: string
           maxLength: 255
+        comments:
+          type: string
         campaign:
           type: integer
           nullable: true
@@ -80699,6 +80701,8 @@ components:
         navigation_filename:
           type: string
           maxLength: 255
+        comments:
+          type: string
         campaign:
           type: integer
           nullable: true
@@ -81502,6 +81506,32 @@ components:
       - attr
       - code
       - detail
+    VisitsCreateCommentsErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - comments
+          type: string
+          description: '* `comments` - comments'
+        code:
+          enum:
+          - invalid
+          - 'null'
+          - null_characters_not_allowed
+          - surrogate_characters_not_allowed
+          type: string
+          description: |-
+            * `invalid` - invalid
+            * `null` - null
+            * `null_characters_not_allowed` - null_characters_not_allowed
+            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
     VisitsCreateDateErrorComponent:
       type: object
       properties:
@@ -81538,6 +81568,7 @@ components:
       - $ref: '#/components/schemas/VisitsCreateLogSheetFilenameErrorComponent'
       - $ref: '#/components/schemas/VisitsCreateNavigationFileErrorComponent'
       - $ref: '#/components/schemas/VisitsCreateNavigationFilenameErrorComponent'
+      - $ref: '#/components/schemas/VisitsCreateCommentsErrorComponent'
       - $ref: '#/components/schemas/VisitsCreateCampaignErrorComponent'
       - $ref: '#/components/schemas/VisitsCreateStationErrorComponent'
       - $ref: '#/components/schemas/VisitsCreatePeopleErrorComponent'
@@ -81552,6 +81583,7 @@ components:
           log_sheet_filename: '#/components/schemas/VisitsCreateLogSheetFilenameErrorComponent'
           navigation_file: '#/components/schemas/VisitsCreateNavigationFileErrorComponent'
           navigation_filename: '#/components/schemas/VisitsCreateNavigationFilenameErrorComponent'
+          comments: '#/components/schemas/VisitsCreateCommentsErrorComponent'
           campaign: '#/components/schemas/VisitsCreateCampaignErrorComponent'
           station: '#/components/schemas/VisitsCreateStationErrorComponent'
           people: '#/components/schemas/VisitsCreatePeopleErrorComponent'
@@ -81884,6 +81916,32 @@ components:
       - attr
       - code
       - detail
+    VisitsPartialUpdateCommentsErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - comments
+          type: string
+          description: '* `comments` - comments'
+        code:
+          enum:
+          - invalid
+          - 'null'
+          - null_characters_not_allowed
+          - surrogate_characters_not_allowed
+          type: string
+          description: |-
+            * `invalid` - invalid
+            * `null` - null
+            * `null_characters_not_allowed` - null_characters_not_allowed
+            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
     VisitsPartialUpdateDateErrorComponent:
       type: object
       properties:
@@ -81920,6 +81978,7 @@ components:
       - $ref: '#/components/schemas/VisitsPartialUpdateLogSheetFilenameErrorComponent'
       - $ref: '#/components/schemas/VisitsPartialUpdateNavigationFileErrorComponent'
       - $ref: '#/components/schemas/VisitsPartialUpdateNavigationFilenameErrorComponent'
+      - $ref: '#/components/schemas/VisitsPartialUpdateCommentsErrorComponent'
       - $ref: '#/components/schemas/VisitsPartialUpdateCampaignErrorComponent'
       - $ref: '#/components/schemas/VisitsPartialUpdateStationErrorComponent'
       - $ref: '#/components/schemas/VisitsPartialUpdatePeopleErrorComponent'
@@ -81934,6 +81993,7 @@ components:
           log_sheet_filename: '#/components/schemas/VisitsPartialUpdateLogSheetFilenameErrorComponent'
           navigation_file: '#/components/schemas/VisitsPartialUpdateNavigationFileErrorComponent'
           navigation_filename: '#/components/schemas/VisitsPartialUpdateNavigationFilenameErrorComponent'
+          comments: '#/components/schemas/VisitsPartialUpdateCommentsErrorComponent'
           campaign: '#/components/schemas/VisitsPartialUpdateCampaignErrorComponent'
           station: '#/components/schemas/VisitsPartialUpdateStationErrorComponent'
           people: '#/components/schemas/VisitsPartialUpdatePeopleErrorComponent'
@@ -82219,6 +82279,32 @@ components:
       - attr
       - code
       - detail
+    VisitsUpdateCommentsErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - comments
+          type: string
+          description: '* `comments` - comments'
+        code:
+          enum:
+          - invalid
+          - 'null'
+          - null_characters_not_allowed
+          - surrogate_characters_not_allowed
+          type: string
+          description: |-
+            * `invalid` - invalid
+            * `null` - null
+            * `null_characters_not_allowed` - null_characters_not_allowed
+            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
     VisitsUpdateDateErrorComponent:
       type: object
       properties:
@@ -82255,6 +82341,7 @@ components:
       - $ref: '#/components/schemas/VisitsUpdateLogSheetFilenameErrorComponent'
       - $ref: '#/components/schemas/VisitsUpdateNavigationFileErrorComponent'
       - $ref: '#/components/schemas/VisitsUpdateNavigationFilenameErrorComponent'
+      - $ref: '#/components/schemas/VisitsUpdateCommentsErrorComponent'
       - $ref: '#/components/schemas/VisitsUpdateCampaignErrorComponent'
       - $ref: '#/components/schemas/VisitsUpdateStationErrorComponent'
       - $ref: '#/components/schemas/VisitsUpdatePeopleErrorComponent'
@@ -82269,6 +82356,7 @@ components:
           log_sheet_filename: '#/components/schemas/VisitsUpdateLogSheetFilenameErrorComponent'
           navigation_file: '#/components/schemas/VisitsUpdateNavigationFileErrorComponent'
           navigation_filename: '#/components/schemas/VisitsUpdateNavigationFilenameErrorComponent'
+          comments: '#/components/schemas/VisitsUpdateCommentsErrorComponent'
           campaign: '#/components/schemas/VisitsUpdateCampaignErrorComponent'
           station: '#/components/schemas/VisitsUpdateStationErrorComponent'
           people: '#/components/schemas/VisitsUpdatePeopleErrorComponent'

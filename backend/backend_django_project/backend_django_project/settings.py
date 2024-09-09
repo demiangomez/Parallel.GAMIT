@@ -156,6 +156,41 @@ TEMPLATES = [
     },
 ]
 
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    'formatters': {
+        'standard': {
+            'format': '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+        },
+    },  
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            'formatter':'standard',
+        },
+        "file": {
+            "level": "DEBUG",
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": os.path.join(PROJECT_PATH, "logs", "logs.txt"),
+            "maxBytes": 1000000,
+            "backupCount": 50,
+            'formatter':'standard',
+        },
+    },
+    "root": {
+        "handlers": ["console", "file"],
+        "level": "DEBUG",
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["console", "file"],
+            "level": os.getenv("DJANGO_LOG_LEVEL", "INFO"),
+            "propagate": False,
+        },
+    },
+}
+
 WSGI_APPLICATION = 'backend_django_project.wsgi.application'
 
 
