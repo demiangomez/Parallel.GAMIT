@@ -111,3 +111,4 @@ def plot_global_network(central_points, OC, labels, points,
     t1 = time.time()
     fig.supxlabel("Figure runtime:  " + ("%.2fs" % (t1 - t0)).lstrip("0"))
     plt.savefig(output_path)
+    fig.close()

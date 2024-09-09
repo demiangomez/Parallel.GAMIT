@@ -125,7 +125,8 @@ class Network(object):
                     # sub-network didn't finish properly, GamitSession will
                     # detect this condition and flag session for reprocessing.
                     # Generate message alerting the user
-                    tqdm.write(' -- Sub-network %s%02i did not finish successfully and will be reprocessed'
+                    # DDG: support up to 999 subnetworks
+                    tqdm.write(' -- Sub-network %s%03i did not finish successfully and will be reprocessed'
                                % (self.org, subnet['subnet']))
                 else:
                     # loop through the stations in this sub-network and find
@@ -152,7 +153,8 @@ class Network(object):
                                            subnet=subnet['subnet'],
                                            system=subnet['system'])
 
-                            tqdm.write(' -- %s in sub-network %s%02i system %s did not produce a solution and will be '
+                            # DDG: support up to 999 subnetworks
+                            tqdm.write(' -- %s in sub-network %s%03i system %s did not produce a solution and will be '
                             'reprocessed' % (stn, self.org, subnet['subnet'], subnet['system']))
         else:
             tqdm.write(' >> %s %s %s -> Creating network clusters' %
