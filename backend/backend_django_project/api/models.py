@@ -1005,6 +1005,9 @@ class Person(BaseModel):
 
     def __str__(self):
         return self.first_name + ' ' + self.last_name
+    
+    class Meta:
+        ordering = ["last_name", "first_name"]
 
 
 class RolePersonStation(BaseModel):
