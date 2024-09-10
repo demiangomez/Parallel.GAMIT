@@ -1,0 +1,184 @@
+\babel@toc {english}{}\relax 
+\contentsline {chapter}{\numberline {1}Introduction}{1}{chapter.1}%
+\contentsline {chapter}{\numberline {2}Parallel.GAMIT}{3}{chapter.2}%
+\contentsline {section}{\numberline {2.1}classes package}{3}{section.2.1}%
+\contentsline {subsection}{\numberline {2.1.1}Submodules}{3}{subsection.2.1.1}%
+\contentsline {subsection}{\numberline {2.1.2}classes.Utils module}{3}{subsection.2.1.2}%
+\contentsline {subsection}{\numberline {2.1.3}classes.dbConnection module}{5}{subsection.2.1.3}%
+\contentsline {subsection}{\numberline {2.1.4}classes.pyArchiveStruct module}{5}{subsection.2.1.4}%
+\contentsline {subsection}{\numberline {2.1.5}classes.pyBrdc module}{6}{subsection.2.1.5}%
+\contentsline {subsection}{\numberline {2.1.6}classes.pyBunch module}{6}{subsection.2.1.6}%
+\contentsline {subsection}{\numberline {2.1.7}classes.pyClk module}{9}{subsection.2.1.7}%
+\contentsline {subsection}{\numberline {2.1.8}classes.pyCompress module}{9}{subsection.2.1.8}%
+\contentsline {subsection}{\numberline {2.1.9}classes.pyDate module}{9}{subsection.2.1.9}%
+\contentsline {subsection}{\numberline {2.1.10}classes.pyEOP module}{10}{subsection.2.1.10}%
+\contentsline {subsection}{\numberline {2.1.11}classes.pyETM module}{10}{subsection.2.1.11}%
+\contentsline {subsection}{\numberline {2.1.12}classes.pyEvents module}{14}{subsection.2.1.12}%
+\contentsline {subsection}{\numberline {2.1.13}classes.pyJobServer module}{14}{subsection.2.1.13}%
+\contentsline {subsection}{\numberline {2.1.14}classes.pyLeastSquares module}{15}{subsection.2.1.14}%
+\contentsline {subsection}{\numberline {2.1.15}classes.pyOTL module}{15}{subsection.2.1.15}%
+\contentsline {subsection}{\numberline {2.1.16}classes.pyOkada module}{15}{subsection.2.1.16}%
+\contentsline {subsubsection}{Okada code Translated from Matlab to Python. Original by Michael Bevis based on Okada 1985}{15}{subsubsection*.184}%
+\contentsline {subsection}{\numberline {2.1.17}classes.pyOptions module}{17}{subsection.2.1.17}%
+\contentsline {subsection}{\numberline {2.1.18}classes.pyPPP module}{17}{subsection.2.1.18}%
+\contentsline {subsection}{\numberline {2.1.19}classes.pyParseAntex module}{18}{subsection.2.1.19}%
+\contentsline {subsection}{\numberline {2.1.20}classes.pyProducts module}{18}{subsection.2.1.20}%
+\contentsline {subsection}{\numberline {2.1.21}classes.pyRinex module}{18}{subsection.2.1.21}%
+\contentsline {subsection}{\numberline {2.1.22}classes.pyRinexName module}{20}{subsection.2.1.22}%
+\contentsline {subsection}{\numberline {2.1.23}classes.pyRunWithRetry module}{21}{subsection.2.1.23}%
+\contentsline {subsection}{\numberline {2.1.24}classes.pySp3 module}{21}{subsection.2.1.24}%
+\contentsline {subsection}{\numberline {2.1.25}classes.pyStatic1d module}{21}{subsection.2.1.25}%
+\contentsline {subsection}{\numberline {2.1.26}classes.pyStationInfo module}{22}{subsection.2.1.26}%
+\contentsline {subsection}{\numberline {2.1.27}classes.pyTerminal module}{23}{subsection.2.1.27}%
+\contentsline {subsection}{\numberline {2.1.28}classes.pyTrimbleT0x module}{25}{subsection.2.1.28}%
+\contentsline {subsection}{\numberline {2.1.29}classes.pyVoronoi module}{25}{subsection.2.1.29}%
+\contentsline {subsection}{\numberline {2.1.30}classes.pyZTD module}{27}{subsection.2.1.30}%
+\contentsline {subsection}{\numberline {2.1.31}classes.snxParse module}{27}{subsection.2.1.31}%
+\contentsline {subsection}{\numberline {2.1.32}Module contents}{28}{subsection.2.1.32}%
+\contentsline {section}{\numberline {2.2}com package}{28}{section.2.2}%
+\contentsline {subsection}{\numberline {2.2.1}Submodules}{28}{subsection.2.2.1}%
+\contentsline {subsection}{\numberline {2.2.2}com.AlterETM module}{28}{subsection.2.2.2}%
+\contentsline {subsubsection}{AlterETM.py \sphinxhyphen {} CLI interface}{28}{subsubsection*.387}%
+\contentsline {paragraph}{AlterETM.py positional arguments}{28}{paragraph*.388}%
+\contentsline {paragraph}{AlterETM.py options}{29}{paragraph*.389}%
+\contentsline {subsection}{\numberline {2.2.3}com.ApplyCountryCode module}{29}{subsection.2.2.3}%
+\contentsline {subsection}{\numberline {2.2.4}com.ArchiveService module}{29}{subsection.2.2.4}%
+\contentsline {subsubsection}{ArchiveService}{29}{subsubsection*.390}%
+\contentsline {subsubsection}{ArchiveService.py \sphinxhyphen {} CLI interface}{30}{subsubsection*.402}%
+\contentsline {paragraph}{ArchiveService.py options}{30}{paragraph*.403}%
+\contentsline {subsection}{\numberline {2.2.5}com.CloseStationInfo module}{30}{subsection.2.2.5}%
+\contentsline {subsubsection}{CloseStationInfo.py \sphinxhyphen {} CLI interface}{30}{subsubsection*.405}%
+\contentsline {paragraph}{CloseStationInfo.py positional arguments}{31}{paragraph*.406}%
+\contentsline {paragraph}{CloseStationInfo.py options}{31}{paragraph*.407}%
+\contentsline {subsection}{\numberline {2.2.6}com.CompareDBs module}{31}{subsection.2.2.6}%
+\contentsline {subsection}{\numberline {2.2.7}com.ConvertDate module}{31}{subsection.2.2.7}%
+\contentsline {subsubsection}{ConvertDate.py \sphinxhyphen {} CLI interface}{31}{subsubsection*.410}%
+\contentsline {paragraph}{ConvertDate.py positional arguments}{31}{paragraph*.411}%
+\contentsline {paragraph}{ConvertDate.py options}{31}{paragraph*.412}%
+\contentsline {subsection}{\numberline {2.2.8}com.ConvertTrimble module}{31}{subsection.2.2.8}%
+\contentsline {subsubsection}{ConvertTrimble.py \sphinxhyphen {} CLI interface}{32}{subsubsection*.414}%
+\contentsline {paragraph}{ConvertTrimble.py positional arguments}{32}{paragraph*.415}%
+\contentsline {paragraph}{ConvertTrimble.py options}{32}{paragraph*.416}%
+\contentsline {subsection}{\numberline {2.2.9}com.DownloadSources module}{32}{subsection.2.2.9}%
+\contentsline {subsubsection}{DownloadSources.py \sphinxhyphen {} CLI interface}{38}{subsubsection*.538}%
+\contentsline {paragraph}{DownloadSources.py positional arguments}{38}{paragraph*.539}%
+\contentsline {paragraph}{DownloadSources.py options}{38}{paragraph*.540}%
+\contentsline {subsection}{\numberline {2.2.10}com.DownloadSourcesFill module}{38}{subsection.2.2.10}%
+\contentsline {subsubsection}{DownloadSourcesFill.py \sphinxhyphen {} CLI interface}{39}{subsubsection*.545}%
+\contentsline {paragraph}{DownloadSourcesFill.py positional arguments}{39}{paragraph*.546}%
+\contentsline {paragraph}{DownloadSourcesFill.py options}{39}{paragraph*.547}%
+\contentsline {subsection}{\numberline {2.2.11}com.GenerateSinex module}{39}{subsection.2.2.11}%
+\contentsline {subsubsection}{GenerateSinex.py \sphinxhyphen {} CLI interface}{40}{subsubsection*.552}%
+\contentsline {paragraph}{GenerateSinex.py positional arguments}{40}{paragraph*.553}%
+\contentsline {paragraph}{GenerateSinex.py options}{40}{paragraph*.554}%
+\contentsline {subsection}{\numberline {2.2.12}com.IntegrityCheck module}{40}{subsection.2.2.12}%
+\contentsline {subsubsection}{IntegrityCheck.py \sphinxhyphen {} CLI interface}{41}{subsubsection*.572}%
+\contentsline {paragraph}{IntegrityCheck.py positional arguments}{41}{paragraph*.573}%
+\contentsline {paragraph}{IntegrityCheck.py options}{41}{paragraph*.574}%
+\contentsline {subsection}{\numberline {2.2.13}com.LocateRinex module}{42}{subsection.2.2.13}%
+\contentsline {subsubsection}{LocateRinex.py \sphinxhyphen {} CLI interface}{43}{subsubsection*.577}%
+\contentsline {paragraph}{LocateRinex.py positional arguments}{43}{paragraph*.578}%
+\contentsline {paragraph}{LocateRinex.py options}{43}{paragraph*.579}%
+\contentsline {subsection}{\numberline {2.2.14}com.OTL\_FES2014b module}{44}{subsection.2.2.14}%
+\contentsline {subsubsection}{OTL\_FES2014b.py \sphinxhyphen {} CLI interface}{44}{subsubsection*.586}%
+\contentsline {paragraph}{OTL\_FES2014b.py options}{44}{paragraph*.587}%
+\contentsline {subsection}{\numberline {2.2.15}com.PlotETM module}{45}{subsection.2.2.15}%
+\contentsline {subsubsection}{PlotETM.py \sphinxhyphen {} CLI interface}{45}{subsubsection*.590}%
+\contentsline {paragraph}{PlotETM.py positional arguments}{45}{paragraph*.591}%
+\contentsline {paragraph}{PlotETM.py options}{45}{paragraph*.592}%
+\contentsline {subsection}{\numberline {2.2.16}com.PlotMapView module}{46}{subsection.2.2.16}%
+\contentsline {subsubsection}{PlotMapView.py \sphinxhyphen {} CLI interface}{46}{subsubsection*.596}%
+\contentsline {paragraph}{PlotMapView.py positional arguments}{47}{paragraph*.597}%
+\contentsline {paragraph}{PlotMapView.py options}{47}{paragraph*.598}%
+\contentsline {subsection}{\numberline {2.2.17}com.QueryETM module}{47}{subsection.2.2.17}%
+\contentsline {subsubsection}{QueryETM.py \sphinxhyphen {} CLI interface}{47}{subsubsection*.601}%
+\contentsline {paragraph}{QueryETM.py positional arguments}{48}{paragraph*.602}%
+\contentsline {paragraph}{QueryETM.py options}{48}{paragraph*.603}%
+\contentsline {subsection}{\numberline {2.2.18}com.ReadPackage module}{48}{subsection.2.2.18}%
+\contentsline {subsubsection}{ReadPackage.py \sphinxhyphen {} CLI interface}{48}{subsubsection*.608}%
+\contentsline {paragraph}{ReadPackage.py positional arguments}{49}{paragraph*.609}%
+\contentsline {paragraph}{ReadPackage.py options}{49}{paragraph*.610}%
+\contentsline {subsection}{\numberline {2.2.19}com.Read\_M\sphinxhyphen {}file module}{49}{subsection.2.2.19}%
+\contentsline {subsection}{\numberline {2.2.20}com.ScanArchive module}{49}{subsection.2.2.20}%
+\contentsline {subsubsection}{ScanArchive.py \sphinxhyphen {} CLI interface}{51}{subsubsection*.636}%
+\contentsline {paragraph}{ScanArchive.py positional arguments}{51}{paragraph*.637}%
+\contentsline {paragraph}{ScanArchive.py options}{52}{paragraph*.638}%
+\contentsline {subsection}{\numberline {2.2.21}com.StationInfoEdit module}{53}{subsection.2.2.21}%
+\contentsline {subsection}{\numberline {2.2.22}com.SyncOrbits module}{53}{subsection.2.2.22}%
+\contentsline {subsubsection}{SyncOrbits.py \sphinxhyphen {} CLI interface}{53}{subsubsection*.653}%
+\contentsline {paragraph}{SyncOrbits.py options}{53}{paragraph*.654}%
+\contentsline {subsection}{\numberline {2.2.23}com.TrajectoryFit module}{54}{subsection.2.2.23}%
+\contentsline {subsubsection}{TrajectoryFit.py \sphinxhyphen {} CLI interface}{54}{subsubsection*.660}%
+\contentsline {paragraph}{TrajectoryFit.py positional arguments}{54}{paragraph*.661}%
+\contentsline {paragraph}{TrajectoryFit.py options}{54}{paragraph*.662}%
+\contentsline {subsection}{\numberline {2.2.24}com.UpdateEarthquakes module}{55}{subsection.2.2.24}%
+\contentsline {subsection}{\numberline {2.2.25}com.Ztd2trp module}{55}{subsection.2.2.25}%
+\contentsline {subsubsection}{Ztd2trp.py \sphinxhyphen {} CLI interface}{56}{subsubsection*.667}%
+\contentsline {paragraph}{Ztd2trp.py positional arguments}{56}{paragraph*.668}%
+\contentsline {paragraph}{Ztd2trp.py options}{56}{paragraph*.669}%
+\contentsline {subsection}{\numberline {2.2.26}com.amend module}{56}{subsection.2.2.26}%
+\contentsline {subsection}{\numberline {2.2.27}com.aws\sphinxhyphen {}sync module}{56}{subsection.2.2.27}%
+\contentsline {subsection}{\numberline {2.2.28}com.gamit\_stats module}{56}{subsection.2.2.28}%
+\contentsline {subsection}{\numberline {2.2.29}com.load\_g2\_aprs module}{57}{subsection.2.2.29}%
+\contentsline {subsection}{\numberline {2.2.30}com.test\_proc module}{57}{subsection.2.2.30}%
+\contentsline {subsection}{\numberline {2.2.31}Module contents}{57}{subsection.2.2.31}%
+\contentsline {section}{\numberline {2.3}parallel\_gamit package}{57}{section.2.3}%
+\contentsline {subsection}{\numberline {2.3.1}Submodules}{57}{subsection.2.3.1}%
+\contentsline {subsection}{\numberline {2.3.2}parallel\_gamit.GenerateKml module}{57}{subsection.2.3.2}%
+\contentsline {subsubsection}{GenerateKml.py \sphinxhyphen {} CLI interface}{58}{subsubsection*.690}%
+\contentsline {paragraph}{GenerateKml.py positional arguments}{58}{paragraph*.691}%
+\contentsline {paragraph}{GenerateKml.py options}{58}{paragraph*.692}%
+\contentsline {subsection}{\numberline {2.3.3}parallel\_gamit.StationList module}{58}{subsection.2.3.3}%
+\contentsline {subsection}{\numberline {2.3.4}parallel\_gamit.WeeklyCombination module}{59}{subsection.2.3.4}%
+\contentsline {subsubsection}{WeeklyCombination.py \sphinxhyphen {} CLI interface}{59}{subsubsection*.706}%
+\contentsline {paragraph}{WeeklyCombination.py positional arguments}{59}{paragraph*.707}%
+\contentsline {paragraph}{WeeklyCombination.py options}{59}{paragraph*.708}%
+\contentsline {subsection}{\numberline {2.3.5}parallel\_gamit.plots module}{60}{subsection.2.3.5}%
+\contentsline {subsection}{\numberline {2.3.6}parallel\_gamit.pyGamitConfig module}{60}{subsection.2.3.6}%
+\contentsline {subsection}{\numberline {2.3.7}parallel\_gamit.pyGamitSession module}{60}{subsection.2.3.7}%
+\contentsline {subsection}{\numberline {2.3.8}parallel\_gamit.pyGamitTask module}{60}{subsection.2.3.8}%
+\contentsline {subsection}{\numberline {2.3.9}parallel\_gamit.pyGlobkTask module}{61}{subsection.2.3.9}%
+\contentsline {subsection}{\numberline {2.3.10}parallel\_gamit.pyNetwork module}{61}{subsection.2.3.10}%
+\contentsline {subsection}{\numberline {2.3.11}parallel\_gamit.pyParallelGamit module}{61}{subsection.2.3.11}%
+\contentsline {subsubsection}{pyParallelGamit.py \sphinxhyphen {} CLI interface}{62}{subsubsection*.766}%
+\contentsline {paragraph}{pyParallelGamit.py positional arguments}{62}{paragraph*.767}%
+\contentsline {paragraph}{pyParallelGamit.py options}{62}{paragraph*.768}%
+\contentsline {subsection}{\numberline {2.3.12}parallel\_gamit.pyParseZTD module}{63}{subsection.2.3.12}%
+\contentsline {subsection}{\numberline {2.3.13}parallel\_gamit.pyStation module}{63}{subsection.2.3.13}%
+\contentsline {subsection}{\numberline {2.3.14}parallel\_gamit.test\_voronoi module}{64}{subsection.2.3.14}%
+\contentsline {subsubsection}{test\_voronoi.py \sphinxhyphen {} CLI interface}{65}{subsubsection*.803}%
+\contentsline {paragraph}{test\_voronoi.py positional arguments}{65}{paragraph*.804}%
+\contentsline {paragraph}{test\_voronoi.py options}{65}{paragraph*.805}%
+\contentsline {subsection}{\numberline {2.3.15}parallel\_gamit.utils module}{65}{subsection.2.3.15}%
+\contentsline {subsection}{\numberline {2.3.16}Module contents}{65}{subsection.2.3.16}%
+\contentsline {section}{\numberline {2.4}scripts package}{65}{section.2.4}%
+\contentsline {subsection}{\numberline {2.4.1}Subpackages}{65}{subsection.2.4.1}%
+\contentsline {subsubsection}{scripts.format\_scripts package}{65}{subsubsection*.806}%
+\contentsline {paragraph}{Submodules}{65}{paragraph*.807}%
+\contentsline {paragraph}{scripts.format\_scripts.chile module}{65}{paragraph*.808}%
+\contentsline {paragraph}{scripts.format\_scripts.ibge module}{66}{paragraph*.809}%
+\contentsline {paragraph}{scripts.format\_scripts.igac module}{66}{paragraph*.810}%
+\contentsline {paragraph}{scripts.format\_scripts.rnx2crz module}{66}{paragraph*.811}%
+\contentsline {paragraph}{scripts.format\_scripts.trimble module}{66}{paragraph*.812}%
+\contentsline {paragraph}{scripts.format\_scripts.uruguay module}{66}{paragraph*.813}%
+\contentsline {paragraph}{Module contents}{66}{paragraph*.814}%
+\contentsline {subsection}{\numberline {2.4.2}Module contents}{66}{subsection.2.4.2}%
+\contentsline {section}{\numberline {2.5}stacker package}{66}{section.2.5}%
+\contentsline {subsection}{\numberline {2.5.1}Submodules}{66}{subsection.2.5.1}%
+\contentsline {subsection}{\numberline {2.5.2}stacker.FixPlate module}{66}{subsection.2.5.2}%
+\contentsline {subsection}{\numberline {2.5.3}stacker.Stacker module}{66}{subsection.2.5.3}%
+\contentsline {subsubsection}{Stacker.py \sphinxhyphen {} CLI interface}{67}{subsubsection*.826}%
+\contentsline {paragraph}{Stacker.py positional arguments}{67}{paragraph*.827}%
+\contentsline {paragraph}{Stacker.py options}{67}{paragraph*.828}%
+\contentsline {subsection}{\numberline {2.5.4}stacker.pyDRA module}{68}{subsection.2.5.4}%
+\contentsline {subsubsection}{pyDRA.py \sphinxhyphen {} CLI interface}{68}{subsubsection*.837}%
+\contentsline {paragraph}{pyDRA.py positional arguments}{68}{paragraph*.838}%
+\contentsline {paragraph}{pyDRA.py options}{68}{paragraph*.839}%
+\contentsline {subsection}{\numberline {2.5.5}stacker.pyNEQStack module}{69}{subsection.2.5.5}%
+\contentsline {subsubsection}{pyNEQStack.py \sphinxhyphen {} CLI interface}{69}{subsubsection*.846}%
+\contentsline {paragraph}{pyNEQStack.py positional arguments}{69}{paragraph*.847}%
+\contentsline {paragraph}{pyNEQStack.py options}{69}{paragraph*.848}%
+\contentsline {subsection}{\numberline {2.5.6}stacker.pyStack module}{69}{subsection.2.5.6}%
+\contentsline {subsection}{\numberline {2.5.7}Module contents}{70}{subsection.2.5.7}%
+\contentsline {chapter}{Python Module Index}{71}{section*.868}%
+\contentsline {chapter}{Index}{73}{section*.869}%
