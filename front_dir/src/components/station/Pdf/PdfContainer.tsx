@@ -258,7 +258,7 @@ const PdfContainer = ({
             return people;
         }
         return [];
-    }, [allPeople, rolePersonStations]);
+    }, [allPeople, rolePersonStations, roles]);
 
     const [instance, updateInstance] = usePDF({
         document: undefined,
