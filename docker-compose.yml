@@ -1,0 +1,21 @@
+services:
+  backend:
+    container_name: gnss-backend
+    build: ./backend_dir/backend
+    volumes:
+      - ./backend_dir/backend:/code
+    ports:
+      - "8000:8000"
+    restart: always
+
+  webgps:
+    build: ./front_dir
+    container_name: gnss-frontend
+    restart: always
+    volumes:
+      - ./front_dir/.env:/app/.env
+      - ./front_dir/nginx.conf:/etc/nginx/nginx.conf
+    ports:
+      - 80:80
+    depends_on:
+      - backend

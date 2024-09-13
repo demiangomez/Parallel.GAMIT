@@ -23,9 +23,7 @@ Skip this part if you are using an existing db
 2. From the root directory:
 
 ```
-   cd backend
-   sudo docker build -t gnss-backend .
-   sudo docker run -d --network host --restart always --mount type=bind,src="$(pwd)",target=/code gnss-backend
+   docker compose up --build -d
 ```
 
 # Tests

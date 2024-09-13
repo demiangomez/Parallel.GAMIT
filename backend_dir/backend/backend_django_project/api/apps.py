@@ -41,7 +41,7 @@ class ApiConfig(AppConfig):
             raise ImproperlyConfigured("MAX_SIZE_FILE_MB must be equal or less than 75 MB")
         
         # to avoid running the job when calling migrate, makemigrations, and so on. also avoid re-running the job when the server is restarted
-        if 'runserver' in sys.argv and os.environ.get('RUN_MAIN') == 'true':
+        if (os.environ.get('GUNICORN_SERVER') == 'true' ) or ('runserver' in sys.argv and os.environ.get('RUN_MAIN') == 'true'):
             from . import utils
             from django.conf import settings
 

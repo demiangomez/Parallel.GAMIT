@@ -129,17 +129,20 @@ const MapStation = ({
         if (!mapRef.current) return;
 
         setTimeout(() => {
-            domtoimage
-                .toPng(mapRef?.current.getContainer(), {
-                    width: 860,
-                    height: 530,
-                })
-                .then((dataUrl) => {
-                    callback(dataUrl);
-                })
-                .catch((error) => {
-                    console.error("Error capturing map image:", error);
-                });
+            const container = mapRef?.current?.getContainer();
+            if (container) {
+                domtoimage
+                    .toPng(container, {
+                        width: 860,
+                        height: 530,
+                    })
+                    .then((dataUrl) => {
+                        callback(dataUrl);
+                    })
+                    .catch((error) => {
+                        console.error("Error capturing map image:", error);
+                    });
+            }
         }, timeout);
     };
 

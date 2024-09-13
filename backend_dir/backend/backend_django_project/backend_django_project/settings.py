@@ -171,24 +171,46 @@ LOGGING = {
             "class": "logging.StreamHandler",
             'formatter':'standard',
         },
-        "file": {
-            "level": "DEBUG",
+        "django_file": {
+            "level": "INFO",
             "class": "logging.handlers.RotatingFileHandler",
-            "filename": os.path.join(PROJECT_PATH, "logs", "logs.txt"),
+            "filename": os.path.join(PROJECT_PATH, "logs", "django_logs.txt"),
             "maxBytes": 1000000,
-            "backupCount": 50,
+            "backupCount": 25,
             'formatter':'standard',
         },
-    },
-    "root": {
-        "handlers": ["console", "file"],
-        "level": "DEBUG",
+        'gunicorn_access': {
+            'level': 'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': os.path.join(PROJECT_PATH, "logs", 'gunicorn_access_logs.txt'),
+            'maxBytes': 1000000,
+            'backupCount': 25,
+            'formatter': 'standard',
+        },
+        'gunicorn_error': {
+            'level': 'ERROR',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': os.path.join(PROJECT_PATH, "logs", 'gunicorn_error_logs.txt'),
+            'maxBytes': 1000000,
+            'backupCount': 25,
+            'formatter': 'standard',
+        },
     },
     "loggers": {
         "django": {
-            "handlers": ["console", "file"],
-            "level": os.getenv("DJANGO_LOG_LEVEL", "INFO"),
+            "handlers": ["console", "django_file"],
+            "level": "INFO",
             "propagate": False,
+        },
+        'gunicorn.access': {
+            'handlers': ['gunicorn_access', 'console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'gunicorn.error': {
+            'handlers': ['gunicorn_error', 'console'],
+            'level': 'ERROR',
+            'propagate': False,
         },
     },
 }

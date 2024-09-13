@@ -7,7 +7,8 @@ from django.db import connection
 import django.utils.timezone
 import logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('django')
+
 class StationMetaUtils:
     @staticmethod
     def update_has_gaps_status():
@@ -26,7 +27,7 @@ class StationMetaUtils:
                 
                     record.save()
             
-            logger.debug(f' \'has_gaps\' status updated. Total stations updated: {records_updated_count} - Time taken: {(datetime.datetime.now() - previous_time).total_seconds()}')
+            logger.info(f' \'has_gaps\' status updated. Total stations updated: {records_updated_count} - Time taken: {(datetime.datetime.now() - previous_time).total_seconds()}')
 
     @staticmethod
     def station_has_gaps(station_object):

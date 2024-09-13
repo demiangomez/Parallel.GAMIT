@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { useEffect, useState } from "react";
 import { Alert, Menu, MenuButton, MenuContent, Modal } from "@componentsReact";
 
@@ -51,7 +52,17 @@ const AddCampaignModal = ({
             if (!visitId) return null;
             setLoading(true);
 
-            const { name, ...rest } = formState;
+            const {
+                name,
+                people_id,
+                people,
+                comments,
+                navigation_actual_file,
+                log_sheet_actual_file,
+                log_sheet_filename,
+                navigation_filename,
+                ...rest
+            } = formState;
 
             rest.campaign = name.split("(").pop()?.split(")")[0] ?? null;
 
@@ -63,15 +74,17 @@ const AddCampaignModal = ({
 
             rest.campaign = campaignToAdd?.id ?? null;
 
+            console.log(rest);
+
             Object.entries(rest).forEach(([key, value]) => {
                 if (key === "campaign") {
                     formData.append(key, String(value));
-                } else if (key === "people") {
+                } else if (key === "people" && Array.isArray(value)) {
                     value.forEach((p: { id: number; name: string }) => {
                         formData.append("people", String(p.id));
                     });
                 } else {
-                    formData.append(key, value);
+                    formData.append(key, value as unknown as string);
                 }
             });
 
@@ -124,7 +137,7 @@ const AddCampaignModal = ({
         addCampaign();
     };
 
-    const errorBadge = msg?.errors?.errors.map((e) => e.attr);
+    const errorBadge = msg?.errors?.errors?.map((e) => e.attr);
 
     return (
         <Modal
@@ -183,7 +196,7 @@ const AddCampaignModal = ({
                                 className="grow"
                                 autoComplete="off"
                             />
-                            {errorBadge && (
+                            {errorBadge && errorBadge.includes("campaign") && (
                                 <span className="badge badge-error absolute right-0 mb-12 mr-2">
                                     {errorBadge.includes("campaign")
                                         ? msg?.errors?.errors.find(

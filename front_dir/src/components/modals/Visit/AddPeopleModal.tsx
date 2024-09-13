@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { Alert, Menu, MenuButton, MenuContent, Modal } from "@componentsReact";
 
 import { useApi, useAuth, useFormReducer } from "@hooks";
@@ -46,7 +47,16 @@ const AddPeopleModal = ({ people, visit, reFetch, setStateModal }: Props) => {
             if (!visitId) return null;
             setLoading(true);
 
-            const { name, people_id, ...rest } = formState;
+            const {
+                name,
+                people_id,
+                comments,
+                navigation_actual_file,
+                log_sheet_actual_file,
+                log_sheet_filename,
+                navigation_filename,
+                ...rest
+            } = formState;
 
             const peopleToAdd = people?.find((p) => String(p.id) === people_id);
 
@@ -85,12 +95,12 @@ const AddPeopleModal = ({ people, visit, reFetch, setStateModal }: Props) => {
 
             if (rest.people.length !== 0) {
                 Object.entries(rest).forEach(([key, value]) => {
-                    if (key === "people") {
+                    if (key === "people" && Array.isArray(value)) {
                         value.forEach((p: { id: number; name: string }) => {
                             formData.append("people", String(p.id));
                         });
                     } else {
-                        formData.append(key, value);
+                        formData.append(key, value as unknown as string);
                     }
                 });
             }

@@ -117,7 +117,7 @@ const StationPeopleModal = ({
             const formData = new FormData();
 
             Object.keys(data).forEach((key) => {
-                formData.append(key, data[key]);
+                formData.append(key, data[key as keyof typeof data]);
             });
 
             if (photo_actual_file) {
@@ -129,7 +129,6 @@ const StationPeopleModal = ({
             if (userById) {
                 formData.append("user", String(userById.id));
             }
-
             const res = await postPeopleService<ExtendedPeople | ErrorResponse>(
                 api,
                 formData,
@@ -162,7 +161,7 @@ const StationPeopleModal = ({
             const formData = new FormData();
 
             Object.keys(data).forEach((key) => {
-                formData.append(key, data[key]);
+                formData.append(key, data[key as keyof typeof data]);
             });
 
             if (photo_actual_file) {

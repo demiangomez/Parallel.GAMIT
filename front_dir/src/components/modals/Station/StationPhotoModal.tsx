@@ -121,7 +121,14 @@ const StationPhotoModal = ({ modalType, reFetch, setStateModal }: Props) => {
             formData.append("station", String(station.api_id));
 
             Object.keys(formState).forEach((key) => {
-                formData.append(key, formState[key as keyof typeof formState]);
+                if (key === "image") {
+                    formData.append(key, formState[key] as unknown as File);
+                } else {
+                    formData.append(
+                        key,
+                        formState[key as keyof typeof formState] ?? "",
+                    );
+                }
             });
             const res = await postStationsImagesService<any>(api, formData);
             if ("status" in res) {

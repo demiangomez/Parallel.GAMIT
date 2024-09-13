@@ -1,12 +1,6 @@
-import { useOutletContext } from "react-router-dom";
 import { CardContainer } from "@componentsReact";
 
-import { StationData } from "@types";
-
 const StationStats = () => {
-    const station: StationData = useOutletContext(); // eslint-disable-line
-
-    // TENGO LA ESTACION DEL OUTLET
     // TODO: AGREGAR LAS STATS DEL pyEMT.py
 
     return (

@@ -46,8 +46,10 @@ const AddFileModal = ({
         { status: number; msg: string; errors?: Errors } | undefined
     >(undefined);
 
-    const { formState, dispatch } = useFormReducer({
-        file: "",
+    const { formState, dispatch } = useFormReducer<
+        Record<string, File | undefined | string | number>
+    >({
+        file: undefined,
         filename: "",
         description: "",
         name: "",
@@ -115,7 +117,10 @@ const AddFileModal = ({
                 if (fileType === "gnss" || fileType === "other") {
                     Object.entries(formState).forEach(([key, value]) => {
                         if (value !== undefined) {
-                            formData.append(key, value);
+                            if (key === "file") {
+                                formData.append(key, value as File);
+                            }
+                            formData.append(key, value as string);
                         }
                     });
 
@@ -145,7 +150,10 @@ const AddFileModal = ({
                 if (fileType === "visitImage") {
                     Object.entries(formState).forEach(([key, value]) => {
                         if (value !== undefined) {
-                            formData.append(key, value);
+                            if (key === "file") {
+                                formData.append(key, value as File);
+                            }
+                            formData.append(key, value as string);
                         }
                     });
 
@@ -199,7 +207,7 @@ const AddFileModal = ({
 
                         Object.entries(formattedVisit).forEach(
                             ([key, value]) => {
-                                if (key === "people") {
+                                if (key === "people" && Array.isArray(value)) {
                                     value?.forEach(
                                         (p: { id: number; name: string }) => {
                                             formData.append(
@@ -213,9 +221,12 @@ const AddFileModal = ({
                                     (key === "navigation_file" &&
                                         value instanceof File)
                                 ) {
-                                    formData.append(key, value);
+                                    formData.append(key, value as File);
                                 } else {
-                                    formData.append(key, value);
+                                    formData.append(
+                                        key,
+                                        value as keyof typeof formState,
+                                    );
                                 }
                             },
                         );
@@ -349,7 +360,7 @@ const AddFileModal = ({
                                 </div>
                                 <input
                                     type="text"
-                                    value={formState["name"]}
+                                    value={formState["name"] as string}
                                     onChange={(e) => {
                                         dispatch({
                                             type: "change_value",
@@ -380,7 +391,7 @@ const AddFileModal = ({
                                 </div>
                                 <input
                                     type="text"
-                                    value={formState["description"]}
+                                    value={formState["description"] as string}
                                     onChange={(e) => {
                                         dispatch({
                                             type: "change_value",
@@ -411,7 +422,7 @@ const AddFileModal = ({
                             </div>
                             <input
                                 type="text"
-                                value={formState["description"]}
+                                value={formState["description"] as string}
                                 onChange={(e) => {
                                     dispatch({
                                         type: "change_value",
