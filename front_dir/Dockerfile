@@ -20,6 +20,6 @@ COPY nginx.conf /etc/nginx/nginx.conf
 # Configure tini as the init system
 ENTRYPOINT ["/usr/bin/tini", "--"]
 
-EXPOSE 80
+EXPOSE 5100
 
 CMD ["nginx", "-g", "daemon off;"]
