@@ -114,7 +114,7 @@ const MapStation = ({
 }: MapProps) => {
     const [mapProps, setMapProps] = useState<MapContainerProps>({
         center: [0, 0],
-        zoom: 6,
+        zoom: 10,
         scrollWheelZoom: true,
         id: "leaflet-map",
         zoomAnimation: true,
@@ -133,8 +133,8 @@ const MapStation = ({
             if (container) {
                 domtoimage
                     .toPng(container, {
-                        width: 860,
-                        height: 530,
+                        width: container.clientWidth,
+                        height: container.clientHeight,
                     })
                     .then((dataUrl) => {
                         callback(dataUrl);
@@ -178,7 +178,7 @@ const MapStation = ({
             setTimeout(() => {
                 setMapProps((prevProps) => ({
                     ...prevProps,
-                    zoom: 6,
+                    zoom: 10,
                 }));
                 setLoadPdf(false);
                 setLoadedMap(true);
@@ -244,7 +244,7 @@ const MapStation = ({
                 />
                 <ChangeView
                     center={mapProps.center ?? [0, 0]}
-                    zoom={mapProps.zoom ?? 0}
+                    zoom={mapProps.zoom ?? 6}
                 />
                 <LoadKmzFromBase64 base64Data={base64Data} />
                 <Marker

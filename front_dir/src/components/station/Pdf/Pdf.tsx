@@ -310,18 +310,23 @@ const Pdf = ({
                                 // height: 230,
                                 // width: "100%",
                                 width: "100%",
-                                height: 230,
-
+                                height: "auto",
                                 objectFit: "scale-down",
                                 marginBottom: 10,
                             }}
                         />
 
-                        <View style={styles.viewHeader}>
+                        <View
+                            style={[styles.viewHeader, { marginTop: 40 }]}
+                            break
+                        >
                             <Text
                                 style={[
                                     styles.headersTitle,
-                                    { textAlign: "center", width: "100%" },
+                                    {
+                                        textAlign: "center",
+                                        width: "100%",
+                                    },
                                 ]}
                             >
                                 Detail
@@ -337,7 +342,7 @@ const Pdf = ({
                             style={{
                                 marginVertical: 10,
                                 width: "100%",
-                                height: 240,
+                                height: "auto",
 
                                 objectFit: "scale-down",
                             }}
@@ -577,31 +582,33 @@ const Pdf = ({
                             </View>
                         </View>
                         <View style={{ width: "50%", fontSize: 14 }}>
-                            {people?.map((person, idx) => (
-                                <View
-                                    key={person?.id + String(idx)}
-                                    style={{
-                                        display: "flex",
-                                        flexDirection: "column",
-                                    }}
-                                >
+                            {people?.map((person, idx) => {
+                                return (
                                     <View
+                                        key={person?.id + String(idx)}
                                         style={{
                                             display: "flex",
-                                            flexDirection: "row",
+                                            flexDirection: "column",
                                         }}
                                     >
-                                        <Text>
-                                            {" "}
-                                            {person?.first_name}{" "}
-                                            {person?.last_name}:
-                                        </Text>
-                                        <Text> {person?.role ?? ""}</Text>
+                                        <View
+                                            style={{
+                                                display: "flex",
+                                                flexDirection: "row",
+                                            }}
+                                        >
+                                            <Text>
+                                                {" "}
+                                                {person?.first_name}{" "}
+                                                {person?.last_name}:
+                                            </Text>
+                                            <Text> {person?.role ?? ""}</Text>
+                                        </View>
+                                        <Text> {person?.email}</Text>
+                                        <Text> {person?.phone}</Text>
                                     </View>
-                                    <Text> {person?.email}</Text>
-                                    <Text> {person?.phone}</Text>
-                                </View>
-                            ))}
+                                );
+                            })}
                         </View>
                     </View>
 
