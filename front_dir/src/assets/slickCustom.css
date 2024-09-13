@@ -1,0 +1,8 @@
+.slick-track {
+    display: flex !important;
+    align-items: center !important;
+}
+
+.slick-slide {
+    height: auto;
+}

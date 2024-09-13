@@ -1,0 +1,33 @@
+.custom-padding > :nth-child(3),
+.custom-padding > :nth-child(4) {
+    @apply py-4;
+}
+
+.margin-custom > :nth-child(1),
+.margin-custom > :nth-child(3) {
+    @apply mr-4;
+}
+
+input[type="time"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+}
+
+/* .without_ampm::-webkit-datetime-edit-ampm-field {
+    display: none;
+}
+input[type="time"]::-webkit-clear-button {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    -o-appearance: none;
+    -ms-appearance: none;
+    appearance: none;
+    margin: -10px;
+} */
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+}
+
+input[type="date"] {
+    width: 100%;
+}
