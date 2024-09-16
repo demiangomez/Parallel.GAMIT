@@ -4,6 +4,7 @@ import {
     CardContainer,
     ConfirmDeleteModal,
     MapVisit,
+    Spinner,
     TableCard,
     TableSkeleton,
     VisitAddModal,
@@ -61,6 +62,8 @@ const Visits = () => {
     const { station } = useOutletContext<OutletContext>();
 
     const [loading, setLoading] = useState<boolean>(false);
+    const [loadingVisitImages, setLoadingVisitImages] =
+        useState<boolean>(false);
 
     const [msg, setMsg] = useState<
         { status: number; msg: string; errors?: Errors } | undefined
@@ -135,7 +138,7 @@ const Visits = () => {
 
     const getVisitsImages = async () => {
         try {
-            setLoading(true);
+            setLoadingVisitImages(true);
             const res =
                 await getStationVisitsImagesService<StationVisitsFilesServiceData>(
                     api,
@@ -152,7 +155,7 @@ const Visits = () => {
         } catch (error) {
             console.error(error);
         } finally {
-            setLoading(false);
+            setLoadingVisitImages(false);
         }
     };
 
@@ -305,25 +308,40 @@ const Visits = () => {
                                                           )?.name
                                                         : "N/A"}
                                                 </span>
-                                                <div
-                                                    className={`grid grid-cols-2 gap-3 items-start place-items-center overflow-auto`}
-                                                >
-                                                    {visitImages?.map((img) => {
-                                                        return (
-                                                            <img
-                                                                key={img.id}
-                                                                src={
-                                                                    "data:image/png;base64," +
-                                                                    img.actual_image
-                                                                }
-                                                                alt={
-                                                                    img.description
-                                                                }
-                                                                className="shadow-xl rounded-lg object-center object-cover w-full h-full"
-                                                            />
-                                                        );
-                                                    })}
-                                                </div>
+                                                {loadingVisitImages ? (
+                                                    <div className="w-full h-60 flex rounded-md flex-col items-center justify-center ">
+                                                        <span className="text-xl font-semibold mb-12">
+                                                            Loading images
+                                                        </span>
+                                                        <Spinner size="lg" />
+                                                    </div>
+                                                ) : (
+                                                    <div
+                                                        className={`grid grid-cols-2 gap-3 items-start place-items-center overflow-auto`}
+                                                    >
+                                                        <>
+                                                            {visitImages?.map(
+                                                                (img) => {
+                                                                    return (
+                                                                        <img
+                                                                            key={
+                                                                                img.id
+                                                                            }
+                                                                            src={
+                                                                                "data:image/png;base64," +
+                                                                                img.actual_image
+                                                                            }
+                                                                            alt={
+                                                                                img.description
+                                                                            }
+                                                                            className="shadow-xl rounded-lg object-center object-cover w-full h-full"
+                                                                        />
+                                                                    );
+                                                                },
+                                                            )}
+                                                        </>
+                                                    </div>
+                                                )}
                                                 {vis.navigation_filename && (
                                                     <MapVisit
                                                         base64Data={
