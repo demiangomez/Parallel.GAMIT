@@ -88,7 +88,8 @@ const Pdf = ({
         },
         page: {
             flexDirection: "row",
-            backgroundColor: "#E4E4E4",
+            // backgroundColor: "#E4E4E4",
+            backgroundColor: "#FFFFFF",
             fontFamily: "Lora",
             paddingTop: 35,
             paddingHorizontal: 35,
@@ -195,7 +196,7 @@ const Pdf = ({
                             margin: 10,
                         }}
                     >
-                        <View style={{ width: "22%", fontSize: 12 }}>
+                        <View style={{ width: "24%", fontSize: 12 }}>
                             <View
                                 style={{
                                     display: "flex",
@@ -264,7 +265,7 @@ const Pdf = ({
                                 <Text> {Number(station?.height) + " m"}</Text>
                             </Text>
                         </View>
-                        <View style={{ width: "30%", fontSize: 12 }}>
+                        <View style={{ width: "28%", fontSize: 12 }}>
                             <Text>
                                 <Text>X: </Text>
                                 <Text>{station?.auto_x + " m"}</Text>
@@ -312,7 +313,7 @@ const Pdf = ({
                                 width: "100%",
                                 height: "auto",
                                 objectFit: "scale-down",
-                                marginBottom: 10,
+                                marginVertical: 10,
                             }}
                         />
 
@@ -431,11 +432,11 @@ const Pdf = ({
                                         // height: 300,
                                         width: "auto",
                                         height: 300,
-                                        marginBottom: 10,
+                                        marginVertical: 10,
                                         objectFit: "scale-down",
                                     }}
                                     src={{
-                                        uri: `data:image/*;base64,${img.actual_image}`,
+                                        uri: `${img.actual_image}`,
                                     }}
                                 />
                             ))
@@ -463,14 +464,20 @@ const Pdf = ({
                             display: "flex",
                             flexDirection: "row",
                             width: "100%",
-                            margin: 10,
+                            marginTop: 10,
                         }}
                     >
-                        <View style={{ width: "50%", fontSize: 14 }}>
+                        <View
+                            style={{
+                                fontSize: 14,
+                                marginRight: 10,
+                                lineHeight: 1.5,
+                            }}
+                        >
                             <View
                                 style={{
-                                    display: "flex",
                                     flexDirection: "row",
+                                    flexWrap: "wrap",
                                 }}
                             >
                                 <Text>Station type: </Text>
@@ -480,8 +487,8 @@ const Pdf = ({
                             </View>
                             <View
                                 style={{
-                                    display: "flex",
                                     flexDirection: "row",
+                                    flexWrap: "wrap",
                                 }}
                             >
                                 <Text>Monument: </Text>
@@ -491,8 +498,8 @@ const Pdf = ({
                             </View>
                             <View
                                 style={{
-                                    display: "flex",
                                     flexDirection: "row",
+                                    flexWrap: "wrap",
                                 }}
                             >
                                 <Text>Status: </Text>
@@ -508,8 +515,8 @@ const Pdf = ({
                             >
                                 <View
                                     style={{
-                                        display: "flex",
                                         flexDirection: "row",
+                                        flexWrap: "wrap",
                                     }}
                                 >
                                     <Text>Communications: </Text>
@@ -531,8 +538,8 @@ const Pdf = ({
                             >
                                 <View
                                     style={{
-                                        display: "flex",
                                         flexDirection: "row",
+                                        flexWrap: "wrap",
                                     }}
                                 >
                                     <Text>Battery: </Text>
@@ -548,8 +555,8 @@ const Pdf = ({
                             </View>
                             <View
                                 style={{
-                                    display: "flex",
                                     flexDirection: "row",
+                                    flexWrap: "wrap",
                                 }}
                             >
                                 <Text>First RINEX: </Text>
@@ -565,8 +572,8 @@ const Pdf = ({
                             </View>
                             <View
                                 style={{
-                                    display: "flex",
                                     flexDirection: "row",
+                                    flexWrap: "wrap",
                                 }}
                             >
                                 <Text>Last RINEX: </Text>
@@ -581,34 +588,46 @@ const Pdf = ({
                                 </Text>
                             </View>
                         </View>
-                        <View style={{ width: "50%", fontSize: 14 }}>
-                            {people?.map((person, idx) => {
-                                return (
-                                    <View
-                                        key={person?.id + String(idx)}
-                                        style={{
-                                            display: "flex",
-                                            flexDirection: "column",
-                                        }}
-                                    >
+                        <View
+                            style={{
+                                width: "50%",
+                                fontSize: 14,
+                            }}
+                        >
+                            {people && people.length > 0 ? (
+                                people?.map((person, idx) => {
+                                    return (
                                         <View
+                                            key={person?.id + String(idx)}
                                             style={{
                                                 display: "flex",
-                                                flexDirection: "row",
+                                                flexDirection: "column",
                                             }}
                                         >
-                                            <Text>
-                                                {" "}
-                                                {person?.first_name}{" "}
-                                                {person?.last_name}:
-                                            </Text>
-                                            <Text> {person?.role ?? ""}</Text>
+                                            <View
+                                                style={{
+                                                    flexDirection: "row",
+                                                    flexWrap: "wrap",
+                                                }}
+                                            >
+                                                <Text>
+                                                    {" "}
+                                                    {person?.first_name}{" "}
+                                                    {person?.last_name}:
+                                                </Text>
+                                                <Text>
+                                                    {" "}
+                                                    {person?.role ?? ""}
+                                                </Text>
+                                            </View>
+                                            <Text> {person?.email}</Text>
+                                            <Text> {person?.phone}</Text>
                                         </View>
-                                        <Text> {person?.email}</Text>
-                                        <Text> {person?.phone}</Text>
-                                    </View>
-                                );
-                            })}
+                                    );
+                                })
+                            ) : (
+                                <Text>No people found</Text>
+                            )}
                         </View>
                     </View>
 
@@ -776,36 +795,46 @@ const Pdf = ({
                                                         fontSize: 12,
                                                     }}
                                                 >
-                                                    {v.people.map(
-                                                        (p: {
-                                                            id: string;
-                                                            name: string;
-                                                        }) => {
-                                                            return (
-                                                                <View
-                                                                    key={
-                                                                        p.id +
-                                                                        p.name
-                                                                    }
-                                                                    style={{
-                                                                        display:
-                                                                            "flex",
-                                                                        flexDirection:
-                                                                            "column",
-                                                                    }}
-                                                                >
-                                                                    <Text>
-                                                                        {p.name}
-                                                                    </Text>
-                                                                </View>
-                                                            );
-                                                        },
+                                                    {v.people &&
+                                                    v.people.length > 0 ? (
+                                                        v.people.map(
+                                                            (p: {
+                                                                id: string;
+                                                                name: string;
+                                                            }) => {
+                                                                return (
+                                                                    <View
+                                                                        key={
+                                                                            p.id +
+                                                                            p.name
+                                                                        }
+                                                                        style={{
+                                                                            display:
+                                                                                "flex",
+                                                                            flexDirection:
+                                                                                "column",
+                                                                        }}
+                                                                    >
+                                                                        <Text>
+                                                                            {
+                                                                                p.name
+                                                                            }
+                                                                        </Text>
+                                                                    </View>
+                                                                );
+                                                            },
+                                                        )
+                                                    ) : (
+                                                        <Text>
+                                                            No people Found
+                                                        </Text>
                                                     )}
                                                 </View>
                                                 <View
                                                     style={{
                                                         width: "40%",
                                                         fontSize: 12,
+                                                        marginLeft: 5,
                                                     }}
                                                 >
                                                     {gnssFiles &&
@@ -951,28 +980,41 @@ const Pdf = ({
                                                     marginTop: 10,
                                                 }}
                                             >
-                                                <Text style={styles.textBold}>
+                                                <Text
+                                                    style={[
+                                                        styles.textBold,
+                                                        { marginBottom: 10 },
+                                                    ]}
+                                                >
                                                     Visit pictures
                                                 </Text>
                                                 {images && images.length > 0 ? (
-                                                    images?.map((img, idx) => (
-                                                        <Image
-                                                            key={
-                                                                img.id +
-                                                                String(idx)
-                                                            }
-                                                            style={{
-                                                                width: "auto",
-                                                                height: 300,
-                                                                marginBottom: 10,
-                                                                objectFit:
-                                                                    "scale-down",
-                                                            }}
-                                                            src={{
-                                                                uri: `data:image/*;base64,${img.actual_image}`,
-                                                            }}
-                                                        />
-                                                    ))
+                                                    images?.map((img, idx) => {
+                                                        return (
+                                                            <Image
+                                                                key={
+                                                                    img.id +
+                                                                    String(idx)
+                                                                }
+                                                                style={{
+                                                                    width: "auto",
+                                                                    height: 300,
+                                                                    marginVertical: 15,
+                                                                    objectFit:
+                                                                        "scale-down",
+                                                                }}
+                                                                src={{
+                                                                    uri: `${img.actual_image}`,
+                                                                    method: "GET",
+                                                                    headers: {
+                                                                        "Cache-Control":
+                                                                            "no-cache",
+                                                                    },
+                                                                    body: "",
+                                                                }}
+                                                            />
+                                                        );
+                                                    })
                                                 ) : (
                                                     <Text
                                                         style={{

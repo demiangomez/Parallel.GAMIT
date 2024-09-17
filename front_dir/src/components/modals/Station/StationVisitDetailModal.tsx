@@ -5,6 +5,7 @@ import {
     ConfirmDeleteModal,
     ImageModal,
     Modal,
+    Spinner,
     VisitCampaignModal,
     VisitPeopleModal,
 } from "@componentsReact";
@@ -108,6 +109,8 @@ const StationVisitDetailModal = ({
 
     const [loading, setLoading] = useState<boolean>(false);
 
+    const [imagesLoading, setImagesLoading] = useState<boolean>(false);
+
     const [commentLoading, setCommentLoading] = useState<boolean>(false);
 
     const [edit, setEdit] = useState<boolean>(false);
@@ -179,7 +182,7 @@ const StationVisitDetailModal = ({
     const getVisitImagesById = async () => {
         try {
             if (!visitId) return null;
-            setLoading(true);
+            setImagesLoading(true);
             const res =
                 await getStationVisitsImagesService<StationVisitsFilesServiceData>(
                     api,
@@ -195,7 +198,7 @@ const StationVisitDetailModal = ({
         } catch (error) {
             console.error(error);
         } finally {
-            setLoading(false);
+            setImagesLoading(false);
         }
     };
 
@@ -1032,7 +1035,15 @@ const StationVisitDetailModal = ({
                             </button>
                         </h3>
 
-                        {images && images.length === 0 ? (
+                        {imagesLoading ? (
+                            <div className="flex w-full items-center justify-center h-60 flex-col space-y-4">
+                                {" "}
+                                <span className="text-xl font-semibold">
+                                    Loading images
+                                </span>{" "}
+                                <Spinner size={"lg"} />{" "}
+                            </div>
+                        ) : images && images.length === 0 ? (
                             <img
                                 className="size-60 object-contain rounded"
                                 src={defPhoto}

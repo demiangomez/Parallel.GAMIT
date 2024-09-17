@@ -800,7 +800,8 @@ const StationMetadataModal = ({
                                                 const errorBadge =
                                                     metaMsg?.errors?.errors?.find(
                                                         (error) =>
-                                                            error.attr === key,
+                                                            error.attr ===
+                                                            descKey,
                                                     );
 
                                                 return (

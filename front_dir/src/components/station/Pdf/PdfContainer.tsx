@@ -239,6 +239,58 @@ const PdfContainer = ({
         }
     };
 
+    const resizeImage = (
+        img: HTMLImageElement,
+        maxWidth: number,
+        maxHeight: number,
+    ): Promise<string> => {
+        return new Promise((resolve) => {
+            const canvas = document.createElement("canvas");
+            let width = img.width;
+            let height = img.height;
+
+            if (width > maxWidth) {
+                height *= maxWidth / width;
+                width = maxWidth;
+            }
+            if (height > maxHeight) {
+                width *= maxHeight / height;
+                height = maxHeight;
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext("2d");
+            ctx?.drawImage(img, 0, 0, width, height);
+
+            resolve(canvas.toDataURL("image/png", 1));
+        });
+    };
+
+    const processImages = async (
+        images: StationVisitsFilesData[] | StationImagesData[],
+    ) => {
+        const maxWidth = 800;
+        const maxHeight = 800;
+
+        const resizedImagesPromises = images.map(async (img) => {
+            const imgElement = new Image();
+            imgElement.src = `data:image/*;base64,${img.actual_image}`;
+
+            await new Promise((resolve) => {
+                imgElement.onload = resolve;
+            });
+
+            return resizeImage(imgElement, maxWidth, maxHeight);
+        });
+
+        const resizedImages = await Promise.all(resizedImagesPromises);
+        return images.map((img, idx) => ({
+            ...img,
+            actual_image: resizedImages[idx],
+        }));
+    };
+
     useEffect(() => {
         if (station && stationMeta) {
             fetchAllData();
@@ -265,26 +317,47 @@ const PdfContainer = ({
     });
 
     useEffect(() => {
-        if ((loadPdf && !loadedMap) || (!loadPdf && !loadedMap)) return;
-        updateInstance(
-            <Pdf
-                stationInfo={stationInfo}
-                monuments={monuments}
-                station={station}
-                stationMeta={stationMeta}
-                people={people}
-                images={images}
-                firstRinex={firstRinex}
-                lastRinex={lastRinex}
-                stationLocationScreen={stationLocationScreen}
-                stationLocationDetailScreen={stationLocationDetailScreen}
-                visits={visits}
-                visitFiles={files}
-                visitGnssFiles={gnssFiles}
-                visitImages={visitImages}
-            />,
-        );
-    }, [loadPdf]);
+        const preparePdfData = async () => {
+            if ((loadPdf && !loadedMap) || (!loadPdf && !loadedMap)) return;
+
+            let processedImages = visitImages;
+            let stationProcessedImages = images;
+            if (visitImages && visitImages?.length > 0) {
+                processedImages = (await processImages(
+                    visitImages,
+                )) as StationVisitsFilesData[];
+            }
+
+            if (images && images?.length > 0) {
+                stationProcessedImages = (await processImages(
+                    images,
+                )) as StationImagesData[];
+            }
+
+            updateInstance(
+                <Pdf
+                    stationInfo={stationInfo}
+                    monuments={monuments}
+                    station={station}
+                    stationMeta={stationMeta}
+                    people={people}
+                    images={stationProcessedImages}
+                    firstRinex={firstRinex}
+                    lastRinex={lastRinex}
+                    stationLocationScreen={stationLocationScreen}
+                    stationLocationDetailScreen={stationLocationDetailScreen}
+                    visits={visits}
+                    visitFiles={files}
+                    visitGnssFiles={gnssFiles}
+                    visitImages={processedImages}
+                />,
+            );
+        };
+
+        if (!loadPdf && loadedMap) {
+            preparePdfData(); // Llamar a la función de preparación
+        }
+    }, [loadPdf, loadedMap, visitImages]); // Agregar visitImages a las dependencias
 
     useEffect(() => {
         if (!blobUrl && !loadPdf) {
