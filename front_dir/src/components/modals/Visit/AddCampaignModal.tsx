@@ -74,8 +74,6 @@ const AddCampaignModal = ({
 
             rest.campaign = campaignToAdd?.id ?? null;
 
-            console.log(rest);
-
             Object.entries(rest).forEach(([key, value]) => {
                 if (key === "campaign") {
                     formData.append(key, String(value));

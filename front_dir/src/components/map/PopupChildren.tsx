@@ -152,8 +152,6 @@ const PopupChildren = ({ station, fromMain }: PopupChildrenProps) => {
         getStationMeta();
     }, []);
 
-    console.log(station);
-
     return (
         <div
             className={`flex flex-col self-start space-y-2 max-h-80 overflow-y-auto pr-2 ${fromMain ? "md:w-[400px] lg:w-[450px]" : "w-[200px]"} `}
