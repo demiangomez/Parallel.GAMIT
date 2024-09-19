@@ -25,6 +25,8 @@ from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExampl
 from drf_spectacular.types import OpenApiTypes
 from rest_framework import status
 import base64
+from django.forms.models import model_to_dict
+
 
 def response_is_paginated(response_data):
     return type(response_data) == dict
@@ -217,15 +219,22 @@ class StationList(CustomListCreateAPIView):
         response = super().list(request, *args, **kwargs)
 
         if response.status_code == status.HTTP_200_OK:
-            # Fetch and convert the station_meta_fields into a dictionary
 
             station_meta_query = models.StationMeta.objects.values_list(
-                'station', 'has_gaps', 'has_stationinfo')
+                'station', 'has_gaps', 'has_stationinfo', 'id')
+            
+            station_meta_gaps = models.StationMetaGaps.objects.select_related('station_meta').all()
+
+            station_meta_gaps_dict = {station_meta_object[3]: [] for station_meta_object in station_meta_query}
+
+            for gap in station_meta_gaps:
+                station_meta_gaps_dict[gap.station_meta.id].append(model_to_dict(gap))
 
             station_meta_dict = {
                 station_meta_object[0]: (
                     station_meta_object[1],
-                    station_meta_object[2]
+                    station_meta_object[2],
+                    station_meta_object[3]
                 )
                 for station_meta_object in station_meta_query
             }
@@ -235,9 +244,10 @@ class StationList(CustomListCreateAPIView):
                 if 'api_id' in station:
 
                     if station['api_id'] in station_meta_dict:
-                        has_gaps, has_stationinfo = station_meta_dict[station['api_id']]
+                        has_gaps, has_stationinfo, station_meta_id = station_meta_dict[station['api_id']]
                         station["has_gaps"] = has_gaps
                         station["has_stationinfo"] = has_stationinfo
+                        station["gaps"] = station_meta_gaps_dict[station_meta_id]
 
         return response
 
@@ -255,10 +265,10 @@ class StationDetail(generics.RetrieveUpdateDestroyAPIView):
 
             if 'api_id' in response.data:
 
-                stationmeta = models.StationMeta.objects.only(
-                    'has_gaps', 'has_stationinfo').get(station=response.data['api_id'])
+                stationmeta = models.StationMeta.objects.get(station=response.data['api_id'])
                 response.data["has_gaps"] = stationmeta.has_gaps
                 response.data["has_stationinfo"] = stationmeta.has_stationinfo
+                response.data["gaps"] = [model_to_dict(gap) for gap in stationmeta.stationmetagaps_set.all()]
 
         return response
 

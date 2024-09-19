@@ -444,6 +444,15 @@ export interface ExtendedStationData extends StationData {
     statusCode: number;
 }
 
+export interface GapData {
+    record_end_date_end: string | null;
+    record_end_date_start: string | null;
+    record_start_date_end: string | null;
+    record_start_date_start: string | null;
+    rinex_count: number;
+    station_meta: number;
+}
+
 export interface StationData {
     api_id?: number;
     network_code: string;
@@ -464,6 +473,7 @@ export interface StationData {
     dome: string;
     country_code: string;
     marker: number;
+    gaps: GapData[];
 }
 
 export interface StationInfoData {

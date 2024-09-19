@@ -21,7 +21,19 @@ class StationMetaUtils:
                 
                 if hasattr(record, 'station') and record.has_gaps_update_needed:
                     records_updated_count += 1
-                    record.has_gaps = StationMetaUtils.station_has_gaps(record.station)
+
+                    models.StationMetaGaps.objects.filter(station_meta=record).delete()
+
+                    station_gaps = StationMetaUtils.get_station_gaps(record)
+
+                    for gap in station_gaps:
+                        gap.save()
+
+                    if len(station_gaps) > 0:
+                        record.has_gaps = True
+                    else:
+                        record.has_gaps = False
+
                     record.has_gaps_update_needed = False
                     record.has_gaps_last_update_datetime = django.utils.timezone.now()
                 
@@ -30,9 +42,9 @@ class StationMetaUtils:
             logger.info(f' \'has_gaps\' status updated. Total stations updated: {records_updated_count} - Time taken: {(datetime.datetime.now() - previous_time).total_seconds()}')
 
     @staticmethod
-    def station_has_gaps(station_object):
+    def get_station_gaps(station_meta):
         """
-        This function checks any missing station info (gaps) or any data outside the first and last station info
+        This function checks if there rinex data that falls outside the station info window and returns info about the gaps
         """
 
         def dictfetchall(cursor):
@@ -66,11 +78,15 @@ class StationMetaUtils:
 
                 return rows[0]
 
-        def has_gaps_between_stationinfo_records(station_object, station_info_records):
+        def has_gaps_between_stationinfo_records(station_object, station_info_records, station_meta):
             
+            gaps_found = []
+
             if station_info_records.count() > 1:
                 # convert station_info_records to a list
                 station_info_records = list(station_info_records)
+
+
                 # get gaps between stninfo records
                 for erecord, srecord in zip(station_info_records[0:-1], station_info_records[1:]):
 
@@ -81,37 +97,47 @@ class StationMetaUtils:
                     # in that gap
                     if (sdate - edate).total_seconds() > 1:
 
-                        if get_rinex_count(station_object, edate, sdate) != 0:
-                            return True
+                        rinex_count = get_rinex_count(station_object, edate, sdate)
 
-            return False
+                        if rinex_count != 0:
+                            gaps_found.append(models.StationMetaGaps.objects.create(station_meta=station_meta, rinex_count=rinex_count, record_start_date_start=erecord.date_start, record_start_date_end=erecord.date_end, record_end_date_start=srecord.date_start, record_end_date_end=srecord.date_end))
 
-        def has_gaps_outside_stationinfo_records(station_object, station_info_records):
+            return gaps_found
+
+        def has_gaps_outside_stationinfo_records(station_object, station_info_records, station_meta):
             """
                 There should not be RINEX data outside the station info window
             """
             rnxtbl = get_first_and_last_rinex(station_object)
 
+            gaps_found = []
+
             if rnxtbl["first_obs"] is not None and station_info_records.count() > 0:
 
                 # to avoid empty stations (no rinex data)
                 if station_info_records.first().date_start is not None and rnxtbl["first_obs"] < station_info_records.first().date_start:
-                    return True
+                    gaps_found.append(models.StationMetaGaps.objects.create(station_meta=station_meta, rinex_count=1, record_start_date_start=station_info_records.first().date_start, record_start_date_end=station_info_records.first().date_end))
                 
                 if station_info_records.last().date_end is not None and rnxtbl["last_obs"] > station_info_records.last().date_end:
-                    return True
+                    gaps_found.append(models.StationMetaGaps.objects.create(station_meta=station_meta, rinex_count=1, record_end_date_start=station_info_records.last().date_start, record_end_date_end=station_info_records.last().date_end))
 
-            return False
+            return gaps_found
+
+        station_object = station_meta.station
 
         station_info_records = models.Stationinfo.objects.filter(
             network_code=station_object.network_code.network_code, station_code=station_object.station_code)
 
         # check if station_object has the required fields
         if not hasattr(station_object, 'network_code') or not hasattr(station_object, 'station_code'):
-            return False
+            return []
 
-        return (has_gaps_between_stationinfo_records(station_object, station_info_records) or has_gaps_outside_stationinfo_records(station_object, station_info_records))
+        gaps_found = []
 
+        gaps_found.extend(has_gaps_between_stationinfo_records(station_object, station_info_records, station_meta))
+        gaps_found.extend(has_gaps_outside_stationinfo_records(station_object, station_info_records, station_meta))
+
+        return gaps_found
 
 class EndpointsClusterUtils:
     def group_clusters_by_resource(clusters):

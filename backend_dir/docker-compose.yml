@@ -1,0 +1,11 @@
+version: "3.8"
+
+services:
+  backend:
+    container_name: gnss-backend
+    build: ./backend
+    volumes:
+      - ./backend:/code
+    ports:
+      - "8000:8000"
+    restart: always

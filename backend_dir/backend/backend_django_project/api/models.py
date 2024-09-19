@@ -6,6 +6,7 @@ from . import custom_fields
 import sys
 import inspect
 import os.path
+from django.contrib.postgres.fields import ArrayField
 # ------------------------------MODELS BASED ON EXISTING DB-----------------------------
 from decimal import Decimal
 
@@ -1083,6 +1084,18 @@ class StationMeta(BaseModel):
             models.UniqueConstraint(
                 fields=['station'], name='station_unique')
         ]
+
+
+class StationMetaGaps(BaseModel):
+    station_meta = models.ForeignKey(StationMeta, models.CASCADE)
+    rinex_count = models.IntegerField()
+    record_start_date_start = models.DateTimeField(blank=True, null=True)
+    record_start_date_end = models.DateTimeField(blank=True, null=True)
+    record_end_date_start = models.DateTimeField(blank=True, null=True)
+    record_end_date_end = models.DateTimeField(blank=True, null=True)
+
+    def to_dict(self):
+        return {field.name: getattr(self, field.name) for field in self._meta.fields}
 
 
 class Campaigns(BaseModel):

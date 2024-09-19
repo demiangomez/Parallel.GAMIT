@@ -35526,6 +35526,10 @@ paths:
         schema:
           type: integer
       - in: query
+        name: station_api_id
+        schema:
+          type: string
+      - in: query
         name: visit_api_id
         schema:
           type: string
@@ -36033,6 +36037,10 @@ paths:
         schema:
           type: integer
       - in: query
+        name: station_api_id
+        schema:
+          type: string
+      - in: query
         name: visit_api_id
         schema:
           type: string
@@ -36539,6 +36547,10 @@ paths:
         description: The initial index from which to return the results.
         schema:
           type: integer
+      - in: query
+        name: station_api_id
+        schema:
+          type: string
       - in: query
         name: visit_api_id
         schema:
@@ -61532,6 +61544,12 @@ components:
         navigation_file_delete:
           type: boolean
           writeOnly: true
+        station_status_name:
+          type: string
+          readOnly: true
+        station_gaps:
+          type: string
+          readOnly: true
         remote_access_link:
           type: string
           maxLength: 500
@@ -61674,6 +61692,9 @@ components:
           type: string
           readOnly: true
         navigation_actual_file:
+          type: string
+          readOnly: true
+        campaign_name:
           type: string
           readOnly: true
         log_sheet_file_delete:
@@ -74943,6 +74964,12 @@ components:
         navigation_file_delete:
           type: boolean
           writeOnly: true
+        station_status_name:
+          type: string
+          readOnly: true
+        station_gaps:
+          type: string
+          readOnly: true
         remote_access_link:
           type: string
           maxLength: 500
@@ -74999,6 +75026,8 @@ components:
       - navigation_actual_file
       - navigation_file_delete
       - station
+      - station_gaps
+      - station_status_name
       - station_type_name
     StationMetaCreateBatteryDescriptionErrorComponent:
       type: object
@@ -80677,6 +80706,9 @@ components:
         navigation_actual_file:
           type: string
           readOnly: true
+        campaign_name:
+          type: string
+          readOnly: true
         log_sheet_file_delete:
           type: boolean
           writeOnly: true
@@ -80713,6 +80745,7 @@ components:
           items:
             type: integer
       required:
+      - campaign_name
       - date
       - id
       - log_sheet_actual_file
@@ -80923,10 +80956,12 @@ components:
     VisitAttachedFilesListError:
       oneOf:
       - $ref: '#/components/schemas/VisitAttachedFilesListVisitApiIdErrorComponent'
+      - $ref: '#/components/schemas/VisitAttachedFilesListStationApiIdErrorComponent'
       discriminator:
         propertyName: attr
         mapping:
           visit_api_id: '#/components/schemas/VisitAttachedFilesListVisitApiIdErrorComponent'
+          station_api_id: '#/components/schemas/VisitAttachedFilesListStationApiIdErrorComponent'
     VisitAttachedFilesListErrorResponse400:
       oneOf:
       - $ref: '#/components/schemas/VisitAttachedFilesListValidationError'
@@ -80936,6 +80971,25 @@ components:
         mapping:
           validation_error: '#/components/schemas/VisitAttachedFilesListValidationError'
           client_error: '#/components/schemas/ParseErrorResponse'
+    VisitAttachedFilesListStationApiIdErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - station_api_id
+          type: string
+          description: '* `station_api_id` - station_api_id'
+        code:
+          enum:
+          - null_characters_not_allowed
+          type: string
+          description: '* `null_characters_not_allowed` - null_characters_not_allowed'
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
     VisitAttachedFilesListValidationError:
       type: object
       properties:
@@ -81177,10 +81231,12 @@ components:
     VisitGnssDataFilesListError:
       oneOf:
       - $ref: '#/components/schemas/VisitGnssDataFilesListVisitApiIdErrorComponent'
+      - $ref: '#/components/schemas/VisitGnssDataFilesListStationApiIdErrorComponent'
       discriminator:
         propertyName: attr
         mapping:
           visit_api_id: '#/components/schemas/VisitGnssDataFilesListVisitApiIdErrorComponent'
+          station_api_id: '#/components/schemas/VisitGnssDataFilesListStationApiIdErrorComponent'
     VisitGnssDataFilesListErrorResponse400:
       oneOf:
       - $ref: '#/components/schemas/VisitGnssDataFilesListValidationError'
@@ -81190,6 +81246,25 @@ components:
         mapping:
           validation_error: '#/components/schemas/VisitGnssDataFilesListValidationError'
           client_error: '#/components/schemas/ParseErrorResponse'
+    VisitGnssDataFilesListStationApiIdErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - station_api_id
+          type: string
+          description: '* `station_api_id` - station_api_id'
+        code:
+          enum:
+          - null_characters_not_allowed
+          type: string
+          description: '* `null_characters_not_allowed` - null_characters_not_allowed'
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
     VisitGnssDataFilesListValidationError:
       type: object
       properties:
@@ -81433,10 +81508,12 @@ components:
     VisitImagesListError:
       oneOf:
       - $ref: '#/components/schemas/VisitImagesListVisitApiIdErrorComponent'
+      - $ref: '#/components/schemas/VisitImagesListStationApiIdErrorComponent'
       discriminator:
         propertyName: attr
         mapping:
           visit_api_id: '#/components/schemas/VisitImagesListVisitApiIdErrorComponent'
+          station_api_id: '#/components/schemas/VisitImagesListStationApiIdErrorComponent'
     VisitImagesListErrorResponse400:
       oneOf:
       - $ref: '#/components/schemas/VisitImagesListValidationError'
@@ -81446,6 +81523,25 @@ components:
         mapping:
           validation_error: '#/components/schemas/VisitImagesListValidationError'
           client_error: '#/components/schemas/ParseErrorResponse'
+    VisitImagesListStationApiIdErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - station_api_id
+          type: string
+          description: '* `station_api_id` - station_api_id'
+        code:
+          enum:
+          - null_characters_not_allowed
+          type: string
+          description: '* `null_characters_not_allowed` - null_characters_not_allowed'
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
     VisitImagesListValidationError:
       type: object
       properties:

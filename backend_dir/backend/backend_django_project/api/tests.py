@@ -17,7 +17,6 @@ from . import models
 import django.contrib.auth.hashers
 from django.test import Client
 
-
 class PermissionsTest(TestCase):
     def authenticate_admin(self):
         url = reverse("token_obtain_pair")
@@ -309,8 +308,7 @@ class StationGapsTest(TestCase):
             data = {
                 "network_code": 'NT1',
                 "station_code": 'ST1',
-                "station_name": 'test station',
-                "country_code": 'USA'
+                "station_name": 'test station'
             }
 
             response = self.client.post(
@@ -392,6 +390,8 @@ class StationGapsTest(TestCase):
 
             self.assertEqual(response.json()["data"][0]["has_gaps"], False)
 
+            self.assertEqual(models.StationMetaGaps.objects.filter(station_meta__station=response.json()["data"][0]["api_id"]).exists(), False)
+
         def test_create_rinex():
             url = reverse("rinex_list")
 
@@ -406,7 +406,26 @@ class StationGapsTest(TestCase):
                 "observation_s_time": "2021-01-01T12:00:00",
                 "observation_e_time": "2021-01-01T13:00:00",
                 "interval": 15.0,
-                "completion": 0.6
+                "completion": 0.9
+            }
+
+            response = self.client.post(
+                url, data)
+
+            self.assertEqual(response.status_code, 201)
+
+            data = {
+                "network_code": 'NT1',
+                "station_code": 'ST1',
+                "observation_year": 2021,
+                "observation_month": 1,
+                "observation_day": 1,
+                "observation_doy": 2,
+                "observation_f_year": 2021.0013698630137,
+                "observation_s_time": "2021-01-01T15:00:00",
+                "observation_e_time": "2021-01-01T19:00:00",
+                "interval": 15.0,
+                "completion": 0.8
             }
 
             response = self.client.post(
@@ -421,7 +440,10 @@ class StationGapsTest(TestCase):
 
             self.assertEqual(response.status_code, 200)
 
-        def test_station_has_gaps():
+            self.assertEqual(models.Rinex.objects.all().count(), 2)
+
+        def test_station_has_gaps(gap_count):
+
             url = reverse("station_list")
 
             response = self.client.get(url)
@@ -429,6 +451,37 @@ class StationGapsTest(TestCase):
             self.assertEqual(response.status_code, 200)
 
             self.assertEqual(response.json()["data"][0]["has_gaps"], True)
+
+            self.assertEqual(models.StationMetaGaps.objects.filter(station_meta__station=response.json()["data"][0]["api_id"]).count(), gap_count)
+
+        def test_station_has_gaps_2():
+
+            url = reverse("station_list")
+
+            response = self.client.get(url)
+
+            self.assertEqual(response.status_code, 200)
+
+            self.assertEqual(response.json()["data"][0]["has_gaps"], True)
+
+            gaps = models.StationMetaGaps.objects.filter(station_meta__station=response.json()["data"][0]["api_id"])
+
+            stationinfo_start = models.Stationinfo.objects.all().order_by('date_start').first()
+
+            stationinfo_end = models.Stationinfo.objects.all().order_by('date_start').last()
+
+            self.assertEqual(gaps.count(), 1)
+
+            self.assertEqual(gaps.first().rinex_count, 2)
+
+            self.assertEqual(gaps.first().record_start_date_end.replace(tzinfo=None), stationinfo_start.date_end.replace(tzinfo=None))
+
+            self.assertEqual(gaps.first().record_start_date_start.replace(tzinfo=None), stationinfo_start.date_start.replace(tzinfo=None))
+
+            self.assertEqual(gaps.first().record_end_date_start.replace(tzinfo=None), stationinfo_end.date_start.replace(tzinfo=None))
+
+            self.assertEqual(gaps.first().record_end_date_end.replace(tzinfo=None), stationinfo_end.date_end.replace(tzinfo=None))
+
 
         def delete_rinex():
             url = reverse("rinex_detail", kwargs={
@@ -494,17 +547,18 @@ class StationGapsTest(TestCase):
         test_station_doesnt_have_gaps()
         test_create_rinex()
         update_has_gaps_status()
-        test_station_has_gaps()
+        test_station_has_gaps_2()
+        delete_rinex()
         delete_rinex()
         update_has_gaps_status()
         test_station_doesnt_have_gaps()
         test_create_rinex_before_stationinfo_date()
         update_has_gaps_status()
-        test_station_has_gaps()
+        test_station_has_gaps(1)
         delete_rinex()
         test_create_rinex_after_stationinfo_date()
         update_has_gaps_status()
-        test_station_has_gaps()
+        test_station_has_gaps(1)
 
 
 class StationInfoTest(TestCase):
@@ -590,13 +644,12 @@ class StationInfoTest(TestCase):
             data = {
                 "network_code": 'NT1',
                 "station_code": 'ST1',
-                "station_name": 'test station',
-                "country_code": 'USA'
+                "station_name": 'test station'
             }
 
             response = self.client.post(
                 url, data)
-
+        
             self.assertEqual(models.Stations.objects.count(), 1)
             self.assertEqual(response.status_code, 201)
             self.assertEqual(response.json()["station_code"], 'ST1')

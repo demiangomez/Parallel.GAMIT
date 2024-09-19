@@ -266,12 +266,17 @@ class StationSerializer(serializers.ModelSerializer):
         model = models.Stations
         fields = '__all__'
 
+class StationMetaGapsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.StationMetaGaps
+        fields = '__all__'
 
 class StationMetaSerializer(serializers.ModelSerializer):
     navigation_actual_file = serializers.SerializerMethodField()
     station_type_name = serializers.SerializerMethodField()
     navigation_file_delete = serializers.BooleanField(write_only=True)
     station_status_name = serializers.SerializerMethodField()
+    station_gaps = serializers.SerializerMethodField()
 
     class Meta:
         model = models.StationMeta
@@ -286,6 +291,10 @@ class StationMetaSerializer(serializers.ModelSerializer):
             'has_gaps': {'read_only': True},
             'has_stationinfo': {'read_only': True}
         }
+    
+    def get_station_gaps(self, obj):
+        gaps = models.StationMetaGaps.objects.filter(station_meta=obj)
+        return StationMetaGapsSerializer(gaps, many=True).data
 
     def get_navigation_actual_file(self, obj):
         """Returns the actual file encoded in base64"""

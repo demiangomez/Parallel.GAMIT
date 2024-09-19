@@ -6,6 +6,7 @@ import { useAuth } from "@hooks/useAuth";
 import { getRinexService, getStationMetaService } from "@services";
 
 import {
+    GapData,
     RinexData,
     RinexServiceData,
     StationData,
@@ -22,7 +23,7 @@ interface PopupChildrenProps {
 const child = (key: string, text: string, idx: number) => {
     return (
         <div key={idx} className="flex flex-col w-full">
-            <span className="">
+            <span className="text-sm">
                 <strong>{key}:</strong> {text}
             </span>
         </div>
@@ -97,6 +98,50 @@ const PopupChildren = ({ station, fromMain }: PopupChildrenProps) => {
         }
     };
 
+    const generateErrorMessages = (station: StationData) => {
+        const errorMessages: string[] = [];
+
+        if (!station.has_stationinfo) {
+            errorMessages.push("Station has no station information records!");
+        }
+
+        station.gaps.forEach((gap: GapData) => {
+            const {
+                record_start_date_start,
+                record_end_date_end,
+                record_end_date_start,
+                record_start_date_end,
+                rinex_count,
+            } = gap;
+
+            if (record_start_date_start && record_end_date_end) {
+                errorMessages.push(
+                    `At least ${rinex_count} RINEX file(s) outside of station info record ending at ${formattedDates(new Date(record_end_date_end))} and next record starting at ${formattedDates(new Date(record_start_date_start))}`,
+                );
+            } else if (
+                record_start_date_start &&
+                !record_end_date_end &&
+                !record_end_date_start
+            ) {
+                errorMessages.push(
+                    `At least ${rinex_count} RINEX file(s) outside of station info record starting at ${formattedDates(new Date(record_start_date_start))}`,
+                );
+            } else if (
+                record_end_date_end &&
+                !record_start_date_end &&
+                !record_start_date_start
+            ) {
+                errorMessages.push(
+                    `At least ${rinex_count} RINEX file(s) outside of station info record ending at ${formattedDates(new Date(record_end_date_end))}`,
+                );
+            }
+        });
+
+        return errorMessages;
+    };
+
+    const errorMessages = station ? generateErrorMessages(station) : [];
+
     useEffect(() => {
         if (fromMain) {
             getRinex();
@@ -107,9 +152,11 @@ const PopupChildren = ({ station, fromMain }: PopupChildrenProps) => {
         getStationMeta();
     }, []);
 
+    console.log(station);
+
     return (
         <div
-            className={`flex flex-col self-start space-y-2 ${fromMain ? "md:w-[400px] lg:w-[450px]" : "w-[200px]"} `}
+            className={`flex flex-col self-start space-y-2 max-h-80 overflow-y-auto pr-2 ${fromMain ? "md:w-[400px] lg:w-[450px]" : "w-[200px]"} `}
         >
             <span className="w-full bg-green-400 px-4 py-1 text-center font-bold self-center">
                 {stationMeta?.station_type_name
@@ -125,7 +172,7 @@ const PopupChildren = ({ station, fromMain }: PopupChildrenProps) => {
                 {fromMain && loading ? (
                     <span className="loading loading-dots loading-lg mx-auto"></span>
                 ) : fromMain !== undefined && !loading ? (
-                    <div className="flex flex-col items-center grow">
+                    <div className="flex text-sm flex-col items-center grow">
                         {firstRinex ? (
                             <div className="flex flex-col">
                                 <h2
@@ -193,6 +240,35 @@ const PopupChildren = ({ station, fromMain }: PopupChildrenProps) => {
                     </div>
                 ) : null}
             </div>
+
+            {
+                <div className="w-full border-t-2 pt-2">
+                    <span className="text-base text-error border-b-2">
+                        Station errors
+                    </span>
+                    {station &&
+                    ((station.gaps && station.gaps.length > 0) ||
+                        !station?.has_stationinfo) ? (
+                        <div className="flex flex-col">
+                            {errorMessages.length > 0 && (
+                                <div className="flex flex-col my-2 space-y-2">
+                                    {errorMessages.map((message, idx) => (
+                                        <div key={idx} className="flex">
+                                            <span className="text-sm text-red-500">
+                                                {message}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="flex flex-col my-2">
+                            <span className="text-sm">No errors</span>
+                        </div>
+                    )}
+                </div>
+            }
 
             {fromMain && (
                 <Link
