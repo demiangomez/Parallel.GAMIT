@@ -67,6 +67,30 @@ class StationMetaUtils:
 
                 return rows[0]["rcount"]
             
+        def get_rinex_count_before_date(station_object, date):
+                                    
+            with connection.cursor() as cursor:
+                cursor.execute(
+                            """SELECT count(*) as rcount FROM rinex_proc 
+                            WHERE "NetworkCode" = %s AND "StationCode" = %s AND
+                            "ObservationSTime" < %s AND
+                            "Completion" >= 0.5""", [station_object.network_code.network_code, station_object.station_code, date])
+                rows = dictfetchall(cursor)
+
+                return rows[0]["rcount"]
+            
+        def get_rinex_count_after_date(station_object, date):
+                                    
+            with connection.cursor() as cursor:
+                cursor.execute(
+                            """SELECT count(*) as rcount FROM rinex_proc 
+                            WHERE "NetworkCode" = %s AND "StationCode" = %s AND
+                            "ObservationSTime" > %s AND
+                            "Completion" >= 0.5""", [station_object.network_code.network_code, station_object.station_code, date])
+                rows = dictfetchall(cursor)
+
+                return rows[0]["rcount"]
+            
         def get_first_and_last_rinex(station_object):
 
             with connection.cursor() as cursor:
@@ -116,10 +140,12 @@ class StationMetaUtils:
 
                 # to avoid empty stations (no rinex data)
                 if station_info_records.first().date_start is not None and rnxtbl["first_obs"] < station_info_records.first().date_start:
-                    gaps_found.append(models.StationMetaGaps.objects.create(station_meta=station_meta, rinex_count=1, record_start_date_start=station_info_records.first().date_start, record_start_date_end=station_info_records.first().date_end))
+                    rinex_count = get_rinex_count_before_date(station_object, station_info_records.first().date_start)
+                    gaps_found.append(models.StationMetaGaps.objects.create(station_meta=station_meta, rinex_count=rinex_count, record_start_date_start=station_info_records.first().date_start, record_start_date_end=station_info_records.first().date_end))
                 
                 if station_info_records.last().date_end is not None and rnxtbl["last_obs"] > station_info_records.last().date_end:
-                    gaps_found.append(models.StationMetaGaps.objects.create(station_meta=station_meta, rinex_count=1, record_end_date_start=station_info_records.last().date_start, record_end_date_end=station_info_records.last().date_end))
+                    rinex_count = get_rinex_count_after_date(station_object, station_info_records.last().date_end)
+                    gaps_found.append(models.StationMetaGaps.objects.create(station_meta=station_meta, rinex_count=rinex_count, record_end_date_start=station_info_records.last().date_start, record_end_date_end=station_info_records.last().date_end))
 
             return gaps_found
 
