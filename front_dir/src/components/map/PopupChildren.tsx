@@ -105,37 +105,39 @@ const PopupChildren = ({ station, fromMain }: PopupChildrenProps) => {
             errorMessages.push("Station has no station information records!");
         }
 
-        station.gaps.forEach((gap: GapData) => {
-            const {
-                record_start_date_start,
-                record_end_date_end,
-                record_end_date_start,
-                record_start_date_end,
-                rinex_count,
-            } = gap;
+        if (station.gaps && station.gaps.length !== 0) {
+            station?.gaps?.forEach((gap: GapData) => {
+                const {
+                    record_start_date_start,
+                    record_end_date_end,
+                    record_end_date_start,
+                    record_start_date_end,
+                    rinex_count,
+                } = gap;
 
-            if (record_start_date_start && record_end_date_end) {
-                errorMessages.push(
-                    `At least ${rinex_count} RINEX file(s) outside of station info record ending at ${formattedDates(new Date(record_end_date_end))} and next record starting at ${formattedDates(new Date(record_start_date_start))}`,
-                );
-            } else if (
-                record_start_date_start &&
-                !record_end_date_end &&
-                !record_end_date_start
-            ) {
-                errorMessages.push(
-                    `At least ${rinex_count} RINEX file(s) outside of station info record starting at ${formattedDates(new Date(record_start_date_start))}`,
-                );
-            } else if (
-                record_end_date_end &&
-                !record_start_date_end &&
-                !record_start_date_start
-            ) {
-                errorMessages.push(
-                    `At least ${rinex_count} RINEX file(s) outside of station info record ending at ${formattedDates(new Date(record_end_date_end))}`,
-                );
-            }
-        });
+                if (record_start_date_start && record_end_date_end) {
+                    errorMessages.push(
+                        `At least ${rinex_count} RINEX file(s) outside of station info record ending at ${formattedDates(new Date(record_end_date_end))} and next record starting at ${formattedDates(new Date(record_start_date_start))}`,
+                    );
+                } else if (
+                    record_start_date_start &&
+                    !record_end_date_end &&
+                    !record_end_date_start
+                ) {
+                    errorMessages.push(
+                        `At least ${rinex_count} RINEX file(s) outside of station info record starting at ${formattedDates(new Date(record_start_date_start))}`,
+                    );
+                } else if (
+                    record_end_date_end &&
+                    !record_start_date_end &&
+                    !record_start_date_start
+                ) {
+                    errorMessages.push(
+                        `At least ${rinex_count} RINEX file(s) outside of station info record ending at ${formattedDates(new Date(record_end_date_end))}`,
+                    );
+                }
+            });
+        }
 
         return errorMessages;
     };

@@ -199,7 +199,7 @@ const MapStation = ({
 
     useEffect(() => {
         const pos: LatLngExpression = station
-            ? [station.lat, station.lon]
+            ? [station?.lat ?? 0, station?.lon ?? 0]
             : [0, 0];
 
         setMapProps((prevProps) => ({
