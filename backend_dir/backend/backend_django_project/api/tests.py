@@ -466,21 +466,21 @@ class StationGapsTest(TestCase):
 
             gaps = models.StationMetaGaps.objects.filter(station_meta__station=response.json()["data"][0]["api_id"])
 
-            stationinfo_start = models.Stationinfo.objects.all().order_by('date_start').first()
+            stationinfo_first = models.Stationinfo.objects.all().order_by('date_start').first()
 
-            stationinfo_end = models.Stationinfo.objects.all().order_by('date_start').last()
+            stationinfo_last = models.Stationinfo.objects.all().order_by('date_start').last()
 
             self.assertEqual(gaps.count(), 1)
 
             self.assertEqual(gaps.first().rinex_count, 2)
 
-            self.assertEqual(gaps.first().record_start_date_end.replace(tzinfo=None), stationinfo_start.date_end.replace(tzinfo=None))
+            self.assertEqual(gaps.first().record_end_date_end.replace(tzinfo=None), stationinfo_first.date_end.replace(tzinfo=None))
 
-            self.assertEqual(gaps.first().record_start_date_start.replace(tzinfo=None), stationinfo_start.date_start.replace(tzinfo=None))
+            self.assertEqual(gaps.first().record_end_date_start.replace(tzinfo=None), stationinfo_first.date_start.replace(tzinfo=None))
 
-            self.assertEqual(gaps.first().record_end_date_start.replace(tzinfo=None), stationinfo_end.date_start.replace(tzinfo=None))
+            self.assertEqual(gaps.first().record_start_date_start.replace(tzinfo=None), stationinfo_last.date_start.replace(tzinfo=None))
 
-            self.assertEqual(gaps.first().record_end_date_end.replace(tzinfo=None), stationinfo_end.date_end.replace(tzinfo=None))
+            self.assertEqual(gaps.first().record_start_date_end.replace(tzinfo=None), stationinfo_last.date_end.replace(tzinfo=None))
 
 
         def delete_rinex():

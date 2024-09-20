@@ -100,7 +100,7 @@ class StationMetaUtils:
                         rinex_count = get_rinex_count(station_object, edate, sdate)
 
                         if rinex_count != 0:
-                            gaps_found.append(models.StationMetaGaps.objects.create(station_meta=station_meta, rinex_count=rinex_count, record_start_date_start=erecord.date_start, record_start_date_end=erecord.date_end, record_end_date_start=srecord.date_start, record_end_date_end=srecord.date_end))
+                            gaps_found.append(models.StationMetaGaps.objects.create(station_meta=station_meta, rinex_count=rinex_count, record_start_date_start=srecord.date_start, record_start_date_end=srecord.date_end, record_end_date_start=erecord.date_start, record_end_date_end=erecord.date_end))
 
             return gaps_found
 
