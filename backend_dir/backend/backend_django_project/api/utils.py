@@ -6,40 +6,43 @@ import numpy
 from django.db import connection
 import django.utils.timezone
 import logging
+from django.core.cache import cache
 
 logger = logging.getLogger('django')
 
 class StationMetaUtils:
     @staticmethod
-    def update_has_gaps_status():
+    def update_gaps_status_for_all_station_meta_needed():
             
-            records = models.StationMeta.objects.all()
+            records = models.StationMeta.objects.filter(has_gaps_update_needed=True).exclude(station__isnull=True)
             previous_time = datetime.datetime.now()
-            records_updated_count = 0
 
             for record in records:
-                
-                if hasattr(record, 'station') and record.has_gaps_update_needed:
-                    records_updated_count += 1
+                StationMetaUtils.update_gaps_status(record)
 
-                    models.StationMetaGaps.objects.filter(station_meta=record).delete()
+            logger.info(f' \'has_gaps\' status updated. Total stations updated: {records.count()} - Time taken: {(datetime.datetime.now() - previous_time).total_seconds()}')
 
-                    station_gaps = StationMetaUtils.get_station_gaps(record)
+            cache.delete('update_gaps_status_lock')
+    
+    @staticmethod
+    def update_gaps_status(station_meta_record):
 
-                    for gap in station_gaps:
-                        gap.save()
+        models.StationMetaGaps.objects.filter(station_meta=station_meta_record).delete()
 
-                    if len(station_gaps) > 0:
-                        record.has_gaps = True
-                    else:
-                        record.has_gaps = False
+        station_gaps = StationMetaUtils.get_station_gaps(station_meta_record)
 
-                    record.has_gaps_update_needed = False
-                    record.has_gaps_last_update_datetime = django.utils.timezone.now()
-                
-                    record.save()
-            
-            logger.info(f' \'has_gaps\' status updated. Total stations updated: {records_updated_count} - Time taken: {(datetime.datetime.now() - previous_time).total_seconds()}')
+        for gap in station_gaps:
+            gap.save()
+
+        if len(station_gaps) > 0:
+            station_meta_record.has_gaps = True
+        else:
+            station_meta_record.has_gaps = False
+
+        station_meta_record.has_gaps_update_needed = False
+        station_meta_record.has_gaps_last_update_datetime = django.utils.timezone.now()
+    
+        station_meta_record.save()
 
     @staticmethod
     def get_station_gaps(station_meta):

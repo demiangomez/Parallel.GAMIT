@@ -12,25 +12,6 @@ class ApiConfig(AppConfig):
 
     def ready(self):
         
-        def run_background_job_continuously(interval=300):
-            """
-               This function continuously executes all pending tasks in a separate thread.
-               Leaves a pause of `interval` seconds between each executing.
-            """
-            cease_continuous_run = threading.Event()
-
-            class ScheduleThread(threading.Thread):
-                @classmethod
-                def run(cls):
-                    while not cease_continuous_run.is_set():
-                        time.sleep(interval)
-                        schedule.run_pending()
-
-            continuous_thread = ScheduleThread()
-            continuous_thread.start()
-
-            return continuous_thread, cease_continuous_run
-        
         from django.conf import settings
         from django.core.exceptions import ImproperlyConfigured
 
@@ -39,13 +20,3 @@ class ApiConfig(AppConfig):
         
         if int(getattr(settings, 'MAX_SIZE_FILE_MB', None)) > 75:
             raise ImproperlyConfigured("MAX_SIZE_FILE_MB must be equal or less than 75 MB")
-        
-        # to avoid running the job when calling migrate, makemigrations, and so on. also avoid re-running the job when the server is restarted
-        if (os.environ.get('GUNICORN_SERVER') == 'true' ) or ('runserver' in sys.argv and os.environ.get('RUN_MAIN') == 'true'):
-            from . import utils
-            from django.conf import settings
-
-            schedule.every().second.do(utils.StationMetaUtils.update_has_gaps_status)
-            
-            if self.continuous_thread is None:
-                self.continuous_thread, _ = run_background_job_continuously(int(settings.HAS_GAPS_BACKGROUND_JOB_TIME_INTERVAL_SECONDS))

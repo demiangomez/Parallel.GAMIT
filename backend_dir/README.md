@@ -26,6 +26,10 @@ Skip this part if you are using an existing db
    docker compose up --build -d
 ```
 
+### Usage
+
+Don't change password of 'update-gaps-status' user. Otherwise, gaps status won't be updated.
+
 # Tests
 
 There are some test created. Before running them, you need to manually create an empty database with the same schema as the one used in production.

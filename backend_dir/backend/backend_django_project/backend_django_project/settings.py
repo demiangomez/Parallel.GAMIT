@@ -22,13 +22,22 @@ import configparser
 
 config = configparser.ConfigParser()
 
+CELERY_BROKER_URL = 'redis://localhost:6379/0'
+CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": "redis://127.0.0.1:6379",
+    }
+}
+
 # Docker container path
 config.read('/code/gnss_data.cfg')
 
 DATA_UPLOAD_MAX_MEMORY_SIZE = 1000000000 # 1 GB
-
-HAS_GAPS_BACKGROUND_JOB_TIME_INTERVAL_SECONDS = config[
-    'django']['has_gaps_background_job_time_interval_seconds']
 
 MAX_SIZE_IMAGE_MB = config['django']['max_size_image_mb']
 

@@ -3,3 +3,4 @@
 gnss_data.cfg
 /backend_django_project/logs/django_logs*
 /backend_django_project/logs/gunicorn_*
+dump.rdb

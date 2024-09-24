@@ -154,6 +154,7 @@ urlpatterns = [
          views.StationCodesList.as_view(), name='station_codes_list'),
     path('token', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('token/refresh', TokenRefreshView.as_view(), name='token_refresh'),
+    path('update-gaps-status', views.UpdateGapsStatus.as_view(), name='update_gaps_status'),
     path('users', views.UserList.as_view(), name='user_list'),
     path('users/<int:pk>', views.UserDetail.as_view(), name='user_detail'),
     path('users/<int:pk>/photo', views.UserPhoto.as_view(), name='get_user_photo'),

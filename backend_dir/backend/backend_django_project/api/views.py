@@ -26,7 +26,9 @@ from drf_spectacular.types import OpenApiTypes
 from rest_framework import status
 import base64
 from django.forms.models import model_to_dict
-
+from django.core.cache import cache
+import time
+from .tasks import update_gaps_status
 
 def response_is_paginated(response_data):
     return type(response_data) == dict
@@ -1127,3 +1129,16 @@ class StationinfoDetail(generics.RetrieveUpdateDestroyAPIView):
                                   network_code=record_before_delete["network_code"])
 
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class UpdateGapsStatus(APIView):
+    serializer_class = serializers.DummySerializer
+
+    @extend_schema(description="Computes gaps status for all station_meta objects with 'has_gaps_update_needed' = true")
+    def post(self, request, format=None):
+           
+        if cache.add('update_gaps_status_lock', 'locked', timeout=60*60): 
+            update_gaps_status.delay()
+            return Response(status=status.HTTP_201_CREATED)
+        else:
+            return Response(status=status.HTTP_429_TOO_MANY_REQUESTS)
