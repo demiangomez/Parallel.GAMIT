@@ -20,9 +20,13 @@ Skip this part if you are using an existing db
 ### Procedure
 
 1. Define a conf file named "gnss_data.cfg" under 'backend_dir/backend/' following 'backend_dir/backend/conf_example.txt'
-2. Define a conf file named ".env" under 'front_dir/' following 'front_dir/.env.sample' 
+2. Define a conf file named ".env" under 'front_dir/' following 'front_dir/.env.sample'
 3. From the root directory:
 
 ```
    docker compose up --build -d
 ```
+
+### Usage
+
+Don't change password of 'update-gaps-status' user. Otherwise, gaps status won't be updated.
