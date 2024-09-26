@@ -283,6 +283,10 @@ class BisectingQMeans(_BaseKMeans):
         (`opt_clust_size` - `min_clust_size`) are *a priori* ineligible to be
         bisected.
 
+    max_clust_size: int, default=35
+        Hard cutoff to bypass the heuristic when bisecting clusters; no
+        clusters greater than this size will be produced.
+
     init : {'k-means++', 'random'} or callable, default='random'
         Method for initialization:
 
@@ -381,6 +385,7 @@ class BisectingQMeans(_BaseKMeans):
         self,
         min_clust_size=4,
         opt_clust_size=20,
+        max_clust_size=35,
         *,
         init="random",
         n_init=1,
@@ -390,11 +395,11 @@ class BisectingQMeans(_BaseKMeans):
         tol=1e-4,
         copy_x=True,
         algorithm="lloyd",
-        n_clusters=2,
+        n_clusters=2,      # needed for base class, do not remove
     ):
         super().__init__(
-            n_clusters=n_clusters,
             init=init,
+            n_clusters=n_clusters,
             max_iter=max_iter,
             verbose=verbose,
             random_state=random_state,
@@ -404,6 +409,7 @@ class BisectingQMeans(_BaseKMeans):
 
         self.min_clust_size = min_clust_size
         self.opt_clust_size = opt_clust_size
+        self.max_clust_size = max_clust_size
         self.copy_x = copy_x
         self.algorithm = algorithm
         self.bisect = True
@@ -514,14 +520,16 @@ class BisectingQMeans(_BaseKMeans):
         # case where bisecting is not optimum
         if (counts[0] + counts[1]) < self.opt_clust_size:
             cluster_to_bisect.score = -np.inf
-        # bisect as long as the smallest child has membership of at least 4
+        # bisect as long as the smallest child meets membership constraints
         elif ((counts[0] >= self.min_clust_size) and
               (counts[1] >= self.min_clust_size)):
             cluster_to_bisect.split(best_labels, best_centers, scores)
         # one child will have membership of 3 or less; don't split
         else:
-            #pass
-            cluster_to_bisect.score = -np.inf
+            if (counts[0] + counts[1] >= self.max_clust_size):
+                cluster_to_bisect.split(best_labels, best_centers, scores)
+            else:
+                cluster_to_bisect.score = -np.inf
 
     @_fit_context(prefer_skip_nested_validation=True)
     def fit(self, X, y=None, sample_weight=None):
