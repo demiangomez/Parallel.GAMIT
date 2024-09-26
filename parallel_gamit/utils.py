@@ -63,8 +63,7 @@ def select_central_point(labels, coordinates, centroids,
 
 
 def over_cluster(labels, coordinates, metric='haversine', neighborhood=5,
-                 overlap_points=2,  method='edge', include_centroid=False,
-                 rejection_threshold=None, centriod_labels=None):
+                 overlap_points=2, rejection_threshold=None):
     """Expand cluster membership to include edge points of neighbor clusters
 
     Expands an existing clustering to create overlapping membership between
@@ -128,8 +127,7 @@ def over_cluster(labels, coordinates, metric='haversine', neighborhood=5,
         overlap. Should be less than the number of unique cluster labels - 1.
 
     overlap_points : int greater than or equal to 1, default=2
-        Should not exceed the size of the smallest cluster in `labels`, or
-        one less than that when `include_centroid` is set to 'True'.
+        Should not exceed the size of the smallest cluster in `labels`.
 
     rejection_threshold : float, default=None
         Determines if any potential overlapping points should be rejected for
@@ -151,6 +149,8 @@ def over_cluster(labels, coordinates, metric='haversine', neighborhood=5,
     # Returns already sorted
     clusters = np.unique(labels)
     n_clusters = len(clusters)
+
+    if (n_clusters - 1) < neighborhood: neighborhood = (n_clusters - 1)
 
     # reference index for reverse lookups
     ridx = np.array(list(range(len(labels))))
@@ -520,6 +520,7 @@ class BisectingQMeans(_BaseKMeans):
             cluster_to_bisect.split(best_labels, best_centers, scores)
         # one child will have membership of 3 or less; don't split
         else:
+            #pass
             cluster_to_bisect.score = -np.inf
 
     @_fit_context(prefer_skip_nested_validation=True)
