@@ -13,9 +13,9 @@ from tqdm import tqdm
 
 # app
 from pgamit.classes import pyRinexName
-from pgamit.com.pyStation import StationInstance
+from pgamit.classes.pyStation import StationInstance
 from pgamit.classes.Utils import determine_frame, file_open, stationID, chmod_exec
-from pgamit.com import pyGamitConfig
+from pgamit.classes import pyGamitConfig
 from pgamit.classes import snxParse
 
 

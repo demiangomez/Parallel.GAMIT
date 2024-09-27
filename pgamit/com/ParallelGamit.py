@@ -22,19 +22,19 @@ from tqdm import tqdm
 import simplekml
 
 # app
-from pgamit.com import pyGamitConfig
+from pgamit.classes import pyGamitConfig
 from pgamit.classes import pyDate
 from pgamit.classes import Utils
-from pgamit.com import pyGamitTask
-from pgamit.com import pyGlobkTask
-from pgamit.com import pyGamitSession
+from pgamit.classes import pyGamitTask
+from pgamit.classes import pyGlobkTask
+from pgamit.classes import pyGamitSession
 from pgamit.classes import dbConnection
 from pgamit.classes import pyJobServer
-from pgamit.com import pyParseZTD
+from pgamit.classes import pyParseZTD
 from pgamit.classes import pyArchiveStruct
 from pgamit.classes.pyETM import pyETMException
-from pgamit.com.pyNetwork import Network
-from pgamit.com.pyStation import (Station,
+from pgamit.classes.pyNetwork import Network
+from pgamit.classes.pyStation import (Station,
                        StationCollection)
 from pgamit.classes.Utils import (process_date,
                    process_stnlist,
