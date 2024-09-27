@@ -95,6 +95,7 @@ from pgamit.classes import WeeklyCombination
 
 '''
 __all__ = [
-from .classes import "classes"
-from .classes import "com"]
+from pgamit.classes import *
+from pgamit.com import *
+]
 '''
