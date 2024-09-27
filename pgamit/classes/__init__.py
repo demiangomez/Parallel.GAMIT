@@ -31,7 +31,12 @@ __all__=[
     'pyZTD',
     'pyNEQStack',
     'pyStack',
-    'GenerateKml',
-    'pyParallelGamit',
+    'pyGamitConfig',
+    'pyGamitSession',
+    'pyGamitTask',
+    'pyGlobkTask',
+    'pyNetwork',
+    'pyParseZTD',
+    'pyStation',
     'WeeklyCombination'
 ]
