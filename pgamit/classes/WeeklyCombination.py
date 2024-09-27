@@ -20,7 +20,7 @@ from pgamit.classes import dbConnection
 from pgamit.classes import Utils
 from pgamit.classes import pyDate
 from pgamit.classes import snxParse
-from pgamit.com import pyGamitConfig
+from pgamit.classes import pyGamitConfig
 from pgamit.classes.Utils import split_string, file_open, file_readlines, stationID, chmod_exec
 
 

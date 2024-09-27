@@ -23,8 +23,6 @@ from pgamit.classes import pyDate
 from pgamit.classes.Utils import process_date
 
 
-cnn       = dbConnection.Cnn('gnss_data.cfg')
-Config    = pyOptions.ReadOptions("gnss_data.cfg")  # type: pyOptions.ReadOptions
 selection = 0
 stn       = None
 records   = []
@@ -487,6 +485,12 @@ class MyApp(object):
 
 
 if __name__ == '__main__':
+
+    global cnn
+    global Config
+
+    cnn = dbConnection.Cnn('gnss_data.cfg')
+    Config = pyOptions.ReadOptions("gnss_data.cfg")  # type: pyOptions.ReadOptions
 
     parser = argparse.ArgumentParser(description='Edit Stations info in the database')
 

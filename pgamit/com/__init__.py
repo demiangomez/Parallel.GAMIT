@@ -30,7 +30,6 @@ __all__=[
     'FixPlate',
     'Stacker',
     'StationList',
-    'test_voronoi',
     'DRA',
     'GenerateKml',
     'ParallelGamit',

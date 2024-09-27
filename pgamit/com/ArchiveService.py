@@ -52,7 +52,6 @@ from pgamit.classes import pyBrdc
 
 
 repository_data_in = ''
-cnn = dbConnection.Cnn('gnss_data.cfg')
 
 
 def insert_station_w_lock(cnn, StationCode, filename, lat, lon, h, x, y, z, otl):
@@ -666,6 +665,8 @@ def main():
     JobServer = pyJobServer.JobServer(Config, 
                                       run_parallel = not args.noparallel,
                                       software_sync = [Config.options['ppp_remote_local']])  # type: pyJobServer.JobServer
+
+    cnn = dbConnection.Cnn('gnss_data.cfg')
 
     # create the execution log
     cnn.insert('executions', script='ArchiveService.py')

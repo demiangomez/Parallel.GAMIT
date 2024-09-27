@@ -32,12 +32,12 @@ import copy
 # deps
 from tqdm import tqdm
 import numpy as np
-from overcluster import over_cluster, select_central_point, BisectingQMeans
+from pgamit.classes.NetClusters import over_cluster, select_central_point, BisectingQMeans
 from scipy.spatial import Delaunay, distance
 
 # app
-from pgamit.com.pyGamitSession import GamitSession
-from pgamit.com.pyStation import StationCollection
+from pgamit.classes.pyGamitSession import GamitSession
+from pgamit.classes.pyStation import StationCollection
 
 BACKBONE_NET = 45
 NET_LIMIT = 40

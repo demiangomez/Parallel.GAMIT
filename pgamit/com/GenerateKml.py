@@ -30,7 +30,7 @@ from pgamit.classes import pyStationInfo
 from pgamit.classes import dbConnection
 from pgamit.classes import pyJobServer
 from pgamit.classes import pyOptions
-from pgamit.com.pyGamitConfig import GamitConfiguration
+from pgamit.classes.pyGamitConfig import GamitConfiguration
 from pgamit.classes import Utils
 from pgamit.classes.Utils import process_stnlist, stationID
 
