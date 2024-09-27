@@ -6,9 +6,9 @@ Author: Demian D. Gomez
 This class fetches earth orientation parameters files from the orbits folder (specified in the gnss_data.cfg file) passed as an argument (sp3archive)
 
 """
-import pyDate
-import pyProducts
-import pyEvents
+from pgamit.classes import pyDate
+from pgamit.classes import pyProducts
+from pgamit.classes import pyEvents
 
 
 class pyEOPException(pyProducts.pyProductsException):

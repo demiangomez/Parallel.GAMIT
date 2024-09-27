@@ -13,12 +13,12 @@ import ftplib
 import re
 import numpy as np
 
-import pyOptions
-import pyDate
-import dbConnection
+from pgamit.classes import pyOptions
+from pgamit.classes import pyDate
+from pgamit.classes import dbConnection
 from tqdm import tqdm
-from Utils import station_list_help, required_length, process_date, process_stnlist, stationID
-from DownloadSources import path_replace_tags, Client, fqdn_parse
+from pgamit.classes.Utils import station_list_help, required_length, process_date, process_stnlist, stationID
+from pgamit.com.DownloadSources import path_replace_tags, Client, fqdn_parse
 
 
 def query_yes_no(question, default="yes"):

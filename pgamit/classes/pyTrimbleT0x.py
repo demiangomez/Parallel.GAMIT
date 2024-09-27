@@ -5,11 +5,11 @@ Author: Demian D. Gomez
 Module to convert T0x files to RINEX
 """
 
-import pyRunWithRetry
+from pgamit.classes import pyRunWithRetry
 import glob
-import pyRinex
+from pgamit.classes import pyRinex
 import os
-import Utils
+from pgamit.classes import Utils
 import re
 
 

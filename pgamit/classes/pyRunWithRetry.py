@@ -11,8 +11,8 @@ import time
 import platform
 
 # app
-import pyEvents
-from Utils import file_open
+from pgamit.classes import pyEvents
+from pgamit.classes.Utils import file_open
 
 class RunCommandWithRetryExeception(Exception):
     def __init__(self, value):

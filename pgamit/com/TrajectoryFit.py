@@ -16,7 +16,7 @@ from tqdm import tqdm
 import numpy as np
 import matplotlib
 
-import pyDate
+import pgamit.classes.pyDate
 
 if not os.environ.get('DISPLAY', None):
     matplotlib.use('Agg')
@@ -28,11 +28,11 @@ from scipy.interpolate import griddata
 import json
 
 # app
-import dbConnection
-import Utils
-import pyETM
-from Utils import stationID, file_write
-from pyETM import CO_SEISMIC_JUMP_DECAY, CO_SEISMIC_DECAY
+from pgamit.classes import dbConnection
+from pgamit.classes import Utils
+from pgamit.classes import pyETM
+from pgamit.classes.Utils import stationID, file_write
+from pgamit.classes.pyETM import CO_SEISMIC_JUMP_DECAY, CO_SEISMIC_DECAY
 
 
 def plot_station_param(NetworkCode, StationCode, parameter_name, unit, pn, pe):

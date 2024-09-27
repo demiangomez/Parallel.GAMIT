@@ -83,22 +83,22 @@ import numpy
 import scandir
 
 # app
-import pyArchiveStruct
-import dbConnection
-import pyDate
-import pyRinex
-import pyRinexName
-import pyOTL
-import pyStationInfo
-import pySp3
-import pyBrdc
-import pyClk
-import pyPPP
-import pyOptions
-import Utils
-import pyJobServer
-import pyEvents
-from Utils import (print_columns,
+from pgamit.classes import pyArchiveStruct
+from pgamit.classes import dbConnection
+from pgamit.classes import pyDate
+from pgamit.classes import pyRinex
+from pgamit.classes import pyRinexName
+from pgamit.classes import pyOTL
+from pgamit.classes import pyStationInfo
+from pgamit.classes import pySp3
+from pgamit.classes import pyBrdc
+from pgamit.classes import pyClk
+from pgamit.classes import pyPPP
+from pgamit.classes import pyOptions
+from pgamit.classes import Utils
+from pgamit.classes import pyJobServer
+from pgamit.classes import pyEvents
+from pgamit.classes.Utils import (print_columns,
                    process_date,
                    ecef2lla,
                    file_append,

@@ -16,8 +16,8 @@ from pathlib import Path
 import numpy
 
 # app
-import pyRinexName
-import pyDate
+from pgamit.classes import pyRinexName
+from pgamit.classes import pyDate
 
 
 class UtilsException(Exception):

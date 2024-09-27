@@ -11,8 +11,8 @@ import configparser
 import os
 
 # app
-from Utils import process_date, file_open
-from pyDate import Date
+from pgamit.classes.Utils import process_date, file_open
+from pgamit.classes.pyDate import Date
 
 
 class ReadOptions:
@@ -20,7 +20,7 @@ class ReadOptions:
 
         self.options = {'path'                 : None,
                         'repository'           : None,
-                        'format_scripts_path'  : '/tmp', 
+                        'format_scripts_path'  : '/tmp',
                         'parallel'             : False,
                         'cups'                 : None,
                         'node_list'            : None,

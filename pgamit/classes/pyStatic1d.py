@@ -8,8 +8,8 @@ import os
 import shutil
 import uuid
 
-import dbConnection
-import pyRunWithRetry
+from pgamit.classes import dbConnection
+from pgamit.classes import pyRunWithRetry
 
 
 class Static1d(object):

@@ -14,15 +14,15 @@ import json
 import glob
 
 # app
-from pyEvents import Event
-from Utils import ecef2lla
-from pyRinexName import check_year
-import pyRinexName
-import pyDate
-import pyRunWithRetry
-import pyStationInfo
-import Utils
-from Utils import (file_open,
+from pgamit.classes.pyEvents import Event
+from pgamit.classes.Utils import ecef2lla
+from pgamit.classes.pyRinexName import check_year
+from pgamit.classes import pyRinexName
+from pgamit.classes import pyDate
+from pgamit.classes import pyRunWithRetry
+from pgamit.classes import pyStationInfo
+from pgamit.classes import Utils
+from pgamit.classes.Utils import (file_open,
                    file_write,
                    file_readlines,
                    struct_unpack,

@@ -3,7 +3,7 @@ Project: Parallel.Archive
 Date: 2/25/17 7:15 PM
 Author: Demian D. Gomez
 """
-from Utils import file_readlines
+from pgamit.classes.Utils import file_readlines
 
 class ParseAntexFile():
 

@@ -2,10 +2,8 @@
 pgamit: a Python wrapper to parallelize GAMIT executions
 """
 
-__version__ = "1.1.24"
+from pgamit.classes import *
+from pgamit.com import *
 
-__all__ = [
-        "classes",
-        "com",
-        "parallel_gamit",
-        "stacker"]
+del classes
+del com

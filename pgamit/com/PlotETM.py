@@ -17,11 +17,11 @@ import json
 import numpy as np
 
 # app
-import pyETM
-import pyOptions
-import dbConnection
-import pyDate
-from Utils import (process_date,
+from pgamit.classes import pyETM
+from pgamit.classes import pyOptions
+from pgamit.classes import dbConnection
+from pgamit.classes import pyDate
+from pgamit.classes.Utils import (process_date,
                    process_stnlist,
                    file_write,
                    station_list_help)

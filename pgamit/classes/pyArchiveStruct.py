@@ -17,14 +17,14 @@ import re
 import scandir
 
 # app
-import pyDate
-import pyOptions
-import pyEvents
-import Utils
-import pyRinex
-import pyRinexName
-from pyRinexName import RinexNameFormat
-from Utils import file_try_remove
+from pgamit.classes import pyDate
+from pgamit.classes import pyOptions
+from pgamit.classes import pyEvents
+from pgamit.classes import Utils
+from pgamit.classes import pyRinex
+from pgamit.classes import pyRinexName
+from pgamit.classes.pyRinexName import RinexNameFormat
+from pgamit.classes.Utils import file_try_remove
 
 
 class RinexStruct(object):

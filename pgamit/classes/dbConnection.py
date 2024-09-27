@@ -19,7 +19,8 @@ import pg
 import pgdb
 
 # app
-from Utils import file_read_all, file_append
+from pgamit.classes import Utils
+from pgamit.classes.Utils import file_read_all, file_append
 
 
 DB_HOST = 'localhost'
