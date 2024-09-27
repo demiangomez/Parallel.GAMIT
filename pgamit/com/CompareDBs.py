@@ -1,11 +1,11 @@
 
-import dbConnection
-import pyPPP
-from Utils import stationID
+from pgamit.classes import dbConnection
+from pgamit.classes import pyPPP
+from pgamit.classes.Utils import stationID
 from ScanArchive import export_station
 import os
-import pyArchiveStruct
-import pyOptions
+from pgamit.classes import pyArchiveStruct
+from pgamit.classes import pyOptions
 import shutil
 
 

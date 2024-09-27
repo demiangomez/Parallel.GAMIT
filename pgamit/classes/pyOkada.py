@@ -59,8 +59,9 @@ from scipy.interpolate import griddata
 from scipy.spatial     import KDTree
 from datetime          import timedelta
 
-from pyDate import Date
-import pyETM as etm
+from pgamit.classes import pyDate
+from pgamit.classes.pyDate import Date
+from pgamit.classes import pyETM as etm
 
 cosd  = lambda x : np.cos(np.deg2rad(x))
 sind  = lambda x : np.sin(np.deg2rad(x))

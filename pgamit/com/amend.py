@@ -15,13 +15,13 @@ import datetime
 from tqdm import tqdm
 
 # app
-import dbConnection
-import pyOptions
-import pyArchiveStruct
-import pyRinex
-import pyDate
-import pyJobServer
-from Utils import file_append
+from pgamit.classes import dbConnection
+from pgamit.classes import pyOptions
+from pgamit.classes import pyArchiveStruct
+from pgamit.classes import pyRinex
+from pgamit.classes import pyDate
+from pgamit.classes import pyJobServer
+from pgamit.classes.Utils import file_append
 
 class callback_class():
     def __init__(self, pbar):

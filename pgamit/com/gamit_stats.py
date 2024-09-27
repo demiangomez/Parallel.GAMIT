@@ -15,10 +15,10 @@ from datetime import datetime
 import numpy as np
 
 # app
-from pyDate import Date
-import dbConnection
-import pyOptions
-from Utils import file_readlines
+from pgamit.classes.pyDate import Date
+from pgamit.classes import dbConnection
+from pgamit.classes import pyOptions
+from pgamit.classes.Utils import file_readlines
 
 def parse_monitor(cnn, monitor):
     lines  = file_readlines(monitor)

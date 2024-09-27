@@ -10,9 +10,9 @@ import os
 import uuid
 
 # app
-import pyRunWithRetry
-import pyEvents
-from Utils import file_read_all
+from pgamit.classes import pyRunWithRetry
+from pgamit.classes import pyEvents
+from pgamit.classes.Utils import file_read_all
 
 
 class pyOTLException(Exception):

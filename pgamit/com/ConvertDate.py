@@ -8,7 +8,7 @@ Script to convert from one date type to others
 
 import argparse
 
-from Utils import process_date
+from pgamit.classes.Utils import process_date
 
 
 def main():

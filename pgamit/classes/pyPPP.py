@@ -17,16 +17,16 @@ import re
 # deps
 import numpy
 
-import pyBrdc
+from pgamit.classes import pyBrdc
 # app
-import pyRinex
-import pySp3
-import pyEOP
-import pyClk
-import pyEvents
-import pyRunWithRetry
-from pyDate import Date
-from Utils import lg2ct, ecef2lla, determine_frame, file_write, file_readlines
+from pgamit.classes import pyRinex
+from pgamit.classes import pySp3
+from pgamit.classes import pyEOP
+from pgamit.classes import pyClk
+from pgamit.classes import pyEvents
+from pgamit.classes import pyRunWithRetry
+from pgamit.classes.pyDate import Date
+from pgamit.classes.Utils import lg2ct, ecef2lla, determine_frame, file_write, file_readlines
 
 OBSERV_CODE_ONLY  = '1'
 OBSERV_CODE_PHASE = '2'

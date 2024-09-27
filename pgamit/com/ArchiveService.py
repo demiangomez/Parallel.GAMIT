@@ -35,20 +35,20 @@ import argparse
 from tqdm import tqdm
 
 # app
-from Utils import file_append, file_try_remove, file_open, dir_try_remove
-import pyJobServer
-import pyEvents
-import pyProducts
-import pyOptions
-import Utils
-import pyOTL
-import pyRinex
-import pyRinexName
-import dbConnection
-import pyStationInfo
-import pyArchiveStruct
-import pyPPP
-import pyBrdc
+from pgamit.classes.Utils import file_append, file_try_remove, file_open, dir_try_remove
+from pgamit.classes import pyJobServer
+from pgamit.classes import pyEvents
+from pgamit.classes import pyProducts
+from pgamit.classes import pyOptions
+from pgamit.classes import Utils
+from pgamit.classes import pyOTL
+from pgamit.classes import pyRinex
+from pgamit.classes import pyRinexName
+from pgamit.classes import dbConnection
+from pgamit.classes import pyStationInfo
+from pgamit.classes import pyArchiveStruct
+from pgamit.classes import pyPPP
+from pgamit.classes import pyBrdc
 
 
 repository_data_in = ''

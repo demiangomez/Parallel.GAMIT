@@ -10,8 +10,9 @@ the gnss_data.cfg file) passed as an argument (clk_archive)
 import os
 
 # app
-import pyProducts
-from Utils import file_try_remove
+from pgamit.classes import pyProducts
+from pgamit.classes import Utils
+from pgamit.classes.Utils import file_try_remove
 
 
 class pyClkException(pyProducts.pyProductsException):

@@ -15,11 +15,11 @@ import os
 import numpy as np
 
 # app
-import dbConnection
-import pyDate
-import pyBunch
-import pyEvents
-from Utils import struct_unpack, file_readlines, crc32, stationID, determine_frame, parse_atx_antennas
+from pgamit.classes import dbConnection
+from pgamit.classes import pyDate
+from pgamit.classes import pyBunch
+from pgamit.classes import pyEvents
+from pgamit.classes.Utils import struct_unpack, file_readlines, crc32, stationID, determine_frame, parse_atx_antennas
 
 
 def _default(self, obj):

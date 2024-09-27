@@ -10,9 +10,9 @@ from shutil import copyfile
 from datetime import datetime
 
 # app
-import pyRunWithRetry
-import pyEvents
-import pyDate
+from pgamit.classes import pyRunWithRetry
+from pgamit.classes import pyEvents
+from pgamit.classes import pyDate
 
 
 class pyProductsException(Exception):

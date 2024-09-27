@@ -11,7 +11,8 @@ import numpy as np
 from scipy.stats import chi2
 
 # app
-from Utils import ct2lg
+from pgamit.classes import Utils
+from pgamit.classes.Utils import ct2lg
 
 LIMIT = 2.5
 

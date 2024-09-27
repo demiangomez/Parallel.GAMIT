@@ -27,19 +27,19 @@ import pg
 from tqdm import tqdm
 
 # app
-import pyOptions
-import dbConnection
-import pyDate
-import pyStationInfo
-import pyArchiveStruct
-import pyPPP
-import Utils
-from Utils import (process_date,
+from pgamit.classes import pyOptions
+from pgamit.classes import dbConnection
+from pgamit.classes import pyDate
+from pgamit.classes import pyStationInfo
+from pgamit.classes import pyArchiveStruct
+from pgamit.classes import pyPPP
+from pgamit.classes import Utils
+from pgamit.classes.Utils import (process_date,
                    ecef2lla,
                    parse_atx_antennas,
                    determine_frame)
-import pyJobServer
-import pyEvents
+from pgamit.classes import pyJobServer
+from pgamit.classes import pyEvents
 
 
 

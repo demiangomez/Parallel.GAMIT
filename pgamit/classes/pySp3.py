@@ -18,8 +18,8 @@ The sp3_type_x and sp3_altr_x are now deprecated.
 import os
 
 # app
-import pyProducts
-from Utils import file_open, file_try_remove
+from pgamit.classes import pyProducts
+from pgamit.classes.Utils import file_open, file_try_remove
 
 
 class pySp3Exception(pyProducts.pyProductsException):

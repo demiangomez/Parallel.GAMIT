@@ -12,6 +12,7 @@ import _thread
 import threading
 import queue
 import traceback
+from sys import exit
 
 # deps
 from tqdm import tqdm
@@ -63,19 +64,19 @@ def test_node(check_gamit_tables=None, software_sync=()):
         import pg
         import dirsync
         # app
-        import pyRinex
-        import dbConnection
-        import pyStationInfo
-        import pyArchiveStruct
-        import pyPPP
-        import pyBrdc
-        import pyOptions
-        import Utils
-        import pyOTL
-        import pySp3
-        import pyETM
-        import pyRunWithRetry
-        import pyDate
+        from pgamit.classes import pyRinex
+        from pgamit.classes import dbConnection
+        from pgamit.classes import pyStationInfo
+        from pgamit.classes import pyArchiveStruct
+        from pgamit.classes import pyPPP
+        from pgamit.classes import pyBrdc
+        from pgamit.classes import pyOptions
+        from pgamit.classes import Utils
+        from pgamit.classes import pyOTL
+        from pgamit.classes import pySp3
+        from pgamit.classes import pyETM
+        from pgamit.classes import pyRunWithRetry
+        from pgamit.classes import pyDate
 
     except:
         return ' -- %s: Problem found while importing modules:\n%s' % (platform.node(), traceback.format_exc())

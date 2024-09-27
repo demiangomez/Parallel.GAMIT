@@ -4,15 +4,15 @@ Date: 6/12/18 10:28 AM
 Author: Demian D. Gomez
 """
 
-import pyETM
-import dbConnection
+from pgamit.classes import pyETM
+from pgamit.classes import dbConnection
 import argparse
-import Utils
+from pgamit.classes import Utils
 import os
 import numpy as np
 from tqdm import tqdm
-from pyETM import CO_SEISMIC_JUMP_DECAY, CO_SEISMIC_DECAY, LABEL
-from Utils import stationID
+from pgamit.classes.pyETM import CO_SEISMIC_JUMP_DECAY, CO_SEISMIC_DECAY, LABEL
+from pgamit.classes.Utils import stationID
 from scipy.interpolate import griddata
 import simplekml
 from io import BytesIO

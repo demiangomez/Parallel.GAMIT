@@ -12,11 +12,11 @@ import argparse
 import os
 
 # app
-import pyOptions
-import dbConnection
-import pyDate
-import snxParse
-from Utils import (process_date, 
+from pgamit.classes import pyOptions
+from pgamit.classes import dbConnection
+from pgamit.classes import pyDate
+from pgamit.classes import snxParse
+from pgamit.classes.Utils import (process_date,
                    process_stnlist,
                    file_open)
 

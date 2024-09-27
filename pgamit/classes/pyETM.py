@@ -23,7 +23,7 @@ from numpy import sin, cos, pi
 from scipy.stats import chi2
 import pg
 import matplotlib
-import pyOkada
+from pgamit.classes import pyOkada
 
 if not os.environ.get('DISPLAY', None):
     matplotlib.use('Agg')
@@ -31,11 +31,13 @@ if not os.environ.get('DISPLAY', None):
 from matplotlib.widgets import Button
 
 # app
-import pyStationInfo
-import pyDate
-import pyEvents
-from Utils import ct2lg, lg2ct, rotlg2ct, crc32, stationID
-from pyBunch import Bunch
+from pgamit.classes import pyStationInfo
+from pgamit.classes import pyDate
+from pgamit.classes import pyEvents
+from pgamit.classes import Utils
+from pgamit.classes.Utils import ct2lg, lg2ct, rotlg2ct, crc32, stationID
+from pgamit.classes import pyBunch
+from pgamit.classes.pyBunch import Bunch
 
 language = {
     'eng': {

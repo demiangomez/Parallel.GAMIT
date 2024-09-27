@@ -11,7 +11,7 @@ gnss_data.cfg file) passed as an argument (brdc_archive)
 import os
 
 # app
-import pyProducts
+from pgamit.classes import pyProducts
 
 
 class pyBrdcException(pyProducts.pyProductsException):

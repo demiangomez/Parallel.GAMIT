@@ -9,15 +9,15 @@ import shutil
 import pg
 
 # app
-import pyRinex
-import pyPPP
-import pyOptions
-import pyOTL
-import pyBrdc
-import pyStationInfo
-import dbConnection
-from pyPPP import PPPSpatialCheck
-from Utils import file_readlines
+from pgamit.classes import pyRinex
+from pgamit.classes import pyPPP
+from pgamit.classes import pyOptions
+from pgamit.classes import pyOTL
+from pgamit.classes import pyBrdc
+from pgamit.classes import pyStationInfo
+from pgamit.classes import dbConnection
+from pgamit.classes.pyPPP import PPPSpatialCheck
+from pgamit.classes.Utils import file_readlines
 
 def main():
 

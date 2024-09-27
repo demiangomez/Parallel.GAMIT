@@ -9,8 +9,8 @@ import os
 import re
 
 # app
-from pyDate import Date
-from pyEvents import Event
+from pgamit.classes.pyDate import Date
+from pgamit.classes.pyEvents import Event
 
 TYPE_CRINEZ = 0
 TYPE_RINEX  = 1

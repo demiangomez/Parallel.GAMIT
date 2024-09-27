@@ -38,16 +38,16 @@ import paramiko
 import requests
 
 # app
-import pyOptions
-import dbConnection
-import Utils
-import pyArchiveStruct
-import pyRinex
-import pyRinexName
-import pyStationInfo
-import pyJobServer
-from pyDate import Date
-from Utils import (required_length,
+from pgamit.classes import pyOptions
+from pgamit.classes import dbConnection
+from pgamit.classes import Utils
+from pgamit.classes import pyArchiveStruct
+from pgamit.classes import pyRinex
+from pgamit.classes import pyRinexName
+from pgamit.classes import pyStationInfo
+from pgamit.classes import pyJobServer
+from pgamit.classes.pyDate import Date
+from pgamit.classes.Utils import (required_length,
                    process_date,
                    print_columns,
                    stationID,

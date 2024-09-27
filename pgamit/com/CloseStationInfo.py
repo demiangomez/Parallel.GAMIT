@@ -8,12 +8,12 @@ Script to close the StationInfo of a station that has not been collecting data f
 
 import argparse
 
-import pyDate
-import pyOptions
-import dbConnection
-import pyStationInfo
-import Utils
-from Utils import stationID
+from pgamit.classes import pyDate
+from pgamit.classes import pyOptions
+from pgamit.classes import dbConnection
+from pgamit.classes import pyStationInfo
+from pgamit.classes import Utils
+from pgamit.classes.Utils import stationID
 
 CONFIG_FILE = 'gnss_data.cfg'
 

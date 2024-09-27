@@ -7,8 +7,8 @@ Script to convert T0x files to RINEX
 
 import argparse
 import os
-from pyTrimbleT0x import convert_trimble
-from Utils import required_length
+from pgamit.classes.pyTrimbleT0x import convert_trimble
+from pgamit.classes.Utils import required_length
 
 def main():
     parser = argparse.ArgumentParser(description='Script to convert T0x files to RINEX')

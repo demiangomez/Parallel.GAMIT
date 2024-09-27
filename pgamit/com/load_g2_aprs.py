@@ -12,8 +12,8 @@ import hdf5storage
 import numpy as np
 
 # app
-import dbConnection
-import pyDate
+from pgamit.classes import dbConnection
+from pgamit.classes import pyDate
 
 def main():
 

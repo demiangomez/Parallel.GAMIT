@@ -17,12 +17,12 @@ import json
 import numpy as np
 
 # app
-import pyDate
-import Utils
-from Utils import file_readlines
-import dbConnection
-import pyETM
-import pyOptions
+from pgamit.classes import pyDate
+from pgamit.classes import Utils
+from pgamit.classes.Utils import file_readlines
+from pgamit.classes import dbConnection
+from pgamit.classes import pyETM
+from pgamit.classes import pyOptions
 
 
 def from_file(args, cnn, stn):

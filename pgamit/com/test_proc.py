@@ -6,11 +6,11 @@ import os
 from tqdm import tqdm
 
 # app
-import dbConnection
-import pyJobServer
-import pyOptions
-import pyArchiveStruct
-import pyRinex
+from pgamit.classes import dbConnection
+from pgamit.classes import pyJobServer
+from pgamit.classes import pyOptions
+from pgamit.classes import pyArchiveStruct
+from pgamit.classes import pyRinex
 
 
 class callback_class():

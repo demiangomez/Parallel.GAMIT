@@ -24,16 +24,16 @@ from time import time
 from tqdm import tqdm
 
 # app
-import Utils
-import dbConnection
-import pyDate
-import pyOptions
-import pyArchiveStruct
-import pyETM
-import pyRinex
-import pyStationInfo
-import pyJobServer
-from Utils import file_open, file_write, file_append
+from pgamit.classes import Utils
+from pgamit.classes import dbConnection
+from pgamit.classes import pyDate
+from pgamit.classes import pyOptions
+from pgamit.classes import pyArchiveStruct
+from pgamit.classes import pyETM
+from pgamit.classes import pyRinex
+from pgamit.classes import pyStationInfo
+from pgamit.classes import pyJobServer
+from pgamit.classes.Utils import file_open, file_write, file_append
 
 
 def tic():

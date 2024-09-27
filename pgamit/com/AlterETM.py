@@ -7,13 +7,13 @@ import copy
 import pg
 
 # app
-import dbConnection
-import Utils
-from Utils import required_length, process_date,station_list_help
-from pyBunch import Bunch
-import pyETM
+from pgamit.classes import dbConnection
+from pgamit.classes import Utils
+from pgamit.classes.Utils import required_length, process_date,station_list_help
+from pgamit.classes.pyBunch import Bunch
+from pgamit.classes import pyETM
 
-from pyETM import (DEFAULT_FREQUENCIES,
+from pgamit.classes.pyETM import (DEFAULT_FREQUENCIES,
                    DEFAULT_POL_TERMS,
                    DEFAULT_RELAXATION)
 
