@@ -58,6 +58,8 @@ import math
 from scipy.interpolate import griddata
 from scipy.spatial     import KDTree
 from datetime          import timedelta
+import matplotlib.pyplot as plt
+import simplekml
 
 from pyDate import Date
 import pyETM as etm
@@ -93,6 +95,17 @@ def distance(lon1, lat1, lon2, lat2):
     c = 2 * np.arcsin(np.sqrt(d))
     km = 6371 * c
     return km
+
+
+def inv_azimuthal(x, y, lon, lat):
+    # inverse azimuthal equidistant
+    r = np.sqrt(np.square(x) + np.square(y)).flatten()
+    c = r / 6371.
+
+    i_lat = asind(np.cos(c) * sind(lat) + y.flatten() * np.sin(c) * cosd(lat) / r)
+    i_lon = lon + atand((x.flatten() * np.sin(c)) / (r * cosd(lat) * np.cos(c) - y.flatten() * sind(lat) * np.sin(c)))
+
+    return i_lon, i_lat
 
 
 class ScoreTable(object):
@@ -143,7 +156,8 @@ class ScoreTable(object):
 
 
 class Score(object):
-    def __init__(self, event_lat, event_lon, depth_km, magnitude, strike=(), dip=(), rake=(), event_date=None):
+    def __init__(self, event_lat, event_lon, depth_km, magnitude, strike=(), dip=(), rake=(), event_date=None,
+                 density=250, location=''):
         """
         Seismic-score (s-score) class that allows testing if a latitude longitude locations requires co-seismic
         displacement parameters on its ETM. The class includes the formulations from Wells and Coppersmith (1994) to
@@ -162,7 +176,7 @@ class Score(object):
         """
         self.lat    = float(event_lat)
         self.lon    = float(event_lon)
-        self.depth  = [0, depth_km*1000]
+        self.depth  = [0, float(depth_km)*1000]
         self.mag    = float(magnitude)
         self.strike = strike if type(strike) in (list, tuple) else [strike]
         self.dip    = dip    if type(dip)    in (list, tuple) else [dip]
@@ -170,6 +184,8 @@ class Score(object):
         # compute dmax based on parameters
         self.dmax   = 10. ** (a * self.mag + b)
         self.date   = event_date
+        # for the kml information
+        self.location = location
 
         # compute fault dimensions from Wells and Coppersmith 1994
         # all lengths and displacements reported in m
@@ -188,13 +204,22 @@ class Score(object):
         self.p_my = np.array([])
         self.p_mask = np.array([])
 
-        if len(self.strike):
-            far_field_scale = 18
-            xmax = np.ceil(self.along_strike_l) * far_field_scale
-            self.gx, self.gy = np.meshgrid(np.linspace(-xmax, xmax, 250), np.linspace(-xmax, xmax, 250))
+        far_field_scale = 18
+        xmax = np.ceil(self.along_strike_l) * far_field_scale
+        self.gx, self.gy = np.meshgrid(np.linspace(-xmax, xmax, density), np.linspace(-xmax, xmax, density))
 
+        if len(self.strike):
             self.c_mx, self.c_my, self.c_mask = self.compute_disp_field()
             self.p_mx, self.p_my, self.p_mask = self.compute_disp_field(POST_SEISMIC_SCALE_FACTOR)
+        else:
+            # if not strike information, produce a mask using the L1 S-score only
+            self.c_mask = np.sqrt(np.square(self.gx) + np.square(self.gy)) < (self.dmax * 1000.)
+            self.p_mask = np.sqrt(np.square(self.gx) + np.square(self.gy)) < (POST_SEISMIC_SCALE_FACTOR * (self.dmax * 1000.))
+
+            self.c_mx = self.gx / 1000.
+            self.c_my = self.gy / 1000.
+            self.p_mx = self.gx / 1000.
+            self.p_my = self.gy / 1000.
 
     def compute_disp_field(self, scale_factor=1., limit=1e-3):
         # source dimensions L is horizontal, and W is depth
@@ -277,16 +302,64 @@ class Score(object):
 
         return s_score, p_score
 
-    def save_mask(self):
-        # inverse azimuthal equidistant
-        r = np.sqrt(np.square(self.c_mx) + np.square(self.c_my)).flatten()
-        c = r / 6371.
+    def save_masks(self, txt_file=None, kmz_file=None, include_postseismic=False):
+        """
+        Function to export coseismic mask. Method returns the kml structure. If txt_file and/or kmz_file are given,
+        then files are saved
+        """
+        # to fix the issue from simple kml
+        # AttributeError: module 'cgi' has no attribute 'escape'
+        # see: https://github.com/tjlang/simplekml/issues/38
+        import cgi
+        import html
+        cgi.escape = html.escape
 
-        lat = asind(np.cos(c) * sind(self.lat) + self.c_my.flatten() * np.sin(c) * cosd(self.lat) / r)
-        lon = self.lon + atand((self.c_mx.flatten() * np.sin(c)) /
-                               (r * cosd(self.lat) * np.cos(c) - self.c_my.flatten() * sind(self.lat) * np.sin(c)))
+        cs = plt.contour(np.reshape(self.c_mx, self.c_mask.shape), np.reshape(self.c_my, self.c_mask.shape),
+                         self.c_mask, [9e-8], colors='k')
 
-        np.savetxt('event.txt', np.column_stack((lon, lat, self.c_mask.flatten())))
+        ps = plt.contour(np.reshape(self.p_mx, self.p_mask.shape), np.reshape(self.p_my, self.p_mask.shape),
+                         self.p_mask, [9e-8], colors='k')
+
+        # coseismic
+        cp = cs.collections[0].get_paths()[0]
+        cv = cp.vertices
+        # inverse azimuthal equidistant (coseismic)
+        clon, clat = inv_azimuthal(cv[:, 0], cv[:, 1], self.lon, self.lat)
+
+        # postseismic
+        pp = ps.collections[0].get_paths()[0]
+        pv = pp.vertices
+        # inverse azimuthal equidistant (postseismic)
+        plon, plat = inv_azimuthal(pv[:, 0], pv[:, 1], self.lon, self.lat)
+
+        # Produce KML
+        kml = simplekml.Kml()
+        epicenter = kml.newpoint(name=self.location, coords=[(self.lon, self.lat)])
+        epicenter.style.iconstyle.icon.href = 'https://maps.google.com/mapfiles/kml/shapes/star.png'
+        epicenter.style.iconstyle.scale = 1.5
+        epicenter.style.iconstyle.color = simplekml.Color.yellow
+        epicenter.style.labelstyle.scale = 0
+
+        poly = kml.newpolygon(name="Coseimic mask", outerboundaryis=np.column_stack((clon, clat)))
+        poly.style.linestyle.color = simplekml.Color.blue
+        poly.style.linestyle.width = 3
+        poly.style.polystyle.color = simplekml.Color.changealphaint(0, simplekml.Color.white)
+
+        if include_postseismic:
+            poly = kml.newpolygon(name="Postseismic mask", outerboundaryis=np.column_stack((plon, plat)))
+            poly.style.linestyle.color = simplekml.Color.orange
+            poly.style.linestyle.width = 3
+            poly.style.polystyle.color = simplekml.Color.changealphaint(0, simplekml.Color.white)
+
+        if kmz_file is not None:
+            kml.savekmz(kmz_file)
+
+        if txt_file is not None:
+            # inverse azimuthal equidistant (coseismic)
+            clon, clat = inv_azimuthal(self.c_mx, self.c_my, self.lon, self.lat)
+            np.savetxt(txt_file, np.column_stack((clon, clat, self.c_mask.flatten())))
+
+        return kml.kml()
 
 
 def okada(alpha, x, y, d, L1, L2, W1, W2, snd, csd, B1, B2, B3):
@@ -425,6 +498,7 @@ if __name__ == '__main__':
     for e in st.table:
         print(e)
 
-    _score = Score(-3.6122000e+01, -7.2898000e+01, 22.9, 8.8, [178, 17], [77, 14], [86, 108])
-    _score.save_mask()
+    _score = Score(-3.6122000e+01, -7.2898000e+01, 22.9, 8.8, [178, 17], [77, 14],
+                   [86, 108], density=1000)
+    print(_score.save_masks(kmz_file='test.kmz', include_postseismic=True))
 

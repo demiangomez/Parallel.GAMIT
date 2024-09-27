@@ -147,15 +147,16 @@ class Network(object):
                             # solution for this day, rerun
 
                             for table in ('gamit_stats', 'gamit_subnets'):
-                                cnn.delete(table, Project=self.name,
-                                           Year=self.date.year,
-                                           DOY=self.date.doy,
-                                           subnet=subnet['subnet'],
-                                           system=subnet['system'])
+                                cnn.query('DELETE FROM %s WHERE '
+                                          '"Project" = \'%s\' AND '
+                                          '"Year"    = %i AND '
+                                          '"DOY"     = %i AND '
+                                          'subnet    = %i' %
+                                          (table, self.name, self.date.year, self.date.doy, subnet['subnet']))
 
                             # DDG: support up to 999 subnetworks
-                            tqdm.write(' -- %s in sub-network %s%03i system %s did not produce a solution and will be '
-                            'reprocessed' % (stn, self.org, subnet['subnet'], subnet['system']))
+                            tqdm.write(' -- %s in sub-network %s%03i did not produce a solution and will be '
+                            'reprocessed' % (stn, self.org, subnet['subnet']))
         else:
             tqdm.write(' >> %s %s %s -> Creating network clusters' %
                        (datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
