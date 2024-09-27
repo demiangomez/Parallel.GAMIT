@@ -2,7 +2,7 @@
 from pgamit.classes import dbConnection
 from pgamit.classes import pyPPP
 from pgamit.classes.Utils import stationID
-from ScanArchive import export_station
+from pgamit.com.ScanArchive import export_station
 import os
 from pgamit.classes import pyArchiveStruct
 from pgamit.classes import pyOptions

@@ -16,7 +16,7 @@ from tqdm import tqdm
 import numpy as np
 import matplotlib
 
-import pyDate
+import pgamit.classes.pyDate
 
 if not os.environ.get('DISPLAY', None):
     matplotlib.use('Agg')
