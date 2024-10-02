@@ -10,4 +10,3 @@ dependencies:
   - tqdm
   - dispy
   - scandir>=1.6
-

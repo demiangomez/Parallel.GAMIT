@@ -48,7 +48,8 @@ class GamitSession(object):
         self.subnet  = subnet
 
         if subnet is not None:
-            self.DirName = '%s.%s%02i' % (self.NetName, self.org, self.subnet)
+            # DDG: support up to 999 subnetworks
+            self.DirName = '%s.%s%03i' % (self.NetName, self.org, self.subnet)
         else:
             self.DirName = self.NetName
 
