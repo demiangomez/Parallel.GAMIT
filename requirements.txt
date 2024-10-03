@@ -19,7 +19,7 @@ Requests==2.32.3
 scandir==1.10.0
 scikit_learn==1.4.2
 scipy==1.8.0
-setuptools==59.6.0
+setuptools==70.0.0
 simplejson==3.17.6
 simplekml==1.3.1
 tqdm==4.66.5
