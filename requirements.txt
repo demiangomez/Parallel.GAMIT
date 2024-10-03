@@ -7,7 +7,7 @@ geopy==2.4.1
 matplotlib==3.8.4
 matplotlib==3.5.1
 networkx==3.3
-numpy==1.21.5
+numpy==1.22.0
 pandas==1.4.1
 paramiko==2.11.0
 paramiko==2.9.3
