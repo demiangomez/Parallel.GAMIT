@@ -1,12 +1,17 @@
-
-import dbConnection
-import pyPPP
-from Utils import stationID
-from ScanArchive import export_station
+#!/usr/bin/env python
+"""
+Temporary script, deprecated
+"""
 import os
-import pyArchiveStruct
-import pyOptions
 import shutil
+
+# app
+from pgamit import dbConnection
+from pgamit import pyPPP
+from pgamit.Utils import stationID
+from pgamit.ScanArchive import export_station
+from pgamit import pyArchiveStruct
+from pgamit import pyOptions
 
 
 def main():

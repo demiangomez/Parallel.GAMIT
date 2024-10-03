@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 Project: Parallel.GAMIT 
 Date: 9/25/24 11:29AM
@@ -11,8 +12,8 @@ import argparse
 import math
 
 # app
-import pyOkada
-import dbConnection
+from pgamit import pyOkada
+from pgamit import dbConnection
 
 
 def main():

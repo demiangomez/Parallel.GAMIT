@@ -22,25 +22,20 @@ import argparse
 import platform
 from math import ceil
 
-import pg
 # deps
 from tqdm import tqdm
 
 # app
-import pyOptions
-import dbConnection
-import pyDate
-import pyStationInfo
-import pyArchiveStruct
-import pyPPP
-import Utils
-from Utils import (process_date,
-                   ecef2lla,
-                   parse_atx_antennas,
-                   determine_frame)
-import pyJobServer
-import pyEvents
-
+from pgamit import pyOptions
+from pgamit import dbConnection
+from pgamit import pyDate
+from pgamit import pyStationInfo
+from pgamit import pyArchiveStruct
+from pgamit import pyPPP
+from pgamit import Utils
+from pgamit.Utils import process_date, ecef2lla, parse_atx_antennas, determine_frame
+from pgamit import pyJobServer
+from pgamit import pyEvents
 
 
 differences = []
@@ -154,7 +149,8 @@ def CheckRinexIntegrity(cnn, Config, stnlist, start_date, end_date, operation, J
     tqdm.write(' >> Archive path: %s' % Config.archive_path)
 
     if operation == 'fix':
-        modules = ('os', 'pyArchiveStruct', 'dbConnection', 'pyOptions', 'traceback', 'platform', 'pyEvents')
+        modules = ('os', 'pgamit.pyArchiveStruct', 'pgamit.dbConnection', 'pgamit.pyOptions', 'traceback', 'platform',
+                   'pgamit.pyEvents')
 
         pbar = tqdm(total=len(stnlist), ncols=80)
         differences = []
@@ -218,7 +214,7 @@ def StnInfoRinexIntegrity(cnn, stnlist, start_date, end_date, JobServer):
 
     global differences
 
-    modules = ('pyStationInfo', 'dbConnection', 'pyDate', 'traceback')
+    modules = ('pgamit.pyStationInfo', 'pgamit.dbConnection', 'pgamit.pyDate', 'traceback')
 
     JobServer.create_cluster(compare_stninfo_rinex, callback=stnrnx_callback, modules=modules)
 
@@ -702,7 +698,7 @@ def RenameStation(cnn, NetworkCode, StationCode, DestNetworkCode, DestStationCod
                                            DOY=int(date.doy))
 
                     cnn.insert_event(event)
-                except pg.IntegrityError as e:
+                except dbConnection.DatabaseError as e:
 
                     cnn.rollback_transac()
 
@@ -1019,7 +1015,9 @@ def main():
 
     stnlist   = Utils.process_stnlist(cnn, args.stnlist)
 
-    JobServer = pyJobServer.JobServer(Config, run_parallel=not args.noparallel)  # type: pyJobServer.JobServer
+    JobServer = pyJobServer.JobServer(Config, run_parallel=not args.noparallel, check_executables=False,
+                                      check_archive=bool(args.rename or args.delete_rinex or args.check_rinex),
+                                      check_atx=False)  # type: pyJobServer.JobServer
 
     #####################################
     # date filter

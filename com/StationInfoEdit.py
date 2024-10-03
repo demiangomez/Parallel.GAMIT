@@ -16,11 +16,11 @@ import traceback
 import re
 
 # app
-import pyOptions
-import dbConnection
-import pyStationInfo
-import pyDate
-from Utils import process_date
+from pgamit import pyOptions
+from pgamit import dbConnection
+from pgamit import pyStationInfo
+from pgamit import pyDate
+from pgamit.Utils import process_date
 
 
 cnn       = dbConnection.Cnn('gnss_data.cfg')

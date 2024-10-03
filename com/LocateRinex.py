@@ -6,18 +6,17 @@ import os
 import re
 import shutil
 
-import pg
-
 # app
-import pyRinex
-import pyPPP
-import pyOptions
-import pyOTL
-import pyBrdc
-import pyStationInfo
-import dbConnection
-from pyPPP import PPPSpatialCheck
-from Utils import file_readlines
+from pgamit import pyRinex
+from pgamit import pyPPP
+from pgamit import pyOptions
+from pgamit import pyOTL
+from pgamit import pyProducts
+from pgamit import pyStationInfo
+from pgamit import dbConnection
+from pgamit.pyPPP import PPPSpatialCheck
+from pgamit.Utils import file_readlines
+
 
 def main():
 
@@ -158,7 +157,7 @@ def execute_ppp(rinexinfo, args, stnm, options, sp3types, sp3altrn, brdc_path, e
 
     # put the correct APR coordinates in the header.
     # stninfo = pyStationInfo.StationInfo(None, allow_empty=True)
-    brdc = pyBrdc.GetBrdcOrbits(brdc_path, rinexinfo.date, rinexinfo.rootdir)
+    brdc = pyProducts.GetBrdcOrbits(brdc_path, rinexinfo.date, rinexinfo.rootdir)
 
     try:
         # inflate the chi**2 limit
@@ -253,7 +252,7 @@ def execute_ppp(rinexinfo, args, stnm, options, sp3types, sp3altrn, brdc_path, e
                 NetworkCode = args.insert_sql.lower()
                 try:
                     cnn.get('networks', {'NetworkCode': NetworkCode})
-                except pg.DatabaseError:
+                except dbConnection.DatabaseError:
                     # net does not exist, add it
                     cnn.insert('networks', NetworkCode=NetworkCode)
                 # now insert the station

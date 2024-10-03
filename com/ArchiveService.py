@@ -36,19 +36,19 @@ from tqdm import tqdm
 
 # app
 from Utils import file_append, file_try_remove, file_open, dir_try_remove
-import pyJobServer
-import pyEvents
-import pyProducts
-import pyOptions
-import Utils
-import pyOTL
-import pyRinex
-import pyRinexName
-import dbConnection
-import pyStationInfo
-import pyArchiveStruct
-import pyPPP
-import pyBrdc
+from pgamit import pyJobServer
+from pgamit import pyEvents
+from pgamit import pyProducts
+from pgamit import pyOptions
+from pgamit import Utils
+from pgamit import pyOTL
+from pgamit import pyRinex
+from pgamit import pyRinexName
+from pgamit import dbConnection
+from pgamit import pyStationInfo
+from pgamit import pyArchiveStruct
+from pgamit import pyPPP
+from pgamit import pyProducts
 
 
 repository_data_in = ''
@@ -366,7 +366,7 @@ def process_crinex_file(crinez, filename, data_rejected, data_retry):
             # make sure that the file has the appropriate coordinates in the header for PPP.
             # put the correct APR coordinates in the header.
             # ppp didn't work, try using sh_rx2apr
-            brdc = pyBrdc.GetBrdcOrbits(Config.brdc_path, rinexinfo.date, rinexinfo.rootdir)
+            brdc = pyProducts.GetBrdcOrbits(Config.brdc_path, rinexinfo.date, rinexinfo.rootdir)
 
             # inflate the chi**2 limit to make sure it will pass (even if we get a crappy coordinate)
             try:
@@ -762,15 +762,16 @@ def main():
     # dependency functions
     depfuncs = (check_rinex_timespan_int, write_error, error_handle, insert_data, verify_rinex_multiday, file_append,
                 file_try_remove, file_open)
+
     # import modules
     JobServer.create_cluster(process_crinex_file,
                              depfuncs,
                              callback_handle,
                              pbar,
-                             modules=('pyRinex', 'pyArchiveStruct', 'pyOTL', 'pyPPP', 'pyStationInfo',
-                                      'dbConnection', 'Utils', 'os', 'uuid', 'datetime', 'pyDate',
-                                      'numpy', 'traceback', 'platform', 'pyBrdc', 'pyProducts',
-                                      'pyOptions', 'pyEvents', 'pyRinexName'))
+                             modules=('pgamit.pyRinex', 'pgamit.pyArchiveStruct', 'pgamit.pyOTL',
+                                      'pgamit.pyStationInfo', 'pgamit.dbConnection', 'pgamit.Utils', 'pgamit.pyDate',
+                                      'pgamit.pyProducts', 'pgamit.pyOptions', 'pgamit.pyEvents', 'pgamit.pyRinexName',
+                                      'os', 'uuid', 'datetime', 'numpy', 'traceback', 'platform'))
 
     for file_to_process, sfile in files_list:
         JobServer.submit(file_to_process, sfile, data_reject, data_in_retry)

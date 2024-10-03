@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 Project: Parallel.GAMIT
 Date: 11/23/2023 11:09 AM
@@ -12,13 +13,14 @@ import sys
 import ftplib
 import re
 import numpy as np
-
-import pyOptions
-import pyDate
-import dbConnection
 from tqdm import tqdm
-from Utils import station_list_help, required_length, process_date, process_stnlist, stationID
-from DownloadSources import path_replace_tags, Client, fqdn_parse
+
+# app
+from pgamit import pyOptions
+from pgamit import pyDate
+from pgamit import dbConnection
+from pgamit.Utils import station_list_help, required_length, process_date, process_stnlist, stationID
+from pgamit.DownloadSources import path_replace_tags, Client, fqdn_parse
 
 
 def query_yes_no(question, default="yes"):

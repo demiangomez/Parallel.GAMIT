@@ -20,8 +20,10 @@ from tqdm import tqdm
 import libcomcat.search
 import libcomcat.exceptions as libcome
 
-TIMEFMT2 = '%Y-%m-%d %H:%M:%S.%f'
+# app
+from pgamit import dbConnection
 
+TIMEFMT2 = '%Y-%m-%d %H:%M:%S.%f'
 
 ## Python3 Migration: This was not used and is not compatible with new libcomcat
 ## event format:
@@ -171,7 +173,6 @@ class AddEarthquakes:
 
 
 def main():
-    import dbConnection
     cnn = dbConnection.Cnn('gnss_data.cfg')
     AddEarthquakes(cnn)
 

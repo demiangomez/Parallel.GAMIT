@@ -83,29 +83,27 @@ import numpy
 import scandir
 
 # app
-import pyArchiveStruct
-import dbConnection
-import pyDate
-import pyRinex
-import pyRinexName
-import pyOTL
-import pyStationInfo
-import pySp3
-import pyBrdc
-import pyClk
-import pyPPP
-import pyOptions
-import Utils
-import pyJobServer
-import pyEvents
-from Utils import (print_columns,
-                   process_date,
-                   ecef2lla,
-                   file_append,
-                   file_open,
-                   file_read_all,
-                   stationID,
-                   station_list_help)
+from pgamit import pyArchiveStruct
+from pgamit import dbConnection
+from pgamit import pyDate
+from pgamit import pyRinex
+from pgamit import pyRinexName
+from pgamit import pyOTL
+from pgamit import pyStationInfo
+from pgamit import PyProducts
+from pgamit import pyPPP
+from pgamit import pyOptions
+from pgamit import Utils
+from pgamit import pyJobServer
+from pgamit import pyEvents
+from pgamit.Utils import (print_columns,
+                          process_date,
+                          ecef2lla,
+                          file_append,
+                          file_open,
+                          file_read_all,
+                          stationID,
+                          station_list_help)
 
 
 error_message = False
@@ -383,13 +381,13 @@ def obtain_otl(NetworkCode, StationCode):
 
                         errors += 'PPP -> %s: %.3f %.3f %.3f\n' % (stn_id, ppp.x, ppp.y, ppp.z)
 
-                except (pySp3.pySp3Exception, 
-                        pyClk.pyClkException,
+                except (pyProducts.pySp3Exception,
+                        pyProducts.pyClkException,
                         pyPPP.pyRunPPPException):
 
                     # try autonomous solution
                     try:
-                        brdc = pyBrdc.GetBrdcOrbits(Config.brdc_path, Rinex.date, Rinex.rootdir)
+                        brdc = pyProducts.GetBrdcOrbits(Config.brdc_path, Rinex.date, Rinex.rootdir)
 
                         Rinex.auto_coord(brdc, chi_limit=1000)
 
@@ -694,8 +692,8 @@ def scan_rinex(cnn, JobServer, pyArchive, archive_path, master_list, ignore):
     pbar = tqdm(ncols=80, unit='crz', disable=None)
 
     depfuncs = (verify_rinex_date_multiday,)
-    modules  = ('dbConnection', 'pyDate', 'pyRinex', 'shutil', 'platform', 'datetime',
-               'traceback', 'pyOptions', 'pyEvents', 'Utils', 'os', 'pyRinexName')
+    modules  = ('pgamit.dbConnection', 'pgamit.pyDate', 'pgamit.pyRinex', 'shutil', 'platform', 'datetime',
+                'traceback', 'pgamit.pyOptions', 'pgamit.pyEvents', 'pgamit.Utils', 'os', 'pgamit.pyRinexName')
 
     JobServer.create_cluster(try_insert, dependencies=depfuncs, modules=modules, callback=callback_handle)
 
@@ -741,8 +739,8 @@ def process_otl(cnn, JobServer, master_list):
     pbar = tqdm(total=len(records), ncols=80, disable=None)
 
     depfuncs = (ecef2lla,)
-    modules  = ('dbConnection', 'pyRinex', 'pyArchiveStruct', 'pyOTL', 'pyPPP', 'numpy', 'platform', 'pySp3',
-               'traceback', 'pyOptions', 'pyBrdc', 'pyClk')
+    modules  = ('pgamit.dbConnection', 'pgamit.pyRinex', 'pgamit.pyArchiveStruct', 'pgamit.pyOTL', 'pgamit.pyPPP',
+                'numpy', 'platform', 'pgamit.pyProducts', 'traceback', 'pgamit.pyOptions')
 
     JobServer.create_cluster(obtain_otl, depfuncs, callback_handle, progress_bar=pbar, modules=modules)
 
@@ -767,7 +765,8 @@ def scan_station_info(JobServer, pyArchive, archive_path, master_list):
 
     pbar = tqdm(total=len(stninfo), ncols=80, disable=None)
 
-    modules = ('dbConnection', 'pyStationInfo', 'sys', 'datetime', 'pyDate', 'platform', 'traceback')
+    modules = ('pgamit.dbConnection', 'pgamit.pyStationInfo', 'sys', 'datetime', 'pgamit.pyDate',
+               'platform', 'traceback')
 
     JobServer.create_cluster(insert_stninfo, callback=callback_handle, progress_bar=pbar, modules=modules)
 
@@ -867,7 +866,7 @@ def hash_check(cnn, master_list, sdate, edate, rehash=False, h_tolerant=0):
             if not rinex:
                 # if no records, print warning
                 tqdm.write(" -- Could not find RINEX for %s. PPP solution will be deleted." % obs_id)
-                cnn.delete('ppp_soln', soln)
+                cnn.delete('ppp_soln', **soln)
             else:
                 # select the first record
                 rinex = rinex[0]
@@ -882,7 +881,7 @@ def hash_check(cnn, master_list, sdate, edate, rehash=False, h_tolerant=0):
                     if not rehash:
                         tqdm.write(" -- Hash value for %s does not match with Station Information hash. "
                                    "PPP coordinate will be recalculated." % obs_id)
-                        cnn.delete('ppp_soln', soln)
+                        cnn.delete('ppp_soln', **soln)
                     else:
                         tqdm.write(" -- %s has been rehashed." % obs_id)
                         cnn.update('ppp_soln', soln, hash = stninfo.currentrecord.hash)
@@ -919,8 +918,9 @@ def process_ppp(cnn, Config, pyArchive, archive_path, JobServer, master_list, sd
 
     pbar = tqdm(total=len(tblrinex), ncols=80, disable=None)
 
-    modules = ('dbConnection', 'pyRinex', 'pyPPP', 'pyStationInfo', 'pyDate', 'pySp3', 'os', 'platform',
-               'pyArchiveStruct', 'traceback', 'pyOptions', 'pyEvents', 'Utils')
+    modules = ('pgamit.dbConnection', 'pgamit.pyRinex', 'pgamit.pyPPP', 'pgamit.pyStationInfo', 'pgamit.pyDate',
+               'pgamit.pyProducts', 'os', 'platform', 'pgamit.pyArchiveStruct', 'traceback', 'pgamit.pyOptions',
+               'pgamit.pyEvents', 'pgamit.Utils')
 
     depfuncs = (remove_from_archive, verify_rinex_date_multiday)
 

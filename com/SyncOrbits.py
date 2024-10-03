@@ -19,10 +19,10 @@ import numpy as np
 from tqdm import tqdm
 
 # app
-import pyDate
-import pyOptions
-from Utils import required_length, process_date
-import pyRunWithRetry
+from pgamit import pyDate
+from pgamit import pyOptions
+from pgamit.Utils import required_length, process_date
+from pgamit import pyRunWithRetry
 
 # Old FTP server:
 # FTP_HOST = '198.118.242.40'

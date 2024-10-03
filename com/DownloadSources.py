@@ -38,21 +38,21 @@ import paramiko
 import requests
 
 # app
-import pyOptions
-import dbConnection
-import Utils
-import pyArchiveStruct
-import pyRinex
-import pyRinexName
-import pyStationInfo
-import pyJobServer
-from pyDate import Date
-from Utils import (required_length,
-                   process_date,
-                   print_columns,
-                   stationID,
-                   file_try_remove,
-                   dir_try_remove)
+from pgamit import pyOptions
+from pgamit import dbConnection
+from pgamit import Utils
+from pgamit import pyArchiveStruct
+from pgamit import pyRinex
+from pgamit import pyRinexName
+from pgamit import pyStationInfo
+from pgamit import pyJobServer
+from pgamit.pyDate import Date
+from pgamit.Utils import (required_length,
+                          process_date,
+                          print_columns,
+                          stationID,
+                          file_try_remove,
+                          dir_try_remove)
 
 
 SERVER_REFRESH_INTERVAL      = 2   # in seconds
@@ -1454,7 +1454,7 @@ def main():
         depfuncs = (dir_try_remove, file_try_remove)
         depmodules = ('tempfile', 'shutil', 'os', 'subprocess', 'glob',
                       # app
-                      'pyRinex', 'pyRinexName')
+                      'pgamit.pyRinex', 'pgamit.pyRinexName')
 
         jobs_mgr = JobsManager(job_server, Config.format_scripts_path)
         job_server.create_cluster(process_file,  # called in remote node

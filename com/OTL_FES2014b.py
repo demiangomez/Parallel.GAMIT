@@ -27,8 +27,8 @@ import argparse
 import re
 
 # app
-import dbConnection
-from Utils import file_write, file_readlines, process_stnlist, stationID
+from pgamit import dbConnection
+from pgamit.Utils import file_write, file_readlines, process_stnlist, stationID
 
 
 def main():

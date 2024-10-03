@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 Project: Parallel.GAMIT
 Date: 10/28/2022
@@ -7,8 +8,11 @@ Script to convert T0x files to RINEX
 
 import argparse
 import os
-from pyTrimbleT0x import convert_trimble
-from Utils import required_length
+
+# app
+from pgamit.pyTrimbleT0x import convert_trimble
+from pgamit.Utils import required_length
+
 
 def main():
     parser = argparse.ArgumentParser(description='Script to convert T0x files to RINEX')

@@ -10,29 +10,26 @@ from io import BytesIO
 import base64
 import os
 import json
+import matplotlib.pyplot as plt
+from mpl_toolkits.basemap import Basemap
+import simplekml
+from scipy.interpolate import griddata
 
 # deps
 from tqdm import tqdm
 import numpy as np
 import matplotlib
 
-import pyDate
-
 if not os.environ.get('DISPLAY', None):
     matplotlib.use('Agg')
 
-import matplotlib.pyplot as plt
-from mpl_toolkits.basemap import Basemap
-import simplekml
-from scipy.interpolate import griddata
-import json
-
 # app
-import dbConnection
-import Utils
-import pyETM
-from Utils import stationID, file_write
-from pyETM import CO_SEISMIC_JUMP_DECAY, CO_SEISMIC_DECAY
+from pgamit import dbConnection
+from pgamit import Utils
+from pgamit import pyETM
+from pgamit import pyDate
+from pgamit.Utils import stationID, file_write
+from pgamit.pyETM import CO_SEISMIC_JUMP_DECAY, CO_SEISMIC_DECAY
 
 
 def plot_station_param(NetworkCode, StationCode, parameter_name, unit, pn, pe):

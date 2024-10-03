@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 Project: Parallel.GAMIT
 Date: 08/30/22 12:44 PM
@@ -8,12 +9,12 @@ Script to close the StationInfo of a station that has not been collecting data f
 
 import argparse
 
-import pyDate
-import pyOptions
-import dbConnection
-import pyStationInfo
-import Utils
-from Utils import stationID
+from pgamit import pyDate
+from pgamit import pyOptions
+from pgamit import dbConnection
+from pgamit import pyStationInfo
+from pgamit import Utils
+from pgamit.Utils import stationID
 
 CONFIG_FILE = 'gnss_data.cfg'
 

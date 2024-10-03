@@ -11,10 +11,12 @@ Limited functionality, need to implement compression, read of model types (codes
 
 import argparse
 import os
-from Utils import required_length, process_date
-import pyDate
-import dbConnection
 from tqdm import tqdm
+
+# app
+from pgamit.Utils import required_length, process_date
+from pgamit import pyDate
+from pgamit import dbConnection
 
 CONFIG_FILE = 'gnss_data.cfg'
 

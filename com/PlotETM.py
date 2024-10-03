@@ -17,14 +17,14 @@ import json
 import numpy as np
 
 # app
-import pyETM
-import pyOptions
-import dbConnection
-import pyDate
-from Utils import (process_date,
-                   process_stnlist,
-                   file_write,
-                   station_list_help)
+from pgamit import pyETM
+from pgamit import pyOptions
+from pgamit import dbConnection
+from pgamit import pyDate
+from pgamit.Utils import (process_date,
+                          process_stnlist,
+                          file_write,
+                          station_list_help)
 
 
 def from_file(args, cnn, stn):
@@ -142,7 +142,7 @@ def main():
 
     args = parser.parse_args()
 
-    cnn = dbConnection.Cnn('gnss_data.cfg')
+    cnn = dbConnection.Cnn('gnss_data.cfg', write_cfg_file=True)
 
     stnlist = process_stnlist(cnn, args.stnlist)
 

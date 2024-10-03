@@ -1,21 +1,19 @@
 #!/usr/bin/env python
 
+# deps
 import argparse
 import copy
 
-# deps
-import pg
-
 # app
-import dbConnection
-import Utils
-from Utils import required_length, process_date,station_list_help
-from pyBunch import Bunch
-import pyETM
+from pgamit import dbConnection
+from pgamit import Utils
+from pgamit.Utils import required_length, process_date,station_list_help
+from pgamit.pyBunch import Bunch
+from pgamit import pyETM
 
-from pyETM import (DEFAULT_FREQUENCIES,
-                   DEFAULT_POL_TERMS,
-                   DEFAULT_RELAXATION)
+from pgamit.pyETM import (DEFAULT_FREQUENCIES,
+                          DEFAULT_POL_TERMS,
+                          DEFAULT_RELAXATION)
 
 
 class SmartFormatter(argparse.HelpFormatter):
@@ -251,12 +249,12 @@ def apply_change(cnn, station, tpar, soln):
 
         print(' -- Deleting ' + station_soln)
 
-        cnn.delete('etm_params', epar)
+        cnn.delete('etm_params', **epar)
 
-    except pg.DatabaseError:
+    except Exception:
         print(' >> No set of parameters found for station ' + station_soln)
 
-    cnn.insert('etm_params', tpar)
+    cnn.insert('etm_params', **tpar)
     # insert replaces the uid field
     del tpar.uid
 

@@ -7,8 +7,9 @@ import shutil
 import os
 
 # app
-import pyStationInfo
-from Utils import file_read_all
+from pgamit import pyStationInfo
+from pgamit.Utils import file_read_all
+
 
 def main():
 
