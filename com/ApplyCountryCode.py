@@ -6,8 +6,8 @@ Author: Demian D. Gomez
 
 This script assigns country codes to the stations table
 """
-from pgamit.classes import dbConnection
-from pgamit.classes import pyOptions
+from pgamit import dbConnection
+from pgamit import pyOptions
 import country_converter as coco
 
 from geopy.geocoders import Nominatim

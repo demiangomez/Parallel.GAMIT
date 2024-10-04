@@ -5,6 +5,6 @@ authors:
   given-names: "Demián"
   orcid: "https://orcid.org/0000-0002-5276-581X"
 title: "Parallel.GAMIT"
-version: 1.0.0
+version: 1.2.2
 date-released: 2017-12-18
 url: "https://github.com/demiangomez/Parallel.GAMIT"

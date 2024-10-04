@@ -170,8 +170,11 @@ def main():
             # ##### now the brdc files #########
             folder = "/pub/gps/data/daily/%s/%s/%sn" % (date.yyyy(), date.ddd(), date.yyyy()[2:])
             tqdm.write(' -- Changing folder to ' + folder)
-            ftp.cwd(folder)
-            ftp_list = set(ftp.nlst())
+            try:
+                ftp.cwd(folder)
+                ftp_list = set(ftp.nlst())
+            except Exception:
+                ftp_list = ()
 
             brdc_archive = replace_vars(Config.brdc_path, date)
 
@@ -192,8 +195,11 @@ def main():
             # ##### now the ionex files #########
             folder = "/pub/gps/products/ionex/%s/%s" % (date.yyyy(), date.ddd())
             tqdm.write(' -- Changing folder to ' + folder)
-            ftp.cwd(folder)
-            ftp_list = set(ftp.nlst())
+            try:
+                ftp.cwd(folder)
+                ftp_list = set(ftp.nlst())
+            except ftplib.error_perm:
+                ftp_list = ()
 
             ionex_archive = replace_vars(Config.ionex_path, date)
 

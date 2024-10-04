@@ -5,10 +5,7 @@ Date: 6/12/18 10:28 AM
 Author: Demian D. Gomez
 """
 
-import pyETM
-import dbConnection
 import argparse
-import Utils
 import os
 import numpy as np
 from tqdm import tqdm
@@ -18,8 +15,11 @@ import base64
 
 # app
 from pgamit.pyETM import CO_SEISMIC_JUMP_DECAY, CO_SEISMIC_DECAY, LABEL
+from pgamit import Utils
 from pgamit.Utils import stationID
 from scipy.interpolate import griddata
+from pgamit import pyETM
+from pgamit import dbConnection
 
 
 def generate_kmz(kmz, stations):

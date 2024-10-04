@@ -268,16 +268,16 @@ class RunPPP(PPPSpatialCheck):
             try:
                 self.get_orbits(self.sp3types)
 
-            except (PyProducts.pySp3Exception,
-                    PyProducts.pyClkException,
-                    PyProducts.pyEOPException) as e:
+            except (pyProducts.pySp3Exception,
+                    pyProducts.pyClkException,
+                    pyProducts.pyEOPException) as e:
 
                 if sp3altrn:
                     self.get_orbits(self.sp3altrn)
                 else:
-                    raise type(e)(type(e)(e.message + ' -> This exception usually occurs due to the need of having '
-                                                      'the orbit for the day being processed and the orbit of the '
-                                                      'next day.'))
+                    raise type(e)(type(e)(str(e) + ' -> This exception usually occurs due to the need of having '
+                                                   'the orbit for the day being processed and the orbit of the '
+                                                   'next day.'))
 
             self.write_otl()
             self.copyfiles()

@@ -968,7 +968,7 @@ class ReadRinex(RinexRecord):
 
     def auto_coord(self, brdc, chi_limit=3):
         # use NRCAN PPP in code-only mode to obtain a coordinate of the station
-        import pyPPP, pyOptions
+        from pgamit import pyPPP, pyOptions
 
         rnx = ReadRinex(self.NetworkCode, self.StationCode, self.rinex_path, allow_multiday=True)
 

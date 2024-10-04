@@ -50,4 +50,10 @@ if __name__ == "__main__":
                    'com/TrajectoryFit.py',
                    'com/UpdateEarthquakes.py',
                    'com/WeeklyCombination.py',
-                   'com/Ztd2trp.py'])
+                   'com/Ztd2trp.py',
+                   # these are scripts that are outside dependencies but added for convenience
+                   'scripts/crz2rnx',
+                   'scripts/rnx2crz',
+                   'scripts/rename_crinex.sh',
+                   'scripts/rename_with_logs.sh',
+                   'scripts/rename_crinex2lower.sh'])
