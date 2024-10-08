@@ -3,17 +3,16 @@ channels:
   - defaults
   - conda-forge
 dependencies:
-  - python>=3.9
+  - python>=3.10
   - basemap
   - geopy
-  - hdf5storage
-  - libcomcat
+  - h5py
   - matplotlib
-    #- networkx
+  - networkx
   - numpy>=1.19.5
   - pandas
   - paramiko
-    #- psycopg2
+  - psycopg2
   - scandir>=1.6
   - scikit-learn>=1.1
   - scipy
@@ -21,6 +20,8 @@ dependencies:
   - xmltodict
   - pip
   - pip:
-    - dispy
-    - simplekml
     - country_converter
+    - dispy
+    - hdf5storage
+    - simplekml
+    - usgs-libcomcat
