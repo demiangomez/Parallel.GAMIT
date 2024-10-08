@@ -11,5 +11,38 @@
 from setuptools import setup
 
 if __name__ == "__main__":
-    setup(
-    )
+    setup(scripts=['com/StationInfoEdit.py',
+          'com/ArchiveService.py',
+          'com/GenerateKml.py',
+          'com/PlotETM.py',
+          'com/AlterETM.py',
+          'com/CloseStationInfo.py',
+          'com/ConvertDate.py',
+          'com/ConvertTrimble.py',
+          'com/DownloadSources.py',
+          'com/DownloadSourcesFill.py',
+          'com/DRA.py',
+          'com/FixPlate.py',
+          'com/GenerateSinex.py',
+          'com/IntegrityCheck.py',
+          'com/LocateRinex.py',
+          'com/NEQStack.py',
+          'com/OTL_FES2014b.py',
+          'com/ParallelGamit.py',
+          'com/PlotMapView.py',
+          'com/QueryETM.py',
+          'com/S-score.py',
+          'com/ScanArchive.py',
+          'com/Stacker.py',
+          'com/StationInfoEdit.py',
+          'com/SyncOrbits.py',
+          'com/TrajectoryFit.py',
+          'com/UpdateEarthquakes.py',
+          'com/WeeklyCombination.py',
+          'com/Ztd2trp.py',
+          # these are scripts that are outside dependencies but added for convenience
+          'scripts/crz2rnx',
+          'scripts/rnx2crz',
+          'scripts/rename_crinex.sh',
+          'scripts/rename_with_logs.sh',
+          'scripts/rename_crinex2lower.sh'])
