@@ -1,9 +1,6 @@
 name: Python Package using Conda
 
-on:
-  push:
-    branches:
-    - master
+on: [push]
 
 jobs:
   build-linux:
