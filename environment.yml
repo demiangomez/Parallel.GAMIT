@@ -1,0 +1,26 @@
+name: pgamit
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python>=3.9
+  - basemap
+  - geopy
+  - hdf5storage
+  - libcomcat
+  - matplotlib
+  - networkx
+  - numpy>=1.19.5
+  - pandas
+  - paramiko
+  - psycopg2
+  - scandir>=1.6
+  - scikit-learn>=1.1
+  - scipy
+  - tqdm
+  - xmltodict
+  - pip
+  - pip:
+    - dispy
+    - simplekml
+    - country_converter

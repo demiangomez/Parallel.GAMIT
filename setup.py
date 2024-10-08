@@ -12,17 +12,17 @@ from setuptools import setup
 
 import os
 
-lib_folder = os.path.dirname(os.path.realpath(__file__))
-requirement_path = f"{lib_folder}/requirements.txt"
-install_requires = []
+#lib_folder = os.path.dirname(os.path.realpath(__file__))
+#requirement_path = f"{lib_folder}/requirements.txt"
+#install_requires = []
 
-if os.path.isfile(requirement_path):
-    with open(requirement_path) as f:
-        install_requires = f.read().splitlines()
+#if os.path.isfile(requirement_path):
+#    with open(requirement_path) as f:
+#        install_requires = f.read().splitlines()
+#install_requires=install_requires,
 
 if __name__ == "__main__":
-    setup(install_requires=install_requires,
-          scripts=['com/StationInfoEdit.py',
+    setup(scripts=['com/StationInfoEdit.py',
                    'com/ArchiveService.py',
                    'com/GenerateKml.py',
                    'com/PlotETM.py',
