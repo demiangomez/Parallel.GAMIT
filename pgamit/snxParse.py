@@ -168,22 +168,22 @@ class snxFileParser:
                 self.snxFileName = os.path.basename(self.snxFilePath)
 
                 # @todo optimize by pre-compiling regexes
-                orgPattern   = re.compile('^([a-zA-Z]+).*\.f?snx$')
+                orgPattern   = re.compile(r'^([a-zA-Z]+).*\.f?snx$')
                 orgMatch     = orgPattern.findall(self.snxFileName)
                 self.orgName = orgMatch[0].upper()
 
                 # make pattern to look for SiteId start tag
-                siteIdStartPattern = re.compile('^\+SITE\/ID$')
+                siteIdStartPattern = re.compile(r'^\+SITE\/ID$')
 
                 # make pattern to look for end of siteId section
-                siteIdEndPattern   = re.compile('^\-SITE\/ID$')
+                siteIdEndPattern   = re.compile(r'^\-SITE\/ID$')
 
                 # make pattern to parse the siteId lines
                 # Example:
                 #
                 #     TROM  A 82397M001 P , USA                   18 56 18.0  69 39 45.9   135.4
                 #
-                siteIdPattern      = re.compile('^\s+(\w+)\s+\w\s+(\w+).*$')
+                siteIdPattern      = re.compile(r'^\s+(\w+)\s+\w\s+(\w+).*$')
 
                 # variance factor patther
                 # Example:
@@ -191,35 +191,35 @@ class snxFileParser:
                 # VARIANCE FACTOR                    0.048618461936712
                 #
                 #
-                varianceFactorPattern = re.compile('^ VARIANCE FACTOR\s+([\d+]?\.\d+)$')
-                observationsPattern   = re.compile('^ NUMBER OF OBSERVATIONS\s+(\d+)$')
-                unknownsPattern       = re.compile('^ NUMBER OF UNKNOWNS\s+(\d+)$')
+                varianceFactorPattern = re.compile(r'^ VARIANCE FACTOR\s+([\d+]?\.\d+)$')
+                observationsPattern   = re.compile(r'^ NUMBER OF OBSERVATIONS\s+(\d+)$')
+                unknownsPattern       = re.compile(r'^ NUMBER OF UNKNOWNS\s+(\d+)$')
 
                 # Make pattern to look for solution estimate start tag
-                startSolutionEstimatePattern = re.compile('^\+SOLUTION\/ESTIMATE.*')
+                startSolutionEstimatePattern = re.compile(r'^\+SOLUTION\/ESTIMATE.*')
 
                 # make pattern to look for solution estimate end tag
-                endSolutionEstimatePattern = re.compile('^\-SOLUTION\/ESTIMATE.*')
+                endSolutionEstimatePattern = re.compile(r'^\-SOLUTION\/ESTIMATE.*')
 
                 # make pattern to look for the L COVA start tag (+SOLUTION/MATRIX_ESTIMATE L COVA)
-                startSolutionMatrixEstimate = re.compile('^\+SOLUTION\/MATRIX_ESTIMATE.*')
+                startSolutionMatrixEstimate = re.compile(r'^\+SOLUTION\/MATRIX_ESTIMATE.*')
 
                 # make pattern to look for the L COVA end tag (-SOLUTION/MATRIX_ESTIMATE L COVA)
-                endSolutionMatrixEstimate = re.compile('^\-SOLUTION\/MATRIX_ESTIMATE.*')
+                endSolutionMatrixEstimate = re.compile(r'^\-SOLUTION\/MATRIX_ESTIMATE.*')
 
                 # make pattern to look for station coordinates
                 # Example:
                 #
                 #   1 STAX   ALGO  A ---- 05:180:43200 m    2 .91812936331043008E+6 .2511266E-2
                 #
-                stationCoordinatePattern = re.compile('^\s+(\d+)+\s+STA(\w)\s+(\w+)\s+(\w).*\d+\s+(-?[\d+]?\.\d+[Ee][+-]?\d+)\s+(-?[\d+]?\.\d+[Ee][+-]?\d+)$')
+                stationCoordinatePattern = re.compile(r'^\s+(\d+)+\s+STA(\w)\s+(\w+)\s+(\w).*\d+\s+(-?[\d+]?\.\d+[Ee][+-]?\d+)\s+(-?[\d+]?\.\d+[Ee][+-]?\d+)$')
 
                 # make pattern to look for station velocities
                 # Example:
                 #
                 # 916 VELX   YAKA  A    1 00:001:00000 m/y  2 -.219615010076079E-01 0.13728E-03
                 #
-                stationVelocityPattern = re.compile('^\s+\d+\s+VEL(\w)\s+(\w+)\s+\w\s+....\s+(\d\d:\d\d\d).*\d+\s+(-?[\d+]?\.\d+[Ee][+-]?\d+)\s+(-?[\d+]?\.\d+[Ee][+-]?\d+)$')
+                stationVelocityPattern = re.compile(r'^\s+\d+\s+VEL(\w)\s+(\w+)\s+\w\s+....\s+(\d\d:\d\d\d).*\d+\s+(-?[\d+]?\.\d+[Ee][+-]?\d+)\s+(-?[\d+]?\.\d+[Ee][+-]?\d+)$')
 
                 for line in snxFileHandle:
 
