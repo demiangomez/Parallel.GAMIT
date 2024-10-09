@@ -8,15 +8,24 @@ jobs:
     coverage:
         runs-on: ubuntu-latest
         steps:
-          - name: Install coverage
-            run: pip install coverage
-          - name: Generate coverage
-            run: coverage xml
-          - name: Get Cover 
-            uses: orgoro/coverage@v3.2
-            with:
-                coverageFile: coverage.xml
-                token: ${{ secrets.GITHUB_TOKEN }}
-                thresholdNew: 0.5
-                thresholdModified: 0.0
-                thresholdAll: 0.25
+        - uses: actions/checkout@v4
+        - name: Set up Python 3.10
+          uses: actions/setup-python@v3
+          with:
+            python-version: '3.10'
+        - name: Add conda to system path
+          run: |
+            # $CONDA is an environment variable pointing to the root of the miniconda directory
+            echo $CONDA/bin >> $GITHUB_PATH
+        - name: Install dependencies
+          run: conda install coverage
+        - name: Generate coverage
+          run: coverage xml
+        - name: Get Cover 
+          uses: orgoro/coverage@v3.2
+          with:
+              coverageFile: coverage.xml
+              token: ${{ secrets.GITHUB_TOKEN }}
+              thresholdNew: 0.5
+              thresholdModified: 0.0
+              thresholdAll: 0.25
