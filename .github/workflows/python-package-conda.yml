@@ -37,7 +37,7 @@ jobs:
         conda install coverage
         coverage run -m pytest
         coverage report -m
-        coverage xml
+        coverage xml -o coverage.xml
     - name: Coverage report
       on: [pull_request]
         uses: orgoro/coverage@v3.2
