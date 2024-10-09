@@ -32,8 +32,3 @@ jobs:
       run: |
         conda install pytest
         pytest
-    - name: Coverage
-      uses: orgoro/coverage@v3.2
-      with:
-        coverageFile: coverage.xml
-        token: ${{ secrets.GITHUB_TOKEN }}

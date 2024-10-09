@@ -17,6 +17,7 @@ dependencies:
   - scikit-learn>=1.1
   - scipy
   - tqdm
+  - pytest
   - xmltodict
   - pip
   - pip:
