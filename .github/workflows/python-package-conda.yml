@@ -32,3 +32,19 @@ jobs:
       run: |
         conda install pytest
         pytest
+    - name: Coverage
+      run: |
+        conda install coverage
+        coverage run -m pytest
+        coverage report -m
+        coverage xml
+    - name: Coverage report
+      on: [pull_request]
+        uses: orgoro/coverage@v3.2
+        with:
+            coverageFile: coverage.xml
+            token: ${{ secrets.GITHUB_TOKEN }}
+            thresholdNew: 0.5
+            thresholdModified: 0.0
+            thresholdAll: 0.25
+
