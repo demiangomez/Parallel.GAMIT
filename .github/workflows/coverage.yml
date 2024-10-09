@@ -8,10 +8,10 @@ jobs:
     coverage:
         runs-on: ubuntu-latest
         steps:
-          - name: Install Pytest
-            run: pip install pytest pytest-cov
-          - name: Run pytest
-            run: python -m pytest --cov-report xml:coverage.xml
+          - name: Install coverage
+            run: pip install coverage
+          - name: Generate coverage
+            run: coverage xml
           - name: Get Cover 
             uses: orgoro/coverage@v3.2
             with:
