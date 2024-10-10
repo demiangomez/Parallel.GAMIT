@@ -3,7 +3,8 @@ Project: Parallel.Archive
 Date: 02/16/2017
 Author: Demian D. Gomez
 
-This class is used to connect to the database and handles inserts, updates and selects
+This class is used to connect to the database
+and handles inserts, updates and selects.
 It also handles the error, info and warning messages
 """
 
@@ -38,7 +39,9 @@ def cast_array_to_float(recordset):
                 new_record = []
                 for field in record:
                     if isinstance(field, list):
-                        new_record.append([float(value) if isinstance(value, Decimal) else value for value in field])
+                        new_record.append(
+                            [float(value) if isinstance(value, Decimal)
+                                else value for value in field])
                     else:
                         if isinstance(field, Decimal):
                             new_record.append(float(field))
@@ -54,7 +57,8 @@ def cast_array_to_float(recordset):
                 for key, value in record.items():
                     if isinstance(value, Decimal):
                         record[key] = float(value)
-                    elif isinstance(value, list) and all(isinstance(i, Decimal) for i in value):
+                    elif (isinstance(value, list)
+                            and all(isinstance(i, Decimal) for i in value)):
                         record[key] = [float(i) for i in value]
 
     return recordset
@@ -91,19 +95,24 @@ def debug(s):
         file_append('/tmp/db.log', "DB: %s\n" % s)
 
 
-class dbErrInsert (Exception): pass
+class dbErrInsert (Exception):
+    pass
 
 
-class dbErrUpdate (Exception): pass
+class dbErrUpdate (Exception):
+    pass
 
 
-class dbErrConnect(Exception): pass
+class dbErrConnect(Exception):
+    pass
 
 
-class dbErrDelete (Exception): pass
+class dbErrDelete (Exception):
+    pass
 
 
-class DatabaseError(psycopg2.DatabaseError): pass
+class DatabaseError(psycopg2.DatabaseError):
+    pass
 
 
 class Cnn(object):
@@ -116,8 +125,8 @@ class Cnn(object):
                    'database': DB_NAME}
 
         self.active_transaction = False
-        self.options            = options
-        
+        self.options = options
+
         # parse session config file
         config = configparser.ConfigParser()
 
@@ -126,7 +135,8 @@ class Cnn(object):
         except FileNotFoundError:
             if write_cfg_file:
                 create_empty_cfg()
-                print(' >> No gnss_data.cfg file found, an empty one has been created. Replace all the necessary '
+                print(' >> No gnss_data.cfg file found, an empty one '
+                      'has been created. Replace all the necessary '
                       'config and try again.')
                 exit(1)
             else:
@@ -143,9 +153,11 @@ class Cnn(object):
 
         # Define the custom type for an array of decimals
         DECIMAL_ARRAY_TYPE = psycopg2.extensions.new_type(
-            (psycopg2.extensions.DECIMAL.values,),  # This matches the type codes for DECIMAL
+            (psycopg2.extensions.DECIMAL.values,),
+            # This matches the type codes for DECIMAL
             'DECIMAL_ARRAY',  # Name of the type
-            lambda value, curs: [float(d) for d in value] if value is not None else None
+            lambda value, curs:
+            [float(d) for d in value] if value is not None else None
         )
 
         psycopg2.extensions.register_type(DEC2FLOAT)
@@ -155,11 +167,14 @@ class Cnn(object):
         err = None
         for i in range(3):
             try:
-                self.cnn = psycopg2.connect(host=options['hostname'], user=options['username'],
-                                            password=options['password'], dbname=options['database'])
+                self.cnn = psycopg2.connect(host=options['hostname'],
+                                            user=options['username'],
+                                            password=options['password'],
+                                            dbname=options['database'])
 
                 self.cnn.autocommit = True
-                self.cursor = self.cnn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                self.cursor = self.cnn.cursor(
+                    cursor_factory=psycopg2.extras.RealDictCursor)
 
                 debug("Database connection established")
 
@@ -179,8 +194,8 @@ class Cnn(object):
         return query_obj(self.cursor)
 
     def query_float(self, command, as_dict=False):
-        # deprecated: using psycopg2 now solves the problem of returning float numbers
-        # still in to maintain backwards compatibility
+        # deprecated: using psycopg2 now solves the problem of returning float
+        # numbers still in to maintain backwards compatibility
 
         if not as_dict:
             cursor = self.cnn.cursor()
@@ -195,18 +210,23 @@ class Cnn(object):
 
     def get(self, table, filter_fields, return_fields):
         """
-        Selects from the given table the records that match filter_fields and returns ONE dictionary.
-        Method should not be used to retrieve more than one single record.
+        Selects from the given table the records that match filter_fields and
+        returns ONE dictionary. Method should not be used to retrieve more
+        than one single record.
+
         Parameters:
         table (str): The table to select from.
-        filter_fields (dict): The dictionary where the keys are the field names and the values are the filter values.
+        filter_fields (dict): The dictionary where the keys are the field
+            names and the values are the filter values.
         return_fields (list of str): The fields to return.
 
         Returns:
-        list: A list of dictionaries, each representing a record that matches the filter.
+        list: A list of dictionaries, each representing a record that
+            matches the filter.
         """
 
-        where_clause = ' AND '.join([f'"{key}" = %s' for key in filter_fields.keys()])
+        where_clause = ' AND '.join([f'"{key}" = %s'
+                                    for key in filter_fields.keys()])
         fields_clause = ', '.join([f'"{field}"' for field in return_fields])
         query = f'SELECT {fields_clause} FROM {table} WHERE {where_clause}'
         values = list(filter_fields.values())
@@ -225,7 +245,9 @@ class Cnn(object):
             raise e
 
     def get_columns(self, table):
-        tblinfo = self.query('select column_name, data_type from information_schema.columns where table_name=\'%s\''
+        tblinfo = self.query(('select column_name, data_type from'
+                              'information_schema.columns where '
+                              'table_name=\'%s\'')
                              % table).dictresult()
 
         return {field['column_name']: field['data_type'] for field in tblinfo}
@@ -262,13 +284,15 @@ class Cnn(object):
 
     def update(self, table, row, **kwargs):
         """
-        Updates the specified table with new field values. The row(s) are updated based on the primary key(s)
-        indicated in the 'row' dictionary. New values are specified in kwargs. Field names must be enclosed
-        with double quotes to handle camel case names.
+        Updates the specified table with new field values. The row(s) are
+        updated based on the primary key(s) indicated in the 'row' dictionary.
+        New values are specified in kwargs. Field names must be enclosed with
+        double quotes to handle camel case names.
 
         Parameters:
         table (str): The table to update.
-        row (dict): The dictionary where the keys are the primary key fields and the values are the row's identifiers.
+        row (dict): The dictionary where the keys are the primary key fields
+            and the values are the row's identifiers.
         kwargs: New field values for the row.
         """
         # Build the SET clause of the query
@@ -293,7 +317,8 @@ class Cnn(object):
 
     def delete(self, table, **kw):
         """
-        Deletes row(s) from the specified table based on the provided keyword arguments.
+        Deletes row(s) from the specified table based on the provided
+        keyword arguments.
 
         Parameters:
         table (str): The table to delete from.
@@ -332,7 +357,8 @@ class Cnn(object):
         desc = re.sub(r'BASH.*', '', desc)
         desc = re.sub(r'PSQL.*', '', desc)
 
-        # warn = self.query('SELECT * FROM events WHERE "EventDescription" = \'%s\'' % (desc))
+        # warn = self.query('SELECT * FROM events WHERE
+        # "EventDescription" = \'%s\'' % (desc))
 
         # if warn.ntuples() == 0:
         self.insert('events', EventType=type, EventDescription=desc)
@@ -354,8 +380,7 @@ class Cnn(object):
 def _caller_str():
     # get the module calling to make clear how is logging this message
     frame = inspect.stack()[2]
-    line   = frame[2]
+    line = frame[2]
     caller = frame[3]
-    
-    return '[%s:%s(%s)]\n' % (platform.node(), caller, str(line))
 
+    return '[%s:%s(%s)]\n' % (platform.node(), caller, str(line))
