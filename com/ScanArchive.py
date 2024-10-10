@@ -90,7 +90,7 @@ from pgamit import pyRinex
 from pgamit import pyRinexName
 from pgamit import pyOTL
 from pgamit import pyStationInfo
-from pgamit import PyProducts
+from pgamit import pyProducts
 from pgamit import pyPPP
 from pgamit import pyOptions
 from pgamit import Utils

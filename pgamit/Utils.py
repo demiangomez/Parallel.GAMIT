@@ -122,11 +122,11 @@ def parse_crinex_rinex_filename(filename):
     # DDG: DEPRECATED
     # this function only accepts .Z as extension. Replaced with RinexName.split_filename which also includes .gz
     # parse a crinex filename
-    sfile = re.findall('(\w{4})(\d{3})(\w{1})\.(\d{2})([d]\.[Z])$', filename)
+    sfile = re.findall(r'(\w{4})(\d{3})(\w{1})\.(\d{2})([d]\.[Z])$', filename)
     if sfile:
         return sfile[0]
 
-    sfile = re.findall('(\w{4})(\d{3})(\w{1})\.(\d{2})([o])$', filename)
+    sfile = re.findall(r'(\w{4})(\d{3})(\w{1})\.(\d{2})([o])$', filename)
     if sfile:
         return sfile[0]
 
