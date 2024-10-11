@@ -87,8 +87,8 @@ def print_params(cnn, stnlist):
                                      % (station['NetworkCode'], station['StationCode']), as_dict=True)
 
             for p in params:
-                print(' %s.%s %-5s %-5s %2i' \
-                      % (station['NetworkCode'], station['StationCode'], p['soln'], p['object'], p['terms']))
+                print(' %s.%s %-5s %-5s %2i' % (station['NetworkCode'], station['StationCode'],
+                                                p['soln'], p['object'], p['terms']))
 
 
 def insert_modify_param(parser, cnn, stnlist, args):
@@ -103,26 +103,16 @@ def insert_modify_param(parser, cnn, stnlist, args):
 
     # create a bunch object to save all the params that will enter the database
     tpar = Bunch()
-    tpar.NetworkCode = None
-    tpar.StationCode = None
-    tpar.soln        = None
-    tpar.object      = None
-    tpar.terms       = None
-    tpar.frequencies = None
-    tpar.jump_type   = None
-    tpar.relaxation  = None
-    tpar.Year        = None
-    tpar.DOY         = None
-    tpar.action      = None
+    tpar.NetworkCode = tpar.StationCode = tpar.soln = tpar.object = tpar.terms = tpar.frequencies = None
+    tpar.jump_type = tpar.relaxation = tpar.Year = tpar.DOY = tpar.action = None
 
     ftype = args.function_type[0]
-    remove_eq = False
-    remove_mec = False
+    remove_eq = remove_mec = False
 
     try:
         if ftype == 'p':
             tpar.object = 'polynomial'
-            tpar.terms  = int(args.function_type[1])
+            tpar.terms = int(args.function_type[1])
 
             if tpar.terms <= 0:
                 parser.error('polynomial terms should be > 0')
@@ -145,8 +135,7 @@ def insert_modify_param(parser, cnn, stnlist, args):
                 date, _ = Utils.process_date([args.function_type[3]])
 
                 # recover the year and doy
-                tpar.Year = date.year
-                tpar.DOY  = date.doy
+                tpar.Year, tpar.DOY = date.year, date.doy
 
             except Exception as e:
                 parser.error('while parsing jump date: ' + str(e))
@@ -161,7 +150,7 @@ def insert_modify_param(parser, cnn, stnlist, args):
                         parser.error('jump type == 1 but no relaxation parameter, please specify relaxation')
 
         elif ftype == 'q':
-            tpar.object      = 'periodic'
+            tpar.object = 'periodic'
             tpar.frequencies = [float(1/float(p)) for p in args.function_type[1:]]
 
         elif ftype == 't':
@@ -178,7 +167,7 @@ def insert_modify_param(parser, cnn, stnlist, args):
         for soln in args.solution_type:
             tpar.NetworkCode = station['NetworkCode']
             tpar.StationCode = station['StationCode']
-            tpar.soln        = soln
+            tpar.soln = soln
 
             station_soln = "%s.%s (%s)" % (station['NetworkCode'], station['StationCode'], soln)
 
@@ -197,8 +186,7 @@ def insert_modify_param(parser, cnn, stnlist, args):
                                                 pyETM.CO_SEISMIC_JUMP)]:
                     if eq.magnitude <= float(args.function_type[1]):
                         # this earthquake should be removed, fill in the data
-                        tpar.Year = eq.date.year
-                        tpar.DOY = eq.date.doy
+                        tpar.Year, tpar.DOY = jump.date.year, jump.date.doy
                         tpar.jump_type = 1
                         tpar.relaxation = None
                         tpar.action = '-'
@@ -222,8 +210,7 @@ def insert_modify_param(parser, cnn, stnlist, args):
 
                     if sdate[0] <= jump.date <= sdate[1]:
                         # this jump should be removed, fill in the data
-                        tpar.Year = jump.date.year
-                        tpar.DOY = jump.date.doy
+                        tpar.Year, tpar.DOY = jump.date.year, jump.date.doy
                         tpar.jump_type = 0
                         tpar.relaxation = None
                         tpar.action = '-'
@@ -244,11 +231,8 @@ def apply_change(cnn, station, tpar, soln):
     # check if solution exists for this station
     try:
         epar = cnn.get('etm_params', ppar, list(ppar.keys()))
-
         print(' >> Found a set of matching parameters for station ' + station_soln)
-
         print(' -- Deleting ' + station_soln)
-
         cnn.delete('etm_params', **epar)
 
     except Exception:
@@ -257,7 +241,6 @@ def apply_change(cnn, station, tpar, soln):
     cnn.insert('etm_params', **tpar)
     # insert replaces the uid field
     del tpar.uid
-
     print(' -- Inserting %s for %s' % (tpar.object, station_soln))
 
 
