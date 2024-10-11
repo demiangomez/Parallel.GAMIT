@@ -114,9 +114,9 @@ def print_params(cnn, stnlist):
                                  % (station['NetworkCode'],
                                     station['StationCode']), as_dict=True)
 
-        for p in params:
-            print(' %s.%s %-5s %-5s %2i' % (station['NetworkCode'], station['StationCode'],
-                                            p['soln'], p['object'], p['terms']))
+            for p in params:
+                print(' %s.%s %-5s %-5s %2i' % (station['NetworkCode'], station['StationCode'],
+                                                p['soln'], p['object'], p['terms']))
 
 
 def insert_modify_param(parser, cnn, stnlist, args):
