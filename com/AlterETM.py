@@ -83,12 +83,12 @@ def main():
 def print_params(cnn, stnlist):
 
     for station in stnlist:
-            params = cnn.query_float('SELECT * FROM etm_params WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\''
-                                     % (station['NetworkCode'], station['StationCode']), as_dict=True)
+        params = cnn.query_float('SELECT * FROM etm_params WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\''
+                                 % (station['NetworkCode'], station['StationCode']), as_dict=True)
 
-            for p in params:
-                print(' %s.%s %-5s %-5s %2i' % (station['NetworkCode'], station['StationCode'],
-                                                p['soln'], p['object'], p['terms']))
+        for p in params:
+            print(' %s.%s %-5s %-5s %2i' % (station['NetworkCode'], station['StationCode'],
+                                            p['soln'], p['object'], p['terms']))
 
 
 def insert_modify_param(parser, cnn, stnlist, args):
@@ -186,7 +186,7 @@ def insert_modify_param(parser, cnn, stnlist, args):
                                                 pyETM.CO_SEISMIC_JUMP)]:
                     if eq.magnitude <= float(args.function_type[1]):
                         # this earthquake should be removed, fill in the data
-                        tpar.Year, tpar.DOY = jump.date.year, jump.date.doy
+                        tpar.Year, tpar.DOY = eq.date.year, eq.date.doy
                         tpar.jump_type = 1
                         tpar.relaxation = None
                         tpar.action = '-'
@@ -246,4 +246,3 @@ def apply_change(cnn, station, tpar, soln):
 
 if __name__ == '__main__':
     main()
-
