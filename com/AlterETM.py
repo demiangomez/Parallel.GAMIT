@@ -111,11 +111,14 @@ def print_params(cnn, stnlist):
 
     for station in stnlist:
         params = cnn.query_float('SELECT * FROM etm_params WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\''
-                                 % (station['NetworkCode'], station['StationCode']), as_dict=True)
+                                 % (station['NetworkCode'],
+                                    station['StationCode']), as_dict=True)
 
         for p in params:
-            print(' %s.%s %-5s %-5s %2i' % (station['NetworkCode'], station['StationCode'],
-                                            p['soln'], p['object'], p['terms']))
+            print(' %s.%s %-5s %-5s %2i' % (station['NetworkCode'],
+                                            station['StationCode'],
+                                            p['soln'], p['object'],
+                                            p['terms']))
 
 
 def insert_modify_param(parser, cnn, stnlist, args):
@@ -132,8 +135,9 @@ def insert_modify_param(parser, cnn, stnlist, args):
 
     # create a bunch object to save all the params that will enter the database
     tpar = Bunch()
-    tpar.NetworkCode = tpar.StationCode = tpar.soln = tpar.object = tpar.terms = tpar.frequencies = None
-    tpar.jump_type = tpar.relaxation = tpar.Year = tpar.DOY = tpar.action = None
+    tpar.NetworkCode = tpar.StationCode = tpar.soln = tpar.object = None
+    tpar.terms = tpar.frequencies = tpar.action = None
+    tpar.jump_type = tpar.relaxation = tpar.Year = tpar.DOY = None
 
     ftype = args.function_type[0]
     remove_eq = remove_mec = False
@@ -182,7 +186,8 @@ def insert_modify_param(parser, cnn, stnlist, args):
 
         elif ftype == 'q':
             tpar.object = 'periodic'
-            tpar.frequencies = [float(1/float(p)) for p in args.function_type[1:]]
+            tpar.frequencies = [float(1/float(p)) for p
+                                in args.function_type[1:]]
 
         elif ftype == 't':
             tpar.object = 'jump'
@@ -271,7 +276,8 @@ def apply_change(cnn, station, tpar, soln):
     # check if solution exists for this station
     try:
         epar = cnn.get('etm_params', ppar, list(ppar.keys()))
-        print(' >> Found a set of matching parameters for station ' + station_soln)
+        print(' >> Found a set of matching parameters for station '
+              + station_soln)
         print(' -- Deleting ' + station_soln)
         cnn.delete('etm_params', **epar)
 
