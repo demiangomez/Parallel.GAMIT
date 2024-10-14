@@ -18,7 +18,6 @@ import numpy as np
 
 # app
 from pgamit import pyETM
-from pgamit import pyOptions
 from pgamit import dbConnection
 from pgamit import pyDate
 from pgamit.Utils import (process_date,
@@ -27,9 +26,50 @@ from pgamit.Utils import (process_date,
                           station_list_help)
 
 
+def gamit_soln(args, cnn, stn):
+    polyhedrons = cnn.query_float('SELECT "X", "Y", "Z", "Year", "DOY" FROM stacks '
+                                  'WHERE "name" = \'%s\' AND "NetworkCode" = \'%s\' AND '
+                                  '"StationCode" = \'%s\' '
+                                  'ORDER BY "Year", "DOY", "NetworkCode", "StationCode"'
+                                  % (args.gamit[0], stn['NetworkCode'], stn['StationCode']))
+
+    soln = pyETM.GamitSoln(cnn, polyhedrons, stn['NetworkCode'], stn['StationCode'], args.gamit[0])
+
+    etm = pyETM.GamitETM(cnn, stn['NetworkCode'], stn['StationCode'], False,
+                         args.no_model, gamit_soln=soln, plot_remove_jumps=args.remove_jumps,
+                         plot_polynomial_removed=args.remove_polynomial)
+    #   postseismic=[{'date': pyDate.Date(year=2010,doy=58),
+    #  'relaxation': [0.5],
+    #  'amplitude': [[-0.0025, -0.0179, -0.005]]}])
+
+    # print ' > %5.2f %5.2f %5.2f %i %i' % \
+    #      (etm.factor[0]*1000, etm.factor[1]*1000, etm.factor[2]*1000, etm.soln.t.shape[0],
+    #       etm.soln.t.shape[0] -
+    #       np.sum(np.logical_and(np.logical_and(etm.F[0], etm.F[1]), etm.F[2])))
+
+    # print two largest outliers
+    if etm.A is not None:
+        lres = np.sqrt(np.sum(np.square(etm.R), axis=0))
+        slres = lres[np.argsort(-lres)]
+
+        print(' >> Two largest residuals:')
+        for i in [0, 1]:
+            print(' %s %6.3f %6.3f %6.3f'
+                  % (pyDate.Date(mjd=etm.soln.mjd[lres == slres[i]]).yyyyddd(),
+                     etm.R[0, lres == slres[i]][0],
+                     etm.R[1, lres == slres[i]][0],
+                     etm.R[2, lres == slres[i]][0]))
+
+    return etm
+
+
 def from_file(args, cnn, stn):
+
+    # replace any variables with the station name
+    filename = args.filename.replace('{net}', stn['NetworkCode']).replace('{stn}', stn['StationCode'])
+
     # execute on a file with wk XYZ coordinates
-    ts = np.genfromtxt(args.filename)
+    ts = np.genfromtxt(filename)
 
     # read the format options
     if args.format is None:
@@ -119,8 +159,10 @@ def main():
                         help="Plot histogram of residuals")
 
     parser.add_argument('-file', '--filename', type=str,
-                        help="Obtain data from an external source (filename). "
-                        "Format should be specified with -format.")
+                        help="Obtain data from an external source (filename). This name accepts variables for {net} "
+                             "and {stn} to specify more than one file based on a list of stations. If a single file is "
+                             "used (no variables), then only the first station is processed. File column format should "
+                             "be specified with -format (required).")
 
     parser.add_argument('-format', '--format', nargs='+', type=str,
                         help="To be used together with --filename. Specify order of the fields as found in the input "
@@ -178,6 +220,9 @@ def main():
                 os.mkdir('production')
             args.directory = 'production'
 
+        # flag to stop plotting time series when using external files
+        stop = False
+
         for stn in stnlist:
             try:
 
@@ -186,40 +231,16 @@ def main():
                                        plot_remove_jumps=args.remove_jumps,
                                        plot_polynomial_removed=args.remove_polynomial)
                 elif args.filename is not None:
+                    if '{stn}' in args.filename or '{net}' in args.filename:
+                        # repeat the process for each station
+                        stop = False
+                    else:
+                        # stop on the first station since no variables were passed
+                        stop = True
+
                     etm = from_file(args, cnn, stn)
                 else:
-                    polyhedrons = cnn.query_float('SELECT "X", "Y", "Z", "Year", "DOY" FROM stacks '
-                                                  'WHERE "name" = \'%s\' AND "NetworkCode" = \'%s\' AND '
-                                                  '"StationCode" = \'%s\' '
-                                                  'ORDER BY "Year", "DOY", "NetworkCode", "StationCode"'
-                                                  % (args.gamit[0], stn['NetworkCode'], stn['StationCode']))
-
-                    soln = pyETM.GamitSoln(cnn, polyhedrons, stn['NetworkCode'], stn['StationCode'], args.gamit[0])
-
-                    etm = pyETM.GamitETM(cnn, stn['NetworkCode'], stn['StationCode'], False,
-                                         args.no_model, gamit_soln=soln, plot_remove_jumps=args.remove_jumps,
-                                         plot_polynomial_removed=args.remove_polynomial)
-                                      #   postseismic=[{'date': pyDate.Date(year=2010,doy=58),
-                                      #  'relaxation': [0.5],
-                                      #  'amplitude': [[-0.0025, -0.0179, -0.005]]}])
-
-                    # print ' > %5.2f %5.2f %5.2f %i %i' % \
-                    #      (etm.factor[0]*1000, etm.factor[1]*1000, etm.factor[2]*1000, etm.soln.t.shape[0],
-                    #       etm.soln.t.shape[0] -
-                    #       np.sum(np.logical_and(np.logical_and(etm.F[0], etm.F[1]), etm.F[2])))
-
-                    # print two largest outliers
-                    if etm.A is not None:
-                        lres  = np.sqrt(np.sum(np.square(etm.R), axis=0))
-                        slres = lres[np.argsort(-lres)]
-
-                        print(' >> Two largest residuals:')
-                        for i in [0, 1]:
-                            print(' %s %6.3f %6.3f %6.3f'
-                                  % (pyDate.Date(mjd = etm.soln.mjd[lres == slres[i]]).yyyyddd(),
-                                     etm.R[0, lres == slres[i]][0],
-                                     etm.R[1, lres == slres[i]][0],
-                                     etm.R[2, lres == slres[i]][0]))
+                    etm = gamit_soln(args, cnn, stn)
 
                 if args.interactive:
                     xfile = None
@@ -276,6 +297,10 @@ def main():
                           % (etm.NetworkCode, etm.StationCode, xyz[0], xyz[1], xyz[2], q_date.fyear, strp, txt))
 
                 print('Successfully plotted ' + stn['NetworkCode'] + '.' + stn['StationCode'])
+
+                # if the stop flag is true, stop processing after the first station
+                if stop:
+                    break
 
             except pyETM.pyETMException as e:
                 print(str(e))
