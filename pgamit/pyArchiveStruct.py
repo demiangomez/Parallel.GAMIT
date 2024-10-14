@@ -385,7 +385,7 @@ class RinexStruct(object):
         :param with_filename: if set, returns a path including the filename.
             Otherwise, just returns the path
         :param filename: name of a specific file to search in the rinex table
-        :param rinexobj: a pyRinex object to pull the information from 
+        :param rinexobj: a pyRinex object to pull the information from
             (to fill the achive keys).
         :return: a path with or without filename
         """
@@ -411,7 +411,7 @@ class RinexStruct(object):
                                     str(ObservationDOY) +
                                     ' AND "Filename" = \'' + filename + '\'')
             else:
-                # if filename is NOT set, user requesting a the processing 
+                # if filename is NOT set, user requesting a the processing
                 # file: query rinex_proc
                 rs = self.cnn.query(
                     'SELECT ' + sql_string +
@@ -495,7 +495,8 @@ class RinexStruct(object):
                 if len(path_l) != key['TotalChars']:
                     return False, {}
 
-                keys_out[key['KeyCode']] = int(path_l) if key['isnumeric'] == '1' else path_l.lower()
+                keys_out[key['KeyCode']] = int(path_l) if key[
+                    'isnumeric'] == '1' else path_l.lower()
 
             if not filename.endswith('.info'):
 
