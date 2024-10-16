@@ -21,7 +21,7 @@ from pgamit import dbConnection
 from pgamit import pyOptions
 from pgamit import pyETM
 from pgamit import pyJobServer
-from pyDate import Date
+from pgamit.pyDate import Date
 from pgamit import pyStack
 from pgamit.Utils import (process_date,
                           file_write,

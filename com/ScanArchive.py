@@ -245,7 +245,7 @@ def try_insert(NetworkCode, StationCode, year, doy, rinex):
                 if verify_rinex_date_multiday(cnn, date, rinexinfo, Config):
                     try:
                         # create the insert statement
-                        cnn.insert('rinex', rinexinfo.record)
+                        cnn.insert('rinex', **rinexinfo.record)
 
                         event = pyEvents.Event(
                             Description = 'Archived crinex file %s added to the database.' % (rinex),
@@ -624,7 +624,7 @@ def execute_ppp(record, rinex_path, h_tolerance):
                         # if it's not of the station it claims to be.
 
                         # insert record in DB
-                        cnn.insert('ppp_soln', ppp.record)
+                        cnn.insert('ppp_soln', **ppp.record)
                         # DDG: Eric's request to generate a date of PPP solution
                         event = pyEvents.Event(Description = 'A new PPP solution was created for frame ' + ppp.frame,
                                                NetworkCode = NetworkCode,
