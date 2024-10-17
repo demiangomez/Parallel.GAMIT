@@ -1,6 +1,7 @@
 __version__ = "1.2.3"
 __all__ = [
     'cluster',
+    'network',
     'pyRinexName',
     'Utils',
     'pyJobServer',
@@ -32,7 +33,6 @@ __all__ = [
     'pyGamitSession',
     'pyGamitTask',
     'pyGlobkTask',
-    'pyNetwork',
     'pyParseZTD',
     'pyStation'
 ]
