@@ -164,14 +164,6 @@ class Network(object):
             tqdm.write(' --  Processing type is %s with %i active stations'
                        % (GamitConfig.NetworkConfig['type'], len(stn_active)))
 
-            # DDG: if active stations is greater than BACKBONE_NET + 5,
-            # then we need to split the processing into smaller subnets.
-            # If not, then we just use all stations as the processing
-            # network. We add 5 to BACKBONE_NET to create a hysteresis
-            # behavior in subnets_delaunay. In other words, the backbone
-            # net will have BACKBONE_NET stations and 6 stations will be
-            # available to create some subnets. A single network solution
-            # will have a max size of BACKBONE_NET + 5
             if len(stn_active) > BACKBONE_NET + 5:
                 backbone = self.backbone_delauney(stations.get_active_coordinates(date), stn_active)
                 clusters, ties = self.make_clusters(stations.get_active_coordinates(date), stn_active)
