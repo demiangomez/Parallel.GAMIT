@@ -202,67 +202,14 @@ def over_cluster(labels, coordinates, metric='haversine', neighborhood=5,
 # Modifications by: Shane Grigsby <refuge@rocktalus.com>
 
 
-class _BisectingTree:
-    """Tree structure representing the hierarchical clusters from bisecting"""
-
-    def __init__(self, center, indices, score):
-        """Create a new cluster node in the tree.
-
-        The node holds the center of this cluster and the indices of the data
-        points that belong to it.
-        """
-        self.center = center
-        self.indices = indices
-        self.score = score
-
-        self.left = None
-        self.right = None
-
-    def split(self, labels, centers, scores):
-        """Split the cluster node into two subclusters."""
-        self.left = _BisectingTree(indices=self.indices[labels == 0],
-                                   center=centers[0], score=scores[0])
-        self.right = _BisectingTree(indices=self.indices[labels == 1],
-                                    center=centers[1], score=scores[1])
-
-        # reset the indices attribute to save memory
-        self.indices = None
-
-    def get_cluster_to_bisect(self):
-        """Return the cluster node to bisect next.
-
-        It's based on the score of the cluster, which can be either the number
-        of data points assigned to that cluster or the inertia of that cluster.
-        """
-        max_score = None
-
-        for cluster_leaf in self.iter_leaves():
-            if max_score is None or cluster_leaf.score > max_score:
-                max_score = cluster_leaf.score
-                best_cluster_leaf = cluster_leaf
-
-        if np.isneginf(max_score):
-            self.bisect = False
-        else:
-            return best_cluster_leaf
-
-    def iter_leaves(self):
-        """Iterate over all the cluster leaves in the tree."""
-        if self.left is None:
-            yield self
-        else:
-            yield from self.left.iter_leaves()
-            yield from self.right.iter_leaves()
-
-
 class BisectingQMeans(_BaseKMeans):
     """Bisecting Q-Means clustering; modified from sklearn Bisecting K-means.
 
     In contrast to Bisecting K-Means, Bisecting Q-Means clustering will infer
     the number of clusters based on a termination condition. For this
     implementation the bisecting termination occurs according to the minimum
-    and optimum cluster sizes, which are set by the `opt_clust_size` and
-    `min_clust_size` parameters respectively. The child cluster of the bisected
+    and optimum cluster sizes, which are set by the `opt_size` and
+    `min_size` parameters respectively. The child cluster of the bisected
     root cluster with the biggest inertia as determined by SSE (Sum of Squared
     Errors) will be selected bisection-- provided that the child cluster
     exceeds the set `*clust_size` boundary conditions. Cluster bisection
@@ -271,19 +218,19 @@ class BisectingQMeans(_BaseKMeans):
 
     Parameters
     ----------
-    min_clust_size : int, default=4
+    min_size : int, default=4
         The minimum acceptable cluster size. Clusters of size <= to this
         parameter will **not** be produced by this algorithm.
 
-    opt_clust_size : int, default=20
+    opt_size : int, default=12
         Target optimum cluster size. If the sum membership of a proposed
         cluster bisection is less than this value, the cluster will not be
-        bisected. When combined with the `min_clust_size` parameter above,
+        bisected. When combined with the `min_size` parameter above,
         these conditions together mean that clusters of sizes smaller than
-        (`opt_clust_size` - `min_clust_size`) are *a priori* ineligible to be
+        (`opt_size` - `min_size`) are *a priori* ineligible to be
         bisected.
 
-    max_clust_size: int, default=35
+    max_size: int, default=25
         Hard cutoff to bypass the heuristic when bisecting clusters; no
         clusters greater than this size will be produced.
 
@@ -383,9 +330,9 @@ class BisectingQMeans(_BaseKMeans):
 
     def __init__(
         self,
-        min_clust_size=4,
-        opt_clust_size=20,
-        max_clust_size=35,
+        min_size=4,
+        opt_size=12,
+        max_size=25,
         *,
         init="random",
         n_init=1,
@@ -407,9 +354,9 @@ class BisectingQMeans(_BaseKMeans):
             n_init=n_init,
         )
 
-        self.min_clust_size = min_clust_size
-        self.opt_clust_size = opt_clust_size
-        self.max_clust_size = max_clust_size
+        self.min_size = min_size
+        self.opt_size = opt_size
+        self.max_size = max_size
         self.copy_x = copy_x
         self.algorithm = algorithm
         self.bisect = True
@@ -516,17 +463,17 @@ class BisectingQMeans(_BaseKMeans):
                                            sample_weight)
         counts = np.bincount(best_labels, minlength=2)
         scores[np.where(counts <
-                        (self.opt_clust_size - self.min_clust_size))] = -np.inf
+                        (self.opt_size - self.min_size))] = -np.inf
         # case where bisecting is not optimum
-        if (counts[0] + counts[1]) < self.opt_clust_size:
+        if (counts[0] + counts[1]) < self.opt_size:
             cluster_to_bisect.score = -np.inf
         # bisect as long as the smallest child meets membership constraints
-        elif ((counts[0] >= self.min_clust_size) and
-              (counts[1] >= self.min_clust_size)):
+        elif ((counts[0] >= self.min_size) and
+              (counts[1] >= self.min_size)):
             cluster_to_bisect.split(best_labels, best_centers, scores)
         # one child will have membership of 3 or less; don't split
         else:
-            if (counts[0] + counts[1] >= self.max_clust_size):
+            if (counts[0] + counts[1] >= self.max_size):
                 cluster_to_bisect.split(best_labels, best_centers, scores)
             else:
                 cluster_to_bisect.score = -np.inf
@@ -637,3 +584,57 @@ class BisectingQMeans(_BaseKMeans):
 
     def _more_tags(self):
         return {"preserves_dtype": [np.float64, np.float32]}
+
+
+class _BisectingTree:
+    """Tree structure representing the hierarchical clusters from bisecting"""
+
+    def __init__(self, center, indices, score):
+        """Create a new cluster node in the tree.
+
+        The node holds the center of this cluster and the indices of the data
+        points that belong to it.
+        """
+        self.center = center
+        self.indices = indices
+        self.score = score
+
+        self.left = None
+        self.right = None
+
+    def split(self, labels, centers, scores):
+        """Split the cluster node into two subclusters."""
+        self.left = _BisectingTree(indices=self.indices[labels == 0],
+                                   center=centers[0], score=scores[0])
+        self.right = _BisectingTree(indices=self.indices[labels == 1],
+                                    center=centers[1], score=scores[1])
+
+        # reset the indices attribute to save memory
+        self.indices = None
+
+    def get_cluster_to_bisect(self):
+        """Return the cluster node to bisect next.
+
+        It's based on the score of the cluster, which can be either the number
+        of data points assigned to that cluster or the inertia of that cluster.
+        """
+        max_score = None
+
+        for cluster_leaf in self.iter_leaves():
+            if max_score is None or cluster_leaf.score > max_score:
+                max_score = cluster_leaf.score
+                best_cluster_leaf = cluster_leaf
+
+        if np.isneginf(max_score):
+            self.bisect = False
+        else:
+            return best_cluster_leaf
+
+    def iter_leaves(self):
+        """Iterate over all the cluster leaves in the tree."""
+        if self.left is None:
+            yield self
+        else:
+            yield from self.left.iter_leaves()
+            yield from self.right.iter_leaves()
+
