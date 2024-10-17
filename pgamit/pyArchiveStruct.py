@@ -86,7 +86,7 @@ class RinexStruct(object):
             self.cnn.begin_transac()
 
             try:
-                self.cnn.insert('rinex', record)
+                self.cnn.insert('rinex', **record)
 
                 if rinexobj is not None:
                     # a rinexobj was passed, copy it into the archive.

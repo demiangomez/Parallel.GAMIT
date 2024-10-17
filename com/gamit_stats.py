@@ -124,21 +124,21 @@ def parse_monitor(cnn, monitor):
         max_overconstrained = None
 
     try:
-        cnn.insert('gamit_stats', {'Project'             : project,
-                                   'subnet'              :  subnet,
-                                   'Year'                : year,
-                                   'DOY'                 : doy,
-                                   'FYear'               : Date(year=year, doy=doy).fyear,
-                                   'wl'                  : wl,
-                                   'nl'                  : nl,
-                                   'nrms'                : nrms,
-                                   'relaxed_constrains'  : oc_stn,
-                                   'max_overconstrained' : max_overconstrained,
-                                   'updated_apr'         : upd_stn,
-                                   'iterations'          : iterations,
-                                   'node'                : node,
-                                   'execution_time'      : int((end_time - start_time).total_seconds()/60.0),
-                                   'execution_date'      : start_time})
+        cnn.insert('gamit_stats', **{'Project'             : project,
+                                     'subnet'              :  subnet,
+                                     'Year'                : year,
+                                     'DOY'                 : doy,
+                                     'FYear'               : Date(year=year, doy=doy).fyear,
+                                     'wl'                  : wl,
+                                     'nl'                  : nl,
+                                     'nrms'                : nrms,
+                                     'relaxed_constrains'  : oc_stn,
+                                     'max_overconstrained' : max_overconstrained,
+                                     'updated_apr'         : upd_stn,
+                                     'iterations'          : iterations,
+                                     'node'                : node,
+                                     'execution_time'      : int((end_time - start_time).total_seconds()/60.0),
+                                     'execution_date'      : start_time})
     except dbConnection.dbErrInsert:
         print(' -- record already exists ' + monitor)
 

@@ -29,6 +29,7 @@ if not os.environ.get('DISPLAY', None):
 from matplotlib.widgets import Button
 
 # app
+import pgamit
 from pgamit import pyStationInfo
 from pgamit import pyDate
 from pgamit import pyEvents
@@ -152,7 +153,7 @@ ESTIMATION = 0
 DATABASE = 1
 
 # last changed May, 10 2024
-VERSION = '1.2.2'
+VERSION = str(pgamit.__version__)
 
 
 class Model(object):
@@ -283,6 +284,9 @@ def to_postgres(dictionary):
         for key, val in list(dictionary.items()):
             if isinstance(val, np.ndarray):
                 dictionary[key] = str(val.flatten().tolist()).replace('[', '{').replace(']', '}')
+            if key in 'covar':
+                # remove covar key which is not in the database
+                dictionary.pop(key, None)
     else:
         dictionary = str(dictionary.flatten().tolist()).replace('[', '{').replace(']', '}')
 
@@ -2082,15 +2086,15 @@ class ETM:
         # only save the parameters when they've been estimated, not when loaded from database
         if self.param_origin == ESTIMATION:
             # insert linear parameters
-            cnn.insert('etms', row=to_postgres(self.Linear.p.toDict()))
+            cnn.insert('etms', **to_postgres(self.Linear.p.toDict()))
 
             # insert jumps
             for jump in self.Jumps.table:
                 if jump.fit:
-                    cnn.insert('etms', row=to_postgres(jump.p.toDict()))
+                    cnn.insert('etms', **to_postgres(jump.p.toDict()))
 
             # insert periodic params
-            cnn.insert('etms', row=to_postgres(self.Periodic.p.toDict()))
+            cnn.insert('etms', **to_postgres(self.Periodic.p.toDict()))
 
             # save the variance factors
             cnn.query('INSERT INTO etms ("NetworkCode", "StationCode", soln, object, params, hash, stack) VALUES '

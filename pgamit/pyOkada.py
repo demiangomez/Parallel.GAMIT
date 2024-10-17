@@ -204,7 +204,7 @@ class Score(object):
         self.p_my = np.array([])
         self.p_mask = np.array([])
 
-        far_field_scale = 18
+        far_field_scale = 25
         xmax = np.ceil(self.along_strike_l) * far_field_scale
         self.gx, self.gy = np.meshgrid(np.linspace(-xmax, xmax, density), np.linspace(-xmax, xmax, density))
 

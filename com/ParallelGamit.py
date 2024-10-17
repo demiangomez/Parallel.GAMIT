@@ -580,7 +580,7 @@ def gamit_callback(job):
                     # insert information in gamit_stats
                     try:
                         cnn = dbConnection.Cnn('gnss_data.cfg')  # type: dbConnection.Cnn
-                        cnn.insert('gamit_stats', result)
+                        cnn.insert('gamit_stats', **result)
                         cnn.close()
                     except dbConnection.dbErrInsert as e:
                         tqdm.write(prRed(f' -- {print_datetime()} Error while inserting GAMIT stat for '

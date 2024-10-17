@@ -91,7 +91,7 @@ def debug(s):
         file_append('/tmp/db.log', "DB: %s\n" % s)
 
 
-class dbErrInsert (Exception): pass
+class dbErrInsert (psycopg2.errors.UniqueViolation): pass
 
 
 class dbErrUpdate (Exception): pass
@@ -257,10 +257,12 @@ class Cnn(object):
         placeholders = ', '.join(['%s'] * len(fields))
         columns = '", "'.join(fields)
         query = f'INSERT INTO {table} ("{columns}") VALUES ({placeholders})'
+        try:
+            self.cursor.execute(query, values)
+        except psycopg2.errors.UniqueViolation as e:
+            raise dbErrInsert(e)
 
-        self.cursor.execute(query, values)
-
-    def update(self, table, row, **kwargs):
+    def update(self, table, set_row, **kwargs):
         """
         Updates the specified table with new field values. The row(s) are updated based on the primary key(s)
         indicated in the 'row' dictionary. New values are specified in kwargs. Field names must be enclosed
@@ -268,25 +270,26 @@ class Cnn(object):
 
         Parameters:
         table (str): The table to update.
-        row (dict): The dictionary where the keys are the primary key fields and the values are the row's identifiers.
-        kwargs: New field values for the row.
+        set_row (dict): New field values for the row.
+        kwargs: The dictionary where the keys are the primary key fields and the values are the row's identifiers.
         """
         # Build the SET clause of the query
-        set_clause = ', '.join([f'"{field}" = %s' for field in kwargs.keys()])
+        set_clause = ', '.join([f'"{field}" = %s' for field in set_row.keys()])
 
         # Build the WHERE clause based on the row dictionary
-        where_clause = ' AND '.join([f'"{key}" = %s' for key in row.keys()])
+        where_clause = ' AND '.join([f'"{key}" = %s' for key in kwargs.keys()])
 
         # Construct query
         query = f'UPDATE {table} SET {set_clause} WHERE {where_clause}'
 
         # Values to use in the query
-        values = list(kwargs.values()) + list(row.values())
+        values = list(set_row.values()) + list(kwargs.values())
 
         try:
             self.cursor.execute(query, values)
             self.cnn.commit()
-            debug(f"UPDATE {table}: row={row}, kwargs={kwargs}")
+            debug(f"UPDATE {table}: set={set_row}, where={kwargs}")
+            debug(query)
         except psycopg2.Error as e:
             self.cnn.rollback()
             raise dbErrUpdate(e)
@@ -345,6 +348,10 @@ class Cnn(object):
 
     def insert_info(self, desc):
         self.insert_event_bak('info', _caller_str(), desc)
+
+    def close(self):
+        self.cursor.close()
+        self.cnn.close()
 
     def __del__(self):
         if self.active_transaction:

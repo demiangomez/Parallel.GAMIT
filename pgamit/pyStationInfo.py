@@ -515,7 +515,7 @@ class StationInfo:
                             record['DateEnd'] = pyDate.Date(datetime=self.records[0]['DateStart'].datetime() -
                                                             datetime.timedelta(seconds=1))
 
-                            self.cnn.insert('stationinfo', record.database())
+                            self.cnn.insert('stationinfo', **record.database())
 
                             # insert event
                             event = pyEvents.Event(
@@ -534,7 +534,7 @@ class StationInfo:
                                         DateEnd=record['DateStart'].datetime() - datetime.timedelta(seconds=1))
 
                         # create the incoming session
-                        self.cnn.insert('stationinfo', record.database())
+                        self.cnn.insert('stationinfo', **record.database())
 
                         # insert event
                         event = pyEvents.Event(
@@ -558,7 +558,7 @@ class StationInfo:
 
                 else:
                     # no overlaps, insert the record
-                    self.cnn.insert('stationinfo', record.database())
+                    self.cnn.insert('stationinfo', **record.database())
 
                     # insert event
                     event = pyEvents.Event(Description='A new station information record was added:\n' +

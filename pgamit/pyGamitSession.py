@@ -144,11 +144,12 @@ class GamitSession(object):
 
         if not self.ready:
             # insert the subnet in the database
-            cnn.insert('gamit_subnets', {**row_key,
-                                         'stations' : '{%s}' % ','.join(stationID(s)   for s in stations + list(ties)),
-                                         'alias'    : '{%s}' % ','.join(s.StationAlias for s in stations + list(ties)),
-                                         'ties'     : '{%s}' % ','.join(s['name']      for s in self.tie_dict),
-                                         'centroid' : '{%s}' % ','.join('%.1f' % c     for c in centroid)})
+            cnn.insert('gamit_subnets', **{**row_key,
+                                           'stations' : '{%s}' % ','.join(stationID(s) for s in stations + list(ties)),
+                                           'alias'    : '{%s}' % ','.join(s.StationAlias
+                                                                          for s in stations + list(ties)),
+                                           'ties'     : '{%s}' % ','.join(s['name'] for s in self.tie_dict),
+                                           'centroid' : '{%s}' % ','.join('%.1f' % c for c in centroid)})
 
         self.pwd_igs    = os.path.join(self.solution_pwd, 'igs')
         self.pwd_brdc   = os.path.join(self.solution_pwd, 'brdc')
