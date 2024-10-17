@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 # app
 from pgamit import pyRinexName
-from pgamit.pyStation import StationInstance
+from pgamit.pyStation import StationInstance, StationCollection
 from pgamit.Utils import determine_frame, file_open, stationID, chmod_exec
 from pgamit import pyGamitConfig
 from pgamit import snxParse
@@ -65,6 +65,12 @@ class GamitSession(object):
         self.GamitTask      = None
 
         self.solution_base = self.GamitOpts['solutions_dir'].rstrip('/')
+
+        # Temporary hotfix to restart production
+        # Code is replicated from lines 338-340 in pyNetwork
+        stations_ = StationCollection()
+        stations_.append(stn for stn in station if stn not in ties)
+        stations = stations_
 
         # tie station dictionary (to build KMLs, do not change)
         self.tie_dict = [{'name'  : stationID(stn),
