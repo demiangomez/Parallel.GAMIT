@@ -67,8 +67,8 @@ class GamitSession(object):
         self.solution_base = self.GamitOpts['solutions_dir'].rstrip('/')
 
         # Temporary hotfix to restart production
-        # Code is replicated from lines 338-340 in pyNetwork
         stations_ = StationCollection()
+        # Code is replicated from lines 338-340 in pyNetwork
         stations_.append(stn for stn in stations if stn not in ties)
         stations = stations_
 
