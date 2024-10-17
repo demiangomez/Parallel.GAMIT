@@ -1496,7 +1496,7 @@ class Polynomial(EtmFunction):
                                      'StationCode': StationCode,
                                      'soln': 'gamit' if soln.type == 'file' else soln.type,
                                      'object': 'polynomial'},
-                                    ['NetworkCode', 'StationCode', 'soln', 'object'])
+                                    ['NetworkCode', 'StationCode', 'soln', 'object', 'terms'])
 
                 self.terms = int(etm_param['terms'])
 

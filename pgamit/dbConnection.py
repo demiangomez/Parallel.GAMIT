@@ -45,7 +45,7 @@ def cast_array_to_float(recordset):
                         else:
                             new_record.append(field)
 
-                result.append(new_record)
+                result.append(tuple(new_record))
 
             return result
         else:

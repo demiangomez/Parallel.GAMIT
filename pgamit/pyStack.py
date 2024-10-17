@@ -143,7 +143,6 @@ class Stack(list):
                 'FROM gamit_soln WHERE "Project" = \'%s\' AND ("Year", "DOY") <= (%i, %i)'
                 'ORDER BY "NetworkCode", "StationCode"' % (project, end_date.year, end_date.doy))
 
-
             self.gamit_vertices = np_array_vertices(gamit_vertices)
 
             dates = self.cnn.query_float('SELECT "Year", "DOY" FROM gamit_soln WHERE "Project" = \'%s\' '
@@ -223,7 +222,6 @@ class Stack(list):
                 '"Project" = \'%s\' AND ("Year", "DOY") <= (%i, %i) '
                 'ORDER BY "NetworkCode", "StationCode"'
                 % (project, project, name, project, end_date.year, end_date.doy))
-
 
             self.stack_vertices = np_array_vertices(stack_vertices)
             self.gamit_vertices = np_array_vertices(gamit_vertices)
