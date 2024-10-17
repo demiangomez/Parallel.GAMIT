@@ -37,7 +37,7 @@ from scipy.spatial import Delaunay, distance
 # app
 from pgamit.pyGamitSession import GamitSession
 from pgamit.pyStation import StationCollection
-from pgamit.NetClusters import over_cluster, select_central_point, BisectingQMeans
+from pgamit.cluster import over_cluster, select_central_point, BisectingQMeans
 from pgamit.NetPlots import plot_global_network
 
 BACKBONE_NET = 45
@@ -164,32 +164,29 @@ class Network(object):
             tqdm.write(' --  Processing type is %s with %i active stations'
                        % (GamitConfig.NetworkConfig['type'], len(stn_active)))
 
+            # DDG: if active stations is greater than BACKBONE_NET + 5,
+            # then we need to split the processing into smaller subnets.
+            # If not, then we just use all stations as the processing
+            # network. We add 5 to BACKBONE_NET to create a hysteresis
+            # behavior in subnets_delaunay. In other words, the backbone
+            # net will have BACKBONE_NET stations and 6 stations will be
+            # available to create some subnets. A single network solution
+            # will have a max size of BACKBONE_NET + 5
+            if len(stn_active) > BACKBONE_NET + 5:
+                backbone = self.backbone_delauney(stations.get_active_coordinates(date), stn_active)
+                clusters, ties = self.make_clusters(stations.get_active_coordinates(date), stn_active)
             else:
-                # DDG: if active stations is greater than BACKBONE_NET + 5,
-                # then we need to split the processing into smaller subnets.
-                # If not, then we just use all stations as the processing
-                # network. We add 5 to BACKBONE_NET to create a hysteresis
-                # behavior in subnets_delaunay. In other words, the backbone
-                # net will have BACKBONE_NET stations and 6 stations will be
-                # available to create some subnets. A single network solution
-                # will have a max size of BACKBONE_NET + 5
-                if len(stn_active) > BACKBONE_NET + 5:
-                    backbone = self.backbone_delauney(stations.get_active_coordinates(date), stn_active)
-                    clusters, ties = self.make_clusters(stations.get_active_coordinates(date), stn_active)
-                else:
-                    # no need to create a set of clusters, just use them all
-                    clusters = {'stations': [stn_active]}
-                    backbone = []
-                    ties = []
+                # no need to create a set of clusters, just use them all
+                clusters = {'stations': [stn_active]}
+                backbone = []
+                ties = []
 
         self.sessions = self.create_gamit_sessions(cnn, archive, clusters,
                                                    backbone, ties, date)
 
     def make_clusters(self, points, stations, net_limit=NET_LIMIT):
         # Run initial clustering using bisecting 'q-means'
-        qmean = BisectingQMeans(min_clust_size=4, opt_clust_size=20,
-                                init='random', n_init=50, algorithm='lloyd',
-                                max_iter=8000, random_state=42, n_clusters=2)
+        qmean = BisectingQMeans(min_size=4, random_state=42)
         qmean.fit(points)
         # snap centroids to closest station coordinate
         central_points = select_central_point(qmean.labels_, points,
