@@ -69,7 +69,7 @@ class GamitSession(object):
         # Temporary hotfix to restart production
         # Code is replicated from lines 338-340 in pyNetwork
         stations_ = StationCollection()
-        stations_.append(stn for stn in station if stn not in ties)
+        stations_.append(stn for stn in stations if stn not in ties)
         stations = stations_
 
         # tie station dictionary (to build KMLs, do not change)
