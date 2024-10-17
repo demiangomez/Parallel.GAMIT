@@ -164,16 +164,6 @@ class Network(object):
             tqdm.write(' --  Processing type is %s with %i active stations'
                        % (GamitConfig.NetworkConfig['type'], len(stn_active)))
 
-            if GamitConfig.NetworkConfig['type'] == 'regional':
-                # create station clusters
-                # cluster centroids will be used later to tie the networks
-                clusters, ties = self.make_clusters(stations.get_active_coordinates(date), stn_active)
-
-                if len(clusters['stations']) > 1:
-                    # build the backbone network
-                    backbone = self.backbone_delauney(stations.get_active_coordinates(date), stn_active)
-                else:
-                    backbone = []
             else:
                 # DDG: if active stations is greater than BACKBONE_NET + 5,
                 # then we need to split the processing into smaller subnets.
