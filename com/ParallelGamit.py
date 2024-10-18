@@ -34,7 +34,7 @@ from pgamit import pyJobServer
 from pgamit import pyParseZTD
 from pgamit import pyArchiveStruct
 from pgamit.pyETM import pyETMException
-from pgamit.pyNetwork import Network
+from pgamit.network import Network
 from pgamit.pyStation import Station, StationCollection
 from pgamit.Utils import (process_date,
                           process_stnlist,
