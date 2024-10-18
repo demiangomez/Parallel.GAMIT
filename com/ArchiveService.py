@@ -35,10 +35,9 @@ import argparse
 from tqdm import tqdm
 
 # app
-from Utils import file_append, file_try_remove, file_open, dir_try_remove
+from pgamit.Utils import file_append, file_try_remove, file_open, dir_try_remove
 from pgamit import pyJobServer
 from pgamit import pyEvents
-from pgamit import pyProducts
 from pgamit import pyOptions
 from pgamit import Utils
 from pgamit import pyOTL

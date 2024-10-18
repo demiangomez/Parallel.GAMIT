@@ -80,7 +80,7 @@ class query_obj(object):
         return len(self.rows)
 
     def getresult(self):
-        return [d.values() for d in self.rows]
+        return [tuple(d.values()) for d in self.rows]
 
     def __len__(self):
         return len(self.rows)

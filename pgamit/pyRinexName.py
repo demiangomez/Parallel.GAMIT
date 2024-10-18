@@ -46,6 +46,41 @@ def check_year(year):
     return year
 
 
+def path_replace_tags(filename, date : Date, NetworkCode='', StationCode='', Marker=0, CountryCode='ARG'):
+    """
+    function to replace tags / keywords in a string for their corresponding values
+    """
+    str_marker = str(Marker).zfill(2)
+
+    # create RinexNameFormat objects to create RINEX 2/3 filenames
+    rnx2 = RinexNameFormat(None, StationCode=StationCode, monument=str_marker[0], receiver=str_marker[1],
+                           country=CountryCode, date=date, version=2)
+    rnx3 = RinexNameFormat(None, StationCode=StationCode, monument=str_marker[0], receiver=str_marker[1],
+                           country=CountryCode, date=date, version=3)
+
+    return (filename.replace('${year}',     str(date.year))
+                    .replace('${doy}',      str(date.doy).zfill(3))
+                    .replace('${day}',      str(date.day).zfill(2))
+                    .replace('${month}',    str(date.month).zfill(2))
+                    .replace('${gpsweek}',  str(date.gpsWeek).zfill(4))
+                    .replace('${gpswkday}', str(date.gpsWeekDay))
+                    .replace('${year2d}',   str(date.year)[2:])
+                    .replace('${month2d}',  str(date.month).zfill(2))
+                    .replace('${STATION}',  StationCode.upper())
+                    .replace('${station}',  StationCode.lower())
+                    .replace('${NETWORK}',  NetworkCode.upper())
+                    .replace('${network}',  NetworkCode.lower())
+                    .replace('${marker}',   str_marker)
+                    .replace('${COUNTRY}',  CountryCode.upper())
+                    .replace('${country}',  CountryCode.lower())
+                    .replace('${RINEX2}',   rnx2.to_rinex_format(TYPE_CRINEZ, True))
+                    .replace('${RINEX3_30}', rnx3.to_rinex_format(TYPE_CRINEZ, True, '30S'))
+                    .replace('${RINEX3_15}', rnx3.to_rinex_format(TYPE_CRINEZ, True, '15S'))
+                    .replace('${RINEX3_10}', rnx3.to_rinex_format(TYPE_CRINEZ, True, '10S'))
+                    .replace('${RINEX3_05}', rnx3.to_rinex_format(TYPE_CRINEZ, True, '05S'))
+                    .replace('${RINEX3_01}', rnx3.to_rinex_format(TYPE_CRINEZ, True, '01S')))
+
+
 class RinexNameException(Exception):
     def __init__(self, value):
         self.value = value

@@ -19,8 +19,9 @@ from tqdm import tqdm
 from pgamit import pyOptions
 from pgamit import pyDate
 from pgamit import dbConnection
-from pgamit.Utils import station_list_help, required_length, process_date, process_stnlist, stationID
-from pgamit.DownloadSources import path_replace_tags, Client, fqdn_parse
+from pgamit.Utils import station_list_help, required_length, process_date, process_stnlist, stationID, fqdn_parse
+from pgamit.pyRinexName import path_replace_tags
+from pgamit.proto_download import Client
 
 
 def query_yes_no(question, default="yes"):

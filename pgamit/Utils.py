@@ -907,3 +907,12 @@ atx = /example/igs08_1930.atx, /example/igs08_1930.atx
 """
 
     file_write('gnss_data.cfg', cfg)
+
+
+# The 'fqdn' stored in the db is really fqdn + [:port]
+def fqdn_parse(fqdn, default_port=None):
+    if ':' in fqdn:
+        fqdn, port = fqdn.split(':')
+        return fqdn, int(port[1])
+    else:
+        return fqdn, default_port

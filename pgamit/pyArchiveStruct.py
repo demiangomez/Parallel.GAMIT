@@ -29,7 +29,7 @@ from pgamit.Utils import file_try_remove
 
 class RinexStruct(object):
 
-    def __init__(self, cnn):
+    def __init__(self, cnn, path_cfg=''):
 
         self.cnn = cnn
         self.archiveroot = None
@@ -44,7 +44,7 @@ class RinexStruct(object):
         self.networks = cnn.query('SELECT * FROM networks').dictresult()
         self.stations = cnn.query('SELECT * FROM stations').dictresult()
 
-        self.Config = pyOptions.ReadOptions('gnss_data.cfg')
+        self.Config = pyOptions.ReadOptions(os.path.join(path_cfg, 'gnss_data.cfg'))
 
     def insert_rinex(self, record=None, rinexobj=None):
         """
@@ -366,7 +366,9 @@ class RinexStruct(object):
                 return None
 
             field = rs.dictresult()[0]
-            path = "/".join(str(field[level['rinex_col_in']]).zfill(level['TotalChars'])
+            path = "/".join('{key:0{width}{type}}'.format(key=field[level['rinex_col_in']],
+                                                          width=level['TotalChars'],
+                                                          type='.0f' if level['isnumeric'] == '1' else 's')
                             for level in self.levels)
 
             if with_filename:

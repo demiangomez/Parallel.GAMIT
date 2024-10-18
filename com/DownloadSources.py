@@ -47,9 +47,10 @@ from pgamit import pyRinexName
 from pgamit import pyStationInfo
 from pgamit import pyJobServer
 from pgamit.pyDate import Date
+from pgamit.pyRinexName import path_replace_tags
 from pgamit.Utils import (required_length,
                           process_date,
-                          print_columns,
+                          fqdn_parse,
                           stationID,
                           file_try_remove,
                           dir_try_remove)
@@ -67,53 +68,10 @@ CONFIG_FILE = 'gnss_data.cfg'
 PBAR_FORMAT = '{l_bar}{bar}| {n_fmt}/{total_fmt} {elapsed}<{remaining} {postfix}'
 
 ###############################################################################
-# Utils
-###############################################################################
-
-
-def path_replace_tags(filename, date : Date, NetworkCode='', StationCode='', Marker=0, CountryCode='ARG'):
-    str_marker = str(Marker).zfill(2)
-
-    # create RinexNameFormat objects to create RINEX 2/3 filenames
-    rnx2 = pyRinexName.RinexNameFormat(None, StationCode=StationCode, monument=str_marker[0], receiver=str_marker[1],
-                                       country=CountryCode, date=date, version=2)
-    rnx3 = pyRinexName.RinexNameFormat(None, StationCode=StationCode, monument=str_marker[0], receiver=str_marker[1],
-                                       country=CountryCode, date=date, version=3)
-
-    return (filename.replace('${year}',     str(date.year))
-                    .replace('${doy}',      str(date.doy).zfill(3)) 
-                    .replace('${day}',      str(date.day).zfill(2)) 
-                    .replace('${month}',    str(date.month).zfill(2)) 
-                    .replace('${gpsweek}',  str(date.gpsWeek).zfill(4)) 
-                    .replace('${gpswkday}', str(date.gpsWeekDay)) 
-                    .replace('${year2d}',   str(date.year)[2:]) 
-                    .replace('${month2d}',  str(date.month).zfill(2)) 
-                    .replace('${STATION}',  StationCode.upper()) 
-                    .replace('${station}',  StationCode.lower())
-                    .replace('${NETWORK}',  NetworkCode.upper()) 
-                    .replace('${network}',  NetworkCode.lower())
-                    .replace('${marker}',   str_marker)
-                    .replace('${COUNTRY}',  CountryCode.upper())
-                    .replace('${country}',  CountryCode.lower())
-                    .replace('${RINEX2}',   rnx2.to_rinex_format(pyRinexName.TYPE_CRINEZ, True))
-                    .replace('${RINEX3_30}', rnx3.to_rinex_format(pyRinexName.TYPE_CRINEZ, True, '30S'))
-                    .replace('${RINEX3_15}', rnx3.to_rinex_format(pyRinexName.TYPE_CRINEZ, True, '15S'))
-                    .replace('${RINEX3_10}', rnx3.to_rinex_format(pyRinexName.TYPE_CRINEZ, True, '10S'))
-                    .replace('${RINEX3_05}', rnx3.to_rinex_format(pyRinexName.TYPE_CRINEZ, True, '05S'))
-                    .replace('${RINEX3_01}', rnx3.to_rinex_format(pyRinexName.TYPE_CRINEZ, True, '01S')))
-
-
-# The 'fqdn' stored in the db is really fqdn + [:port]
-def fqdn_parse(fqdn, default_port=None):
-    if ':' in fqdn:
-        fqdn, port = fqdn.split(':')
-        return fqdn, int(port[1])
-    else:
-        return fqdn, default_port
-
-###############################################################################
 # Model
 ###############################################################################
+
+
 class Source(NamedTuple):
     # Server fields:
     server_id       : int
@@ -124,6 +82,7 @@ class Source(NamedTuple):
     # Source or Server fields:
     path            : str
     format          : Optional[str]
+
 
 class Station(NamedTuple):
     stationID           : str
@@ -318,16 +277,15 @@ def source_host_desc(src : Source):
 
 def db_get_sources_for_station(cnn, NetworkCode, StationCode) -> List[Source]:
     return [Source(**r) for r in
-            cnn.query(#'SELECT server_id, "NetworkCode", "StationCode", '
-                      'SELECT server_id, '
-                            'COALESCE(st.path,   sv.path)   AS path, '
-                            'COALESCE(st.format, sv.format) AS format, '
-                            'protocol, fqdn, username, password '
-                       'FROM sources_stations st '
-                       'LEFT JOIN sources_servers sv USING(server_id) '
-                       'WHERE "NetworkCode" = $1 AND '
-                             '"StationCode" = $2 '
-                       'ORDER BY try_order ASC', (NetworkCode, StationCode)).dictresult()]
+            cnn.query('SELECT server_id, '
+                      'COALESCE(st.path,   sv.path)   AS path, '
+                      'COALESCE(st.format, sv.format) AS format, '
+                      'protocol, fqdn, username, password '
+                      'FROM sources_stations st '
+                      'LEFT JOIN sources_servers sv USING(server_id) '
+                      'WHERE "NetworkCode" = \'%s\' AND '
+                      '"StationCode" = \'%s\' '
+                      'ORDER BY try_order ASC' % (NetworkCode, StationCode)).dictresult()]
 
 
 ###############################################################################

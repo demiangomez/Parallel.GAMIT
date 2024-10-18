@@ -33,7 +33,7 @@ from pgamit import pyStationInfo
 from pgamit import pyArchiveStruct
 from pgamit import pyPPP
 from pgamit import Utils
-from pgamit.Utils import process_date, ecef2lla, parse_atx_antennas, determine_frame
+from pgamit.Utils import process_date, ecef2lla, parse_atx_antennas, determine_frame, station_list_help
 from pgamit import pyJobServer
 from pgamit import pyEvents
 
@@ -926,11 +926,7 @@ def main():
     parser = argparse.ArgumentParser(description='Database integrity tools, metadata check and fixing tools program')
 
     parser.add_argument('stnlist', type=str, nargs='+', metavar='all|net.stnm',
-                        help="List of networks/stations to process given in [net].[stnm] format or just [stnm] "
-                             "(separated by spaces; if [stnm] is not unique in the database, all stations with that "
-                             "name will be processed). Use keyword 'all' to process all stations in the database. "
-                             "If [net].all is given, all stations from network [net] will be processed. "
-                             "Alternatevily, a file with the station list can be provided.")
+                        help=station_list_help())
 
     parser.add_argument('-d', '--date_filter', nargs='+', metavar='date',
                         help='Date range filter for all operations. '
