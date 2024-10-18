@@ -21,7 +21,8 @@ import subprocess
 import shutil
 import os
 import time
-import tqdm
+from tqdm import tqdm
+import traceback
 
 # app
 from pgamit.Utils import  file_try_remove, dir_try_remove
