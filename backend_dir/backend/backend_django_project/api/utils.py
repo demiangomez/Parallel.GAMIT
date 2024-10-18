@@ -119,6 +119,10 @@ class StationMetaUtils:
 
                     sdate = srecord.date_start
                     edate = erecord.date_end
+                    
+                    if sdate is None or edate is None:
+                        logger.error(f"Station info record has None value for date_start or date_end. Station: {station_object.network_code.network_code}.{station_object.station_code}")
+                        continue
 
                     # if the delta between previous and current session exceeds one second, check if any rinex falls
                     # in that gap
