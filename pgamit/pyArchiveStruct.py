@@ -41,8 +41,8 @@ class RinexStruct(object):
 
         self.keys     = cnn.query('SELECT * FROM keys').dictresult()
         # read the station and network tables
-        self.networks = cnn.query('SELECT * FROM networks').dictresult()
-        self.stations = cnn.query('SELECT * FROM stations').dictresult()
+        # self.networks = cnn.query('SELECT * FROM networks').dictresult()
+        # self.stations = cnn.query('SELECT * FROM stations').dictresult()
 
         self.Config = pyOptions.ReadOptions(os.path.join(path_cfg, 'gnss_data.cfg'))
 

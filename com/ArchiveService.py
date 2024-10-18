@@ -124,7 +124,7 @@ SELECT "NetworkCode" FROM
                        country_code=ISO3)
         except dbConnection.dbErrInsert as e:
             # another process did the insert before, ignore the error
-            file_append('errors_pyArchiveService.log',
+            file_append('errors_ArchiveService.log',
                         'ON ' + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') +
                         ' an unhandled error occurred:\n' +
                         str(e) + '\n' +
@@ -142,10 +142,10 @@ def callback_handle(job):
 
     def log_job_error(msg):
         tqdm.write(' -- There were unhandled errors during this batch. '
-                   'Please check errors_pyArchiveService.log for details')
+                   'Please check errors_ArchiveService.log for details')
         
         # function to print any error that are encountered during parallel execution
-        file_append('errors_pyArchiveService.log',
+        file_append('errors_ArchiveService.log',
                     'ON ' + datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') +
                     ' an unhandled error occurred:\n' +
                     msg + '\n' +
@@ -414,7 +414,6 @@ def process_crinex_file(crinez, filename, data_rejected, data_retry):
 
                 # check for unreasonable heights
                 if ppp.h[0] > 9000 or ppp.h[0] < -400:
-                    cnn.close()
                     raise pyRinex.pyRinexException(os.path.relpath(crinez, Config.repository_data_in) +
                                                    ' : unreasonable geodetic height (%.3f). '
                                                    'RINEX file will not enter the archive.' % (ppp.h[0]))
@@ -442,7 +441,6 @@ def process_crinex_file(crinez, filename, data_rejected, data_retry):
                                os.path.join(retry_folder, filename),
                                os.path.join(retry_folder, filename.replace(StationCode, match[0]['StationCode'])),
                                StationCode, ppp.x, ppp.y, ppp.z, ppp.lat[0], ppp.lon[0], ppp.h[0])
-                    cnn.close()
                     raise pyPPP.pyRunPPPExceptionCoordConflict(error)
 
                 elif len(match) > 1:
@@ -464,7 +462,6 @@ def process_crinex_file(crinez, filename, data_rejected, data_retry):
                                ', '.join(['%s.%s: %.3f m' %
                                           (m['NetworkCode'], m['StationCode'], m['distance']) for m in match]),
                                StationCode, ppp.x, ppp.y, ppp.z, ppp.lat[0], ppp.lon[0], ppp.h[0])
-                    cnn.close()
                     raise pyPPP.pyRunPPPExceptionCoordConflict(error)
 
                 else:
@@ -767,7 +764,7 @@ def main():
                              depfuncs,
                              callback_handle,
                              pbar,
-                             modules=('pgamit.pyRinex', 'pgamit.pyArchiveStruct', 'pgamit.pyOTL',
+                             modules=('pgamit.pyRinex', 'pgamit.pyArchiveStruct', 'pgamit.pyOTL', 'pgamit.pyPPP',
                                       'pgamit.pyStationInfo', 'pgamit.dbConnection', 'pgamit.Utils', 'pgamit.pyDate',
                                       'pgamit.pyProducts', 'pgamit.pyOptions', 'pgamit.pyEvents', 'pgamit.pyRinexName',
                                       'os', 'uuid', 'datetime', 'numpy', 'traceback', 'platform'))

@@ -569,7 +569,7 @@ class ReadRinex(RinexRecord):
             # most programs still don't support RINEX 3 (partially implemented in this code)
             # convert to RINEX 2.11 using gfzrnx_lx
             cmd = pyRunWithRetry.RunCommand('gfzrnx_lx -finp %s -fout %s.t -vo %i -f'
-                                            % (self.rinex, self.rinex, to_version), 15, self.rootdir)
+                                            % (self.rinex, self.rinex, to_version), 45, self.rootdir)
 
             _, err = cmd.run_shell()
 
@@ -1574,7 +1574,7 @@ class ReadRinex(RinexRecord):
         #                                 % (f1.rinex_path, f1.rinex_path, f2.rinex_path), 5)
         cmd = pyRunWithRetry.RunCommand('gfzrnx_lx -finp %s %s -fout %s -vo %i'
                                         % (f1.rinex_path, f2.rinex_path, f1.rinex_path + '.t',
-                                           int(self.rinex_version * 10) / 10), 15)
+                                           int(self.rinex_version * 10) / 10), 45)
         # leave errors un-trapped on purpose (will raise an error to the parent)
         out, err = cmd.run_shell()
 

@@ -18,7 +18,7 @@ from tqdm import tqdm
 import dispy
 import dispy.httpd
 
-DELAY = 45
+DELAY = 60
 
 
 def test_node(check_gamit_tables=None, check_archive=True, check_executables=True, check_atx=True, software_sync=()):
