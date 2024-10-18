@@ -23,6 +23,7 @@ urlpatterns = [
     path('data-sources', views.DataSourceList.as_view(), name='data_source_list'),
     path('data-sources/<int:pk>', views.DataSourceDetail.as_view(),
          name='data_source_detail'),
+     path('delete-update-gaps-status-block', views.DeleteUpdateGapsStatusBlock.as_view(), name='delete_update_gaps_status_block'),
     path('earthquakes', views.EarthquakesList.as_view(), name='earthquakes_list'),
     path('earthquakes/<int:pk>', views.EarthquakesDetail.as_view(),
          name='earthquakes_detail'),

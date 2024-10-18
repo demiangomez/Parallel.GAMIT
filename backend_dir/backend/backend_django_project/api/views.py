@@ -1142,3 +1142,10 @@ class UpdateGapsStatus(APIView):
             return Response(status=status.HTTP_201_CREATED)
         else:
             return Response(status=status.HTTP_429_TOO_MANY_REQUESTS)
+        
+class DeleteUpdateGapsStatusBlock(APIView):
+    serializer_class = serializers.DummySerializer
+
+    def post(self, request, format=None):
+        cache.delete('update_gaps_status_lock')
+        return Response(status=status.HTTP_201_CREATED)

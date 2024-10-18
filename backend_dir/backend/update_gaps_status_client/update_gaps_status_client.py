@@ -9,7 +9,7 @@ if __name__ == "__main__":
     """
     timeout_value = 2 * 60 * 60 # 2 hours
     update_url = 'http://localhost:8000/api/update-gaps-status'
-
+    delete_block_url = 'http://localhost:8000/api/delete-update-gaps-status-block'
 
     def get_token():
         url = 'http://localhost:8000/api/token'
@@ -27,12 +27,22 @@ if __name__ == "__main__":
             return None
         
     sleep(120) # wait for the server to start
-
+    failed_request_counter = 0
     while True:
         
         token = get_token()
         headers = {
             'Authorization': f'Bearer {token}'
         }
+
+        if failed_request_counter >= 20:
+            requests.post(delete_block_url, headers=headers, timeout=timeout_value)
+
         response = requests.post(update_url, headers=headers, timeout=timeout_value)
+        
+        if response.status_code == 429:
+            failed_request_counter += 1
+        else:
+            failed_request_counter = 0
+
         sleep(10)

@@ -908,14 +908,15 @@ class Endpoint(BaseModel):
     path = models.CharField(max_length=100)
     description = models.CharField(max_length=100, blank=True)
 
-    METHOD_CHOICES = {
-        "GET": "GET",
-        "POST": "POST",
-        "PUT": "PUT",
-        "DELETE": "DELETE",
-        "PATCH": "PATCH",
-        "ALL": "ALL"
-    }
+    METHOD_CHOICES = [
+        ("GET", "GET"),
+        ("POST", "POST"),
+        ("PUT", "PUT"),
+        ("DELETE", "DELETE"),
+        ("PATCH", "PATCH"),
+        ("ALL", "ALL")
+    ]
+
 
     method = models.CharField(max_length=6, choices=METHOD_CHOICES)
 
