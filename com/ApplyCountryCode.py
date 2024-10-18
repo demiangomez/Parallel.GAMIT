@@ -7,7 +7,6 @@ Author: Demian D. Gomez
 This script assigns country codes to the stations table
 """
 from pgamit import dbConnection
-from pgamit import pyOptions
 import country_converter as coco
 
 from geopy.geocoders import Nominatim
@@ -17,7 +16,6 @@ from geopy.extra.rate_limiter import RateLimiter
 def main():
     geolocator = Nominatim(user_agent="Parallel.GAMIT")
 
-    config = pyOptions.ReadOptions('gnss_data.cfg')
     cnn = dbConnection.Cnn('gnss_data.cfg')
 
     stations = cnn.query('''SELECT * FROM stations
