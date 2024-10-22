@@ -5,6 +5,7 @@ import { StationInfoModal, StationMetadataModal } from "@componentsReact";
 
 import {
     CodeBracketIcon,
+    DocumentTextIcon,
     InformationCircleIcon,
     PaperAirplaneIcon,
     UsersIcon,
@@ -45,10 +46,15 @@ const Sidebar = ({
         Information: InformationCircleIcon,
         Metadata: CodeBracketIcon,
         Visits: PaperAirplaneIcon,
+        Rinex: DocumentTextIcon,
         People: UsersIcon,
     };
 
     const longTitles = ["Information", "Metadata", "Visits", "People"];
+    //    const longTitles = ["Information", "Metadata", "Visits", "Rinex", "People"];
+
+    const stationPages = ["People", "Visits"];
+    // const stationPages = ["People", "Visits", "Rinex"];
 
     // const admTitles = ["Admin", "Users", "Settings"];
     const sidebarWidth = show ? "w-72" : "w-32";
@@ -98,20 +104,17 @@ const Sidebar = ({
                                                 text-gray-400 rounded-lg justify-center"
                                                         key={title + idx}
                                                         onClick={() => {
-                                                            title === "People"
+                                                            stationPages.includes(
+                                                                title,
+                                                            )
                                                                 ? navigate(
-                                                                      `/${station.network_code}/${station.station_code}/people`,
+                                                                      `/${station.network_code}/${station.station_code}/${title.toLowerCase()}`,
                                                                   )
-                                                                : title ===
-                                                                    "Visits"
-                                                                  ? navigate(
-                                                                        `/${station.network_code}/${station.station_code}/visits`,
-                                                                    )
-                                                                  : setModals({
-                                                                        show: true,
-                                                                        title: title,
-                                                                        type: "none",
-                                                                    });
+                                                                : setModals({
+                                                                      show: true,
+                                                                      title: title,
+                                                                      type: "none",
+                                                                  });
                                                         }}
                                                     >
                                                         <span className="mx-4 text-lg font-normal">

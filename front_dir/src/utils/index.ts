@@ -1,4 +1,4 @@
-import { TokenPayload } from "@types";
+import { GapData, StationData, TokenPayload } from "@types";
 
 export const modalSizes = {
     sm: "500px",
@@ -25,7 +25,12 @@ export const datesFormatOpt: Intl.DateTimeFormatOptions = {
 };
 
 export const formattedDates = (date: Date | string | undefined) => {
-    const formattedDate = date?.toLocaleString("en-US", datesFormatOpt);
+    if (!date) return;
+
+    const formattedDate = new Intl.DateTimeFormat(
+        "en-US",
+        datesFormatOpt,
+    ).format(new Date(date));
     return formattedDate;
 };
 
@@ -45,6 +50,12 @@ export const validateFields = (
         }
     }
     return true;
+};
+
+export const isValidNumber = (num: string) => {
+    if (num === "") return true;
+    const regex = /^(0|[1-9]\d*)(\.\d+)?$/;
+    return regex.test(num);
 };
 
 export const isValidDate = (dateString: string) => {
@@ -101,8 +112,9 @@ export const dateFromDay = (day: string) => {
     const formattedMinutes = minutes.padStart(2, "0");
     const formattedSeconds = seconds.padStart(2, "0");
 
+    const formattedYear = year.padStart(4, "0");
     const date = new Date(
-        `${year}-01-01T${formattedHours}:${formattedMinutes}:${formattedSeconds}Z`,
+        `${formattedYear}-01-01T${formattedHours}:${formattedMinutes}:${formattedSeconds}Z`,
     );
     // Corrección: Sumar los días como milisegundos al 1 de enero del año dado
     date.setTime(date.getTime() + (Number(formattedDayOfYear) - 1) * 86400000);
@@ -150,6 +162,50 @@ export const dayFromDate = (date: Date | string) => {
     // }`;
 };
 
+export const generateErrorMessages = (station: StationData) => {
+    const errorMessages: string[] = [];
+
+    if (!station.has_stationinfo) {
+        errorMessages.push("Station has no station information records!");
+    }
+
+    if (station.gaps && station.gaps.length !== 0) {
+        station?.gaps?.forEach((gap: GapData) => {
+            const {
+                record_start_date_start,
+                record_end_date_end,
+                record_end_date_start,
+                record_start_date_end,
+                rinex_count,
+            } = gap;
+
+            if (record_start_date_start && record_end_date_end) {
+                errorMessages.push(
+                    `At least ${rinex_count} RINEX file(s) outside of station info record ending at ${formattedDates(new Date(record_end_date_end))} and next record starting at ${formattedDates(new Date(record_start_date_start))}`,
+                );
+            } else if (
+                record_start_date_start &&
+                !record_end_date_end &&
+                !record_end_date_start
+            ) {
+                errorMessages.push(
+                    `At least ${rinex_count} RINEX file(s) outside of station info record starting at ${formattedDates(new Date(record_start_date_start))}`,
+                );
+            } else if (
+                record_end_date_end &&
+                !record_start_date_end &&
+                !record_start_date_start
+            ) {
+                errorMessages.push(
+                    `At least ${rinex_count} RINEX file(s) outside of station info record ending at ${formattedDates(new Date(record_end_date_end))}`,
+                );
+            }
+        });
+    }
+
+    return errorMessages;
+};
+
 export const transformParams = (params: any) => {
     return Object.entries(params)
         .map(([key, value]) => `${key}=${value}`)
@@ -188,4 +244,310 @@ export const decimalToDMS = (coordinate: number, isLatitude: boolean) => {
           : "W";
 
     return `${degrees}°${minutes}'${seconds.toFixed(4)}"${direction}`;
+};
+
+export const rinexMockup = {
+    data: [
+        {
+            related_station_info: [
+                {
+                    date_start: "2024-01-01",
+                    date_end: "2024-01-02",
+                },
+                {
+                    date_start: "2024-01-03",
+                    date_end: "2024-01-04",
+                },
+            ],
+            rinex: [
+                {
+                    related_station_info: [
+                        {
+                            date_start: "2024-01-01",
+                            date_end: "2024-01-02",
+                        },
+                    ],
+                    rinex: [
+                        {
+                            network_code: "sag",
+                            station_code: "ceca",
+                            has_station_info: false,
+                            has_multiple_station_info_gap: false,
+                            metadata_mismatch: false,
+                            gap_type: null,
+                            year: null,
+                            doy: null,
+                            timestamp_start: null,
+                            timestamp_end: null,
+                            receiver: null,
+                            rx_sn: null,
+                            rx_firm: null,
+                            antenna: null,
+                            ant_sn: null,
+                            dome: null,
+                            offset: null,
+                            int: null,
+                            comp: 0.9,
+                        },
+                        {
+                            network_code: "sag",
+                            station_code: "ceca",
+                            has_station_info: false,
+                            has_multiple_station_info_gap: false,
+                            metadata_mismatch: false,
+                            gap_type: "AFTER LAST STATIONINFO",
+                            year: null,
+                            doy: null,
+                            timestamp_start: null,
+                            timestamp_end: null,
+                            receiver: null,
+                            rx_sn: null,
+                            rx_firm: null,
+                            antenna: null,
+                            ant_sn: null,
+                            dome: null,
+                            offset: null,
+                            int: null,
+                            comp: 0.81,
+                        },
+                    ],
+                },
+            ],
+        },
+        {
+            related_station_info: [
+                // STATIONS INFOS QUE ABARCA EL PRIMER GRUPO
+                {
+                    date_start: "2024-01-01",
+                    date_end: "2024-01-02",
+                },
+                {
+                    date_start: "2024-01-03",
+                    date_end: "2024-01-04",
+                },
+            ],
+            rinex: [
+                {
+                    // C/OBJETO CORRESPONDE AL SEGUNDO GRUPO, PUEDE TENR MAS DE UN RINEX ASOCIADO AL STATION INFO
+                    related_station_info: [
+                        {
+                            date_start: "2024-01-01",
+                            date_end: "2024-01-02",
+                        },
+                    ],
+                    rinex: [
+                        {
+                            network_code: "sag",
+                            station_code: "ceca",
+
+                            has_station_info: true,
+                            metadata_mismatch: false,
+                            has_multiple_station_info_gap: false,
+                            gap_type: null,
+
+                            year: null,
+                            doy: null,
+                            timestamp_start: null,
+                            timestamp_end: null,
+                            receiver: null,
+                            rx_sn: null,
+                            rx_firm: null,
+                            antenna: null,
+                            ant_sn: null,
+                            dome: null,
+                            offset: null,
+                            int: null,
+                            comp: 0.7,
+                        },
+                        {
+                            network_code: "sag",
+                            station_code: "ceca",
+
+                            has_station_info: false,
+                            metadata_mismatch: false,
+                            has_multiple_station_info_gap: false,
+                            gap_type: "AFTER LAST STATIONINFO",
+
+                            year: null,
+                            doy: null,
+                            timestamp_start: null,
+                            timestamp_end: null,
+                            receiver: null,
+                            rx_sn: null,
+                            rx_firm: null,
+                            antenna: null,
+                            ant_sn: null,
+                            dome: null,
+                            offset: null,
+                            int: null,
+                            comp: 0.86,
+                        },
+                        {
+                            network_code: "sag",
+                            station_code: "ceca",
+                            has_station_info: false,
+                            metadata_mismatch: false,
+                            has_multiple_station_info_gap: false,
+                            gap_type: "BEFORE FIRST STATIONINFO",
+                            year: null,
+                            doy: null,
+                            timestamp_start: null,
+                            timestamp_end: null,
+                            receiver: null,
+                            rx_sn: null,
+                            rx_firm: null,
+                            antenna: null,
+                            ant_sn: null,
+                            dome: null,
+                            offset: null,
+                            int: null,
+                            comp: 0.1,
+                        },
+                    ],
+                },
+                {
+                    related_station_info: [
+                        {
+                            date_start: "2024-01-01",
+                            date_end: "2024-01-02",
+                        },
+                    ],
+                    rinex: [
+                        {
+                            network_code: "sag",
+                            station_code: "ceca",
+                            has_station_info: false,
+                            has_multiple_station_info_gap: false,
+                            metadata_mismatch: false,
+                            gap_type: null,
+                            year: null,
+                            doy: null,
+                            timestamp_start: null,
+                            timestamp_end: null,
+                            receiver: null,
+                            rx_sn: null,
+                            rx_firm: null,
+                            antenna: null,
+                            ant_sn: null,
+                            dome: null,
+                            offset: null,
+                            int: null,
+                            comp: 0.7,
+                        },
+                        {
+                            network_code: "sag",
+                            station_code: "ceca",
+                            has_station_info: false,
+                            has_multiple_station_info_gap: false,
+                            metadata_mismatch: false,
+                            gap_type: "BEFORE FIRST STATIONINFO",
+                            year: null,
+                            doy: null,
+                            timestamp_start: null,
+                            timestamp_end: null,
+                            receiver: null,
+                            rx_sn: null,
+                            rx_firm: null,
+                            antenna: null,
+                            ant_sn: null,
+                            dome: null,
+                            offset: null,
+                            int: null,
+                            comp: 0.5,
+                        },
+                    ],
+                },
+            ],
+        },
+        {
+            related_station_info: [
+                {
+                    date_start: "2024-01-01",
+                    date_end: "2024-01-02",
+                },
+                {
+                    date_start: "2024-01-03",
+                    date_end: "2024-01-04",
+                },
+            ],
+            rinex: [
+                {
+                    related_station_info: [
+                        {
+                            date_start: "2024-01-01",
+                            date_end: "2024-01-02",
+                        },
+                    ],
+                    rinex: [
+                        {
+                            network_code: "sag",
+                            station_code: "ceca",
+                            has_station_info: true,
+                            has_multiple_station_info_gap: true,
+                            metadata_mismatch: false,
+                            gap_type: null,
+                            year: null,
+                            doy: null,
+                            timestamp_start: null,
+                            timestamp_end: null,
+                            receiver: null,
+                            rx_sn: null,
+                            rx_firm: null,
+                            antenna: null,
+                            ant_sn: null,
+                            dome: null,
+                            offset: null,
+                            int: null,
+                            comp: 0.3,
+                        },
+                    ],
+                },
+            ],
+        },
+        {
+            related_station_info: [
+                {
+                    date_start: "2024-01-01",
+                    date_end: "2024-01-02",
+                },
+                {
+                    date_start: "2024-01-03",
+                    date_end: "2024-01-04",
+                },
+            ],
+            rinex: [
+                {
+                    related_station_info: [
+                        {
+                            date_start: "2024-01-01",
+                            date_end: "2024-01-02",
+                        },
+                    ],
+                    rinex: [
+                        {
+                            network_code: "sag",
+                            station_code: "ceca",
+                            has_station_info: false,
+                            has_multiple_station_info_gap: false,
+                            metadata_mismatch: false,
+                            gap_type: "AFTER LAST STATIONINFO",
+                            year: null,
+                            doy: null,
+                            timestamp_start: null,
+                            timestamp_end: null,
+                            receiver: null,
+                            rx_sn: null,
+                            rx_firm: null,
+                            antenna: null,
+                            ant_sn: null,
+                            dome: null,
+                            offset: null,
+                            int: null,
+                            comp: 0.4,
+                        },
+                    ],
+                },
+            ],
+        },
+    ],
 };

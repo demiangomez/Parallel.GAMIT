@@ -46,7 +46,7 @@ const Table = ({
     return (
         <div className={visibleTooltipIndex === null ? `overflow-x-auto` : ""}>
             <table className="table table-zebra bg-neutral-content">
-                <thead>
+                <thead className="">
                     <tr>
                         {titles.length > 0 ? (
                             <>
@@ -72,7 +72,7 @@ const Table = ({
 
                         {titles.map((title, index) => (
                             <th
-                                className="text-center text-neutral"
+                                className="text-center text-neutral max-w-[200px]"
                                 key={index}
                             >
                                 {title
@@ -177,10 +177,16 @@ const Table = ({
                                                 key={idx}
                                                 title={
                                                     titles[idx] !== "Visit"
-                                                        ? String(val) ?? ""
+                                                        ? isDate
+                                                            ? formattedDates(
+                                                                  new Date(
+                                                                      val as string,
+                                                                  ),
+                                                              )
+                                                            : String(val) ?? ""
                                                         : ""
                                                 }
-                                                className={`text-center 
+                                                className={`text-center max-w-[200px] overflow-visible text-ellipsis whitespace-nowrap
                                                     ${
                                                         titles[idx] ===
                                                             "country_code" &&
@@ -282,69 +288,70 @@ const Table = ({
                                                                   ) + "..."
                                                                 : val}
                                                         </div>
-
-                                                        <div
-                                                            className={` absolute -translate-x-2/4 left-[50%] top-auto bottom-6 ${
-                                                                visibleTooltipIndex ===
-                                                                index
-                                                                    ? "block"
-                                                                    : "hidden"
-                                                            } bg-gray-800 text-white p-2 rounded 
-                                                            text-pretty whitespace-nowrap w-[200px] z-auto`}
-                                                            onMouseEnter={() =>
-                                                                setVisibleTooltipIndex(
-                                                                    index,
-                                                                )
-                                                            }
-                                                            onMouseLeave={() =>
-                                                                setVisibleTooltipIndex(
-                                                                    null,
-                                                                )
-                                                            }
-                                                        >
-                                                            {alterInfo?.[
-                                                                `${state?.[index].name}/~/${state?.[index].id}`
-                                                            ]?.map(
-                                                                (
-                                                                    v: StationVisitsData,
-                                                                ) => {
-                                                                    const stationNetwork =
-                                                                        v?.station_formatted?.split(
-                                                                            ".",
-                                                                        )[0];
-                                                                    const stationCode =
-                                                                        v?.station_formatted?.split(
-                                                                            ".",
-                                                                        )[1];
-                                                                    return (
-                                                                        <Link
-                                                                            className="text-base block mb-1 even:bg-gray-700 rounded last:mb-0"
-                                                                            key={
-                                                                                v.id
-                                                                            }
-                                                                            to={`/${stationNetwork}/${stationCode}/visits`}
-                                                                            state={{
-                                                                                visitDetail:
-                                                                                    v,
-                                                                            }}
-                                                                        >
-                                                                            {" " +
-                                                                                "(" +
-                                                                                v.station_formatted +
-                                                                                ")" +
-                                                                                " - " +
-                                                                                v.date}{" "}
-                                                                        </Link>
-                                                                    );
-                                                                },
-                                                            )}
+                                                        {alterInfo && (
                                                             <div
-                                                                className="absolute top-[100%] left-2/4 w-0 
+                                                                className={`absolute -translate-x-2/4 left-[50%] top-auto bottom-6 ${
+                                                                    visibleTooltipIndex ===
+                                                                    index
+                                                                        ? "block"
+                                                                        : "hidden"
+                                                                } bg-gray-800 text-white p-2 rounded 
+                                                            text-pretty whitespace-nowrap w-[200px] z-50 overflow-visible`}
+                                                                onMouseEnter={() =>
+                                                                    setVisibleTooltipIndex(
+                                                                        index,
+                                                                    )
+                                                                }
+                                                                onMouseLeave={() =>
+                                                                    setVisibleTooltipIndex(
+                                                                        null,
+                                                                    )
+                                                                }
+                                                            >
+                                                                {alterInfo?.[
+                                                                    `${state?.[index].name}/~/${state?.[index].id}`
+                                                                ]?.map(
+                                                                    (
+                                                                        v: StationVisitsData,
+                                                                    ) => {
+                                                                        const stationNetwork =
+                                                                            v?.station_formatted?.split(
+                                                                                ".",
+                                                                            )[0];
+                                                                        const stationCode =
+                                                                            v?.station_formatted?.split(
+                                                                                ".",
+                                                                            )[1];
+                                                                        return (
+                                                                            <Link
+                                                                                className="text-base block mb-1 even:bg-gray-700 rounded last:mb-0"
+                                                                                key={
+                                                                                    v.id
+                                                                                }
+                                                                                to={`/${stationNetwork}/${stationCode}/visits`}
+                                                                                state={{
+                                                                                    visitDetail:
+                                                                                        v,
+                                                                                }}
+                                                                            >
+                                                                                {" " +
+                                                                                    "(" +
+                                                                                    v.station_formatted +
+                                                                                    ")" +
+                                                                                    " - " +
+                                                                                    v.date}{" "}
+                                                                            </Link>
+                                                                        );
+                                                                    },
+                                                                )}
+                                                                <div
+                                                                    className="absolute top-[100%] left-2/4 w-0 
                                                             -translate-x-2/4 h-0 border-l-8 border-l-transparent 
                                                             border-r-8 border-r-transparent border-t-8
                                                              border-t-gray-800"
-                                                            ></div>
-                                                        </div>
+                                                                ></div>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 ) : (
                                                     "-"

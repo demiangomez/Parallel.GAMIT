@@ -13,6 +13,7 @@ import {
     Station,
     Overview,
     Campaigns,
+    Rinex,
 } from "@pagesReact";
 
 import { StationMain, StationPeople, StationVisits } from "@componentsReact";
@@ -74,6 +75,17 @@ const router = createBrowserRouter(
                     }}
                 >
                     <Route index element={<StationMain />} />
+                    {/* <Route
+                        path="rinex"
+                        element={<Rinex />}
+                        handle={{
+                            crumb: () => {
+                                return "Rinex";
+                            },
+                        }}
+                    />
+                        TODO: ADD RINEX ROUTE AND SIDEBAR
+                    */}
                     <Route
                         path="people"
                         element={<StationPeople />}

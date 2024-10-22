@@ -12,9 +12,9 @@ interface Props {
 
 const CardContainer = ({
     title,
-    addButton,
     height,
     titlePosition,
+    addButton,
     addFunction,
     children,
 }: Props) => {

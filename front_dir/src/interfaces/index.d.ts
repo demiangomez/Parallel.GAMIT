@@ -7,7 +7,25 @@ export interface GetParams {
     antenna_code?: string;
     station_api_id?: string;
     visit_api_id?: string;
+    api_id?: string;
     role_type?: "FRONT" | "API";
+    observation_doy?: string | number;
+    observation_f_year?: string | number;
+    observation_s_time_since?: string;
+    observation_s_time_until?: string;
+    observation_e_time_since?: string;
+    observation_e_time_until?: string;
+    observation_year?: string | number;
+    antenna_dome?: string;
+    antenna_offset?: string | number;
+    antenna_serial?: string;
+    antenna_type?: string;
+    receiver_fw?: string;
+    receiver_serial?: string;
+    receiver_type?: string;
+    completion_operator?: string;
+    completion?: string | number;
+    interval?: string | number;
     offset: number;
     limit: number;
 }
@@ -164,6 +182,22 @@ export interface RinexServiceData {
     statusCode: number;
 }
 
+export interface RinexRelatedStationInfo {
+    api_id: number;
+    date_end: string;
+    date_start: string;
+}
+
+interface RinexItem {
+    rinex: RinexData[];
+    related_station_info: RinexRelatedStationInfo[];
+}
+
+interface RinexObject {
+    related_station_info: RinexRelatedStationInfo[];
+    rinex: RinexItem[];
+    groupId?: string;
+}
 export interface LoginServiceData {
     refresh: string;
     access: string;
@@ -418,9 +452,9 @@ export interface CountriesData {
 }
 
 export interface RinexData {
-    api_id: number;
     network_code: string;
     station_code: string;
+    filtered: boolean;
     observation_year: number;
     observation_month: number;
     observation_day: number;
@@ -438,6 +472,11 @@ export interface RinexData {
     interval: number;
     antenna_offset: number;
     completion: number;
+    api_id: number;
+    has_station_info: boolean;
+    has_multiple_station_info_gap: boolean;
+    metadata_mismatch: string[];
+    gap_type: string | null;
 }
 
 export interface ExtendedStationData extends StationData {

@@ -21,3 +21,7 @@ export { default as Users } from "./Users/Users";
 // Campaigns
 
 export { default as Campaigns } from "./Campaigns/Campaigns";
+
+// Rinex
+
+export { default as Rinex } from "./Rinex/Rinex";

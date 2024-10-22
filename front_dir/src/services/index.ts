@@ -342,6 +342,29 @@ export async function postStationInfoService<T>(
     }
 }
 
+// mandas como form-data un archivo con key "file"
+
+export async function postStationInfoByFileService<T>(
+    api: AxiosInstance,
+    station_api_id: number,
+    data: FormData,
+): Promise<T> {
+    try {
+        const response = await api.post(
+            `api/${station_api_id}/insert-station-info-by-file`,
+            data,
+            {
+                headers: {
+                    "Content-Type": "multipart/form-data",
+                },
+            },
+        );
+        return response.data as Promise<T>;
+    } catch (err) {
+        return Promise.reject(err);
+    }
+}
+
 export async function putStationInfoService<T>(
     api: AxiosInstance,
     id: number,
@@ -1039,6 +1062,50 @@ export async function getRinexService<T>(
         const paramsArr = params ? transformParams(params) : "";
         const response = await api.get(
             `api/rinex${paramsArr.length > 0 ? `?${paramsArr}` : ""}`,
+        );
+        return response.data as Promise<T>;
+    } catch (error) {
+        return Promise.reject(error);
+    }
+}
+
+export async function getRinexWithStatusService<T>(
+    api: AxiosInstance,
+    station_api_id: number,
+    params?: GetParams,
+): Promise<T> {
+    try {
+        const paramsArr = params ? transformParams(params) : "";
+        const response = await api.get(
+            `api/get-rinex-with-status/${station_api_id}${paramsArr.length > 0 ? `?${paramsArr}` : ""}`,
+        );
+        return response.data as Promise<T>;
+    } catch (error) {
+        return Promise.reject(error);
+    }
+}
+
+export async function postExtendUpRinexService<T>(
+    api: AxiosInstance,
+    rinex_api_id: number,
+): Promise<T> {
+    try {
+        const response = await api.post(
+            `api/rinex/${rinex_api_id}/cover-date-start`,
+        );
+        return response.data as Promise<T>;
+    } catch (error) {
+        return Promise.reject(error);
+    }
+}
+
+export async function postExtendDownRinexService<T>(
+    api: AxiosInstance,
+    rinex_api_id: number,
+): Promise<T> {
+    try {
+        const response = await api.post(
+            `api/rinex/${rinex_api_id}/cover-date-end`,
         );
         return response.data as Promise<T>;
     } catch (error) {

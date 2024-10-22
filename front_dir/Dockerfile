@@ -2,7 +2,7 @@ FROM node:22 AS build
 
 WORKDIR /app
 COPY . /app
-COPY .env /app/.env
+COPY .env.sample /app/.env
 
 COPY package*.json /app/
 
@@ -20,6 +20,6 @@ COPY nginx.conf /etc/nginx/nginx.conf
 # Configure tini as the init system
 ENTRYPOINT ["/usr/bin/tini", "--"]
 
-EXPOSE 5100
+EXPOSE 80
 
 CMD ["nginx", "-g", "daemon off;"]

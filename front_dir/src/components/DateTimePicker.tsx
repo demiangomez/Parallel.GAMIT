@@ -47,7 +47,8 @@ const DateTimePicker = ({
     const handleChangeTime = (date: Date, time: string, typeKey: string) => {
         const [hh, mm, ss] = time.split(":");
         const targetDate = date instanceof Date ? date : new Date();
-        targetDate.setHours(Number(hh), Number(mm), Number(ss));
+        targetDate.setHours(Number(hh || 0), Number(mm || 0), Number(ss || 0));
+
         if (typeKey === "date_start") {
             setStartDate(targetDate);
         } else {
@@ -67,7 +68,13 @@ const DateTimePicker = ({
 
     const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const targetIsoDate =
-            e.target.value +
+            (e.target.value !== ""
+                ? e.target.value
+                : typeKey === "date_start" && startDate
+                  ? startDate.toISOString().split("T")[0]
+                  : typeKey === "date_end" && endDate
+                    ? endDate.toISOString().split("T")[0]
+                    : "") +
             (typeKey === "date_start" ? "T00:00:00" : "T23:59:59");
 
         const newDate = new Date(targetIsoDate);
@@ -90,6 +97,14 @@ const DateTimePicker = ({
         }
     };
 
+    const formattedDates = (date: Date) => {
+        const wotzDate = woTz(date);
+
+        if (wotzDate !== 0) {
+            return wotzDate?.toISOString().split("T")[0];
+        }
+    };
+
     return (
         <>
             <div className="badge badge-ghost">
@@ -97,9 +112,9 @@ const DateTimePicker = ({
                     type="date"
                     defaultValue={
                         typeKey === "date_start" && startDate
-                            ? startDate.toISOString().split("T")[0]
+                            ? formattedDates(startDate)
                             : typeKey === "date_end" && endDate
-                              ? endDate.toISOString().split("T")[0]
+                              ? formattedDates(endDate)
                               : ""
                     }
                     onChange={handleDateChange}

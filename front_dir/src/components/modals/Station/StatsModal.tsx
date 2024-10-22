@@ -55,7 +55,7 @@ interface EditStatsModalProps {
             | undefined
         >
     >;
-    setStationInfo: React.Dispatch<
+    setStationInfo?: React.Dispatch<
         React.SetStateAction<StationInfoData | undefined>
     >;
     reFetch: () => void;
@@ -118,7 +118,7 @@ const EditStatsModal = ({
     >(undefined);
 
     useEffect(() => {
-        if (stationInfo && modalType === "edit") {
+        if (stationInfo && (modalType === "edit" || modalType === "none")) {
             stationInfo.antenna_east =
                 stationInfo.antenna_east !== null
                     ? stationInfo.antenna_east.toString()
@@ -330,7 +330,7 @@ const EditStatsModal = ({
     const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setMsg(undefined);
-        if (modalType === "add") {
+        if (modalType === "add" || modalType === "none") {
             postStationInfo();
         } else if (modalType === "edit") {
             putStationInfo();
@@ -370,7 +370,7 @@ const EditStatsModal = ({
     }, [formState.date_end]);
 
     const closeModal = () => {
-        setStationInfo(undefined);
+        setStationInfo ? setStationInfo(undefined) : null;
         reFetch();
 
         STATION_INFO_STATE.network_code = nc ?? "";
@@ -408,7 +408,9 @@ const EditStatsModal = ({
             setModalState={setStateModal}
         >
             <h3 className="font-bold text-center text-2xl my-2 w-full">
-                {modalType.charAt(0).toUpperCase() + modalType.slice(1)}
+                {modalType === "none"
+                    ? "Add"
+                    : modalType.charAt(0).toUpperCase() + modalType.slice(1)}
             </h3>
             <form className="form-control space-y-4" onSubmit={handleSubmit}>
                 <div className="form-control space-y-2">

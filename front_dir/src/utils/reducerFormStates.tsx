@@ -68,3 +68,22 @@ export const CAMPAIGN_STATE = {
     start_date: "",
     end_date: "",
 };
+
+export const RINEX_FILTERS_STATE = {
+    antenna_dome: "",
+    antenna_offset: "",
+    antenna_serial: "",
+    antenna_type: "",
+    completion: "",
+    interval: "",
+    day: "",
+    doy: "",
+    e_time: "",
+    f_year: "",
+    month: "",
+    s_time: "",
+    year: "",
+    receiver_fw: "",
+    receiver_serial: "",
+    receiver_type: "",
+};

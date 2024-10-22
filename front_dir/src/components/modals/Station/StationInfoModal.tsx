@@ -11,6 +11,7 @@ import { showModal } from "@utils";
 
 import {
     GetParams,
+    RinexRelatedStationInfo,
     StationData,
     StationInfoData,
     StationInfoServiceData,
@@ -19,6 +20,7 @@ import {
 interface StationInfoModalProps {
     close: boolean;
     size?: "sm" | "md" | "lg" | "xl" | "fit";
+    rinexStationInfo?: RinexRelatedStationInfo[] | undefined;
     station?: StationData | undefined;
     setModalState: React.Dispatch<
         React.SetStateAction<
@@ -32,6 +34,7 @@ interface StationInfoModalProps {
 const StationInfoModal = ({
     close,
     station,
+    rinexStationInfo,
     size,
     setModalState,
     refetch,
@@ -90,6 +93,25 @@ const StationInfoModal = ({
     const [pages, setPages] = useState<number>(0);
     const PAGES_TO_SHOW = 2;
 
+    const getAllStationInfo = async (totalCount: number) => {
+        let allData: StationInfoData[] = [];
+
+        const newParams = {
+            ...params,
+            limit: 0,
+            offset: totalCount,
+        };
+
+        const res = await getStationInfoService<StationInfoServiceData>(
+            api,
+            newParams,
+        );
+
+        allData = [...res.data];
+
+        return allData;
+    };
+
     const getStationInfo = async () => {
         try {
             setLoading(true);
@@ -97,8 +119,22 @@ const StationInfoModal = ({
                 api,
                 bParams,
             );
-            setStationInfos(res.data);
-            setPages(Math.ceil(res.total_count / bParams.limit));
+
+            let allData = res.data;
+            if (rinexStationInfo) {
+                allData = await getAllStationInfo(res.total_count);
+                allData = allData.filter((st) =>
+                    rinexStationInfo.some((r) => r.api_id === st.api_id),
+                );
+            }
+
+            const totalItems = rinexStationInfo
+                ? allData.length
+                : res.total_count;
+            const totalPages = Math.ceil(totalItems / REGISTERS_PER_PAGE);
+
+            setStationInfos(allData);
+            setPages(totalPages);
         } catch (err) {
             console.error(err);
         } finally {
@@ -113,7 +149,21 @@ const StationInfoModal = ({
                 api,
                 newParams,
             );
-            setStationInfos(res.data);
+
+            let filteredData = res.data;
+            if (rinexStationInfo) {
+                filteredData = res.data.filter((st) =>
+                    rinexStationInfo.some((r) => r.api_id === st.api_id),
+                );
+            }
+
+            setStationInfos(filteredData);
+
+            const totalItems = rinexStationInfo
+                ? filteredData.length
+                : res.total_count;
+            const totalPages = Math.ceil(totalItems / REGISTERS_PER_PAGE);
+            setPages(totalPages);
         } catch (err) {
             console.error(err);
         } finally {
@@ -123,20 +173,12 @@ const StationInfoModal = ({
 
     const handlePage = (page: number) => {
         if (page < 1 || page > pages) return;
-        let newParams;
-        if (page === 1) {
-            newParams = {
-                ...params,
-                limit: REGISTERS_PER_PAGE * 1,
-                offset: REGISTERS_PER_PAGE * (page - 1),
-            };
-        } else {
-            newParams = {
-                ...params,
-                limit: REGISTERS_PER_PAGE,
-                offset: REGISTERS_PER_PAGE * (page - 1),
-            };
-        }
+
+        const newParams = {
+            ...params,
+            limit: REGISTERS_PER_PAGE,
+            offset: REGISTERS_PER_PAGE * (page - 1),
+        };
 
         setParams(newParams);
         setActivePage(page);

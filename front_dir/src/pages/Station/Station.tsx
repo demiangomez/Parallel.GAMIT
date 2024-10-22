@@ -31,6 +31,8 @@ import {
     StationVisitsData,
     StationVisitsServiceData,
 } from "@types";
+import { generateErrorMessages } from "@utils/index";
+import { ExclamationCircleIcon } from "@heroicons/react/24/outline";
 
 const Station = () => {
     const { sc, nc } = useParams<{ sc: string; nc: string }>();
@@ -209,6 +211,8 @@ const Station = () => {
           station?.station_code?.toUpperCase()
         : "Station not found";
 
+    const errorMessages = station ? generateErrorMessages(station) : [];
+
     return (
         <div className="max-h-[92vh] transition-all duration-200">
             {loading ? (
@@ -250,11 +254,22 @@ const Station = () => {
                                     setLoadPdf={setLoadPdf}
                                 />
                             )}
+
+                            {location.pathname === `/${nc}/${sc}/rinex` &&
+                                errorMessages.length > 0 && (
+                                    <div className="indicator absolute bottom-2 left-2">
+                                        <ExclamationCircleIcon
+                                            className={`size-7 fill-red-500`}
+                                            title={errorMessages.join("\n")}
+                                        />
+                                    </div>
+                                )}
                         </h1>
                         <Outlet
                             context={{
                                 station,
                                 stationMeta,
+                                showSidebar,
                                 images,
                                 photoLoading,
                                 loadPdf,

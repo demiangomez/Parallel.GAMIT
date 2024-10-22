@@ -8,4 +8,4 @@ services:
             - .env:/app/.env
             - ./nginx.conf:/etc/nginx/nginx.conf
         ports:
-            - 5100:5100
+            - 80:80

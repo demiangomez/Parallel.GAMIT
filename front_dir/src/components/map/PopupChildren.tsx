@@ -6,14 +6,13 @@ import { useAuth } from "@hooks/useAuth";
 import { getRinexService, getStationMetaService } from "@services";
 
 import {
-    GapData,
     RinexData,
     RinexServiceData,
     StationData,
     StationMetadataServiceData,
 } from "@types";
 
-import { formattedDates } from "@utils";
+import { formattedDates, generateErrorMessages } from "@utils";
 
 interface PopupChildrenProps {
     station: StationData | undefined;
@@ -96,50 +95,6 @@ const PopupChildren = ({ station, fromMain }: PopupChildrenProps) => {
         } catch (err) {
             console.error(err);
         }
-    };
-
-    const generateErrorMessages = (station: StationData) => {
-        const errorMessages: string[] = [];
-
-        if (!station.has_stationinfo) {
-            errorMessages.push("Station has no station information records!");
-        }
-
-        if (station.gaps && station.gaps.length !== 0) {
-            station?.gaps?.forEach((gap: GapData) => {
-                const {
-                    record_start_date_start,
-                    record_end_date_end,
-                    record_end_date_start,
-                    record_start_date_end,
-                    rinex_count,
-                } = gap;
-
-                if (record_start_date_start && record_end_date_end) {
-                    errorMessages.push(
-                        `At least ${rinex_count} RINEX file(s) outside of station info record ending at ${formattedDates(new Date(record_end_date_end))} and next record starting at ${formattedDates(new Date(record_start_date_start))}`,
-                    );
-                } else if (
-                    record_start_date_start &&
-                    !record_end_date_end &&
-                    !record_end_date_start
-                ) {
-                    errorMessages.push(
-                        `At least ${rinex_count} RINEX file(s) outside of station info record starting at ${formattedDates(new Date(record_start_date_start))}`,
-                    );
-                } else if (
-                    record_end_date_end &&
-                    !record_start_date_end &&
-                    !record_start_date_start
-                ) {
-                    errorMessages.push(
-                        `At least ${rinex_count} RINEX file(s) outside of station info record ending at ${formattedDates(new Date(record_end_date_end))}`,
-                    );
-                }
-            });
-        }
-
-        return errorMessages;
     };
 
     const errorMessages = station ? generateErrorMessages(station) : [];
