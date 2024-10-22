@@ -16,6 +16,6 @@ services:
       - ./front_dir/.env:/app/.env
       - ./front_dir/nginx.conf:/etc/nginx/nginx.conf
     ports:
-      - 5100:5100
+      - '80:5100'
     depends_on:
       - backend
