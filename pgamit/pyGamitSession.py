@@ -67,9 +67,9 @@ class GamitSession(object):
         self.solution_base = self.GamitOpts['solutions_dir'].rstrip('/')
 
         # Temporary 'hotfix' to restart production
-        stations_ = StationCollection()
+        # DDG: this should be a list, not a StationCollection object
+        stations_ = [stn for stn in stations if stn not in ties]
         # Code is replicated from lines 338-340 in pyNetwork
-        stations_.append(stn for stn in stations if stn not in ties)
         stations = stations_
 
         # tie station dictionary (to build KMLs, do not change)
