@@ -249,9 +249,12 @@ class Cnn(object):
     def insert(self, table, **kw):
         debug("INSERT: table=%r kw=%r" % (table, kw))
 
+        # figure out any extra columns and remove them from the incoming **kw
+        cols = list(self.get_columns(table).keys())
+
         # assuming fields are passed through kw which are keyword arguments
-        fields = list(kw.keys())
-        values = list(kw.values())
+        fields = [k for k in kw.keys() if k in cols]
+        values = [v for v, k in zip(kw.values(), kw.keys()) if k in cols]
 
         # form the insert query dynamically
         placeholders = ', '.join(['%s'] * len(fields))

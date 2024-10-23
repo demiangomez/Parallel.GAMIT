@@ -53,6 +53,7 @@ def test_node(check_gamit_tables=None, check_archive=True, check_executables=Tru
 
     # start importing the modules needed
     try:
+        print(' >> Testing python imports')
         import shutil
         import datetime
         import time
@@ -62,24 +63,20 @@ def test_node(check_gamit_tables=None, check_archive=True, check_executables=Tru
         import numpy
         import dirsync
         # app
-        from pgamit import pyRinex
         from pgamit import dbConnection
-        from pgamit import pyStationInfo
-        from pgamit import pyArchiveStruct
-        from pgamit import pyPPP
         from pgamit import pyProducts
         from pgamit import pyOptions
-        from pgamit import Utils
-        from pgamit import pyOTL
-        from pgamit import pyETM
         from pgamit import pyRunWithRetry
         from pgamit import pyDate
+
+        print(' -- Done')
 
     except:
         return ' -- %s: Problem found while importing modules:\n%s' % (platform.node(), traceback.format_exc())
 
     try:
         if len(software_sync) > 0:
+            print(' >> Syncing directories')
             # synchronize directories listed in the src and dst arguments
             from dirsync import sync
 
@@ -95,54 +92,68 @@ def test_node(check_gamit_tables=None, check_archive=True, check_executables=Tru
                     for f in updated:
                         print('    -- Updated %s' % f)
 
+            print(' -- Done')
+
     except:
         return ' -- %s: Problem found while synchronizing software:\n%s ' % (platform.node(), traceback.format_exc())
 
     # continue with a test SQL connection
     # make sure that the gnss_data.cfg is present
     try:
+        print(' >> Testing database connection')
         cnn = dbConnection.Cnn('gnss_data.cfg')
 
         q = cnn.query('SELECT count(*) FROM networks')
-
+        print(' -- Done')
     except:
         return ' -- %s: Problem found while connecting to postgres:\n%s ' % (platform.node(), traceback.format_exc())
 
     # make sure we can create the production folder
     try:
+        print(' >> Testing access to production dir')
         test_dir = os.path.join('production/node_test')
         if not os.path.exists(test_dir):
             os.makedirs(test_dir)
+
+        print(' -- Done')
     except:
         return ' -- %s: Could not create production folder:\n%s ' % (platform.node(), traceback.format_exc())
 
     # test
     try:
+        print(' >> Testing gnss_data.cfg file access')
         Config = pyOptions.ReadOptions('gnss_data.cfg')
-
+        print(' -- Done')
     except:
         return ' -- %s: Problem while reading config file and/or testing archive access:\n%s' \
                % (platform.node(), traceback.format_exc())
 
     if check_archive:
-
+        print(' >> Testing access to archive %s' % Config.archive_path)
         # check that all paths exist and can be reached
         if not os.path.exists(Config.archive_path):
             return ' -- %s: Could not reach archive path %s' % (platform.node(), Config.archive_path)
+        print(' -- Done')
 
+        print(' >> Testing access to repository %s' % Config.repository)
         if not os.path.exists(Config.repository):
             return ' -- %s: Could not reach repository path %s' % (platform.node(), Config.repository)
+        print(' -- Done')
 
         # pick a test date to replace any possible parameters in the config file
         date = pyDate.Date(year=2010, doy=1)
         try:
+            print(' >> Testing access to broadcast orbits %s' % Config.brdc_path)
             brdc = pyProducts.GetBrdcOrbits(Config.brdc_path, date, test_dir)
+            print(' -- Done')
         except:
             return ' -- %s: Problem while testing the broadcast ephemeris archive (%s) access:\n%s' \
                    % (platform.node(), Config.brdc_path, traceback.format_exc())
 
         try:
+            print(' >> Testing access to precise orbits %s' % Config.sp3_path)
             sp3 = pyProducts.GetSp3Orbits(Config.sp3_path, date, Config.sp3types, test_dir)
+            print(' -- Done')
         except:
             return ' -- %s: Problem while testing the sp3 orbits archive (%s) access:\n%s' \
                    % (platform.node(), Config.sp3_path, traceback.format_exc())
@@ -152,25 +163,33 @@ def test_node(check_gamit_tables=None, check_archive=True, check_executables=Tru
         for prg in ('crz2rnx', 'crx2rnx', 'rnx2crx', 'rnx2crz', 'gfzrnx_lx', 'svdiff', 'svpos', 'tform',
                     'sh_rx2apr', 'doy', 'sed', 'compress'):
             with pyRunWithRetry.command('which ' + prg) as run:
+                print(' >> Testing %s' % prg)
                 run.run()
                 if run.stdout == '':
                     return ' -- %s: Could not find path to %s' % (platform.node(), prg)
+        print(' -- Done')
 
         # check grdtab and ppp from the config file
         for opt in ('grdtab', 'otlgrid', 'ppp_exe'):
             path = Config.options[opt]
+            print(' >> Testing access to %s' % path)
             if not os.path.isfile(path):
                 return ' -- %s: Could not find %s in %s' % (platform.node(), opt, path)
+        print(' -- Done')
 
         ppp_path = Config.options['ppp_path']
         for f in ('gpsppp.stc', 'gpsppp.svb_gps_yrly', 'gpsppp.flt', 'gpsppp.stc', 'gpsppp.met'):
+            print(' >> Testing access to %s' % f)
             if not os.path.isfile(os.path.join(ppp_path, f)):
                 return ' -- %s: Could not find %s in %s' % (platform.node(), f, ppp_path)
+        print(' -- Done')
 
     if check_atx:
         for frame in Config.options['frames']:
+            print(' >> Testing access to %s %s' % (frame, frame['atx']))
             if not os.path.isfile(frame['atx']):
                 return ' -- %s: Could not find atx in %s' % (platform.node(), frame['atx'])
+        print(' -- Done')
 
     if check_gamit_tables is not None:
         # check the gamit tables if not none

@@ -442,4 +442,11 @@ $$\n""" % (self.Config.options['otlmodel']))
             else:
                 pt.stylemap = styles_stn
 
+        # to fix the issue from simple kml
+        # AttributeError: module 'cgi' has no attribute 'escape'
+        # see: https://github.com/tjlang/simplekml/issues/38
+        import cgi
+        import html
+        cgi.escape = html.escape
+
         kml.savekmz(os.path.join(self.solution_pwd, self.DirName) + '.kmz')
