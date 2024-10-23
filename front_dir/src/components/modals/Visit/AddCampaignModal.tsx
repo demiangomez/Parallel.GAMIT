@@ -55,7 +55,6 @@ const AddCampaignModal = ({
             const {
                 name,
                 people_id,
-                people,
                 comments,
                 navigation_actual_file,
                 log_sheet_actual_file,
