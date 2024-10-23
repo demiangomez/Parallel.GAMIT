@@ -19,7 +19,7 @@ body:
   attributes:
     label: Steps/Code to Reproduce
     description: |
-      Please add a [minimal code example](https://en.wikipedia.org/wiki/Minimal_reproducible_example) that can reproduce the error when running it. Be as succinct as possible, and include the input data that produces the bug. **Do not depend on access to postgres database**: instead you can export the input data, either as csv file using pgAdmin, or using pandas to export the relevant data. Example using pandas:
+      Please add a [minimal reproducible example](https://en.wikipedia.org/wiki/Minimal_reproducible_example) that can reproduce the error when running it. Be as succinct as possible, and include the input data that produces the bug. **Do not depend on access to postgres database**: instead you can export the input data, either as csv file using pgAdmin, or using pandas to export the relevant data. Example using pandas:
 
       ```python
       import psycopg2
@@ -74,7 +74,7 @@ body:
     description: |
       Please paste or describe the results you observe instead of the expected results. If you observe an error, please paste the error message including the **full traceback** of the exception, **and the final print statement from pgamit**. For example:
 
-      ```
+      ```python-traceback
       ---------------------------------------------------------------------------
       2024-10-21 09:08:16 g2global 2024 041 -> Creating network clusters
       -- Processing type is global with 731 active stations
