@@ -7,7 +7,7 @@ body:
   attributes:
     value: >
       #### Before submitting a bug, please make sure the issue hasn't been already
-      addressed by searching through [the past issues](https://github.com/scikit-learn/scikit-learn/issues).
+      addressed by searching through [the past issues](https://github.com/demiangomez/Parallel.GAMIT/issues).
 - type: textarea
   attributes:
     label: Describe the bug
@@ -19,28 +19,40 @@ body:
   attributes:
     label: Steps/Code to Reproduce
     description: |
-      Please add a [minimal code example](https://scikit-learn.org/dev/developers/minimal_reproducer.html) that can reproduce the error when running it. Be as succinct as possible, **do not depend on external data files**: instead you can generate synthetic data using `numpy.random`, [sklearn.datasets.make_regression](https://scikit-learn.org/stable/modules/generated/sklearn.datasets.make_regression.html), [sklearn.datasets.make_classification](https://scikit-learn.org/stable/modules/generated/sklearn.datasets.make_classification.html) or a few lines of Python code. Example:
+      Please add a [minimal code example](https://en.wikipedia.org/wiki/Minimal_reproducible_example) that can reproduce the error when running it. Be as succinct as possible, and include the input data that produces the bug. **Do not depend on access to postgres database**: instead you can export the input data, either as csv file using pgAdmin, or using pandas to export the relevant data. Example using pandas:
 
       ```python
-      from sklearn.feature_extraction.text import CountVectorizer
-      from sklearn.decomposition import LatentDirichletAllocation
-      docs = ["Help I have a bug" for i in range(1000)]
-      vectorizer = CountVectorizer(input=docs, analyzer='word')
-      lda_features = vectorizer.fit_transform(docs)
-      lda_model = LatentDirichletAllocation(
-          n_topics=10,
-          learning_method='online',
-          evaluate_every=10,
-          n_jobs=4,
+      import psycopg2
+      import pandas as pd
+      from sqlalchemy import create_engine
+      
+      ## database credentials
+      CREDS = {
+          "host": "<HOSTNAME>",
+          "user": "<USERNAME>",
+          "port": 5432,
+          "dbname": "<DBNAME>",
+          "password": "<PASSWORD>"
+      }
+      CONNECTION_STRING = " ".join((f"{k}={v}" for k,v in CREDS.items()))
+      ENGINE = create_engine(
+          "postgresql+psycopg2://{user}:{password}@{host}:{port}/{dbname}".format(**CREDS)
       )
-      model = lda_model.fit(lda_features)
+
+      # Getting data, modify this query as needed
+      query = "SELECT * FROM public.gamit where 'year'='2024' and 'doy'='044'"
+      
+      df = pd.read_sql(query, ENGINE)
+      # Modify to your output path
+      df.to_csv("/filesystem/path.csv")
+      
       ```
 
-      If the code is too long, feel free to put it in a public gist and link it in the issue: https://gist.github.com.
+      If the results are too long to copy paste, feel free to put it in a public gist and link it in the issue: https://gist.github.com.
 
-      In short, **we are going to copy-paste your code** to run it and we expect to get the same result as you.
+      In short, **we are going to run the data on just the code that is throwing the error** and we expect to get the same result as you.
 
-      We acknowledge that crafting a [minimal reproducible code example](https://scikit-learn.org/dev/developers/minimal_reproducer.html) requires some effort on your side but it really helps the maintainers quickly reproduce the problem and analyze its cause without any ambiguity. Ambiguous bug reports tend to be slower to fix because they will require more effort and back and forth discussion between the maintainers and the reporter to pin-point the precise conditions necessary to reproduce the problem.
+      We acknowledge that crafting a **minimal reproducible code example** requires some effort on your side but it really helps the maintainers quickly reproduce the problem and analyze its cause without any ambiguity. Ambiguous bug reports tend to be slower to fix because they will require more effort and back and forth discussion between the maintainers and the reporter to pin-point the precise conditions necessary to reproduce the problem.
     placeholder: |
       ```
       Sample code to reproduce the problem
@@ -53,27 +65,37 @@ body:
     description: >
       Please paste or describe the expected results.
     placeholder: >
-      Example: No error is thrown.
+    Example: No error is thrown.
   validations:
     required: true
 - type: textarea
   attributes:
     label: Actual Results
     description: |
-      Please paste or describe the results you observe instead of the expected results. If you observe an error, please paste the error message including the **full traceback** of the exception. For instance the code above raises the following exception:
+      Please paste or describe the results you observe instead of the expected results. If you observe an error, please paste the error message including the **full traceback** of the exception, **and the final print statement from pgamit**. For example:
 
       ```python-traceback
       ---------------------------------------------------------------------------
-      TypeError                                 Traceback (most recent call last)
-      <ipython-input-1-a674e682c281> in <module>
-            4 vectorizer = CountVectorizer(input=docs, analyzer='word')
-            5 lda_features = vectorizer.fit_transform(docs)
-      ----> 6 lda_model = LatentDirichletAllocation(
-            7     n_topics=10,
-            8     learning_method='online',
-
-      TypeError: __init__() got an unexpected keyword argument 'n_topics'
+      2024-10-21 09:08:16 g2global 2024 041 -> Creating network clusters
+      -- Processing type is global with 731 active stations
+      Traceback (most recent call last):
+      File "/fs/project/gomez.124/opt/conda/pgamit/bin/ParallelGamit.py", line 756, in
+      main()
+      File "/fs/project/gomez.124/opt/conda/pgamit/bin/ParallelGamit.py", line 399, in main
+      sessions = ExecuteGamit(cnn, JobServer, GamitConfig, stations, check_stations, args.ignore_missing, dates,
+      File "/fs/project/gomez.124/opt/conda/pgamit/bin/ParallelGamit.py", line 700, in ExecuteGamit
+      net_object = Network(cnn, archive, GamitConfig, stations, date, check_stations, ignore_missing)
+      File "/fs/project/gomez.124/opt/conda/pgamit/lib/python3.10/site-packages/pgamit/network.py", line 176, in init
+      self.sessions = self.create_gamit_sessions(cnn, archive, clusters,
+      File "/fs/project/gomez.124/opt/conda/pgamit/lib/python3.10/site-packages/pgamit/network.py", line 382, in create_gamit_sessions
+      sessions.append(GamitSession(cnn, archive, self.name, self.org,
+      File "/fs/project/gomez.124/opt/conda/pgamit/lib/python3.10/site-packages/pgamit/pyGamitSession.py", line 72, in init
+      stations_.append(stn for stn in stations if stn not in ties)
+      File "/fs/project/gomez.124/opt/conda/pgamit/lib/python3.10/site-packages/pgamit/pyStation.py", line 299, in append
+      raise pyStationException('type: ' + str(type(station)) +
+      pgamit.pyStation.pyStationException: type: <class 'generator'> invalid. Can only append Station objects or lists of Station objects
       ```
+      The example above shows both the traceback, and also the `year`, `doy`, and `tablename` 
     placeholder: >
       Please paste or specifically describe the actual output or traceback.
   validations:
@@ -83,9 +105,9 @@ body:
     label: Versions
     render: shell
     description: |
-      Please run the following and paste the output below.
+      If you built pgamit from the git repo, please provide the commit hash of your build; if you installed pgamit via pip, run the following and paste the output below.
       ```python
-      import sklearn; sklearn.show_versions()
+      import pgamit; pgamit.__version__
       ```
   validations:
     required: true
