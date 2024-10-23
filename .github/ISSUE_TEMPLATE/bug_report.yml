@@ -95,7 +95,6 @@ body:
       raise pyStationException('type: ' + str(type(station)) +
       pgamit.pyStation.pyStationException: type: <class 'generator'> invalid. Can only append Station objects or lists of Station objects
       ```
-      The example above shows both the traceback, and also the `year`, `doy`, and `tablename` 
     placeholder: >
       Please paste or specifically describe the actual output or traceback.
   validations:
