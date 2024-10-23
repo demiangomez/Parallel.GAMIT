@@ -48,7 +48,7 @@ body:
       
       ```
 
-      If the results are too long to copy paste, feel free to put it in a public gist and link it in the issue: https://gist.github.com.
+      Github allows you to drag the .csv file into the text box as an attachment that we can download later. If the results are short, you can also copy paste, or feel free to put it in a public gist and link it in the issue: https://gist.github.com.
 
       In short, **we are going to run the data on just the code that is throwing the error** and we expect to get the same result as you.
 
