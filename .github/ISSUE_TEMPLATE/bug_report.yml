@@ -65,7 +65,7 @@ body:
     description: >
       Please paste or describe the expected results.
     placeholder: >
-    Example: No error is thrown.
+      Example: No error is thrown.
   validations:
     required: true
 - type: textarea
