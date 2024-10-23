@@ -187,7 +187,7 @@ def purge_solutions(JobServer, args, dates, GamitConfig):
 
         pbar = tqdm(total=len(dates), ncols=80, desc=' -- Purge progress', disable=None)
 
-        modules = ('pgamit.pyDate', 'pgamit.dbConnection', 'os', 'glob')
+        modules = ('pgamit.pyDate', 'pgamit.dbConnection', 'os', 'glob', 'shutil')
 
         JobServer.create_cluster(purge_solution, progress_bar=pbar, modules=modules)
 
@@ -462,6 +462,13 @@ def generate_kml(dates, sessions, GamitConfig):
     if not os.path.exists('production'):
         os.makedirs('production')
 
+    # to fix the issue from simple kml
+    # AttributeError: module 'cgi' has no attribute 'escape'
+    # see: https://github.com/tjlang/simplekml/issues/38
+    import cgi
+    import html
+    cgi.escape = html.escape
+
     kml.savekmz('production/' + GamitConfig.NetworkConfig.network_id.lower() + '.kmz')
 
 
@@ -469,7 +476,7 @@ def ParseZTD(project, dates, Sessions, GamitConfig, JobServer):
 
     tqdm.write(' >> %s Parsing the tropospheric zenith delays...' % print_datetime())
 
-    modules = ('numpy', 'os', 're', 'datetime', 'traceback', 'pgamit.dbConnection')
+    modules = ('numpy', 'os', 're', 'datetime', 'traceback', 'pgamit.dbConnection', 'pgamit.pyZTD')
 
     pbar = tqdm(total=len(dates), disable=None, desc=' >> Zenith total delay parsing', ncols=100)
 
@@ -496,7 +503,7 @@ def ExecuteGlobk(cnn, JobServer, GamitConfig, sessions, dates):
                % print_datetime())
 
     modules = ('os', 'shutil', 'pgamit.snxParse', 'subprocess', 'platform', 'traceback', 'glob',
-               'pgamit.dbConnection', 'math', 'datetime', 'pgamit.pyDate')
+               'pgamit.dbConnection', 'math', 'datetime', 'pgamit.pyDate', 'pgamit.pyGlobkTask')
 
     pbar = tqdm(total=len(dates), disable=None, desc=' >> GLOBK combinations completion', ncols=100)
 
@@ -681,7 +688,7 @@ def ExecuteGamit(cnn, JobServer, GamitConfig, stations, check_stations, ignore_m
                  dry_run=False, create_kml=False):
 
     modules = ('pgamit.pyRinex', 'datetime', 'os', 'shutil', 'pgamit.pyProducts', 'subprocess', 're', 'pgamit.pyETM',
-               'glob', 'platform', 'traceback')
+               'glob', 'platform', 'traceback', 'pgamit.pyGamitTask')
 
     tqdm.write(' >> %s Creating GAMIT session instances and executing GAMIT, please wait...' % print_datetime())
 
@@ -727,7 +734,7 @@ def ExecuteGamit(cnn, JobServer, GamitConfig, stations, check_stations, ignore_m
             msg = 'Session already processed'
             pbar.update()
 
-        tqdm.write(' -- %s %s %s %s%02i -> %s' % (print_datetime(),
+        tqdm.write(' -- %s %s %s %s%03i -> %s' % (print_datetime(),
                                                   GamitSession.NetName,
                                                   GamitSession.date.yyyyddd(),
                                                   GamitSession.org,
