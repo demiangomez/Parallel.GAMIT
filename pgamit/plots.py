@@ -99,6 +99,7 @@ def plot_global_network(central_points, OC, labels, points,
                                   return_distance=False)
             # add central point to beginning as the central connection point
             points.insert(0, points.pop(idx.squeeze()))
+            central_points[label] = points[0]
         nx.add_star(nodes[label], points)
         for position, proj in zip(positions, projs):
             mxy = np.zeros_like(LL[points])
@@ -121,3 +122,5 @@ def plot_global_network(central_points, OC, labels, points,
     fig.supxlabel("Figure runtime:  " + ("%.2fs" % (t1 - t0)).lstrip("0"))
     plt.savefig(output_path)
     plt.close()
+
+    return central_points
