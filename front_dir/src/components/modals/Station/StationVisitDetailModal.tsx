@@ -321,6 +321,8 @@ const StationVisitDetailModal = ({
 
             const rest = { ...visit };
 
+            rest.comments = formState["comments"];
+
             delete rest.log_sheet_actual_file;
             delete rest.log_sheet_filename;
             delete rest.navigation_actual_file;
