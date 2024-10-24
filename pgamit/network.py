@@ -38,7 +38,7 @@ from scipy.spatial import Delaunay, distance
 from pgamit.pyGamitSession import GamitSession
 from pgamit.pyStation import StationCollection
 from pgamit.cluster import over_cluster, select_central_point, BisectingQMeans
-from pgamit.NetPlots import plot_global_network
+from pgamit.plots import plot_global_network
 
 BACKBONE_NET = 45
 NET_LIMIT = 40
@@ -214,19 +214,19 @@ class Network(object):
             # append to a regular list for integer indexing at line ~400
             cluster_ties.append(my_cluster_ties)
 
-        # put everything in a dictionary
-        clusters = {'centroids': points[central_points],
-                    'labels': cluster_labels,
-                    'stations': station_labels}
-
         # define output path for plot
         solution_base = self.GamitConfig.gamitopt['solutions_dir'].rstrip('/')
         end_path = '/%s/%s/%s' % (self.date.yyyy(), self.date.ddd(), self.name)
         path = solution_base + end_path + '_cluster.png'
 
         # generate plot of the network segmentation
-        plot_global_network(central_points, OC, qmean.labels_, points,
-                            output_path=path, lat_lon=False)
+        central_points = plot_global_network(central_points, OC, qmean.labels_,
+                                             points, output_path=path)
+
+        # put everything in a dictionary
+        clusters = {'centroids': points[central_points],
+                    'labels': cluster_labels,
+                    'stations': station_labels}
 
         return clusters, cluster_ties
 
