@@ -193,18 +193,21 @@ class Cnn(object):
 
         return recordset
 
-    def get(self, table, filter_fields, return_fields):
+    def get(self, table, filter_fields, return_fields=None):
         """
         Selects from the given table the records that match filter_fields and returns ONE dictionary.
         Method should not be used to retrieve more than one single record.
         Parameters:
         table (str): The table to select from.
         filter_fields (dict): The dictionary where the keys are the field names and the values are the filter values.
-        return_fields (list of str): The fields to return.
+        return_fields (list of str): The fields to return. If empty return all columns
 
         Returns:
         list: A list of dictionaries, each representing a record that matches the filter.
         """
+
+        if return_fields is None:
+            return_fields = list(self.get_columns(table).keys())
 
         where_clause = ' AND '.join([f'"{key}" = %s' for key in filter_fields.keys()])
         fields_clause = ', '.join([f'"{field}"' for field in return_fields])

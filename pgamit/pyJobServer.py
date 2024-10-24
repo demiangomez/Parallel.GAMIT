@@ -160,7 +160,7 @@ def test_node(check_gamit_tables=None, check_archive=True, check_executables=Tru
 
     if check_executables:
         # check that all executables and GAMIT bins are in the path
-        for prg in ('crz2rnx', 'crx2rnx', 'rnx2crx', 'rnx2crz', 'gfzrnx_lx', 'svdiff', 'svpos', 'tform',
+        for prg in ('crz2rnx', 'crx2rnx', 'rnx2crx', 'rnx2crz', 'gfzrnx_lx', 'svpos', 'tform',
                     'sh_rx2apr', 'doy', 'sed', 'compress'):
             with pyRunWithRetry.command('which ' + prg) as run:
                 print(' >> Testing %s' % prg)
