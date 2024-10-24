@@ -319,12 +319,23 @@ const StationVisitDetailModal = ({
             if (!visitId) return null;
             setCommentLoading(true);
 
+            const rest = { ...visit };
+
+            delete rest.log_sheet_actual_file;
+            delete rest.log_sheet_filename;
+            delete rest.navigation_actual_file;
+            delete rest.navigation_filename;
+
             const formData = new FormData();
 
-            Object.entries(formState).forEach(([key, value]) => {
-                formData.append("station", String(visit?.station));
-                formData.append("date", visit?.date ?? "");
-                formData.append(key, value);
+            Object.entries(rest).forEach(([key, value]) => {
+                if (key === "people") {
+                    value.forEach((p: { id: number; name: string }) => {
+                        formData.append("people", String(p.id));
+                    });
+                } else {
+                    formData.append(key, value);
+                }
             });
 
             const res = await patchStationVisitService<ErrorResponse>(
