@@ -8,8 +8,9 @@ import networkx as nx
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.basemap import Basemap
+from sklearn.neighbors import NearestNeighbors
 
-from pgamit.Utils import ecef2lla
+from Utils import ecef2lla
 
 
 def plot_global_network(central_points, OC, labels, points,
@@ -86,10 +87,18 @@ def plot_global_network(central_points, OC, labels, points,
         # Flag centroid point
         remove = np.where(points == central_points[label])[0]
         points = points.tolist()
-        # remove centroid point so it's not repeated
-        points.pop(remove[0])
-        # add central point to beginning so it's the central connection point
-        points.insert(0, central_points[label])
+        try:
+            # remove centroid point so it's not repeated
+            points.pop(remove[0])
+            # add same point to beginning of list
+            points.insert(0, central_points[label])
+        except IndexError:
+            nbrs = NearestNeighbors(n_neighbors=1, algorithm='ball_tree',
+                                    metric='haversine').fit(LL[points])
+            idx = nbrs.kneighbors(LL[central_points[label]].reshape(1, -1),
+                                  return_distance=False)
+            # add central point to beginning as the central connection point
+            points.insert(0, points.pop(idx.squeeze()))
         nx.add_star(nodes[label], points)
         for position, proj in zip(positions, projs):
             mxy = np.zeros_like(LL[points])
