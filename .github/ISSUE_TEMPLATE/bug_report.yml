@@ -1,0 +1,116 @@
+name: Bug Report
+description: Create a report to help us reproduce and correct the bug
+labels: ['Bug', 'Needs Triage']
+
+body:
+- type: markdown
+  attributes:
+    value: >
+      #### Before submitting a bug, please make sure the issue hasn't been already
+      addressed by searching through [the past issues](https://github.com/demiangomez/Parallel.GAMIT/issues).
+- type: textarea
+  attributes:
+    label: Describe the bug
+    description: >
+      A clear and concise description of what the bug is.
+  validations:
+    required: true
+- type: textarea
+  attributes:
+    label: Steps/Code to Reproduce
+    description: |
+      Please add a [minimal reproducible example](https://en.wikipedia.org/wiki/Minimal_reproducible_example) that can reproduce the error when running it. Be as succinct as possible, and include the input data that produces the bug. **Do not depend on access to postgres database**: instead you can export the input data, either as csv file using pgAdmin, or using pandas to export the relevant data. Example using pandas:
+
+      ```python
+      import psycopg2
+      import pandas as pd
+      from sqlalchemy import create_engine
+      
+      ## database credentials
+      CREDS = {
+          "host": "<HOSTNAME>",
+          "user": "<USERNAME>",
+          "port": 5432,
+          "dbname": "<DBNAME>",
+          "password": "<PASSWORD>"
+      }
+      CONNECTION_STRING = " ".join((f"{k}={v}" for k,v in CREDS.items()))
+      ENGINE = create_engine(
+          "postgresql+psycopg2://{user}:{password}@{host}:{port}/{dbname}".format(**CREDS)
+      )
+
+      # Getting data, modify this query as needed
+      query = "SELECT * FROM public.gamit where 'year'='2024' and 'doy'='044'"
+      
+      df = pd.read_sql(query, ENGINE)
+      # Modify to your output path
+      df.to_csv("/filesystem/path.csv"
+      
+      ```
+
+      Github allows you to drag the .csv file into the text box as an attachment that we can download later. If the results are short, you can also copy paste, or feel free to put it in a public gist and link it in the issue: https://gist.github.com.
+
+      In short, **we are going to run the data on just the code that is throwing the error** and we expect to get the same result as you.
+
+      We acknowledge that crafting a **minimal reproducible code example** requires some effort on your side but it really helps the maintainers quickly reproduce the problem and analyze its cause without any ambiguity. Ambiguous bug reports tend to be slower to fix because they will require more effort and back and forth discussion between the maintainers and the reporter to pin-point the precise conditions necessary to reproduce the problem.
+    placeholder: |
+      ```
+      Sample code to reproduce the problem
+      ```
+  validations:
+    required: true
+- type: textarea
+  attributes:
+    label: Expected Results
+    description: >
+      Please paste or describe the expected results.
+    placeholder: >
+      Example: No error is thrown.
+  validations:
+    required: true
+- type: textarea
+  attributes:
+    label: Actual Results
+    description: |
+      Please paste or describe the results you observe instead of the expected results. If you observe an error, please paste the error message including the **full traceback** of the exception, **and the final print statement from pgamit**. For example:
+
+      ```python-traceback
+      ---------------------------------------------------------------------------
+      2024-10-21 09:08:16 g2global 2024 041 -> Creating network clusters
+      -- Processing type is global with 731 active stations
+      Traceback (most recent call last):
+      File "/fs/project/gomez.124/opt/conda/pgamit/bin/ParallelGamit.py", line 756, in
+      main()
+      File "/fs/project/gomez.124/opt/conda/pgamit/bin/ParallelGamit.py", line 399, in main
+      sessions = ExecuteGamit(cnn, JobServer, GamitConfig, stations, check_stations, args.ignore_missing, dates,
+      File "/fs/project/gomez.124/opt/conda/pgamit/bin/ParallelGamit.py", line 700, in ExecuteGamit
+      net_object = Network(cnn, archive, GamitConfig, stations, date, check_stations, ignore_missing)
+      File "/fs/project/gomez.124/opt/conda/pgamit/lib/python3.10/site-packages/pgamit/network.py", line 176, in init
+      self.sessions = self.create_gamit_sessions(cnn, archive, clusters,
+      File "/fs/project/gomez.124/opt/conda/pgamit/lib/python3.10/site-packages/pgamit/network.py", line 382, in create_gamit_sessions
+      sessions.append(GamitSession(cnn, archive, self.name, self.org,
+      File "/fs/project/gomez.124/opt/conda/pgamit/lib/python3.10/site-packages/pgamit/pyGamitSession.py", line 72, in init
+      stations_.append(stn for stn in stations if stn not in ties)
+      File "/fs/project/gomez.124/opt/conda/pgamit/lib/python3.10/site-packages/pgamit/pyStation.py", line 299, in append
+      raise pyStationException('type: ' + str(type(station)) +
+      pgamit.pyStation.pyStationException: type: <class 'generator'> invalid. Can only append Station objects or lists of Station objects
+      ```
+    placeholder: >
+      Please paste or specifically describe the actual output or traceback.
+  validations:
+    required: true
+- type: textarea
+  attributes:
+    label: Versions
+    render: shell
+    description: |
+      If you built pgamit from the git repo, please provide the commit hash of your build; if you installed pgamit via pip, run the following and paste the output below.
+      ```python
+      import pgamit; pgamit.__version__
+      ```
+  validations:
+    required: true
+- type: markdown
+  attributes:
+    value: >
+      Thanks for contributing 🎉!
