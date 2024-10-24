@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.basemap import Basemap
 from sklearn.neighbors import NearestNeighbors
 
-from Utils import ecef2lla
+from pgamit.Utils import ecef2lla
 
 
 def plot_global_network(central_points, OC, labels, points,
