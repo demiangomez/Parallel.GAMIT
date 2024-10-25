@@ -216,14 +216,15 @@ def check_rinex_timespan_int(rinex, stn):
 
     # how many seconds difference between
     #  the rinex file and the record in the db
-    stime_diff = abs((
-        stn['ObservationSTime'] - rinex.datetime_firstObs).total_seconds())
-    etime_diff = abs((
-        stn['ObservationETime'] - rinex.datetime_lastObs) .total_seconds())
+    stime_diff = abs((stn['ObservationSTime'] -
+                      rinex.datetime_firstObs).total_seconds())
+    etime_diff = abs((stn['ObservationETime'] -
+                      rinex.datetime_lastObs) .total_seconds())
 
     # at least four minutes different on each side
-    if stime_diff <= 240 and etime_diff <= 240 and stn[
-            'Interval'] == rinex.interval:
+    if (stime_diff <= 240 and
+        etime_diff <= 240 and
+        stn['Interval'] == rinex.interval):
         return False
     else:
         return True
@@ -262,8 +263,8 @@ def error_handle(cnn, event, crinez, folder, filename, no_db_log=False):
 
     mfile = filename
     try:
-        mfile = os.path.basename(Utils.move(
-            crinez, os.path.join(folder, filename)))
+        mfile = os.path.basename(Utils.move(crinez,
+                                            os.path.join(folder, filename)))
     except (OSError,
             ValueError) as e:
         message = 'could not move file into this folder!' + str(e) + \
@@ -389,10 +390,10 @@ def process_crinex_file(crinez, filename, data_rejected, data_retry):
         ev['DOY'] = doy
 
     # we can now make better reject and retry folders
-    reject_folder = os.path.join(
-        data_rejected, '%reason%' + '/%04i/%03i' % (year, doy))
-    retry_folder = os.path.join(
-        data_retry, '%reason%' + '/%04i/%03i' % (year, doy))
+    reject_folder = os.path.join(data_rejected,
+                                 '%reason%' + '/%04i/%03i' % (year, doy))
+    retry_folder = os.path.join(data_retry,
+                                '%reason%' + '/%04i/%03i' % (year, doy))
 
     try:
         # main try except block
@@ -420,8 +421,9 @@ def process_crinex_file(crinez, filename, data_rejected, data_retry):
             #  coordinates in the header for PPP.
             # put the correct APR coordinates in the header.
             # ppp didn't work, try using sh_rx2apr
-            brdc = pyProducts.GetBrdcOrbits(
-                Config.brdc_path, rinexinfo.date, rinexinfo.rootdir)
+            brdc = pyProducts.GetBrdcOrbits(Config.brdc_path,
+                                            rinexinfo.date,
+                                            rinexinfo.rootdir)
 
             # inflate the chi**2 limit to make sure it will pass
             #  (even if we get a crappy coordinate)
@@ -492,8 +494,8 @@ def process_crinex_file(crinez, filename, data_rejected, data_retry):
                         RINEX file will not enter the archive.''' %
                         (ppp.h[0]))
 
-                result, match, _ = ppp.verify_spatial_coherence(
-                    cnn, StationCode)
+                result, match, _ = ppp.verify_spatial_coherence(cnn,
+                                                                StationCode)
 
                 if result:
                     # insert: there is only 1 match with the same StationCode.
@@ -606,8 +608,9 @@ def process_crinex_file(crinez, filename, data_rejected, data_retry):
         reject_folder = reject_folder.replace('%reason%', 'bad_rinex')
 
         # add more verbose output
-        fill_event(e.event, '\n%s: (file moved to %s)' % (os.path.relpath(
-            crinez, Config.repository_data_in), reject_folder))
+        fill_event(e.event, '\n%s: (file moved to %s)'
+                   % (os.path.relpath(crinez, Config.repository_data_in),
+                      reject_folder))
 
         # error, move the file to rejected folder
         error_handle(cnn, e.event, crinez, reject_folder, filename)
@@ -617,9 +620,9 @@ def process_crinex_file(crinez, filename, data_rejected, data_retry):
         retry_folder = retry_folder.replace('%reason%', 'rinex_issues')
 
         # add more verbose output
-        fill_event(e.event, '\n%s: (file moved to %s)' % (os.path.relpath(
-            crinez, Config.repository_data_in),
-                                                          retry_folder))
+        fill_event(e.event, '\n%s: (file moved to %s)'
+                   % (os.path.relpath(crinez, Config.repository_data_in),
+                      retry_folder))
         # error, move the file to rejected folder
         error_handle(cnn, e.event, crinez, retry_folder, filename)
 
