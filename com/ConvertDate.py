@@ -12,10 +12,12 @@ from pgamit.Utils import process_date
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Convert from one date type to others')
+    parser = argparse.ArgumentParser(
+        description='Convert from one date type to others')
 
     parser.add_argument('date', type=str, nargs=1, metavar='date to convert',
-                        help="Date to convert from. Allowable formats are yyyy/mm/dd yyyy_doy wwww-d format")
+                        help='''Date to convert from. Allowable formats
+                        are yyyy/mm/dd yyyy_doy wwww-d format''')
 
     args = parser.parse_args()
 
