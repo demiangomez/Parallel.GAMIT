@@ -22,6 +22,7 @@ import {
     ExclamationCircleIcon,
     ExclamationTriangleIcon,
     FunnelIcon,
+    QuestionMarkCircleIcon,
     XMarkIcon,
 } from "@heroicons/react/24/outline";
 
@@ -29,7 +30,7 @@ import { useAuth, useApi } from "@hooks";
 
 import { getRinexWithStatusService } from "@services";
 
-import { showModal } from "@utils";
+import { ensureEndsWithZ, showModal } from "@utils";
 import {
     RinexData,
     RinexItem,
@@ -38,6 +39,7 @@ import {
     StationData,
     StationInfoData,
 } from "@types";
+import { RINEX_FILTERS_STATE } from "@utils/reducerFormStates";
 
 type OutletContext = {
     station: StationData;
@@ -61,7 +63,7 @@ const Actions = ({ close }: { close: CloseFunction }) => {
                     <span className="w-full flex justify-center font-bold text-xl">
                         Actions
                     </span>
-                    <div className="flex flex-col break-words  space-y-4">
+                    <div className="flex flex-col break-words justify-center h-full space-y-4">
                         <span>
                             <strong>V</strong> = View (opens station information
                             record to view)
@@ -102,6 +104,14 @@ const Actions = ({ close }: { close: CloseFunction }) => {
                             <CheckCircleIcon className="size-7 fill-green-500 " />
                             <span className="font-medium text-center">
                                 Station information ok
+                            </span>
+                        </div>
+
+                        <div className="flex flex-col break-words items-center justify-center">
+                            <QuestionMarkCircleIcon className="size-7 fill-gray-300" />
+
+                            <span className="font-medium text-center">
+                                Multiple station info records
                             </span>
                         </div>
                     </div>
@@ -145,6 +155,17 @@ const Rinex = () => {
 
     const [rinexCheckbox, setRinexCheckbox] = useState<boolean>(false);
 
+    const [rinexFilter, setRinexFilter] = useState<boolean>(false);
+
+    const [filters, setFilters] =
+        useState<Record<keyof typeof RINEX_FILTERS_STATE, any>>(
+            RINEX_FILTERS_STATE,
+        );
+
+    const [rinexFilterData, setRinexFilterData] = useState<
+        RinexObject[] | undefined
+    >(undefined);
+
     const [rinex, setRinex] = useState<RinexObject[] | undefined>(undefined);
 
     // BUTTON FIRST LEVEL
@@ -155,10 +176,6 @@ const Rinex = () => {
     const [rinexGroup, setRinexGroup] = useState<RinexItem[] | undefined>(
         undefined,
     );
-
-    const [rinexAddType, setRinexAddType] = useState<
-        "file" | "metadata" | undefined
-    >(undefined);
 
     // BUTTONS EXTEND RINEX SECOND LEVEL
     const [singleRinex, setSingleRinex] = useState<RinexData | undefined>(
@@ -231,30 +248,42 @@ const Rinex = () => {
 
             setRinex(rinexWithGroupId);
 
-            const problematic = rinexWithGroupId
-                .filter((rinex) =>
-                    rinex.rinex.some((r) =>
-                        r.rinex.some((r2) => !r2.has_station_info),
-                    ),
-                )
-                .map((rinex) => ({
-                    ...rinex,
-                    rinex: rinex.rinex
-                        .map((r) => ({
-                            ...r,
-                            rinex: r.rinex.filter((r2) => !r2.has_station_info),
-                        }))
-                        .filter((r) => r.rinex.length > 0),
-                }))
-                .filter((rinex) => rinex.rinex.length > 0);
+            const problematic = calculateProblematicRinex(rinexWithGroupId);
+
+            setPages(Math.ceil(calculateTotalLength(res) / REGISTERS_PER_PAGE));
+
+            if (rinexFilterData) {
+                const filterProblematic =
+                    calculateProblematicRinex(rinexFilterData);
+                setProblematicRinex(filterProblematic);
+                return;
+            }
 
             setProblematicRinex(problematic);
-            setPages(Math.ceil(calculateTotalLength(res) / REGISTERS_PER_PAGE));
         } catch (err) {
             console.error(err);
         } finally {
             setLoading(false);
         }
+    };
+
+    const calculateProblematicRinex = (rinexs: RinexObject[]) => {
+        return rinexs
+            .filter((rinex) =>
+                rinex.rinex.some((r) =>
+                    r.rinex.some((r2) => !r2.has_station_info),
+                ),
+            )
+            .map((rinex) => ({
+                ...rinex,
+                rinex: rinex.rinex
+                    .map((r) => ({
+                        ...r,
+                        rinex: r.rinex.filter((r2) => !r2.has_station_info),
+                    }))
+                    .filter((r) => r.rinex.length > 0),
+            }))
+            .filter((rinex) => rinex.rinex.length > 0);
     };
 
     const calculateTotalLength = (rinexs: RinexObject[]) => {
@@ -307,13 +336,29 @@ const Rinex = () => {
     const handlePage = (page: number) => {
         if (page < 1 || page > pages) return;
 
+        let dataToPaginate: RinexObject[] = [];
+
+        if (rinexCheckbox && rinexFilterData) {
+            dataToPaginate = problematicRinex ?? [];
+        } else if (rinexCheckbox) {
+            dataToPaginate = problematicRinex ?? [];
+        } else if (rinexFilterData) {
+            dataToPaginate = rinexFilterData;
+        } else {
+            dataToPaginate = rinex ?? [];
+        }
+
         const { paginated, firstGroupId, lastGroupId } = paginateRinex(
-            rinexCheckbox ? problematicRinex ?? [] : rinex ?? [],
+            dataToPaginate,
             page,
         );
 
         setActivePage(page);
         setPaginatedRinexs(paginated);
+
+        if (page === 1) {
+            setSameGroup(false);
+        }
 
         if (page > activePage) {
             // Navegando hacia adelante
@@ -328,8 +373,7 @@ const Rinex = () => {
         } else if (page !== 1) {
             // Navegando hacia atrás
             const { lastGroupId: lastGroupIdPreviousPage } = paginateRinex(
-                rinexCheckbox ? problematicRinex ?? [] : rinex ?? [],
-
+                dataToPaginate,
                 page - 1,
             );
             if (
@@ -346,20 +390,29 @@ const Rinex = () => {
         setRinexStationInfoRelated(undefined);
     };
 
-    const handleRinexCheckbox = () => {
-        if (problematicRinex) {
-            const { paginated, lastGroupId } = paginateRinex(
-                problematicRinex,
-                1,
-            );
-            setPaginatedRinexs(paginated);
-            setLastGroupIdPreviousPage(lastGroupId ?? "");
-            setPages(
-                Math.ceil(
-                    calculateTotalLength(problematicRinex) / REGISTERS_PER_PAGE,
-                ),
-            );
+    const handleRinexData = () => {
+        let dataToPaginate: RinexObject[] = [];
+
+        if (rinexCheckbox && rinexFilterData) {
+            dataToPaginate = problematicRinex ?? [];
+        } else if (rinexCheckbox && !rinexFilterData) {
+            const problematic = calculateProblematicRinex(rinex ?? []);
+            setProblematicRinex(problematic);
+            dataToPaginate = problematic ?? [];
+        } else if (rinexFilterData) {
+            dataToPaginate = rinexFilterData;
+        } else {
+            dataToPaginate = rinex ?? [];
         }
+
+        const { paginated, lastGroupId } = paginateRinex(dataToPaginate, 1);
+        setPaginatedRinexs(paginated);
+        setLastGroupIdPreviousPage(lastGroupId ?? "");
+        setPages(
+            Math.ceil(
+                calculateTotalLength(dataToPaginate) / REGISTERS_PER_PAGE,
+            ),
+        );
     };
 
     useEffect(() => {
@@ -369,21 +422,15 @@ const Rinex = () => {
     }, [station]); // eslint-disable-line
 
     useEffect(() => {
-        if (rinex && !rinexCheckbox) {
-            const { paginated, lastGroupId } = paginateRinex(rinex, 1);
-            setPaginatedRinexs(paginated);
-            setLastGroupIdPreviousPage(lastGroupId ?? "");
-            setPages(
-                Math.ceil(calculateTotalLength(rinex) / REGISTERS_PER_PAGE),
-            );
-        } else if (rinex && rinexCheckbox) {
-            handleRinexCheckbox();
+        if (rinex) {
+            handleRinexData();
         }
-    }, [rinex, rinexCheckbox]); // eslint-disable-line
+    }, [rinex, rinexCheckbox, rinexFilterData]); // eslint-disable-line
 
     useEffect(() => {
         setActivePage(1);
-    }, [rinexCheckbox]);
+        setSameGroup(false);
+    }, [rinexCheckbox, rinexFilterData]);
 
     useEffect(() => {
         modals?.show && showModal(modals.title);
@@ -405,31 +452,34 @@ const Rinex = () => {
             if (Array.isArray(rinexGroup)) {
                 const rinexGroupLastIndex = rinexGroup.length - 1;
                 const rinexGroupLast = rinexGroup[rinexGroupLastIndex];
-                const subRinexLastGroup =
+                const subFirstRinex = rinexGroup[0]?.rinex[0];
+                const subLastRinex =
                     rinexGroupLast?.rinex[rinexGroupLast?.rinex.length - 1];
 
                 return {
-                    api_id: subRinexLastGroup?.api_id ?? 0,
-                    network_code: subRinexLastGroup?.network_code ?? "",
-                    station_code: subRinexLastGroup?.station_code ?? "",
-                    receiver_code: subRinexLastGroup?.receiver_type ?? "",
-                    receiver_serial: subRinexLastGroup?.receiver_serial ?? "",
-                    receiver_firmware: subRinexLastGroup?.receiver_fw ?? "",
-                    antenna_code: subRinexLastGroup?.antenna_type ?? "",
-                    antenna_serial: subRinexLastGroup?.antenna_serial ?? "",
-                    antenna_height: String(
-                        subRinexLastGroup?.antenna_offset ?? "",
-                    ),
+                    api_id: subFirstRinex?.api_id ?? 0,
+                    network_code: subFirstRinex?.network_code ?? "",
+                    station_code: subFirstRinex?.station_code ?? "",
+                    receiver_code: subFirstRinex?.receiver_type ?? "",
+                    receiver_serial: subFirstRinex?.receiver_serial ?? "",
+                    receiver_firmware: subFirstRinex?.receiver_fw ?? "",
+                    antenna_code: subFirstRinex?.antenna_type ?? "",
+                    antenna_serial: subFirstRinex?.antenna_serial ?? "",
+                    antenna_height: String(subFirstRinex?.antenna_offset ?? ""),
                     antenna_north: "",
                     antenna_east: "",
                     height_code: "",
-                    radome_code: subRinexLastGroup?.antenna_dome,
-                    date_start: subRinexLastGroup?.observation_s_time ?? "",
-                    date_end: subRinexLastGroup?.observation_e_time ?? "",
+                    radome_code: subFirstRinex?.antenna_dome,
+                    date_start: ensureEndsWithZ(
+                        subFirstRinex?.observation_s_time ?? "",
+                    ),
+                    date_end: ensureEndsWithZ(
+                        subLastRinex?.observation_e_time ?? "",
+                    ),
                     receiver_vers: "",
                     comments:
                         "Record created based on file " +
-                        subRinexLastGroup?.filename,
+                        subFirstRinex?.filename,
                 } as StationInfoData;
             } else {
                 // Si no es un array (RinexData), retornamos lo necesario según la estructura de RinexData
@@ -447,12 +497,15 @@ const Rinex = () => {
                     antenna_east: "",
                     height_code: "",
                     radome_code: rinexGroup.antenna_dome,
-                    date_start: rinexGroup.observation_s_time ?? "",
-                    date_end: rinexGroup.observation_e_time ?? "",
+                    date_start: ensureEndsWithZ(
+                        rinexGroup.observation_s_time ?? "",
+                    ),
+                    date_end: ensureEndsWithZ(
+                        rinexGroup.observation_e_time ?? "",
+                    ),
                     receiver_vers: "",
                     comments:
-                        "Record created based on data from " +
-                        rinexGroup.filename,
+                        "Record created based on file " + rinexGroup.filename,
                 } as StationInfoData;
             }
         }, [rinexGroup]);
@@ -460,13 +513,6 @@ const Rinex = () => {
 
     const stationInfoByRinex = useStationInfoByRinexGroup(
         rinexGroup ?? singleRinex ?? [],
-    );
-
-    console.log(
-        "stationInfoByRinex",
-        stationInfoByRinex,
-        rinexGroup,
-        singleRinex,
     );
 
     return (
@@ -518,7 +564,7 @@ const Rinex = () => {
                                         }
                                     />
                                 </label>
-                                <div className="h-12">
+                                <div className="relative h-12">
                                     <button
                                         className="btn self-end"
                                         onClick={() =>
@@ -532,12 +578,36 @@ const Rinex = () => {
                                         Filter
                                         <FunnelIcon className="size-6" />
                                     </button>
+                                    {rinexFilter && (
+                                        <button
+                                            className="btn btn-error btn-circle absolute left-[85px]"
+                                            style={{
+                                                width: "25px",
+                                                height: "25px",
+                                                minHeight: "10px",
+                                            }}
+                                            onClick={() => {
+                                                setRinexFilter(false);
+                                                setRinexFilterData(undefined);
+                                                setFilters(RINEX_FILTERS_STATE);
+                                                // setTimeout(() => {
+                                                //     getRinex();
+                                                // }, 1000);
+                                            }}
+                                        >
+                                            <XMarkIcon className="size-5" />
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         </div>
 
                         <RinexTable
-                            titles={titles}
+                            titles={
+                                paginatedRinexs && paginatedRinexs.length > 0
+                                    ? titles
+                                    : []
+                            }
                             loading={loading}
                             sameGroup={sameGroup}
                             data={paginatedRinexs ?? []}
@@ -546,23 +616,31 @@ const Rinex = () => {
                                 setRinexStationInfoRelated
                             }
                             setRinexGroup={setRinexGroup}
-                            setRinexAddType={setRinexAddType}
                             setSingleRinex={setSingleRinex}
                             setExtendTypeRinex={setExtendTypeRinex}
                         />
-                        {rinex && rinex?.length > 0 && (
+                        {paginatedRinexs && paginatedRinexs?.length > 0 ? (
                             <Pagination
                                 pages={pages}
                                 pagesToShow={PAGES_TO_SHOW}
                                 activePage={activePage}
                                 handlePage={handlePage}
                             />
-                        )}
+                        ) : null}
                     </TableCard>
                 </CardContainer>
             </div>
             {modals?.show && modals.title === "RinexFilters" && (
                 <RinexFilter
+                    registersPerPage={REGISTERS_PER_PAGE}
+                    stationApiId={station.api_id ?? undefined}
+                    filters={filters}
+                    calculateTotalLength={calculateTotalLength}
+                    setFilters={setFilters}
+                    setRinex={setRinexFilterData}
+                    setRinexFilter={setRinexFilter}
+                    setProblematicRinex={setProblematicRinex}
+                    setPages={setPages}
                     setStateModal={setModals}
                     handleCloseModal={() => undefined}
                 />
@@ -570,22 +648,10 @@ const Rinex = () => {
 
             {modals?.show && modals.title === "RinexAdd" && (
                 <RinexAddModal
-                    rinexGroup={rinexGroup}
-                    singleRinex={singleRinex}
-                    rinexAddType={rinexAddType}
-                    closeModal={() => {
-                        setModals({ show: false, title: "", type: "none" });
-                        getRinex();
-                        setRinexGroup(undefined);
-                        setSingleRinex(undefined);
-                        setRinexAddType(undefined);
-                    }}
+                    stationApiId={station.api_id ?? 0}
                     setModalState={setModals}
                     handleCloseModal={() => {
                         getRinex();
-                        setRinexAddType(undefined);
-                        setRinexGroup(undefined);
-                        setSingleRinex(undefined);
                     }}
                 />
             )}
@@ -611,6 +677,8 @@ const Rinex = () => {
                     setModalState={setModals}
                     refetch={() => {
                         setRinexStationInfoRelated(undefined);
+                        setActivePage(1);
+                        getRinex();
                     }}
                 />
             )}

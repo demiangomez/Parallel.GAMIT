@@ -248,6 +248,9 @@ const MapStation = ({
                 />
                 <LoadKmzFromBase64 base64Data={base64Data} />
                 <Marker
+                    ref={(ref) => {
+                        setTimeout(() => ref?.openPopup(), 500);
+                    }}
                     icon={iconGaps}
                     key={station ? station.lat + station.lon : "key"}
                     position={mapProps.center ?? [0, 0]}

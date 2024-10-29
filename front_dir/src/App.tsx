@@ -75,7 +75,7 @@ const router = createBrowserRouter(
                     }}
                 >
                     <Route index element={<StationMain />} />
-                    {/* <Route
+                    <Route
                         path="rinex"
                         element={<Rinex />}
                         handle={{
@@ -84,8 +84,7 @@ const router = createBrowserRouter(
                             },
                         }}
                     />
-                        TODO: ADD RINEX ROUTE AND SIDEBAR
-                    */}
+
                     <Route
                         path="people"
                         element={<StationPeople />}

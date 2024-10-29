@@ -1,29 +1,60 @@
+import { useEffect, useState } from "react";
 import { Menu, MenuButton, MenuContent, Modal } from "@componentsReact";
 
 import { useApi, useAuth, useFormReducer, useFormValidation } from "@hooks";
-import { getAntennasService, getReceiversService } from "@services";
+import {
+    getAntennasService,
+    getReceiversService,
+    getRinexWithStatusService,
+} from "@services";
 import {
     AntennaData,
     AntennaServiceData,
+    GetParams,
     ReceiversData,
     ReceiversServiceData,
+    RinexObject,
 } from "@types";
-import { isValidNumber } from "@utils/index";
 
+import { isValidNumber } from "@utils";
 import { RINEX_FILTERS_STATE } from "@utils/reducerFormStates";
-import { useEffect, useState } from "react";
 
 interface Props {
+    stationApiId: number | undefined;
+    registersPerPage: number;
+    filters: Record<keyof typeof RINEX_FILTERS_STATE, any>;
+    setFilters: React.Dispatch<
+        React.SetStateAction<Record<keyof typeof RINEX_FILTERS_STATE, any>>
+    >;
+    setPages: React.Dispatch<React.SetStateAction<number>>;
+    setProblematicRinex: React.Dispatch<
+        React.SetStateAction<RinexObject[] | undefined>
+    >;
+    setRinex: React.Dispatch<React.SetStateAction<RinexObject[] | undefined>>;
+    setRinexFilter: React.Dispatch<React.SetStateAction<boolean>>;
     setStateModal: React.Dispatch<
         React.SetStateAction<
             | { show: boolean; title: string; type: "add" | "edit" | "none" }
             | undefined
         >
     >;
+    calculateTotalLength: (rinexs: RinexObject[]) => number;
     handleCloseModal: () => void;
 }
 
-const RinexFilter = ({ setStateModal, handleCloseModal }: Props) => {
+const RinexFilter = ({
+    stationApiId,
+    registersPerPage,
+    filters,
+    setFilters,
+    setPages,
+    setProblematicRinex,
+    setRinex,
+    setRinexFilter,
+    setStateModal,
+    calculateTotalLength,
+    handleCloseModal,
+}: Props) => {
     const { token, logout } = useAuth();
     const api = useApi(token, logout);
 
@@ -34,13 +65,15 @@ const RinexFilter = ({ setStateModal, handleCloseModal }: Props) => {
         "completion",
     ]);
 
-    const filters = Object.keys(formState).map((t) => t.replace("_", " "));
+    const formStatefilters = Object.keys(formState).map((t) =>
+        t.replace("_", " "),
+    );
 
-    const equipmentFilters = filters.filter(
+    const equipmentFilters = formStatefilters.filter(
         (f) => f.includes("receiver") || f.includes("antenna"),
     );
 
-    const dateFilters = filters.filter(
+    const dateFilters = formStatefilters.filter(
         (f) => f.includes("time") || f.includes("doy") || f.includes("year"),
     );
 
@@ -82,6 +115,102 @@ const RinexFilter = ({ setStateModal, handleCloseModal }: Props) => {
         }
     };
 
+    const formatDateTime = (dateTime: string): string => {
+        const [date, time] = dateTime.split("T");
+        if (!date || !time) return "";
+        return `${date} ${time}`;
+    };
+
+    const getRinexFiltered = async () => {
+        try {
+            const params: GetParams = {
+                observation_doy: formState.doy,
+                observation_f_year: formState["f_year"],
+                observation_s_time_since: formatDateTime(
+                    formState["s_time"] ?? "",
+                ),
+                observation_e_time_until: formatDateTime(
+                    formState["e_time"] ?? "",
+                ),
+                observation_year: formState.year,
+                antenna_dome: formState["antenna_dome"],
+                antenna_offset: formState["antenna_offset"],
+                antenna_serial: formState["antenna_serial"],
+                antenna_type: formState["antenna_type"],
+                receiver_fw: formState["receiver_fw"],
+                receiver_serial: formState["receiver_serial"],
+                receiver_type: formState["receiver_type"],
+                completion_operator:
+                    operatorSelected === "<"
+                        ? "LESS_THAN"
+                        : operatorSelected === ">"
+                          ? "GREATER_THAN"
+                          : "EQUAL",
+                completion: formState.completion,
+                interval: formState.interval,
+                offset: 0,
+                limit: registersPerPage,
+            };
+
+            Object.keys(params).forEach((key) => {
+                if (
+                    params[key as keyof GetParams] === undefined ||
+                    params[key as keyof GetParams] === ""
+                ) {
+                    delete params[key as keyof GetParams];
+                }
+            });
+
+            setLoading(true);
+            const res = await getRinexWithStatusService<RinexObject[]>(
+                api,
+                stationApiId ?? 0,
+                params,
+            );
+            const rinexWithGroupId = res
+                .map((item, index) => {
+                    return {
+                        ...item,
+                        rinex: item.rinex
+                            .map((r) => ({
+                                ...r,
+                                rinex: r.rinex.filter((r2) => !r2.filtered),
+                            }))
+                            .filter((r) => r.rinex.length > 0),
+                        groupId: `group-${index}`,
+                    };
+                })
+                .filter((item) => item.rinex.length > 0);
+
+            setRinex(rinexWithGroupId);
+
+            const problematic = rinexWithGroupId
+                .filter((rinex) =>
+                    rinex.rinex.some((r) =>
+                        r.rinex.some((r2) => !r2.has_station_info),
+                    ),
+                )
+                .map((rinex) => ({
+                    ...rinex,
+                    rinex: rinex.rinex
+                        .map((r) => ({
+                            ...r,
+                            rinex: r.rinex.filter((r2) => !r2.has_station_info),
+                        }))
+                        .filter((r) => r.rinex.length > 0),
+                }))
+                .filter((rinex) => rinex.rinex.length > 0);
+
+            setProblematicRinex(problematic);
+            setPages(Math.ceil(calculateTotalLength(res) / registersPerPage));
+            setRinexFilter(true);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { value, name } = e.target;
 
@@ -111,7 +240,26 @@ const RinexFilter = ({ setStateModal, handleCloseModal }: Props) => {
         if (name in fieldValidity) {
             validateField(name, value, isValidNumber);
         }
+
+        setFilters((prev) => ({
+            ...prev,
+            [name.includes(" ") ? quitSpace(name) : name]: value,
+        }));
     };
+
+    const handleSubmitForm = (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        getRinexFiltered();
+    };
+
+    useEffect(() => {
+        if (Object.values(filters).some((r) => r.length > 0)) {
+            dispatch({
+                type: "set",
+                payload: filters,
+            });
+        }
+    }, [filters]);
 
     useEffect(() => {
         const fetchAllData = async () => {
@@ -127,15 +275,6 @@ const RinexFilter = ({ setStateModal, handleCloseModal }: Props) => {
         fetchAllData();
     }, []);
 
-    //TODO: ADD THE LOGIC TO FILTER THE DATA BASED ON THE FILTERS SELECTED
-
-    // [15:16, 16/10/2024] +1 (901) 900-7324: cambiale el orden, deja arriba YEAR y FYEAR
-    // [15:16, 16/10/2024] +1 (901) 900-7324: que DOY quede solo y que Observation time sea como un DESDE HASTA
-    // [15:17, 16/10/2024] +1 (901) 900-7324: que en realidad esta compuesto por dos campos
-    // [15:17, 16/10/2024] +1 (901) 900-7324: S time > que y E time < que
-    // [15:17, 16/10/2024] +1 (901) 900-7324: perdon, >= y <=
-    // [15:17, 16/10/2024] +1 (901) 900-7324: BETWEEN para SQL Nerds
-
     return (
         <Modal
             close={false}
@@ -144,7 +283,10 @@ const RinexFilter = ({ setStateModal, handleCloseModal }: Props) => {
             handleCloseModal={() => handleCloseModal()}
             setModalState={setStateModal}
         >
-            <div className="flex flex-col w-full space-y-4">
+            <form
+                className="flex flex-col w-full space-y-4"
+                onSubmit={handleSubmitForm}
+            >
                 <div className="grid grid-cols-2 grid-flow-dense gap-2">
                     <div className="card bg-base-200 grow shadow-xl">
                         <h2 className="card-title border-b-2 border-base-300 p-2">
@@ -152,35 +294,102 @@ const RinexFilter = ({ setStateModal, handleCloseModal }: Props) => {
                         </h2>
 
                         <div className="card-body">
-                            <div className="grid grid-cols-2 gap-4">
-                                {dateFilters.map((filter, index) => (
-                                    <div
-                                        key={index}
-                                        className="flex flex-col text-sm space-y-2 my-2"
+                            <div className="grid grid-cols-1 gap-4">
+                                <div className="flex flex-col text-sm space-y-2 my-2">
+                                    <span className="font-bold">F YEAR</span>
+                                    <label
+                                        htmlFor="f year"
+                                        className="input input-bordered flex items-center w-full"
                                     >
-                                        <span className="font-bold">
-                                            {filter.toUpperCase()}
-                                        </span>
-
+                                        <input
+                                            type="text"
+                                            value={
+                                                formState[
+                                                    quitSpace(
+                                                        "f year",
+                                                    ) as keyof typeof formState
+                                                ]
+                                            }
+                                            name="f year"
+                                            id="f year"
+                                            className="w-full"
+                                            onChange={(e) => {
+                                                handleChange(e);
+                                            }}
+                                        />
+                                    </label>
+                                </div>
+                                <div className="flex flex-col text-sm space-y-2 my-2">
+                                    <span className="font-bold">YEAR</span>
+                                    <label
+                                        htmlFor="year"
+                                        className="input input-bordered flex items-center w-full"
+                                    >
+                                        <input
+                                            type="text"
+                                            value={
+                                                formState[
+                                                    quitSpace(
+                                                        "year",
+                                                    ) as keyof typeof formState
+                                                ]
+                                            }
+                                            name="year"
+                                            id="year"
+                                            className="w-full"
+                                            onChange={(e) => {
+                                                handleChange(e);
+                                            }}
+                                        />
+                                    </label>
+                                </div>
+                                <div className="flex flex-col text-sm space-y-2 my-2 overflow-x-auto">
+                                    <span className="font-bold">
+                                        OBSERVATION TIME
+                                    </span>
+                                    <div className="join">
                                         <label
-                                            htmlFor={filter}
-                                            className="input input-bordered flex items-center"
+                                            htmlFor="s time"
+                                            className="input join-item input-bordered flex items-center w-full"
                                         >
                                             <input
-                                                type={
-                                                    filter.includes("time")
-                                                        ? "datetime-local"
-                                                        : "text"
-                                                }
+                                                type="datetime-local"
                                                 value={
                                                     formState[
                                                         quitSpace(
-                                                            filter,
+                                                            "s time",
                                                         ) as keyof typeof formState
                                                     ]
                                                 }
-                                                name={filter}
-                                                id={filter}
+                                                name="s time"
+                                                id="s time"
+                                                className="w-full"
+                                                onChange={(e) => {
+                                                    handleChange(e);
+                                                }}
+                                            />
+                                        </label>
+                                        <span
+                                            className="join-item px-6 text-lg place-content-center bg-neutral-content border border-neutral-300 
+                                    "
+                                        >
+                                            to
+                                        </span>
+                                        <label
+                                            htmlFor="e time"
+                                            className="input join-item input-bordered flex items-center w-full"
+                                        >
+                                            <input
+                                                type="datetime-local"
+                                                value={
+                                                    formState[
+                                                        quitSpace(
+                                                            "e time",
+                                                        ) as keyof typeof formState
+                                                    ]
+                                                }
+                                                name="e time"
+                                                id="e time"
                                                 className="w-full"
                                                 onChange={(e) => {
                                                     handleChange(e);
@@ -188,7 +397,31 @@ const RinexFilter = ({ setStateModal, handleCloseModal }: Props) => {
                                             />
                                         </label>
                                     </div>
-                                ))}
+                                </div>
+                                <div className="flex flex-col text-sm space-y-2 my-2">
+                                    <span className="font-bold">DOY</span>
+                                    <label
+                                        htmlFor="doy"
+                                        className="input input-bordered flex items-center w-full"
+                                    >
+                                        <input
+                                            type="text"
+                                            value={
+                                                formState[
+                                                    quitSpace(
+                                                        "doy",
+                                                    ) as keyof typeof formState
+                                                ]
+                                            }
+                                            name="doy"
+                                            id="doy"
+                                            className="w-full"
+                                            onChange={(e) => {
+                                                handleChange(e);
+                                            }}
+                                        />
+                                    </label>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -314,7 +547,7 @@ const RinexFilter = ({ setStateModal, handleCloseModal }: Props) => {
                         </h2>
                         <div className="card-body">
                             <div className="grid grid-cols-2 gap-4">
-                                {filters.map((filter, index) => {
+                                {formStatefilters.map((filter, index) => {
                                     if (
                                         !dateFilters.includes(filter) &&
                                         !equipmentFilters.includes(filter) &&
@@ -384,7 +617,7 @@ const RinexFilter = ({ setStateModal, handleCloseModal }: Props) => {
                                                         step={
                                                             filter ===
                                                             "completion"
-                                                                ? 0.01
+                                                                ? 0.001
                                                                 : 1
                                                         }
                                                         value={
@@ -420,20 +653,27 @@ const RinexFilter = ({ setStateModal, handleCloseModal }: Props) => {
                     </div>
                 </div>
                 <div className="w-full flex flex-grow items-end space-x-4 justify-center">
-                    <a
-                        className="link link-hover"
-                        onClick={() => setStateModal(undefined)}
-                    >
-                        cancel
-                    </a>
                     <button
                         className="btn w-[200px] btn-success"
+                        type="submit"
                         disabled={!allFieldsValid}
                     >
                         apply filters
                     </button>
+
+                    <a
+                        className="link link-hover"
+                        onClick={() => {
+                            setStateModal(undefined);
+                            setRinexFilter(false);
+                            setRinex(undefined);
+                            setFilters(RINEX_FILTERS_STATE);
+                        }}
+                    >
+                        clean filters
+                    </a>
                 </div>
-            </div>
+            </form>
         </Modal>
     );
 };

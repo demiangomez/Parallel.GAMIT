@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, Modal } from "@componentsReact";
 
 import { ArrowsUpDownIcon } from "@heroicons/react/24/outline";
@@ -6,10 +6,18 @@ import { ArrowsUpDownIcon } from "@heroicons/react/24/outline";
 import { useApi, useAuth } from "@hooks";
 import { apiOkStatuses } from "@utils";
 
-import { ErrorResponse, Errors, RinexData } from "@types";
 import {
+    ErrorResponse,
+    Errors,
+    ExtendedStationInfoData,
+    RinexData,
+    StationInfoData,
+} from "@types";
+import {
+    getStationInfoByIdService,
     postExtendDownRinexService,
     postExtendUpRinexService,
+    putStationInfoService,
 } from "@services";
 
 interface Props {
@@ -32,6 +40,10 @@ const RinexExtend = ({
     closeModal,
     setModalState,
 }: Props) => {
+    type StationInfoDataExtended = StationInfoData & {
+        statusCode: number;
+    };
+
     const { token, logout } = useAuth();
     const api = useApi(token, logout);
 
@@ -41,13 +53,23 @@ const RinexExtend = ({
 
     const [loading, setLoading] = useState<boolean>(false);
 
+    const [stationInfoApiId, setStationInfoApiId] = useState<
+        number | undefined
+    >(undefined);
+
+    const [stationInfo, setStationInfo] = useState<StationInfoData | undefined>(
+        undefined,
+    );
+
     const updateRinexUpwards = async () => {
         try {
             setLoading(true);
             if (rinex) {
                 const res = await postExtendUpRinexService<
-                    { statusCode: number } | ErrorResponse
+                    | { next_station_info_api_id: number; statusCode: number }
+                    | ErrorResponse
                 >(api, rinex.api_id);
+
                 if ("status" in res) {
                     setMsg({
                         status: res.statusCode,
@@ -55,10 +77,7 @@ const RinexExtend = ({
                         errors: res.response,
                     });
                 } else {
-                    setMsg({
-                        status: res.statusCode,
-                        msg: "Rinex extended successfully",
-                    });
+                    setStationInfoApiId(res.next_station_info_api_id);
                 }
             }
         } catch (err) {
@@ -73,7 +92,11 @@ const RinexExtend = ({
             setLoading(true);
             if (rinex) {
                 const res = await postExtendDownRinexService<
-                    { statusCode: number } | ErrorResponse
+                    | {
+                          statusCode: number;
+                          previous_station_info_api_id: number;
+                      }
+                    | ErrorResponse
                 >(api, rinex.api_id);
                 if ("status" in res) {
                     setMsg({
@@ -82,9 +105,69 @@ const RinexExtend = ({
                         errors: res.response,
                     });
                 } else {
+                    setStationInfoApiId(res.previous_station_info_api_id);
+                }
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const getStationInfoByApiId = async (apiId: number) => {
+        try {
+            setLoading(true);
+            if (apiId) {
+                const res = await getStationInfoByIdService<
+                    StationInfoDataExtended | ErrorResponse
+                >(api, apiId);
+
+                if ("status" in res) {
+                    setStationInfo(undefined);
                     setMsg({
                         status: res.statusCode,
-                        msg: "Rinex extended successfully",
+                        msg: res.response.type ?? res.msg,
+                        errors: res.response,
+                    });
+                } else {
+                    setStationInfo(res);
+                }
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const putStationInfo = async () => {
+        try {
+            setLoading(true);
+
+            const { observation_s_time, observation_e_time } = rinex ?? {};
+
+            if (extendType === "up" && stationInfo) {
+                stationInfo.date_start = observation_s_time ?? "";
+            } else if (extendType === "down" && stationInfo) {
+                stationInfo.date_end = observation_e_time ?? "";
+            }
+
+            const res = await putStationInfoService<
+                ExtendedStationInfoData | ErrorResponse
+            >(api, Number(stationInfo?.api_id), stationInfo ?? {});
+
+            if (res) {
+                if ("status" in res) {
+                    setMsg({
+                        status: res.statusCode,
+                        msg: res.response.type,
+                        errors: res.response,
+                    });
+                } else {
+                    setMsg({
+                        status: res.statusCode,
+                        msg: "Station info extended successfully",
                     });
                 }
             }
@@ -95,7 +178,20 @@ const RinexExtend = ({
         }
     };
 
+    useEffect(() => {
+        if (stationInfoApiId) {
+            getStationInfoByApiId(stationInfoApiId);
+        }
+    }, [stationInfoApiId]);
+
+    useEffect(() => {
+        if (stationInfo) {
+            putStationInfo();
+        }
+    }, [stationInfo]);
+
     const confirmExtend = () => {
+        setStationInfoApiId(undefined);
         if (extendType === "up") {
             updateRinexUpwards();
         } else if (extendType === "down") {

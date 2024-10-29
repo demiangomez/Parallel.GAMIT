@@ -330,6 +330,18 @@ export async function getStationInfoService<T>(
     }
 }
 
+export async function getStationInfoByIdService<T>(
+    api: AxiosInstance,
+    id: number,
+): Promise<T> {
+    try {
+        const response = await api.get(`api/station-info/${id}`);
+        return response.data as Promise<T>;
+    } catch (error) {
+        return Promise.reject(error);
+    }
+}
+
 export async function postStationInfoService<T>(
     api: AxiosInstance,
     body: object,
@@ -351,7 +363,7 @@ export async function postStationInfoByFileService<T>(
 ): Promise<T> {
     try {
         const response = await api.post(
-            `api/${station_api_id}/insert-station-info-by-file`,
+            `api/station/${station_api_id}/insert-station-info-by-file`,
             data,
             {
                 headers: {
@@ -1090,8 +1102,8 @@ export async function postExtendUpRinexService<T>(
     rinex_api_id: number,
 ): Promise<T> {
     try {
-        const response = await api.post(
-            `api/rinex/${rinex_api_id}/cover-date-start`,
+        const response = await api.get(
+            `api/rinex/${rinex_api_id}/get-next-station-info`,
         );
         return response.data as Promise<T>;
     } catch (error) {
@@ -1104,8 +1116,8 @@ export async function postExtendDownRinexService<T>(
     rinex_api_id: number,
 ): Promise<T> {
     try {
-        const response = await api.post(
-            `api/rinex/${rinex_api_id}/cover-date-end`,
+        const response = await api.get(
+            `api/rinex/${rinex_api_id}/get-previous-station-info`,
         );
         return response.data as Promise<T>;
     } catch (error) {

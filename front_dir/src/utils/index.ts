@@ -69,6 +69,10 @@ export const dateToUTC = (date: Date | string) => {
     return utc;
 };
 
+export const ensureEndsWithZ = (str: string): string => {
+    return str.endsWith("Z") ? str : str + "Z";
+};
+
 export const woTz = (d: Date | undefined) => {
     if (d === undefined) {
         return;

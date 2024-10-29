@@ -12,7 +12,7 @@ import {
     StationMetadataServiceData,
 } from "@types";
 
-import { formattedDates, generateErrorMessages } from "@utils";
+import { formattedDates, generateErrorMessages, woTz } from "@utils";
 
 interface PopupChildrenProps {
     station: StationData | undefined;
@@ -197,7 +197,23 @@ const PopupChildren = ({ station, fromMain }: PopupChildrenProps) => {
             </div>
 
             {
-                <div className="w-full border-t-2 pt-2">
+                <div className="w-full flex flex-col border-t-2 pt-2">
+                    {!fromMain && (
+                        <div className="flex flex-col items-center text-sm my-2">
+                            <span className="font-bold">Last gaps update </span>
+                            <span>
+                                {stationMeta?.has_gaps_last_update_datetime
+                                    ? formattedDates(
+                                          woTz(
+                                              new Date(
+                                                  stationMeta.has_gaps_last_update_datetime as string,
+                                              ),
+                                          ) as Date,
+                                      ) ?? ""
+                                    : "No update date available"}
+                            </span>
+                        </div>
+                    )}
                     <span className="text-base text-error border-b-2">
                         Station errors
                     </span>

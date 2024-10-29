@@ -50,11 +50,11 @@ const Sidebar = ({
         People: UsersIcon,
     };
 
-    const longTitles = ["Information", "Metadata", "Visits", "People"];
-    //    const longTitles = ["Information", "Metadata", "Visits", "Rinex", "People"];
+    // const longTitles = ["Information", "Metadata", "Visits", "People"];
+    const longTitles = ["Information", "Metadata", "Visits", "Rinex", "People"];
 
-    const stationPages = ["People", "Visits"];
-    // const stationPages = ["People", "Visits", "Rinex"];
+    // const stationPages = ["People", "Visits"];
+    const stationPages = ["People", "Visits", "Rinex"];
 
     // const admTitles = ["Admin", "Users", "Settings"];
     const sidebarWidth = show ? "w-72" : "w-32";

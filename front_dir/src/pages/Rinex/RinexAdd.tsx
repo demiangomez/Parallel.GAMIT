@@ -1,16 +1,17 @@
+import { useEffect, useState } from "react";
 import { useDropzone } from "react-dropzone";
-import { Modal } from "@componentsReact";
+import { Alert, Modal } from "@componentsReact";
 
 import { CloudArrowDownIcon } from "@heroicons/react/24/outline";
 
-import { RinexData, RinexItem } from "@types";
-import { useEffect, useState } from "react";
+import { useAuth, useApi } from "@hooks";
+
+import { postStationInfoByFileService } from "@services";
+import { apiOkStatuses, formattedDates, woTz } from "@utils";
+import { RinexAddFile, RinexFileResponse } from "@types";
 
 interface Props {
-    rinexGroup: RinexItem[] | undefined;
-    singleRinex: RinexData | undefined;
-    rinexAddType: "file" | "metadata" | undefined;
-    closeModal: () => void;
+    stationApiId: number;
     handleCloseModal: () => void;
     setModalState: React.Dispatch<
         React.SetStateAction<
@@ -74,19 +75,68 @@ const Dropzone = ({ file, setFile }: DropzoneProps) => {
     );
 };
 
-const RinexAdd = ({
-    rinexGroup,
-    singleRinex,
-    rinexAddType,
-    closeModal,
-    handleCloseModal,
-    setModalState,
-}: Props) => {
-    // console.log({ rinexGroup }, { singleRinex });
+const RinexAdd = ({ stationApiId, handleCloseModal, setModalState }: Props) => {
+    const { token, logout } = useAuth();
+    const api = useApi(token, logout);
+
+    const [loading, setLoading] = useState<boolean>(false);
+    const [msg, setMsg] = useState<
+        | {
+              status: number;
+              msg: string;
+              errors?: RinexFileResponse;
+              rinex_other_errors?: { [key: string]: string[] };
+          }
+        | undefined
+    >(undefined);
 
     const [file, setFile] = useState<File | undefined>(undefined);
 
-    //TODO: ADD ES RINEXGROUP, EDIT ES SINGLERINEX
+    const addFile = async () => {
+        try {
+            setLoading(true);
+            const formData = new FormData();
+            formData.append("file", file as File);
+
+            const res = await postStationInfoByFileService<
+                RinexAddFile | RinexFileResponse
+            >(api, stationApiId, formData);
+
+            if (res) {
+                if ("status" in res) {
+                    setMsg({
+                        status: res.statusCode,
+                        msg: "No station info created",
+                        errors: res.response,
+                    });
+                } else if (
+                    apiOkStatuses.includes(res.statusCode) &&
+                    !("status" in res)
+                ) {
+                    const stationInfoInserted = res.inserted_station_info;
+
+                    const errorMessage = res.error_message;
+
+                    const formattedMsg = stationInfoInserted
+                        .map(
+                            (info) =>
+                                `Station Code --> ${info.station_code?.toUpperCase()} \n Network Code --> ${info.network_code?.toUpperCase()} \n Date start --> ${formattedDates(woTz(new Date(info.date_start as string)) as Date)}`,
+                        )
+                        .join("\n");
+
+                    setMsg({
+                        status: res?.statusCode,
+                        msg: `Station info successfully created\n${formattedMsg}`,
+                        rinex_other_errors: errorMessage,
+                    });
+                }
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     return (
         <Modal
@@ -96,63 +146,31 @@ const RinexAdd = ({
             setModalState={setModalState}
             handleCloseModal={handleCloseModal}
         >
-            <div className="flex space-x-4 items-center justify-center">
-                {" "}
-                {rinexAddType === "file" ? (
-                    <Dropzone file={file} setFile={setFile} />
-                ) : (
-                    rinexAddType === "metadata" && (
-                        <div className="w-[45%]">
-                            <button
-                                className="btn btn-light w-full tracking-wide"
-                                style={{ height: "120px", fontSize: "18px" }}
-                            >
-                                Add station info by rinex metadata
-                            </button>
-                        </div>
-                    )
-                )}
-                {/* <div className="w-[45%]">
-                    <button
-                        className="btn btn-light w-full tracking-wide"
-                        style={{ height: "120px", fontSize: "18px" }}
-                    >
-                        Add station info by {rinexGroup ? "first" : ""} rinex
-                        metadata
-                    </button>
-                </div> */}
+            <div className="flex p-2 items-center justify-center">
+                <Dropzone file={file} setFile={setFile} />
             </div>
-            {rinexAddType === "file" && (
-                <div className="w-full flex flex-col items-center mt-2">
-                    <button
-                        className="btn btn-success w-[160px]"
-                        type="button"
-                        // onClick={() => confirmExtend()}
-                        disabled={
-                            !file
-                            // loading || apiOkStatuses.includes(Number(msg?.status))
-                        }
-                    >
-                        Add
-                        {/* {loading && (
-                            <span className="loading loading-spinner loading-sm self-center"></span>
-                            )} */}
-                    </button>
-                </div>
-            )}
 
-            <div className="flex justify-center">
-                {/* {msg && <Alert msg={msg} />} */}
-            </div>
-            {/* <div className="flex justify-center mt-6 space-x-4">
+            <div className="w-full flex flex-col items-center mt-2">
                 <button
-                    className="btn btn-secondary w-4/12"
+                    className="btn btn-success w-[160px]"
                     type="button"
-                    onClick={() => closeModal()}
+                    onClick={() => addFile()}
+                    disabled={
+                        !file ||
+                        loading ||
+                        apiOkStatuses.includes(Number(msg?.status))
+                    }
                 >
-                    Close
+                    Add
+                    {loading && (
+                        <span className="loading loading-spinner loading-sm self-center"></span>
+                    )}
                 </button>
-            </div> */}
+            </div>
+
+            <div className="flex justify-center mt-4">
+                {msg && <Alert msg={msg} />}
+            </div>
         </Modal>
     );
 };
