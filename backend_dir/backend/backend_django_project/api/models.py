@@ -917,7 +917,6 @@ class Endpoint(BaseModel):
         ("ALL", "ALL")
     ]
 
-
     method = models.CharField(max_length=6, choices=METHOD_CHOICES)
 
     class Meta:

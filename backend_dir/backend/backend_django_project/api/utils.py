@@ -7,6 +7,8 @@ from django.db import connection
 import django.utils.timezone
 import logging
 from django.core.cache import cache
+from django.conf import settings
+from django.forms.models import model_to_dict
 
 logger = logging.getLogger('django')
 
@@ -327,3 +329,332 @@ class StationInfoUtils:
             ), field.name) for field in models.Stationinfo._meta.get_fields()}
 
         return values
+
+class RinexUtils:
+    @staticmethod
+    def get_next_station_info(rinex):
+
+        related_station_info = models.Stationinfo.objects.filter(
+            network_code=rinex.network_code,
+            station_code=rinex.station_code
+        ).order_by('date_start')
+
+        if related_station_info.count() == 0:
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                'No station info found for %s.%s' % (rinex.network_code, rinex.station_code))
+ 
+        station_info_before_rinex, station_info_containing_rinex, station_info_after_rinex = RinexUtils._clasify_station_info_from_rinex(rinex, related_station_info)
+
+        if len(station_info_after_rinex) > 0:
+            return station_info_after_rinex[0]
+        else:
+            return None
+        
+    @staticmethod
+    def get_previous_station_info(rinex):
+
+        related_station_info = models.Stationinfo.objects.filter(
+            network_code=rinex.network_code,
+            station_code=rinex.station_code
+        ).order_by('date_start')
+
+        if related_station_info.count() == 0:
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                'No station info found for %s.%s' % (rinex.network_code, rinex.station_code))
+ 
+        station_info_before_rinex, station_info_containing_rinex, station_info_after_rinex = RinexUtils._clasify_station_info_from_rinex(rinex, related_station_info)
+
+        if len(station_info_before_rinex) > 0:
+            return station_info_before_rinex[-1]
+        else:
+            return None
+
+    @staticmethod
+    def get_rinex_with_status(rinex_list, filters):
+        if len(rinex_list) > 0:
+            station_info_from_station = list(RinexUtils._get_station_info_from_station(rinex_list[0].network_code, rinex_list[0].station_code))
+            
+            rinex_with_related_station_info = []
+
+            for rinex in rinex_list:
+                station_info_before_rinex, station_info_containing_rinex, station_info_after_rinex = RinexUtils._clasify_station_info_from_rinex(rinex, station_info_from_station)
+                
+                rinex.has_station_info = len(station_info_containing_rinex) > 0
+
+                rinex.has_multiple_station_info_gap = RinexUtils._get_has_multiple_station_info_gap(rinex, station_info_from_station)
+
+                rinex.metadata_mismatch = RinexUtils._check_metadata_mismatch(rinex, station_info_containing_rinex)
+
+                rinex.gap_type = RinexUtils._get_gap_type(rinex, station_info_before_rinex, station_info_containing_rinex, station_info_after_rinex)
+
+                rinex_with_related_station_info.append((rinex, station_info_containing_rinex))
+                            
+            rinex_list = RinexUtils._group_by_same_date_range(rinex_with_related_station_info)
+
+            rinex_list = RinexUtils._group_by_date_range_distance(rinex_list)
+
+            rinex_list = RinexUtils._convert_to_correct_format(rinex_list)
+
+            rinex_list = RinexUtils._filter_rinex(rinex_list, filters)
+        
+            return rinex_list
+        else:
+            return []
+        
+    @staticmethod
+    def _is_filtered(rinex, filters):
+        datetime_string_format = "%Y-%m-%d %H:%M"
+
+        if filters["observation_doy"] != None and str(filters["observation_doy"]) not in str(rinex["observation_doy"]):
+            return True
+        elif filters["observation_f_year"] != None and str(filters["observation_f_year"]) not in str(round(float(rinex["observation_f_year"]), 3)):
+            return True
+        elif filters["observation_s_time_since"] != None and datetime.datetime.strptime(filters["observation_s_time_since"], datetime_string_format).replace(second=0) > rinex["observation_s_time"].replace(second=0):
+            return True
+        elif filters["observation_s_time_until"] != None and datetime.datetime.strptime(filters["observation_s_time_until"], datetime_string_format).replace(second=0) < rinex["observation_s_time"].replace(second=0):
+            return True
+        elif filters["observation_e_time_since"] != None and datetime.datetime.strptime(filters["observation_e_time_since"], datetime_string_format).replace(second=0) > rinex["observation_e_time"].replace(second=0):
+            return True
+        elif filters["observation_e_time_until"] != None and datetime.datetime.strptime(filters["observation_e_time_until"], datetime_string_format).replace(second=0) < rinex["observation_e_time"].replace(second=0):
+            return True
+        elif filters["observation_year"] != None and str(filters["observation_year"]) not in str(rinex["observation_year"]):
+            return True
+        elif filters["antenna_dome"] != None and str(filters["antenna_dome"]) not in str(rinex["antenna_dome"]):
+            return True
+        elif filters["antenna_offset"] != None and str(filters["antenna_offset"]) not in str(rinex["antenna_offset"]):
+            return True
+        elif filters["antenna_serial"] != None and str(filters["antenna_serial"]) not in str(rinex["antenna_serial"]):
+            return True
+        elif filters["antenna_type"] != None and str(filters["antenna_type"]) not in str(rinex["antenna_type"]):
+            return True
+        elif filters["receiver_fw"] != None and str(filters["receiver_fw"]) not in str(rinex["receiver_fw"]):
+            return True
+        elif filters["receiver_serial"] != None and str(filters["receiver_serial"]) not in str(rinex["receiver_serial"]):
+            return True
+        elif filters["receiver_type"] != None and str(filters["receiver_type"]) not in str(rinex["receiver_type"]):
+            return True
+        elif filters["completion_operator"] != None and filters["completion"] != None and RinexUtils._filter_rinex_by_completion(rinex, filters["completion_operator"], filters["completion"]):
+            return True
+        elif filters["interval"] != None and str(filters["interval"]) not in str(rinex["interval"]):
+            return True
+        else:
+            return False
+        
+    @staticmethod
+    def _filter_rinex_by_completion(rinex, completion_operator, completion):
+        if completion_operator.upper().strip() == "GREATER_THAN":
+            return float(rinex["completion"]) <= float(completion)
+        elif completion_operator.upper().strip() == "LESS_THAN":
+            return float(rinex["completion"]) >= float(completion)
+        elif completion_operator.upper().strip() == "EQUAL":
+            return float(rinex["completion"]) != float(completion)
+        else:
+            return False
+        
+    @staticmethod
+    def _filter_rinex(rinex_list, filters):
+        for first_groups in rinex_list:
+            for second_groups in first_groups["rinex"]:
+                for rinex in second_groups["rinex"]:
+                    rinex["filtered"] = RinexUtils._is_filtered(rinex, filters)
+        
+        return rinex_list
+
+        
+    @staticmethod
+    def _get_station_info_from_station(network_code, station_code):
+        return models.Stationinfo.objects.filter(network_code=network_code, station_code=station_code).order_by('date_start')
+        
+    @staticmethod
+    def _get_has_multiple_station_info_gap(rinex, station_info_list):
+        station_info_containing_start_date = None
+        station_info_containing_end_date = None
+
+        for station_info in station_info_list:
+            station_info_date_end = station_info.date_end if station_info.date_end is not None else datetime.datetime(9999, 12, 31)
+
+            if station_info.date_start <= rinex.observation_s_time and station_info_date_end >= rinex.observation_s_time:
+                station_info_containing_start_date = station_info
+            if station_info.date_start <= rinex.observation_e_time and station_info_date_end >= rinex.observation_e_time:
+                station_info_containing_end_date = station_info
+
+        return station_info_containing_start_date is not None and station_info_containing_end_date is not None and station_info_containing_start_date != station_info_containing_end_date
+    
+    @staticmethod
+    def _convert_rinex_to_dict(rinex):
+        has_station_info = rinex.has_station_info
+        has_multiple_station_info_gap = rinex.has_multiple_station_info_gap
+        metadata_mismatch = rinex.metadata_mismatch 
+        gap_type = rinex.gap_type
+
+        rinex = model_to_dict(rinex)
+
+        rinex['has_station_info'] = has_station_info
+        rinex['has_multiple_station_info_gap'] = has_multiple_station_info_gap
+        rinex['metadata_mismatch'] = metadata_mismatch
+        rinex['gap_type'] = gap_type
+
+        return rinex
+    
+    @staticmethod
+    def _convert_stationinfo_to_dict(stationinfo):
+
+        stationinfo = {"api_id": stationinfo.api_id, "date_start": stationinfo.date_start, "date_end": stationinfo.date_end}
+
+        return stationinfo
+    
+    @staticmethod
+    def _convert_to_correct_format(rinex_list):
+        # Converts to a list of dict and sort all the stationinfo lists
+
+        list_dict = []
+
+        for stationinfo_super_set, rinex_with_related_stationinfo_list in rinex_list:
+
+            stationinfo_super_set_list = list(stationinfo_super_set)
+            stationinfo_super_set_list.sort(key=lambda x: x.date_start)
+
+            correct_format_super_group = {
+                'related_station_info': [RinexUtils._convert_stationinfo_to_dict(stationinfo_super_set_list_element) for stationinfo_super_set_list_element in stationinfo_super_set_list], 
+                'rinex': [
+                    {
+                        'rinex': [RinexUtils._convert_rinex_to_dict(rinex_element) for rinex_element in rinex], 
+                        'related_station_info': [RinexUtils._convert_stationinfo_to_dict(related_station_info_element) for related_station_info_element in sorted(list(stationinfo_from_rinex), key=lambda x: x.date_start)]
+                    } 
+                    for rinex, stationinfo_from_rinex in rinex_with_related_stationinfo_list
+                ]
+            }
+            list_dict.append(correct_format_super_group)
+
+        return list_dict
+
+    
+    @staticmethod
+    def _group_by_same_date_range(rinex_list):
+
+        rinex_list.sort(key=lambda x: x[0].observation_s_time)
+
+        rinex_groups = [] 
+
+        for rinex, station_info in rinex_list:
+            if len(rinex_groups) == 0:
+                rinex_groups.append([(rinex, station_info)])
+            else:
+                if rinex_groups[-1][0][0].observation_s_time == rinex.observation_s_time and rinex_groups[-1][0][0].observation_e_time == rinex.observation_e_time:
+                    rinex_groups[-1].append((rinex, station_info))
+                else:
+                    rinex_groups.append([(rinex, station_info)])
+
+        # group station info from same rinex group and remove duplicates
+
+        rinex_groups_with_station_info = []
+
+        for rinex_group in rinex_groups:
+            station_info_set = set()
+            rinexs = []
+
+            for rinex, station_info in rinex_group:
+                rinexs.append(rinex)
+                station_info_set.update(station_info)
+
+            rinex_groups_with_station_info.append((rinexs, station_info_set))
+
+        return rinex_groups_with_station_info
+
+    @staticmethod
+    def _group_by_date_range_distance(rinex_list):
+        # iterate over rinex_list with format [([rinex1_1, rinex1_2], set(stationinfo1, stationinfo2)), ([rinex2_1, rinex2_2], set(stationinfo1, stationinfo2))]
+        # take the first rinex of each group compare them like if rinex2_1.observation_s_time - rinex1_1.observation_e_time) < settings.RINEX_STATUS_DATE_SPAN_SECONDS
+        # if the condition is met, add all rinex and stationinfo from both groups into a new group.
+        # continue until a rinex doesn't fulfill the condition. Then, that rinex will be the first one of the next group.
+
+        rinex_list = list(rinex_list)
+
+        rinex_groups = []
+        
+        for rinex_group, station_info_set in rinex_list:
+            if len(rinex_groups) == 0:
+                rinex_groups.append((station_info_set.copy(), [(rinex_group, station_info_set.copy())]))
+            else:
+                if (rinex_group[0].observation_s_time - rinex_groups[-1][1][-1][0][0].observation_e_time).total_seconds() < float(settings.RINEX_STATUS_DATE_SPAN_SECONDS):
+                    
+                    rinex_groups[-1][1].append((rinex_group, station_info_set.copy()))
+                    rinex_groups[-1][0].update(station_info_set)
+
+                else:
+                    rinex_groups.append((station_info_set.copy(), [(rinex_group, station_info_set)]))
+
+        return rinex_groups
+        
+    @staticmethod
+    def _get_gap_type(rinex, station_info_before_rinex, station_info_containing_rinex, station_info_after_rinex):
+        if not hasattr(rinex, 'has_multiple_station_info_gap'):
+            raise exceptions.CustomServerErrorExceptionHandler('Rinex object must have the attribute has_multiple_station_info_gap')
+
+        if rinex.has_multiple_station_info_gap:
+            return None
+        elif len(station_info_before_rinex) == 0 and len(station_info_containing_rinex) == 0 and len(station_info_after_rinex) == 0:
+            return "NO STATION INFO"
+        elif len(station_info_containing_rinex) > 0:
+            return None
+        else:
+            if len(station_info_before_rinex) == 0:
+                return "BEFORE FIRST STATIONINFO"
+            elif len(station_info_after_rinex) == 0:
+                return "AFTER LAST STATIONINFO"
+            else:
+                return "BETWEEN TWO STATIONINFO"
+
+    
+    @staticmethod
+    def _check_metadata_mismatch(rinex, station_info_containing_rinex):
+        if len(station_info_containing_rinex) > 0:
+            mismatches = []
+            
+            if rinex.receiver_type != station_info_containing_rinex[0].receiver_code:
+                mismatches.append('receiver_type')
+            
+            if rinex.receiver_serial != station_info_containing_rinex[0].receiver_serial:
+                mismatches.append('receiver_serial')
+            
+            if rinex.receiver_fw != station_info_containing_rinex[0].receiver_firmware:
+                mismatches.append('receiver_fw')
+        
+            if rinex.antenna_type != station_info_containing_rinex[0].antenna_code:
+                mismatches.append('antenna_type')
+            
+            if rinex.antenna_serial != station_info_containing_rinex[0].antenna_serial:
+                mismatches.append('antenna_serial')
+            
+            if rinex.antenna_dome != station_info_containing_rinex[0].radome_code:
+                mismatches.append('antenna_dome')
+            
+            if rinex.antenna_offset != station_info_containing_rinex[0].antenna_height:
+                mismatches.append('antenna_offset')
+
+            return mismatches
+        else:
+            return []
+
+    @staticmethod
+    def _clasify_station_info_from_rinex(rinex, station_info_from_station):
+        station_info_before_rinex = []
+        station_info_containing_rinex = []
+        station_info_after_rinex = []
+
+        for station_info in station_info_from_station:
+
+            station_info_date_end = station_info.date_end if station_info.date_end is not None else datetime.datetime(9999, 12, 31)
+
+            if station_info.date_start < rinex.observation_s_time and station_info_date_end < rinex.observation_s_time:
+                station_info_before_rinex.append(station_info)
+            elif rinex.observation_s_time >= station_info.date_start and rinex.observation_s_time <= station_info_date_end and rinex.observation_e_time > station_info_date_end:
+                station_info_before_rinex.append(station_info)
+            elif rinex.observation_s_time < station_info.date_start and rinex.observation_e_time >= station_info.date_start and rinex.observation_e_time <= station_info_date_end:
+                station_info_after_rinex.append(station_info)
+            elif station_info.date_start <= rinex.observation_s_time and station_info_date_end >= rinex.observation_e_time:
+                station_info_containing_rinex.append(station_info)
+            elif station_info.date_start > rinex.observation_e_time:
+                station_info_after_rinex.append(station_info)
+
+        return station_info_before_rinex, station_info_containing_rinex, station_info_after_rinex

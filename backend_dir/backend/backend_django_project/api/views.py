@@ -29,6 +29,8 @@ from django.forms.models import model_to_dict
 from django.core.cache import cache
 import time
 from .tasks import update_gaps_status
+from django.core.files.storage import default_storage
+from pgamit import pyStationInfo, dbConnection, pyDate
 
 def response_is_paginated(response_data):
     return type(response_data) == dict
@@ -759,10 +761,108 @@ class RinexList(CustomListCreateAPIView):
     filter_backends = [DjangoFilterBackend]
     filterset_class = filters.RinexFilter
 
+class GetRinexWithStatus(CustomListCreateAPIView):
+    serializer_class = serializers.RinexSerializer
+    def get_queryset(self):
+        # get all rinex from given station
+
+        station_api_id = self.kwargs.get('station_api_id')
+        try:
+            station = models.Stations.objects.get(api_id=station_api_id)
+        except models.Stations.DoesNotExist:
+            raise Http404
+        else:
+            return models.Rinex.objects.filter(
+                network_code=station.network_code_id,
+                station_code=station.station_code
+            ).exclude(observation_s_time__isnull=True).exclude(observation_e_time__isnull=True)
+        
+    def _get_filters_from_request(self, request):
+        filters = {}
+
+        filters["observation_doy"] = request.query_params.get("observation_doy", None)
+        filters["observation_s_time_since"] = request.query_params.get("observation_s_time_since", None)
+        filters["observation_s_time_until"] = request.query_params.get("observation_s_time_until", None)
+        filters["observation_e_time_since"] = request.query_params.get("observation_e_time_since", None)
+        filters["observation_e_time_until"] = request.query_params.get("observation_e_time_until", None)
+        filters["observation_f_year"] = request.query_params.get("observation_f_year", None)
+        filters["observation_year"] = request.query_params.get("observation_year", None)
+        filters["antenna_dome"] = request.query_params.get("antenna_dome", None)
+        filters["antenna_offset"] = request.query_params.get("antenna_offset", None)
+        filters["antenna_serial"] = request.query_params.get("antenna_serial", None)
+        filters["antenna_type"] = request.query_params.get("antenna_type", None)
+        filters["receiver_fw"] = request.query_params.get("receiver_fw", None)
+        filters["receiver_serial"] = request.query_params.get("receiver_serial", None)
+        filters["receiver_type"] = request.query_params.get("receiver_type", None)
+        filters["completion_operator"] = request.query_params.get("completion_operator", None)
+        filters["completion"] = request.query_params.get("completion", None)
+        filters["interval"] = request.query_params.get("interval", None)
+
+        return filters
+
+
+    def list(self, request, *args, **kwargs):
+    
+        rinex_list = self.get_queryset()
+
+        filters = self._get_filters_from_request(request)
+
+        rinex_with_status = utils.RinexUtils.get_rinex_with_status(rinex_list, filters)
+
+        return Response(rinex_with_status)
+
+
 
 class RinexDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = models.Rinex.objects.all()
     serializer_class = serializers.RinexSerializer
+
+class GetNextStationInfoFromRinex(APIView):
+    serializer_class = serializers.RinexSerializer
+
+    def get_queryset(self, pk):
+        try:
+            return models.Rinex.objects.get(api_id=pk)
+        except models.Rinex.DoesNotExist:
+            raise Http404
+
+    def get(self, request, pk, format=None):
+        rinex = self.get_queryset(pk)
+        try:
+            next_station_info = utils.RinexUtils.get_next_station_info(rinex)
+
+            if next_station_info == None:
+                raise exceptions.CustomValidationErrorExceptionHandler(
+                    'No station info to extend for %s.%s' % (rinex.network_code.network_code, rinex.station_code))
+            
+        except Exception as e:
+            raise exceptions.CustomValidationErrorExceptionHandler(e)
+        
+        return Response(data={"next_station_info_api_id": next_station_info.api_id}, status=status.HTTP_200_OK)
+
+class GetPreviousStationInfoFromRinex(APIView):
+    serializer_class = serializers.RinexSerializer
+
+    def get_queryset(self, pk):
+        try:
+            return models.Rinex.objects.get(api_id=pk)
+        except models.Rinex.DoesNotExist:
+            raise Http404
+
+    def get(self, request, pk, format=None):
+
+        rinex = self.get_queryset(pk)
+        try:
+            previous_station_info = utils.RinexUtils.get_previous_station_info(rinex)
+
+            if previous_station_info == None:
+                raise exceptions.CustomValidationErrorExceptionHandler(
+                    'No station info to extend for %s.%s' % (rinex.network_code.network_code, rinex.station_code))
+            
+        except Exception as e:
+            raise exceptions.CustomValidationErrorExceptionHandler(e)
+        
+        return Response(data={"previous_station_info_api_id": previous_station_info.api_id}, status=status.HTTP_200_OK)
 
 
 class RinexSourcesInfoList(CustomListCreateAPIView):
@@ -903,6 +1003,32 @@ class StationinfoList(CustomListCreateAPIView):
 
     def post(self, request, *args, **kwargs):
 
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        result = self._custom_post(serializer)
+
+        if result == None:
+
+            headers = self.get_success_headers(serializer.data)
+
+            created_record_serializer = serializers.StationinfoSerializer(self.get_queryset().get(
+                network_code=serializer.validated_data['network_code'], station_code=serializer.validated_data['station_code'], date_start=serializer.validated_data['date_start']))
+
+            return Response(created_record_serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        else:
+            # no new record was created, only the start date of the first record was modified
+            previous_date = result
+
+            headers = self.get_success_headers(serializer.data)
+
+            return Response('The start date of the station information record ' +
+                            previous_date.strftime("%Y-%m-%d %H:%M:%S") +
+                            ' has been been modified to ' +
+                            serializer.validated_data['date_start'].strftime("%Y-%m-%d %H:%M:%S"), status=status.HTTP_201_CREATED, headers=headers)
+
+
+    def _custom_post(self, serializer):
         def pk_already_exists(serializer):
             return self.queryset.filter(network_code=serializer.validated_data['network_code'], station_code=serializer.validated_data['station_code'], date_start=serializer.validated_data['date_start']).exists()
 
@@ -965,94 +1091,147 @@ class StationinfoList(CustomListCreateAPIView):
                     ' -> '.join([str(overlap_record.date_start), str(overlap_record.date_end)]))
 
             return ' '.join(stroverlap)
+        
+        if not pk_already_exists(serializer):
+            # can insert because it's not the same record
+            # 1) verify the record is not between any two existing records
+            records_that_overlap = utils.StationInfoUtils.get_records_that_overlap(
+                serializer, self.get_queryset)
 
-        def custom_post(serializer):
+            if len(records_that_overlap) > 0:
+                # if it overlaps all records and the date_start < first_record.date_start
+                # see if we have to extend the initial date
 
-            if not pk_already_exists(serializer):
-                # can insert because it's not the same record
-                # 1) verify the record is not between any two existing records
-                records_that_overlap = utils.StationInfoUtils.get_records_that_overlap(
-                    serializer, self.get_queryset)
+                if len(records_that_overlap) == utils.StationInfoUtils.get_same_station_records(serializer, self.get_queryset).count() and \
+                        serializer.validated_data['date_start'] < utils.StationInfoUtils.get_same_station_records(serializer, self.get_queryset).first().date_start:
+                    if records_are_equal(serializer, utils.StationInfoUtils.get_same_station_records(serializer, self.get_queryset).first()):
 
-                if len(records_that_overlap) > 0:
-                    # if it overlaps all records and the date_start < first_record.date_start
-                    # see if we have to extend the initial date
+                        previous_date = utils.StationInfoUtils.get_same_station_records(
+                            serializer, self.get_queryset).first().date_start
 
-                    if len(records_that_overlap) == utils.StationInfoUtils.get_same_station_records(serializer, self.get_queryset).count() and \
-                            serializer.validated_data['date_start'] < utils.StationInfoUtils.get_same_station_records(serializer, self.get_queryset).first().date_start:
-                        if records_are_equal(serializer, utils.StationInfoUtils.get_same_station_records(serializer, self.get_queryset).first()):
+                        modify_record_start_date(
+                            serializer, utils.StationInfoUtils.get_same_station_records(serializer, self.get_queryset).first())
 
-                            previous_date = utils.StationInfoUtils.get_same_station_records(
-                                serializer, self.get_queryset).first().date_start
+                        insert_update_event(serializer, previous_date)
 
-                            modify_record_start_date(
-                                serializer, utils.StationInfoUtils.get_same_station_records(serializer, self.get_queryset).first())
-
-                            insert_update_event(serializer, previous_date)
-
-                            return previous_date  # in order to change the response message
-                        else:
-
-                            modify_date_end(
-                                serializer, utils.StationInfoUtils.get_same_station_records(serializer, self.get_queryset).first())
-
-                            created_object = serializer.save()
-
-                            insert_create_event(serializer,
-                                                created_object)
-
-                    elif len(records_that_overlap) == 1 and records_that_overlap[0] == utils.StationInfoUtils.get_same_station_records(serializer, self.get_queryset).last() and \
-                            utils.StationInfoUtils.get_same_station_records(serializer, self.get_queryset).last().date_end == None:
-                        # overlap with the last session
-                        # stop the current valid session
-                        last_record = utils.StationInfoUtils.get_same_station_records(
-                            serializer, self.get_queryset).last()
-
-                        modify_last_record_end_date(serializer, last_record)
-
-                        # create the incoming session
-                        serializer.save()
-
-                        insert_create_event_with_extra_description(
-                            serializer, last_record)
-
+                        return previous_date  # in order to change the response message
                     else:
-                        raise exceptions.CustomValidationErrorExceptionHandler(
-                            f"Record ${serializer.validated_data['date_start']} -> ${serializer.validated_data['date_end'] if 'date_end' in serializer.validated_data else None} overlaps with existing station.info records: ${get_overlap_exception_detail(records_that_overlap)}")
+
+                        modify_date_end(
+                            serializer, utils.StationInfoUtils.get_same_station_records(serializer, self.get_queryset).first())
+
+                        created_object = serializer.save()
+
+                        insert_create_event(serializer,
+                                            created_object)
+
+                elif len(records_that_overlap) == 1 and records_that_overlap[0] == utils.StationInfoUtils.get_same_station_records(serializer, self.get_queryset).last() and \
+                        utils.StationInfoUtils.get_same_station_records(serializer, self.get_queryset).last().date_end == None:
+                    # overlap with the last session
+                    # stop the current valid session
+                    last_record = utils.StationInfoUtils.get_same_station_records(
+                        serializer, self.get_queryset).last()
+
+                    modify_last_record_end_date(serializer, last_record)
+
+                    # create the incoming session
+                    serializer.save()
+
+                    insert_create_event_with_extra_description(
+                        serializer, last_record)
+
                 else:
-                    # no overlaps, insert the record
-                    created_object = serializer.save()
-
-                    insert_create_event(serializer, created_object)
+                    raise exceptions.CustomValidationErrorExceptionHandler(
+                        f"Record ${serializer.validated_data['date_start']} -> ${serializer.validated_data['date_end'] if 'date_end' in serializer.validated_data else None} overlaps with existing station.info records: ${get_overlap_exception_detail(records_that_overlap)}")
             else:
-                raise exceptions.CustomValidationErrorExceptionHandler(
-                    'The record already exists in the database.')
+                # no overlaps, insert the record
+                created_object = serializer.save()
 
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        result = custom_post(serializer)
-
-        if result == None:
-
-            headers = self.get_success_headers(serializer.data)
-
-            created_record_serializer = serializers.StationinfoSerializer(self.get_queryset().get(
-                network_code=serializer.validated_data['network_code'], station_code=serializer.validated_data['station_code'], date_start=serializer.validated_data['date_start']))
-
-            return Response(created_record_serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+                insert_create_event(serializer, created_object)
         else:
-            # no new record was created, only the start date of the first record was modified
-            previous_date = result
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                'The record already exists in the database.')
+        
+class InsertStationInfoByFile(APIView):
 
-            headers = self.get_success_headers(serializer.data)
+    def _station_info_pgamit_to_serializer(self, station_info_record_from_pgamit):
+        station_info_instance = {
+            "network_code": station_info_record_from_pgamit.NetworkCode,
+            "station_code": station_info_record_from_pgamit.StationCode,
+            "receiver_code": station_info_record_from_pgamit.ReceiverCode,
+            "receiver_serial": station_info_record_from_pgamit.ReceiverSerial,
+            "receiver_firmware": station_info_record_from_pgamit.ReceiverFirmware,
+            "antenna_code": station_info_record_from_pgamit.AntennaCode,
+            "antenna_serial": station_info_record_from_pgamit.AntennaSerial,
+            "antenna_height": station_info_record_from_pgamit.AntennaHeight,
+            "antenna_north": station_info_record_from_pgamit.AntennaNorth,
+            "antenna_east": station_info_record_from_pgamit.AntennaEast,
+            "height_code": station_info_record_from_pgamit.HeightCode,
+            "radome_code": station_info_record_from_pgamit.RadomeCode,
+            "date_start": pyDate.Date(stninfo = station_info_record_from_pgamit.DateStart).datetime(),
+            "date_end": pyDate.Date(stninfo = station_info_record_from_pgamit.DateEnd).datetime(),
+            "receiver_vers": station_info_record_from_pgamit.ReceiverVers,
+            "comments": station_info_record_from_pgamit.Comments
+        }
+        station_info_serializer = serializers.StationinfoSerializer(data=station_info_instance)
 
-            return Response('The start date of the station information record ' +
-                            previous_date.strftime("%Y-%m-%d %H:%M:%S") +
-                            ' has been been modified to ' +
-                            serializer.validated_data['date_start'].strftime("%Y-%m-%d %H:%M:%S"), status=status.HTTP_201_CREATED, headers=headers)
+        station_info_serializer.is_valid(raise_exception=True)
 
+        return station_info_serializer
 
+    def post(self, request, *args, **kwargs):
+        if 'file' not in request.FILES:
+            raise exceptions.CustomValidationErrorExceptionHandler("No file was uploaded.")
+
+        uploaded_file = request.FILES['file']
+        
+        # Save the file temporarily to pass file path to parser
+        file_path = default_storage.save(uploaded_file.name, uploaded_file)
+        full_file_path = os.path.join(default_storage.location, file_path)
+
+        try:
+            station = models.Stations.objects.get(api_id=kwargs['station_api_id'])
+        except models.Stations.DoesNotExist:
+            if os.path.exists(full_file_path):
+                os.remove(full_file_path)
+            raise exceptions.CustomValidationErrorExceptionHandler("Station does not exist.")
+        except models.Stations.MultipleObjectsReturned:
+            if os.path.exists(full_file_path):
+                os.remove(full_file_path)
+            raise exceptions.CustomServerErrorExceptionHandler("Multiple stations with the same API ID exist.")
+        
+        succesfully_inserted = []
+
+        try:
+            cnn = dbConnection.Cnn(settings.CONFIG_FILE_ABSOLUTE_PATH)
+            
+            pgamit_stationinfo = pyStationInfo.StationInfo(cnn=cnn, NetworkCode=station.network_code.network_code, StationCode=station.station_code)
+            station_info_records = pgamit_stationinfo.parse_station_info(full_file_path)
+            
+            for station_info_record in station_info_records:
+                station_info_serializer = self._station_info_pgamit_to_serializer(station_info_record)
+
+                if station_info_serializer.validated_data['station_code'] == station.station_code and station_info_serializer.validated_data['network_code'] == station.network_code.network_code:
+                    station_info_list = StationinfoList()
+                    station_info_list._custom_post(station_info_serializer)
+
+                    succesfully_inserted.append({"station_code": station_info_serializer.validated_data['station_code'], "network_code": station_info_serializer.validated_data['network_code'], "date_start": station_info_serializer.validated_data['date_start']})
+            
+            if os.path.exists(full_file_path):
+                os.remove(full_file_path)
+
+            return Response({"inserted_station_info": succesfully_inserted}, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            
+            if os.path.exists(full_file_path):
+                os.remove(full_file_path)
+            
+            if len(succesfully_inserted) == 0:
+                return Response({"inserted_station_info": [], "error_message": e.detail}, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                return Response({"inserted_station_info": succesfully_inserted, "error_message": e.detail}, status=status.HTTP_201_CREATED)
+            
+    
 class StationinfoDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = models.Stationinfo.objects.all()
     serializer_class = serializers.StationinfoSerializer

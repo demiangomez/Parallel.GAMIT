@@ -9,7 +9,7 @@ COPY . /code/
 
 RUN mkdir -p /var/log/gunicorn && chmod 755 /var/log/gunicorn
 
-RUN apt-get update && apt-get install -y supervisor redis-server
+RUN apt-get update && apt-get install -y supervisor redis-server && apt-get install libpq-dev python3-dev -y
 
 COPY ./supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 

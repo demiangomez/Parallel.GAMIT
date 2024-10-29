@@ -35,14 +35,17 @@ CACHES = {
     }
 }
 
-# Docker container path
-config.read('/code/gnss_data.cfg')
+CONFIG_FILE_ABSOLUTE_PATH = "/code/gnss_data.cfg"
+
+config.read(CONFIG_FILE_ABSOLUTE_PATH)
 
 DATA_UPLOAD_MAX_MEMORY_SIZE = 1000000000 # 1 GB
 
 MAX_SIZE_IMAGE_MB = config['django']['max_size_image_mb']
 
 MAX_SIZE_FILE_MB = config['django']['max_size_file_mb']
+
+RINEX_STATUS_DATE_SPAN_SECONDS = config['django']['rinex_status_date_span_seconds']
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
