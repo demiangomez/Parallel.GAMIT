@@ -4,14 +4,15 @@ Project: Parallel.GAMIT
 Date: 7/18/18 10:28 AM
 Author: Demian D. Gomez
 
-Program to generate a KML with the stations in a project and the stations out of a project
+Program to generate a KML with the stations in a project
+and the stations out of a project
 """
 
 import argparse
-import os
 import base64
 import datetime
 import io
+import os
 
 # deps
 import matplotlib
@@ -19,18 +20,12 @@ import matplotlib
 if not os.environ.get('DISPLAY', None):
     matplotlib.use('Agg')
 
-import matplotlib.dates as mdates
-from matplotlib.collections import PolyCollection
-from tqdm import tqdm
 import numpy
 import simplekml
+from tqdm import tqdm
 
-# app 
-from pgamit import pyDate
-from pgamit import pyStationInfo
-from pgamit import dbConnection
-from pgamit import pyJobServer
-from pgamit import pyOptions
+# app
+from pgamit import dbConnection, pyDate, pyJobServer, pyOptions, pyStationInfo
 from pgamit.pyGamitConfig import GamitConfiguration
 from pgamit.Utils import process_stnlist, stationID
 
@@ -41,26 +36,37 @@ def main():
 
     global stnlist
 
-    parser = argparse.ArgumentParser(description='Generate KML file to inspect archive in Google Earth')
+    parser = argparse.ArgumentParser(
+        description='Generate KML file to inspect archive in Google Earth')
 
-    parser.add_argument('project_file', type=str, nargs=1, metavar='{project cfg file}',
-                        help="Project CFG file with all the stations being processed in Parallel.GAMIT")
+    parser.add_argument('project_file', type=str, nargs=1,
+                        metavar='{project cfg file}',
+                        help='''Project CFG file with all the stations
+                             being processed in Parallel.GAMIT''')
 
-    parser.add_argument('-stn', '--station_list', type=str, nargs='+', metavar='[net.stnm]', default=[],
-                        help="List of stations to produce KML. Default returns all stations. Network and station "
-                             "codes allow using wildcards.")
+    parser.add_argument('-stn', '--station_list', type=str, nargs='+',
+                        metavar='[net.stnm]', default=[],
+                        help='''List of stations to produce KML.
+                             Default returns all stations. Network and station
+                             codes allow using wildcards.''')
 
     parser.add_argument('-stninfo', '--station_info', action='store_true',
-                        help='Run integrity checks on station information and output results to kmz file. '
-                             'The icons of the stations will represent any problems in the station info records.')
+                        help='''Run integrity checks on station information
+                             and output results to kmz file.
+                             The icons of the stations will represent
+                             any problems in the station info records.''')
 
-    parser.add_argument('-data', '--available_data', action='store_true', default=False,
+    parser.add_argument('-data', '--available_data', action='store_true',
+                        default=False,
                         help='Produce detailed plots with available data.')
 
-    parser.add_argument('-kmz', '--kmz_filename', type=str, nargs=1, metavar='{filename}.kmz',
-                        help="Path and filename for the kmz file (do not append the extension). Default uses "
-                             "production/{project_name} where {project_name} is the project name declared in the "
-                             "PG cfg file.")
+    parser.add_argument('-kmz', '--kmz_filename', type=str, nargs=1,
+                        metavar='{filename}.kmz',
+                        help='''Path and filename for the kmz file (do not
+                             append the extension). Default uses
+                             production/{project_name} where {project_name}
+                             is the project name declared in the
+                             PG cfg file.''')
 
     parser.add_argument('-np', '--noparallel', action='store_true',
                         help="Execute command without parallelization.")
@@ -71,21 +77,26 @@ def main():
 
     config = pyOptions.ReadOptions('gnss_data.cfg')
 
-    GamitConfig = GamitConfiguration(args.project_file[0], check_config=False)  # type: GamitConfiguration
+    # type: GamitConfiguration
+    GamitConfig = GamitConfiguration(args.project_file[0],
+                                     check_config=False)
 
     # global variable that contains the station list in the project
-    stnlist = [stationID(s) for s in process_stnlist(cnn,
-                                                     GamitConfig.NetworkConfig['stn_list'].split(','),
-                                                     summary_title='Station in %s:' % args.project_file[0])]
-    stnonly = [stationID(s) for s in process_stnlist(cnn,
-                                                     args.station_list,
-                                                     summary_title='Stations requested:')]
+    stnlist = [stationID(s) for s in process_stnlist(
+        cnn, GamitConfig.NetworkConfig['stn_list'].split(','),
+        summary_title='Station in %s:' % args.project_file[0])]
+    stnonly = [stationID(s) for s in process_stnlist(
+        cnn, args.station_list,
+        summary_title='Stations requested:')]
 
-    # if the stnonly is empty, print all to tell the user that they will get all the station list
+    # if the stnonly is empty, print all to tell the user
+    # that they will get all the station list
     if not stnonly:
         print('    all')
 
-    JobServer = pyJobServer.JobServer(config, check_archive=False, check_executables=False, check_atx=False,
+    JobServer = pyJobServer.JobServer(config, check_archive=False,
+                                      check_executables=False,
+                                      check_atx=False,
                                       run_parallel=not args.noparallel)
 
     netid = GamitConfig.NetworkConfig.network_id.lower()
@@ -95,10 +106,12 @@ def main():
     else:
         kmz_filename = os.path.join('production', netid)
 
-    generate_kml_stninfo(JobServer, cnn, netid, args.available_data, args.station_info, stnonly, kmz_filename)
+    generate_kml_stninfo(JobServer, cnn, netid, args.available_data,
+                         args.station_info, stnonly, kmz_filename)
 
 
-def description_content(stn, DateS, DateE, count, completion, stn_issues, stninfo, stninfo_records, data, style):
+def description_content(stn, DateS, DateE, count, completion, stn_issues,
+                        stninfo, stninfo_records, data, style):
 
     cnn = dbConnection.Cnn("gnss_data.cfg")
 
@@ -108,11 +121,14 @@ def description_content(stn, DateS, DateE, count, completion, stn_issues, stninf
             <strong>Observation distribution:</strong><br>
             </p>
             <img src="data:image/png;base64, %s" alt="Available data" />
-                        """ % plot_rinex(cnn, stn['NetworkCode'], stn['StationCode'])
+                        """ % plot_rinex(cnn,
+                                         stn['NetworkCode'],
+                                         stn['StationCode'])
     else:
         data_plt = ""
 
-    description = """<strong>%s -> %s</strong> RINEX count: %i PPP soln: %s%%<br><br>
+    description = """<strong>%s -> %s</strong>
+    RINEX count: %i PPP soln: %s%%<br><br>
     <strong>Station Information issues:</strong><br>
     %s<br><br>
     <strong>Station Information:</strong><br>
@@ -127,8 +143,12 @@ def description_content(stn, DateS, DateE, count, completion, stn_issues, stninf
     </tr>
     </td>
     </table>""" % (DateS, DateE, count, completion,
-                   '<br>'.join(stn_issues) if stn_issues else 'NO ISSUES FOUND OR NOT REQUESTED', stninfo,
-                   plot_station_info_rinex(cnn, stn['NetworkCode'], stn['StationCode'], stninfo_records), data_plt)
+                   '<br>'.join(stn_issues) if stn_issues else (
+                       'NO ISSUES FOUND OR NOT REQUESTED'), stninfo,
+                   plot_station_info_rinex(cnn,
+                                           stn['NetworkCode'],
+                                           stn['StationCode'],
+                                           stninfo_records), data_plt)
 
     return stn, style, description
 
@@ -147,33 +167,43 @@ def callback_handle(job):
         else:
             folder = folder_allstns
 
-        pt = folder.newpoint(name=stationID(stn), coords=[(stn['lon'], stn['lat'])])
+        pt = folder.newpoint(name=stationID(stn),
+                             coords=[(stn['lon'], stn['lat'])])
         pt.stylemap = style
         pt.description = description
 
 
-def generate_kml_stninfo(JobServer, cnn, project, data=False, run_stninfo_check=True,
+def generate_kml_stninfo(JobServer, cnn, project, data=False,
+                         run_stninfo_check=True,
                          stnonly=(), kmz_filename='PG.kmz'):
 
-    tqdm.write('  >> Generating KML for this run (see production directory)...')
+    tqdm.write('  >> Generating KML for this run (see production directory).')
 
     global kml, folder_project, folder_allstns, stnlist
     kml = simplekml.Kml()
 
     if stnonly:
-        rs = cnn.query_float('SELECT * FROM stations WHERE "NetworkCode" NOT LIKE \'?%%\' AND '
-                             '"NetworkCode" || \'.\' || "StationCode" IN (\'%s\')'
-                             'ORDER BY "NetworkCode", "StationCode" ' % '\',\''.join(stnonly), as_dict=True)
+        rs = cnn.query_float('''SELECT * FROM stations
+                             WHERE "NetworkCode" NOT LIKE \'?%%\' AND
+                             "NetworkCode" || \'.\' ||
+                             "StationCode" IN (\'%s\')
+                             ORDER BY "NetworkCode", "StationCode"
+                             ' % '\',\' '''.join(stnonly), as_dict=True)
     else:
-        rs = cnn.query_float('SELECT * FROM stations WHERE "NetworkCode" NOT LIKE \'?%\' '
-                             'ORDER BY "NetworkCode", "StationCode" ', as_dict=True)
+        rs = cnn.query_float('''SELECT * FROM stations
+                             WHERE "NetworkCode" NOT LIKE \'?%\'
+                             ORDER BY "NetworkCode", "StationCode" ''',
+                             as_dict=True)
 
     folder_project = kml.newfolder(name=project)
     folder_allstns = kml.newfolder(name='all stations')
 
-    ICON_SQUARE = 'http://maps.google.com/mapfiles/kml/shapes/placemark_square.png'
-    ICON_WARN = 'http://maps.google.com/mapfiles/kml/shapes/caution.png'
-    ICON_CIRCLE = 'http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png'
+    ICON_SQUARE = (
+        'http://maps.google.com/mapfiles/kml/shapes/placemark_square.png')
+    ICON_WARN = (
+        'http://maps.google.com/mapfiles/kml/shapes/caution.png')
+    ICON_CIRCLE = (
+        'http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png')
 
     stylec = simplekml.StyleMap()
     stylec.normalstyle.iconstyle.icon.href = ICON_CIRCLE
@@ -218,7 +248,8 @@ def generate_kml_stninfo(JobServer, cnn, project, data=False, run_stninfo_check=
         styles_nok.highlightstyle.iconstyle.scale = 2
         styles_nok.highlightstyle.labelstyle.scale = 2
 
-    pbar = tqdm(desc=' >> Adding stations', total=len(rs), ncols=80, disable=None)
+    pbar = tqdm(
+        desc=' >> Adding stations', total=len(rs), ncols=80, disable=None)
 
     depfuncs = (plot_station_info_rinex, plot_rinex, stationID)
 
@@ -226,25 +257,34 @@ def generate_kml_stninfo(JobServer, cnn, project, data=False, run_stninfo_check=
                              depfuncs,
                              callback_handle,
                              pbar,
-                             modules=('pgamit.pyDate', 'pgamit.dbConnection', 'datetime', 'numpy', 'io', 'base64'))
+                             modules=('pgamit.pyDate', 'pgamit.dbConnection',
+                                      'datetime', 'numpy', 'io', 'base64'))
 
     for stn in rs:
 
-        count = cnn.query_float('SELECT count(*) as cc FROM rinex_proc WHERE "NetworkCode" = \'%s\' '
-                                'AND "StationCode" = \'%s\''
-                                % (stn['NetworkCode'], stn['StationCode']))[0][0]
+        count = cnn.query_float('''SELECT count(*) as cc FROM rinex_proc
+                                WHERE "NetworkCode" = \'%s\'
+                                AND "StationCode" = \'%s\' '''
+                                % (stn['NetworkCode'],
+                                   stn['StationCode']))[0][0]
 
-        ppp_s = cnn.query_float('SELECT count(*) as cc FROM ppp_soln WHERE "NetworkCode" = \'%s\' '
-                                'AND "StationCode" = \'%s\''
-                                % (stn['NetworkCode'], stn['StationCode']))[0][0]
+        ppp_s = cnn.query_float('''SELECT count(*) as cc FROM ppp_soln
+                                WHERE "NetworkCode" = \'%s\'
+                                AND "StationCode" = \'%s\' '''
+                                % (stn['NetworkCode'],
+                                   stn['StationCode']))[0][0]
 
-        completion = '%.1f' % (float(ppp_s) / float(count) * 100) if count else 'NA'
+        completion = ('%.1f'
+                      % (float(ppp_s) / float(count) * 100) if count else 'NA')
 
         DateS = '%.3f' % stn['DateStart'] if stn['DateStart'] else 'NA'
         DateE = '%.3f' % stn['DateEnd'] if stn['DateStart'] else 'NA'
 
         try:
-            stninfo = pyStationInfo.StationInfo(cnn, stn['NetworkCode'], stn['StationCode'], allow_empty=True)
+            stninfo = pyStationInfo.StationInfo(cnn,
+                                                stn['NetworkCode'],
+                                                stn['StationCode'],
+                                                allow_empty=True)
             _ = stninfo.return_stninfo_short()
         except pyStationInfo.pyStationInfoHeightCodeNotFound as e:
             tqdm.write('Error: %s. Station will be skipped.' % str(e))
@@ -256,7 +296,8 @@ def generate_kml_stninfo(JobServer, cnn, project, data=False, run_stninfo_check=
             # run the station info checks
             gaps = stninfo.station_info_gaps()
 
-            # mark the stations with less than 100 observations or with less than 60% completion (PPP)
+            # mark the stations with less than 100 observations
+            # or with less than 60% completion (PPP)
             stn_issues = []
             if not gaps and len(stninfo.records) > 0:
                 style = styles_ok
@@ -264,27 +305,44 @@ def generate_kml_stninfo(JobServer, cnn, project, data=False, run_stninfo_check=
                 style = styles_nok
 
                 if len(stninfo.records) == 0:
-                    stn_issues.append('Station has not station information records!')
+                    stn_issues.append(
+                        'Station has not station information records!')
 
                 for gap in gaps:
                     if gap['record_start'] and gap['record_end']:
-                        stn_issues.append('At least %i RINEX file(s) outside of station info record ending at %s and '
-                                          'next record starting at %s' % (gap['rinex_count'],
-                                                                          str(gap['record_end']['DateEnd']),
-                                                                          str(gap['record_start']['DateStart'])))
+                        stn_issues.append('''At least %i RINEX file(s)
+                                          outside of station info record
+                                          ending at %s and
+                                          next record starting at %s'''
+                                          % (gap['rinex_count'],
+                                             str(gap['record_end']
+                                                    ['DateEnd']),
+                                             str(gap['record_start']
+                                                 ['DateStart'])))
 
                     elif gap['record_start'] and not gap['record_end']:
-                        stn_issues.append('At least %i RINEX file(s) outside of station info record starting at %s '
-                                          % (gap['rinex_count'], str(gap['record_start']['DateStart'])))
+                        stn_issues.append('''At least %i RINEX file(s)
+                                          outside of station info record
+                                          starting at %s '''
+                                          % (gap['rinex_count'],
+                                             str(gap['record_start']
+                                             ['DateStart'])))
 
                     elif not gap['record_start'] and gap['record_end']:
-                        stn_issues.append('At least %i RINEX file(s) outside of station info record ending at %s '
-                                          % (gap['rinex_count'], str(gap['record_end']['DateEnd'])))
+                        stn_issues.append('''At least %i RINEX file(s)
+                                          outside of station info record
+                                          ending at %s '''
+                                          % (gap['rinex_count'],
+                                             str(gap['record_end']
+                                                 ['DateEnd'])))
         else:
-            # DDG: if no station information check, just mark the stations with red and green
-            # mark the stations with less than 100 observations or with less than 60% completion (PPP)
+            # DDG: if no station information check,
+            # just mark the stations with red and green
+            # mark the stations with less than 100 observations
+            # or with less than 60% completion (PPP)
             if stationID(stn) in stnlist:
-                if count >= 100 and (float(ppp_s) / float(count) * 100) >= 60.0:
+                if count >= 100 and (float(ppp_s)
+                                     / float(count) * 100) >= 60.0:
                     style = styles_ok
                 else:
                     style = styles_nok
@@ -293,7 +351,8 @@ def generate_kml_stninfo(JobServer, cnn, project, data=False, run_stninfo_check=
 
             stn_issues = []
 
-        JobServer.submit(stn, DateS, DateE, count, completion, stn_issues, stninfotxt, stninfo.records, data, style)
+        JobServer.submit(stn, DateS, DateE, count, completion, stn_issues,
+                         stninfotxt, stninfo.records, data, style)
 
     JobServer.wait()
 
@@ -321,20 +380,24 @@ def generate_kml(cnn, project, data=False):
 
     stnlist = [stationID(s) for s in stnlist]
 
-    tqdm.write('  >> Generating KML for this run (see production directory)...')
+    tqdm.write('  >> Generating KML for this run (see production directory).')
 
     kml = simplekml.Kml()
 
-    rs = cnn.query_float('SELECT * FROM stations WHERE "NetworkCode" NOT LIKE \'?%\' '
-                         'ORDER BY "NetworkCode", "StationCode" ', as_dict=True)
+    rs = cnn.query_float('''SELECT * FROM stations
+                         WHERE "NetworkCode" NOT LIKE \'?%\'
+                         ORDER BY "NetworkCode", "StationCode" ''',
+                         as_dict=True)
 
     tqdm.write(' >> Adding stations in database')
 
     folder1 = kml.newfolder(name=project)
     folder2 = kml.newfolder(name='all stations')
 
-    ICON_CIRCLE = 'http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png'
-    ICON_SQUARE = 'http://maps.google.com/mapfiles/kml/shapes/placemark_square.png'
+    ICON_CIRCLE = (
+        'http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png')
+    ICON_SQUARE = (
+        'http://maps.google.com/mapfiles/kml/shapes/placemark_square.png')
 
     stylec = simplekml.StyleMap()
     stylec.normalstyle.iconstyle.icon.href = ICON_CIRCLE
@@ -370,23 +433,29 @@ def generate_kml(cnn, project, data=False):
     for stn in tqdm(rs, ncols=80):
         stn_id = stationID(stn)
 
-        count = cnn.query_float('SELECT count(*) as cc FROM rinex_proc WHERE "NetworkCode" = \'%s\' '
-                                'AND "StationCode" = \'%s\''
+        count = cnn.query_float('''SELECT count(*) as cc FROM rinex_proc
+                                WHERE "NetworkCode" = \'%s\'
+                                AND "StationCode" = \'%s\' '''
                                 % (stn['NetworkCode'], stn['StationCode']))
 
-        ppp_s = cnn.query_float('SELECT count(*) as cc FROM ppp_soln WHERE "NetworkCode" = \'%s\' '
-                                'AND "StationCode" = \'%s\''
+        ppp_s = cnn.query_float('''SELECT count(*) as cc FROM ppp_soln
+                                WHERE "NetworkCode" = \'%s\'
+                                AND "StationCode" = \'%s\' '''
                                 % (stn['NetworkCode'], stn['StationCode']))
 
         try:
-            stninfo = pyStationInfo.StationInfo(cnn, stn['NetworkCode'], stn['StationCode'], allow_empty=True)
+            stninfo = pyStationInfo.StationInfo(cnn,
+                                                stn['NetworkCode'],
+                                                stn['StationCode'],
+                                                allow_empty=True)
             _ = stninfo.return_stninfo_short()
         except pyStationInfo.pyStationInfoHeightCodeNotFound as e:
             tqdm.write('Error: %s. Station will be skipped.' % str(e))
             continue
 
         if count[0][0]:
-            completion = '%.1f' % (float(ppp_s[0][0]) / float(count[0][0]) * 100)
+            completion = '%.1f' % (float(ppp_s[0][0])
+                                   / float(count[0][0]) * 100)
         else:
             completion = 'NA'
 
@@ -399,16 +468,19 @@ def generate_kml(cnn, project, data=False):
 
         if stn_id in stnlist:
             folder = folder1
-            # mark the stations with less than 100 observations or with less than 60% completion (PPP)
-            if count[0][0] >= 100 and (float(ppp_s[0][0]) / float(count[0][0]) * 100) >= 60.0:
+            # mark the stations with less than 100 observations
+            #  or with less than 60% completion (PPP)
+            if count[0][0] >= 100 and (float(ppp_s[0][0])
+                                       / float(count[0][0]) * 100) >= 60.0:
                 style = styles_ok
             else:
                 style = styles_nok
         else:
             folder = folder2
-            style  = stylec
+            style = stylec
 
-        plt = plot_station_info_rinex(cnn, stn['NetworkCode'], stn['StationCode'], stninfo)
+        plt = plot_station_info_rinex(cnn, stn['NetworkCode'],
+                                      stn['StationCode'], stninfo)
 
         if data:
             data_plt = """
@@ -423,7 +495,8 @@ def generate_kml(cnn, project, data=False):
         pt = folder.newpoint(name=stn_id, coords=[(stn['lon'], stn['lat'])])
         pt.stylemap = style
 
-        pt.description = """<strong>%s -> %s</strong> RINEX count: %i PPP soln: %s%%<br><br>
+        pt.description = """<strong>%s -> %s</strong>
+RINEX count: %i PPP soln: %s%%<br><br>
 <strong>Station Information:</strong><br>
 <table width="880" cellpadding="0" cellspacing="0">
 <tr>
@@ -435,7 +508,9 @@ def generate_kml(cnn, project, data=False):
 %s
 </tr>
 </td>
-</table>""" % (DS, DE, count[0][0], completion, stninfo.return_stninfo_short().replace('\n', '<br>'), plt, data_plt)
+</table>""" % (DS, DE, count[0][0], completion,
+               stninfo.return_stninfo_short().replace('\n', '<br>'),
+               plt, data_plt)
 
     if not os.path.exists('production'):
         os.makedirs('production')
@@ -459,24 +534,32 @@ def plot_station_info_rinex(cnn, NetworkCode, StationCode, stninfo_records):
     if stninfo_records is not None:
         for record in stninfo_records:
             stnfo.append([record['DateStart'].fyear,
-                          (record['DateEnd'].fyear if record['DateEnd'].year is not None \
-                           else pyDate.Date(datetime=datetime.datetime.now()).fyear)
+                          (record['DateEnd'].fyear
+                           if record['DateEnd'].year is not None
+                           else pyDate.Date(
+                               datetime=datetime.datetime.now()).fyear)
                           ])
 
-    rinex = numpy.array(cnn.query_float('SELECT "ObservationFYear" FROM rinex_proc WHERE "NetworkCode" = \'%s\' '
-                                        'AND "StationCode" = \'%s\'' % (NetworkCode, StationCode)))
+    rinex = numpy.array(cnn.query_float(
+        '''SELECT "ObservationFYear" FROM rinex_proc
+        WHERE "NetworkCode" = \'%s\'
+        AND "StationCode" = \'%s\'''' % (NetworkCode, StationCode)))
 
     fig, ax = plt.subplots(figsize=(7, 3))
 
     ax.grid(True)
-    ax.set_title('RINEX and Station Information for %s.%s' % (NetworkCode, StationCode))
+    ax.set_title('RINEX and Station Information for %s.%s'
+                 % (NetworkCode, StationCode))
 
     for poly in stnfo:
-        ax.plot(poly, [1, 1], 'o-', linewidth=2, markersize=4, color='tab:orange')
+        ax.plot(poly, [1, 1], 'o-', linewidth=2,
+                markersize=4, color='tab:orange')
         # break line to clearly show the stop of a station info
-        ax.plot([poly[1], poly[1]], [-0.5, 1.5], ':', color='tab:orange')
+        ax.plot([poly[1], poly[1]],
+                [-0.5, 1.5], ':', color='tab:orange')
 
-    ax.plot(rinex, numpy.zeros(rinex.shape[0]), 'o', color='tab:blue', markersize=3)
+    ax.plot(rinex, numpy.zeros(rinex.shape[0]), 'o',
+            color='tab:blue', markersize=3)
     ax.set_yticks([0, 1])
     ax.set_yticklabels(["rinex", "stninfo"])
     plt.ylim([-.5, 1.5])
@@ -491,9 +574,6 @@ def plot_station_info_rinex(cnn, NetworkCode, StationCode, stninfo_records):
     except Exception:
         # either no rinex or no station info
         figdata_png = ''
-        # print(' -- Error processing %s.%s: station appears to have no RINEX or Station Info'
-        #      % (NetworkCode, StationCode))
-
     plt.close()
 
     return figdata_png
@@ -505,26 +585,33 @@ def plot_rinex(cnn, NetworkCode, StationCode):
 
     # find the available data
     rinex = numpy.array(cnn.query_float("""
-    SELECT "ObservationYear", "ObservationDOY", "Completion" FROM rinex_proc WHERE 
-        "NetworkCode" = '%s' AND "StationCode" = '%s'""" % (NetworkCode, StationCode)))
+    SELECT "ObservationYear", "ObservationDOY",
+    "Completion" FROM rinex_proc WHERE
+    "NetworkCode" = '%s' AND "StationCode" = '%s'""" % (NetworkCode,
+                                                        StationCode)))
 
     fig, ax = plt.subplots(figsize=(10, 25))
 
     fig.tight_layout(pad=5)
-    ax.set_title('RINEX and missing data for %s.%s' % (NetworkCode, StationCode))
+    ax.set_title('RINEX and missing data for %s.%s'
+                 % (NetworkCode, StationCode))
 
     if rinex.size:
         # create a continuous vector for missing data
         md = numpy.arange(1, 367)
         my = numpy.unique(rinex[:, 0])
         for yr in my:
-            ax.plot(numpy.repeat(yr, 366), md, 'o', fillstyle='none', color='silver', markersize=4, linewidth=0.1)
+            ax.plot(numpy.repeat(yr, 366), md, 'o', fillstyle='none',
+                    color='silver', markersize=4, linewidth=0.1)
 
         ax.scatter(rinex[:, 0], rinex[:, 1],
-                   c=['tab:blue' if c >= 0.5 else 'tab:orange' for c in rinex[:, 2]], s=10, zorder=10)
+                   c=['tab:blue' if c >= 0.5 else 'tab:orange'
+                      for c in rinex[:, 2]], s=10, zorder=10)
 
-        ax.tick_params(top=True, labeltop=True, labelleft=True, labelright=True, left=True, right=True)
-        plt.xticks(numpy.arange(my.min(), my.max()+1, step=1), rotation='vertical')  # Set label locations.
+        ax.tick_params(top=True, labeltop=True, labelleft=True,
+                       labelright=True, left=True, right=True)
+        plt.xticks(numpy.arange(my.min(), my.max()+1, step=1),
+                   rotation='vertical')  # Set label locations.
 
     ax.grid(True)
     ax.set_axisbelow(True)
@@ -545,8 +632,6 @@ def plot_rinex(cnn, NetworkCode, StationCode):
     except Exception:
         # either no rinex or no station info
         figdata_png = ''
-        # print(' -- Error processing %s.%s: station appears to have no RINEX or Station Info'
-        #      % (NetworkCode, StationCode))
 
     plt.close()
 
