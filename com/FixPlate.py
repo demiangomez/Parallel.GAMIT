@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """
-Project: Parallel.GAMIT 
-Date: 6/15/24 10:29 AM 
+Project: Parallel.GAMIT
+Date: 6/15/24 10:29 AM
 Author: Demian D. Gomez
 
 Description goes here
@@ -10,15 +10,15 @@ Description goes here
 
 import argparse
 import os
+
 import numpy as np
+from pyOkada import cosd, sind
 from tqdm import tqdm
 
-from pgamit import dbConnection
-from pgamit import pyDate
-from pgamit import pyETM
-from pgamit.Utils import process_stnlist, stationID, cart2euler, get_stack_stations
+from pgamit import dbConnection, pyETM
 from pgamit.pyLeastSquares import adjust_lsq
-from pyOkada import sind, cosd
+from pgamit.Utils import (cart2euler, get_stack_stations, process_stnlist,
+                          stationID)
 
 
 def build_design(hdata, vdata):
@@ -27,7 +27,8 @@ def build_design(hdata, vdata):
 
     if 'v' in hdata[0].keys():
         # test to see if velocity was passed
-        Lh = np.array([[d['v'][0]] for d in hdata] + [[d['v'][1]] for d in hdata])
+        Lh = np.array([[d['v'][0]] for d in hdata]
+                      + [[d['v'][1]] for d in hdata])
     else:
         Lh = []
 
@@ -36,7 +37,7 @@ def build_design(hdata, vdata):
         Ah = np.row_stack((An, Ae))
         # design matrix for the effect of vref on href
         Anv, Aev, _ = build_design_vref(hdata)
-        A  = np.column_stack((Ah, np.row_stack((Anv, Aev))))
+        A = np.column_stack((Ah, np.row_stack((Anv, Aev))))
         # actual vref
         _, _, Auv = build_design_vref(vdata)
         Av = np.column_stack((np.zeros((Auv.shape[0], 3)), Auv))
@@ -76,39 +77,55 @@ def build_design_vref(data):
     lat = np.array([d['lat'] for d in data])
     lon = np.array([d['lon'] for d in data])
 
-    An = np.column_stack((-(sind(lat) * cosd(lon)), -sind(lon), cosd(lat) * cosd(lon)))
-    Ae = np.column_stack((-(sind(lat) * sind(lon)), cosd(lon), cosd(lat) * sind(lon)))
+    An = np.column_stack((-(sind(lat) * cosd(lon)), -sind(lon),
+                          cosd(lat) * cosd(lon)))
+    Ae = np.column_stack((-(sind(lat) * sind(lon)),
+                          cosd(lon), cosd(lat) * sind(lon)))
     Au = np.column_stack((cosd(lat), np.zeros_like(lat), sind(lat)))
 
     return An, Ae, Au
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Script to fix plate given a set of stations. Program outputs '
-                                                 'Euler vector parameters and optionally produces timee series in such '
-                                                 'plate-fixed frame.')
+    parser = argparse.ArgumentParser(
+        description='''Script to fix plate given a set of stations.
+                    Program outputs Euler vector parameters and optionally
+                    produces timee series in such plate-fixed frame.''')
 
-    parser.add_argument('stack_name', type=str, nargs=1, metavar='{stack name}',
-                        help="Stack name to work with. The Euler pole will be calculated so as to fix the velocities "
-                             "of the selected sites in this stack.")
+    parser.add_argument('stack_name', type=str, nargs=1,
+                        metavar='{stack name}',
+                        help='''Stack name to work with. The Euler pole
+                             will be calculated so as to fix the velocities
+                             of the selected sites in this stack.''')
 
-    parser.add_argument('-include', '--include_stations', nargs='+', type=str, metavar='{net.stnm}',
-                        help="Specify which stations to use for Euler pole computation.")
+    parser.add_argument('-include', '--include_stations', nargs='+', type=str,
+                        metavar='{net.stnm}',
+                        help='''Specify which stations
+                             to use for Euler pole computation.''')
 
-    parser.add_argument('-vref', '--vertical_ref', nargs='+', metavar=('station', '[mm/yr]]'), default=[],
-                        help="Transform/align to a given vertical reference frame using the provided station list "
-                             "and velocities, given as [net.stnm] [vu], where vu is the vertical velocity in mm/yr.")
+    parser.add_argument('-vref', '--vertical_ref', nargs='+',
+                        metavar=('station', '[mm/yr]]'), default=[],
+                        help='''Transform/align to a given vertical reference
+                             frame using the provided station list
+                             and velocities, given as [net.stnm] [vu],
+                             where vu is the vertical velocity in mm/yr.''')
 
-    parser.add_argument('-plot', '--plot_etms', action='store_true', default=False,
-                        help="Plot the fixed-plate ETMs after computation is done.")
+    parser.add_argument('-plot', '--plot_etms', action='store_true',
+                        default=False,
+                        help='''Plot the fixed-plate ETMs
+                             after computation is done.''')
 
     parser.add_argument('-dir', '--directory', type=str, metavar='{dir name}',
-                        help="Directory to save the resulting PNG files. If not specified, assumed to be the "
-                             "production directory.")
+                        help='''Directory to save the resulting PNG files.
+                             If not specified, assumed to be the
+                             production directory.''')
 
-    parser.add_argument('-save', '--save_stack', type=str, metavar='{new stack name}',
-                        help="Save the time series in the plate-fixed frame as new stack. "
-                             "Switch requires a stack name to use. WARNING! If stack exists it will be overwritten.")
+    parser.add_argument('-save', '--save_stack', type=str,
+                        metavar='{new stack name}',
+                        help='''Save the time series in the plate-fixed
+                             frame as new stack.
+                             Switch requires a stack name to use. WARNING!
+                             If stack exists it will be overwritten.''')
 
     args = parser.parse_args()
 
@@ -116,8 +133,9 @@ def main():
 
     # stations to use
     if args.include_stations:
-        include_stn = process_stnlist(cnn, args.include_stations,
-                                      summary_title='User selected list of stations to include:')
+        include_stn = process_stnlist(
+            cnn, args.include_stations,
+            summary_title='User selected list of stations to include:')
     else:
         include_stn = []
 
@@ -132,7 +150,8 @@ def main():
 
     # vertical reference frame transformation
     if len(args.vertical_ref):
-        vref = process_stnlist(cnn, args.include_stations, summary_title='Stations for VREF:')
+        vref = process_stnlist(cnn, args.include_stations,
+                               summary_title='Stations for VREF:')
     else:
         vref = []
 
@@ -149,11 +168,13 @@ def main():
         station = stn['StationCode']
         network = stn['NetworkCode']
 
-        rs = cnn.query_float(f'SELECT etms.*, stations.lat, stations.lon FROM etms '
-                             f'INNER JOIN stations '
-                             f'USING ("NetworkCode", "StationCode") '
-                             f'WHERE ("NetworkCode", "StationCode", "stack", "object") = '
-                             f'(\'{network}\', \'{station}\', \'{stack}\', \'polynomial\')', as_dict=True)
+        rs = cnn.query_float(f'''SELECT etms.*, stations.lat, stations.lon
+                             FROM etms INNER JOIN stations
+                             USING ("NetworkCode", "StationCode")
+                             WHERE ("NetworkCode", "StationCode", "stack",
+                             "object") =
+                             (\'{network}\', \'{station}\', \'{stack}\',
+                             \'polynomial\')''', as_dict=True)
 
         if len(rs):
             params = np.array(rs[0]['params'])
@@ -161,7 +182,8 @@ def main():
                           'StationCode': stn['StationCode'],
                           'lat': rs[0]['lat'],
                           'lon': rs[0]['lon'],
-                          'v'  : params.reshape((3, params.shape[0] // 3))[:, 1]})
+                          'v': params.reshape((
+                              3, params.shape[0] // 3))[:, 1]})
 
     # now gather the data for the VREF, if any
     vdata = []
@@ -171,11 +193,13 @@ def main():
             station = stn['StationCode']
             network = stn['NetworkCode']
 
-            rs = cnn.query_float(f'SELECT etms.*, stations.lat, stations.lon FROM etms '
-                                 f'INNER JOIN stations '
-                                 f'USING ("NetworkCode", "StationCode") '
-                                 f'WHERE ("NetworkCode", "StationCode", "stack", "object") = '
-                                 f'(\'{network}\', \'{station}\', \'{stack}\', \'polynomial\')', as_dict=True)
+            rs = cnn.query_float(f'''SELECT etms.*, stations.lat, stations.lon
+                                 FROM etms INNER JOIN stations
+                                 USING ("NetworkCode", "StationCode")
+                                 WHERE ("NetworkCode", "StationCode",
+                                 "stack", "object") =
+                                 (\'{network}\', \'{station}\', \'{stack}\',
+                                 \'polynomial\')''', as_dict=True)
 
             if len(rs):
                 params = np.array(rs[0]['params'])
@@ -183,8 +207,9 @@ def main():
                               'StationCode': stn['StationCode'],
                               'lat': rs[0]['lat'],
                               'lon': rs[0]['lon'],
-                              'v': params.reshape((3, params.shape[0] // 3))[:, 1]})
-                vdata[-1]['v'][2] = vdata[-1]['v'][2] - float(stn['parameters'][0]) / 1000.
+                              'v': params.reshape((
+                                  3, params.shape[0] // 3))[:, 1]})
+                vdata[-1]['v'][2] -= float(stn['parameters'][0]) / 1000.
 
     A, L = build_design(hdata, vdata)
 
@@ -197,10 +222,11 @@ def main():
     tqdm.write('HREF residuals')
     tqdm.write('Station  NE-Used Vn [mm/yr] Ve [mm/yr] Rn [mm/yr] Re [mm/yr]')
     for i, stn in enumerate(hdata):
-        tqdm.write('%s %-3s %-3s %8.3f %8.3f %8.3f %8.3f' % (stationID(stn), 'OK' if iNE[0, i] else 'NOK',
-                                                             'OK' if iNE[1, i] else 'NOK',
-                                                             fNE[0, i] * 1000., fNE[1, i] * 1000.,
-                                                             rNE[0, i] * 1000., rNE[1, i]  * 1000.))
+        tqdm.write('%s %-3s %-3s %8.3f %8.3f %8.3f %8.3f'
+                   % (stationID(stn), 'OK' if iNE[0, i] else 'NOK',
+                      'OK' if iNE[1, i] else 'NOK',
+                      fNE[0, i] * 1000., fNE[1, i] * 1000.,
+                      rNE[0, i] * 1000., rNE[1, i] * 1000.))
     tqdm.write('----------------------------------------------------')
     tqdm.write('RMS of residuals                   %8.3f %8.3f' %
                (np.sqrt(np.sum(np.square(rNE[0, :] * 1000.)) / len(hdata)),
@@ -214,10 +240,13 @@ def main():
         tqdm.write('\nVREF residuals')
         tqdm.write('Station  Vu-Used Vu [mm/yr] Ru [mm/yr]')
         for i, stn in enumerate(vdata):
-            tqdm.write('%s %-4s %8.3f %8.3f' % (stationID(stn), 'OK' if iNE[i, 0] else 'NOK',
-                                                fNE[i, 0] * 1000., rNE[i, 0] * 1000.))
+            tqdm.write('%s %-4s %8.3f %8.3f'
+                       % (stationID(stn), 'OK' if iNE[i, 0] else 'NOK',
+                          fNE[i, 0] * 1000., rNE[i, 0] * 1000.))
         tqdm.write('-----------------------------------')
-        tqdm.write('RMS of residuals       %8.3f' % (np.sqrt(np.sum(np.square(rNE[:, 0] * 1000.)) / len(vdata))))
+        tqdm.write('RMS of residuals       %8.3f'
+                   % (np.sqrt(np.sum(np.square(
+                      rNE[:, 0] * 1000.)) / len(vdata))))
 
     lat, lon, rot = cart2euler(C[0, 0], C[1, 0], C[2, 0])
     # to convert to mas/yr
@@ -241,9 +270,13 @@ def main():
     tqdm.write(' -- Obs. nok  : %i' % index[~index].shape[0])
     tqdm.write(' -- wrms      : %.3f mm/yr' % (factor[0, 0] * 1000.))
     tqdm.write(' ==== EULER POLE SUMMARY ====')
-    tqdm.write(' -- XYZ (mas/yr mas/yr mas/yr) : %8.4f \xB1 %.3f %9.4f \xB1 %.3f %7.4f \xB1 %.3f'
-               % (C[0, 0]*k, sigma[0, 0]*k, C[1, 0]*k, sigma[0, 1]*k, C[2, 0]*k, sigma[0, 2]*k))
-    tqdm.write(' -- llr (deg deg deg/Myr)      : %8.4f \xB1 %.3f %9.4f \xB1 %.3f %7.4f \xB1 %.3f'
+    tqdm.write(''' -- XYZ (mas/yr mas/yr mas/yr) : %8.4f \xB1 %.3f %9.4f
+               \xB1 %.3f %7.4f \xB1 %.3f'''
+               % (C[0, 0]*k, sigma[0, 0]*k,
+                  C[1, 0]*k, sigma[0, 1]*k,
+                  C[2, 0]*k, sigma[0, 2]*k))
+    tqdm.write(''' -- llr (deg deg deg/Myr)      : %8.4f \xB1 %.3f %9.4f
+               \xB1 %.3f %7.4f \xB1 %.3f'''
                % (lat, np.rad2deg(np.sqrt(cov_lla[1, 1])),
                   lon, np.rad2deg(np.sqrt(cov_lla[2, 2])),
                   rot, np.rad2deg(np.sqrt(cov_lla[0, 0])) * 1e-9 * 1e6))
@@ -254,10 +287,13 @@ def main():
             v = np.zeros((3, 1))
             v[0:3 if len(vref) > 0 else 2] = A @ C
             model = pyETM.Model(pyETM.Model.VEL, velocity=v, fit=True)
-            etm = pyETM.GamitETM(cnn, stn['NetworkCode'], stn['StationCode'], stack_name=stack, models=[model],
+            etm = pyETM.GamitETM(cnn, stn['NetworkCode'], stn['StationCode'],
+                                 stack_name=stack, models=[model],
                                  plot_remove_jumps=True)
 
-            xfile = os.path.join(args.directory, '%s.%s_%s' % (etm.NetworkCode, etm.StationCode, 'plate-fixed'))
+            xfile = os.path.join(args.directory, '%s.%s_%s'
+                                 % (etm.NetworkCode,
+                                    etm.StationCode, 'plate-fixed'))
             etm.plot(xfile + '.png', plot_missing=False)
 
     if save_stack:
@@ -277,15 +313,21 @@ def main():
             v[0:3 if len(vref) > 0 else 2] = A @ C
             model = pyETM.Model(pyETM.Model.VEL, velocity=v, fit=True)
             try:
-                etm = pyETM.GamitETM(cnn, stn['NetworkCode'], stn['StationCode'], stack_name=stack, models=[model],
+                etm = pyETM.GamitETM(cnn,
+                                     stn['NetworkCode'],
+                                     stn['StationCode'],
+                                     stack_name=stack,
+                                     models=[model],
                                      plot_remove_jumps=True)
 
                 tqdm.write(' -- Saving station %s to stack %s (%i/%i)'
-                           % (stationID(stn), save_stack, i + 1, len(stations)))
+                           % (stationID(stn), save_stack,
+                              i + 1, len(stations)))
                 pbar.total = len(etm.soln.date)
                 pbar.reset()
 
-                for x, y, z, d in zip(etm.L[0], etm.L[1], etm.L[2], etm.soln.date):
+                for x, y, z, d in zip(etm.L[0], etm.L[1], etm.L[2],
+                                      etm.soln.date):
                     cnn.insert('stacks', Project=etm.soln.project,
                                NetworkCode=NetworkCode,
                                StationCode=StationCode,
@@ -306,7 +348,9 @@ def main():
                 etm.soln.stack_name = save_stack
 
                 if args.plot_etms:
-                    xfile = os.path.join(args.directory, '%s.%s_%s' % (etm.NetworkCode, etm.StationCode, 'plate-fixed'))
+                    xfile = os.path.join(args.directory, '%s.%s_%s'
+                                         % (etm.NetworkCode,
+                                            etm.StationCode, 'plate-fixed'))
                     etm.plot(xfile + '.png', plot_missing=False)
 
             except pyETM.pyETMException as e:
