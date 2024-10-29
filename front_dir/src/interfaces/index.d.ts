@@ -48,6 +48,13 @@ export interface ErrorResponse {
     statusCode: number;
 }
 
+export interface RinexAddFile {
+    msg: string;
+    response: RinexFileResponse;
+    status: string;
+    statusCode: number;
+}
+
 export interface ExtendedErrors extends Errors {
     statusCode: number;
 }
@@ -198,6 +205,19 @@ interface RinexObject {
     rinex: RinexItem[];
     groupId?: string;
 }
+
+export interface RinexFileResponse {
+    inserted_station_info: {
+        station_code?: string;
+        network_code?: string;
+        date_start?: string;
+    }[];
+    error_message?: {
+        [key: string]: string[];
+    };
+    statusCode: 400 | 201;
+}
+
 export interface LoginServiceData {
     refresh: string;
     access: string;
