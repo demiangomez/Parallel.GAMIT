@@ -1205,7 +1205,7 @@ class InsertStationInfoByFile(APIView):
         try:
             cnn = dbConnection.Cnn(settings.CONFIG_FILE_ABSOLUTE_PATH)
             
-            pgamit_stationinfo = pyStationInfo.StationInfo(cnn=cnn, NetworkCode=station.network_code.network_code, StationCode=station.station_code)
+            pgamit_stationinfo = pyStationInfo.StationInfo(cnn=cnn, NetworkCode=station.network_code.network_code, StationCode=station.station_code, allow_empty=True)
             station_info_records = pgamit_stationinfo.parse_station_info(full_file_path)
             
             for station_info_record in station_info_records:
@@ -1227,9 +1227,9 @@ class InsertStationInfoByFile(APIView):
                 os.remove(full_file_path)
             
             if len(succesfully_inserted) == 0:
-                return Response({"inserted_station_info": [], "error_message": e.detail}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"inserted_station_info": [], "error_message": e.detail if hasattr(e, 'detail') else str(e)}, status=status.HTTP_400_BAD_REQUEST)
             else:
-                return Response({"inserted_station_info": succesfully_inserted, "error_message": e.detail}, status=status.HTTP_201_CREATED)
+                return Response({"inserted_station_info": succesfully_inserted, "error_message": e.detail if hasattr(e, 'detail') else str(e)}, status=status.HTTP_201_CREATED)
             
     
 class StationinfoDetail(generics.RetrieveUpdateDestroyAPIView):
