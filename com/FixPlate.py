@@ -12,7 +12,7 @@ import argparse
 import os
 
 import numpy as np
-from pyOkada import cosd, sind
+from pgamit.pyOkada import cosd, sind
 from tqdm import tqdm
 
 from pgamit import dbConnection, pyETM
