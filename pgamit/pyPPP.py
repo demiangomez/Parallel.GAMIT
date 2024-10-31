@@ -147,22 +147,11 @@ class RunPPP(PPPSpatialCheck):
                  solve_troposphere=105, back_substitution=False, elev_mask=10, x=0, y=0, z=0,
                  observations=OBSERV_CODE_PHASE):
 
-        assert isinstance(in_rinex, pyRinex.ReadRinex)
+        # DDG: move this definition before anything else is called to avoid problems with object deletion in case the
+        # pyRinex call below fails
+        # generate a unique id for this instance
+        self.rootdir = os.path.join(os.path.join('production', 'ppp'), str(uuid.uuid4()))
 
-        # DDG: if RINEX 3 version, convert to RINEX 2 (no PPP support)
-        if in_rinex.rinex_version >= 3:
-            # DDG: make a new object and convert to RINEX 3 to leave the other one untouched
-            rinexobj = pyRinex.ReadRinex(in_rinex.NetworkCode, in_rinex.StationCode, in_rinex.origin_file,
-                                         no_cleanup=in_rinex.no_cleanup, allow_multiday=in_rinex.allow_multiday)
-            rinexobj.ConvertRinex(2)
-        else:
-            # file is in RINEX 2 format, use file as is
-            rinexobj = in_rinex
-
-        PPPSpatialCheck.__init__(self)
-
-        self.rinex     = rinexobj
-        self.epoch     = rinexobj.date
         self.antH      = antenna_height
         self.ppp_path  = options['ppp_path']
         self.ppp       = options['ppp_exe']
@@ -176,14 +165,6 @@ class RunPPP(PPPSpatialCheck):
         self.observation_session = None
         self.coordinate_estimate = None
         self.clock_estimates     = None
-
-        # DDG: do not allow clock interpolation before May 1 2001
-        # DDG: unless it is a code-only request, then MUST be turned on
-        if observations == OBSERV_CODE_PHASE:
-            self.clock_interpolation = clock_interpolation if rinexobj.date > Date(year=2001, month=5, day=1) else False
-        else:
-            # override user's decision, must be on to run
-            self.clock_interpolation = True
 
         self.frame             = None
         self.atx               = None
@@ -234,7 +215,30 @@ class RunPPP(PPPSpatialCheck):
         self.summary       = ''
         self.pos           = ''
 
-        self.rootdir = os.path.join('production', 'ppp')
+        assert isinstance(in_rinex, pyRinex.ReadRinex)
+
+        # DDG: if RINEX 3 version, convert to RINEX 2 (no PPP support)
+        if in_rinex.rinex_version >= 3:
+            # DDG: make a new object and convert to RINEX 3 to leave the other one untouched
+            rinexobj = pyRinex.ReadRinex(in_rinex.NetworkCode, in_rinex.StationCode, in_rinex.origin_file,
+                                         no_cleanup=in_rinex.no_cleanup, allow_multiday=in_rinex.allow_multiday)
+            rinexobj.ConvertRinex(2)
+        else:
+            # file is in RINEX 2 format, use file as is
+            rinexobj = in_rinex
+
+        PPPSpatialCheck.__init__(self)
+
+        self.rinex     = rinexobj
+        self.epoch     = rinexobj.date
+
+        # DDG: do not allow clock interpolation before May 1 2001
+        # DDG: unless it is a code-only request, then MUST be turned on
+        if observations == OBSERV_CODE_PHASE:
+            self.clock_interpolation = clock_interpolation if rinexobj.date > Date(year=2001, month=5, day=1) else False
+        else:
+            # override user's decision, must be on to run
+            self.clock_interpolation = True
 
         fieldnames = ('NetworkCode', 'StationCode', 'X', 'Y', 'Z', 'Year', 'DOY',
                       'ReferenceFrame', 'sigmax', 'sigmay',
@@ -246,9 +250,6 @@ class RunPPP(PPPSpatialCheck):
         self.frame, self.atx = determine_frame(self.options['frames'], self.epoch)
 
         if os.path.isfile(self.rinex.rinex_path):
-
-            # generate a unique id for this instance
-            self.rootdir = os.path.join(self.rootdir, str(uuid.uuid4()))
 
             path = os.path.join(self.rootdir, self.rinex.rinex[:-3])
             self.path_sum_file = path + 'sum'

@@ -341,11 +341,11 @@ class Network(object):
             # force reprocessing
             for table in ('gamit_stats', 'gamit_subnets'):
                 # DDG: change to query statement to delete all systems (GNSS support)
-                cnn.query(f'DELETE from {table} WHERE "Project"={self.name} AND "Year"={self.date.year} AND '
+                cnn.query(f'DELETE from {table} WHERE "Project"=\'{self.name}\' AND "Year"={self.date.year} AND '
                           f'"DOY"={self.date.doy} AND subnet=0')
                 # cnn.delete(table, Project=self.name, Year=self.date.year, DOY=self.date.doy, subnet=0)
 
-            tqdm.write(' -- %s was not originally in the processing, will be added to sub-network %s00'
+            tqdm.write(' -- %s was not originally in the processing, will be added to network %s'
                        % (add_station.netstn, self.org))
         else:
             # find the closest centroid to this station
@@ -362,11 +362,11 @@ class Network(object):
             # record to force reprocessing
             for table in ('gamit_stats', 'gamit_subnets'):
                 # DDG: change to query statement to delete all systems (GNSS support)
-                cnn.query(f'DELETE from {table} WHERE "Project"={self.name} AND "Year"={self.date.year} AND '
+                cnn.query(f'DELETE from {table} WHERE "Project"=\'{self.name}\' AND "Year"={self.date.year} AND '
                           f'"DOY"={self.date.doy} AND subnet={min_i + 1}')
                 # cnn.delete(table, Project=self.name, Year=self.date.year, DOY=self.date.doy, subnet=min_i + 1)
 
-            tqdm.write(' -- %s was not originally in the processing, will be added to sub-network %s%02i'
+            tqdm.write(' -- %s was not originally in the processing, will be added to sub-network %s%03i'
                        % (add_station.netstn, self.org, min_i + 1))
         return clusters
 
