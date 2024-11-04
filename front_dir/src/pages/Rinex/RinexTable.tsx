@@ -187,7 +187,7 @@ const RinexTable = ({
                         onMouseEnter={() => setTooltipId(fnData.groupId)}
                         onMouseLeave={() => setTooltipId(undefined)}
                     >
-                        <PlusIcon className="size-4" />
+                        <PlusIcon className="size-4 text-black" />
                     </button>
                 );
             }
@@ -311,7 +311,7 @@ const RinexTable = ({
     };
 
     const rinexBackground = (rinex: any) => {
-        if (!rinex.has_station_info) {
+        if (!rinex.has_station_info && !rinex.has_multiple_station_info_gap) {
             if (rinex.completion && rinex.completion < 0.5) {
                 return "bg-red-300";
             } else {
@@ -327,19 +327,19 @@ const RinexTable = ({
     };
 
     return (
-        <div className={tooltipId ? "overflow-x-clip" : "overflow-x-auto"}>
-            <table className="table bg-neutral-content">
+        <div className={tooltipId ? "overflow-x-clip" : "overflow-x-auto pb-2"}>
+            <table className="table ">
                 <thead>
-                    <tr>
+                    <tr className="">
                         {titles.length > 0 ? (
                             <>
                                 <th
-                                    className="text-center text-neutral"
+                                    className="text-center text-neutral border-[1px] border-base-content"
                                     colSpan={2}
                                 >
                                     INFO
                                 </th>
-                                <th className="text-center text-neutral">
+                                <th className="text-center text-neutral border-[1px] border-base-content">
                                     STATUS
                                 </th>
                             </>
@@ -357,7 +357,7 @@ const RinexTable = ({
 
                         {titles.map((title, index) => (
                             <th
-                                className="text-center text-neutral max-w-[200px]"
+                                className="text-center text-neutral max-w-[200px] border-[1px] border-base-content"
                                 key={index}
                             >
                                 {title
@@ -415,7 +415,7 @@ const RinexTable = ({
                                                                 rowSpan={
                                                                     rowSpan
                                                                 }
-                                                                className="relative border-2 h-full"
+                                                                className="relative border-[1px] border-base-content h-full"
                                                                 scope="rowgroup"
                                                             >
                                                                 {isSameGroup &&
@@ -425,7 +425,7 @@ const RinexTable = ({
                                                                             ...
                                                                         </div>
                                                                     )}
-                                                                <div className="relative">
+                                                                <div className="relative ">
                                                                     {rinexInfoFirstLevel(
                                                                         first,
                                                                     )}
@@ -502,11 +502,11 @@ const RinexTable = ({
                                                                 rowSpan={
                                                                     rinexItemLength
                                                                 }
-                                                                className="relative h-full "
-                                                                style={{
-                                                                    borderRight:
-                                                                        "1px solid #e2e8f0",
-                                                                }}
+                                                                className="relative h-full border-[1px] border-base-content"
+                                                                // style={{
+                                                                //     borderRight:
+                                                                //         "1px solid #e2e8f0",
+                                                                // }}
                                                                 scope="rowgroup"
                                                             >
                                                                 <div className="relative">
@@ -595,9 +595,9 @@ const RinexTable = ({
                                                                 rinexItemLength
                                                             }
                                                             scope="rowgroup"
-                                                            className="relative border-[1px] h-full "
+                                                            className="relative h-full border-[1px] border-base-content "
                                                         >
-                                                            <div className="relative">
+                                                            <div className="relative ">
                                                                 {tooltipId ===
                                                                     String(
                                                                         rinex.api_id,
@@ -677,7 +677,7 @@ const RinexTable = ({
                                                     )}
 
                                                 <td
-                                                    className="relative w-full"
+                                                    className="relative w-full border-[1px] border-base-content"
                                                     style={{ padding: 0 }}
                                                 >
                                                     <div className="flex flex-col items-center justify-center">
@@ -742,7 +742,7 @@ const RinexTable = ({
                                                         <td
                                                             className={`${rinexBackground(
                                                                 rinex,
-                                                            )} text-center max-w-[200px] truncate`}
+                                                            )} text-center max-w-[200px] truncate border-[1px] border-base-content`}
                                                             key={index}
                                                             title={
                                                                 !isDate

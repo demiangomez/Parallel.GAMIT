@@ -393,7 +393,7 @@ const EditStatsModal = ({
         return () => {
             window.removeEventListener("keydown", handleEsc);
         };
-    }, []);
+    }, []); //eslint-disable-line
 
     useEffect(() => {
         modals?.show && showModal(modals.title);
@@ -410,7 +410,12 @@ const EditStatsModal = ({
             <h3 className="font-bold text-center text-2xl my-2 w-full">
                 {modalType === "none"
                     ? "Add"
-                    : modalType.charAt(0).toUpperCase() + modalType.slice(1)}
+                    : modalType.charAt(0).toUpperCase() +
+                      modalType.slice(1) +
+                      " " +
+                      stationInfo?.network_code.toUpperCase() +
+                      "." +
+                      stationInfo?.station_code.toUpperCase()}
             </h3>
             <form className="form-control space-y-4" onSubmit={handleSubmit}>
                 <div className="form-control space-y-2">
@@ -438,7 +443,9 @@ const EditStatsModal = ({
                                         id={key}
                                         className={`w-full input input-bordered flex items-center 
                                             gap-2 ${errorBadge ? "input-error" : ""} 
-                                            ${inputsToDatePicker.includes(key) ? "w-11/12" : ""}`}
+                                            ${inputsToDatePicker.includes(key) ? "w-11/12" : ""}
+                                             ${inputsToDisable.includes(key) ? "hidden" : ""}
+                                            `}
                                         title={
                                             errorBadge ? errorBadge.detail : ""
                                         }
@@ -534,11 +541,11 @@ const EditStatsModal = ({
                                                     handleChange(e);
                                                 }
                                             }}
-                                            className="grow "
+                                            className={`grow ${inputsToDisable.includes(key) ? "hidden" : ""}`}
                                             autoComplete="off"
-                                            disabled={inputsToDisable.includes(
-                                                key,
-                                            )}
+                                            // disabled={inputsToDisable.includes(
+                                            //     key,
+                                            // )}
                                             readOnly={
                                                 inputsToDatePicker.includes(
                                                     key,

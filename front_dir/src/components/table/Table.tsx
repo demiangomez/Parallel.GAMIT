@@ -44,8 +44,19 @@ const Table = ({
     >(null);
 
     return (
-        <div className={visibleTooltipIndex === null ? `overflow-x-auto` : ""}>
+        <div
+            className={
+                visibleTooltipIndex === null ? `overflow-x-auto pb-2` : ""
+            }
+        >
             <table className="table table-zebra bg-neutral-content">
+                {table === "Station" && (
+                    <caption className="py-2 truncate text-base-content text-[13px] font-light text-start">
+                        RX as Receiver, ANT as Antenna, HC as Height Code, RAD
+                        as Radome Code
+                    </caption>
+                )}
+
                 <thead className="">
                     <tr>
                         {titles.length > 0 ? (
@@ -76,7 +87,18 @@ const Table = ({
                                 key={index}
                             >
                                 {title
-                                    ? title?.toUpperCase().replace(/_/g, " ")
+                                    ? title
+                                          ?.toUpperCase()
+                                          .replace(/_/g, " ")
+                                          .replace("ANTENNA", "ANT")
+                                          .replace("RECEIVER", "RX")
+                                          .replace("RX FIRMWARE", "RX FW")
+                                          .replace("HEIGHT CODE", "HC")
+                                          .replace("RADOME CODE", "RAD")
+                                          .replace(
+                                              /ANT (HEIGHT|NORTH|EAST)/g,
+                                              "$1",
+                                          )
                                     : ""}
                             </th>
                         ))}

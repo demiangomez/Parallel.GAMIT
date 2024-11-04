@@ -2,15 +2,10 @@ import { useEffect, useState } from "react";
 import { Menu, MenuButton, MenuContent, Modal } from "@componentsReact";
 
 import { useApi, useAuth, useFormReducer, useFormValidation } from "@hooks";
-import {
-    getAntennasService,
-    getReceiversService,
-    getRinexWithStatusService,
-} from "@services";
+import { getAntennasService, getReceiversService } from "@services";
 import {
     AntennaData,
     AntennaServiceData,
-    GetParams,
     ReceiversData,
     ReceiversServiceData,
     RinexObject,
@@ -20,15 +15,9 @@ import { isValidNumber } from "@utils";
 import { RINEX_FILTERS_STATE } from "@utils/reducerFormStates";
 
 interface Props {
-    stationApiId: number | undefined;
-    registersPerPage: number;
     filters: Record<keyof typeof RINEX_FILTERS_STATE, any>;
     setFilters: React.Dispatch<
         React.SetStateAction<Record<keyof typeof RINEX_FILTERS_STATE, any>>
-    >;
-    setPages: React.Dispatch<React.SetStateAction<number>>;
-    setProblematicRinex: React.Dispatch<
-        React.SetStateAction<RinexObject[] | undefined>
     >;
     setRinex: React.Dispatch<React.SetStateAction<RinexObject[] | undefined>>;
     setRinexFilter: React.Dispatch<React.SetStateAction<boolean>>;
@@ -38,21 +27,21 @@ interface Props {
             | undefined
         >
     >;
-    calculateTotalLength: (rinexs: RinexObject[]) => number;
+    setOperatorSelected: React.Dispatch<React.SetStateAction<string>>;
+    getRinexFiltered: (
+        filters: Record<keyof typeof RINEX_FILTERS_STATE, any>,
+    ) => void;
     handleCloseModal: () => void;
 }
 
 const RinexFilter = ({
-    stationApiId,
-    registersPerPage,
     filters,
     setFilters,
-    setPages,
-    setProblematicRinex,
     setRinex,
     setRinexFilter,
     setStateModal,
-    calculateTotalLength,
+    setOperatorSelected,
+    getRinexFiltered,
     handleCloseModal,
 }: Props) => {
     const { token, logout } = useAuth();
@@ -80,8 +69,6 @@ const RinexFilter = ({
     const [showMenu, setShowMenu] = useState<
         { type: string; show: boolean } | undefined
     >(undefined);
-
-    const [operatorSelected, setOperatorSelected] = useState<string>("<"); // eslint-disable-line
 
     const [receivers, setReceivers] = useState<ReceiversData[]>([]);
     const [matchingReceivers, setMatchingReceivers] = useState<ReceiversData[]>(
@@ -112,102 +99,6 @@ const RinexFilter = ({
             }
         } catch (err) {
             console.error(err);
-        }
-    };
-
-    const formatDateTime = (dateTime: string): string => {
-        const [date, time] = dateTime.split("T");
-        if (!date || !time) return "";
-        return `${date} ${time}`;
-    };
-
-    const getRinexFiltered = async () => {
-        try {
-            const params: GetParams = {
-                observation_doy: formState.doy,
-                observation_f_year: formState["f_year"],
-                observation_s_time_since: formatDateTime(
-                    formState["s_time"] ?? "",
-                ),
-                observation_e_time_until: formatDateTime(
-                    formState["e_time"] ?? "",
-                ),
-                observation_year: formState.year,
-                antenna_dome: formState["antenna_dome"],
-                antenna_offset: formState["antenna_offset"],
-                antenna_serial: formState["antenna_serial"],
-                antenna_type: formState["antenna_type"],
-                receiver_fw: formState["receiver_fw"],
-                receiver_serial: formState["receiver_serial"],
-                receiver_type: formState["receiver_type"],
-                completion_operator:
-                    operatorSelected === "<"
-                        ? "LESS_THAN"
-                        : operatorSelected === ">"
-                          ? "GREATER_THAN"
-                          : "EQUAL",
-                completion: formState.completion,
-                interval: formState.interval,
-                offset: 0,
-                limit: registersPerPage,
-            };
-
-            Object.keys(params).forEach((key) => {
-                if (
-                    params[key as keyof GetParams] === undefined ||
-                    params[key as keyof GetParams] === ""
-                ) {
-                    delete params[key as keyof GetParams];
-                }
-            });
-
-            setLoading(true);
-            const res = await getRinexWithStatusService<RinexObject[]>(
-                api,
-                stationApiId ?? 0,
-                params,
-            );
-            const rinexWithGroupId = res
-                .map((item, index) => {
-                    return {
-                        ...item,
-                        rinex: item.rinex
-                            .map((r) => ({
-                                ...r,
-                                rinex: r.rinex.filter((r2) => !r2.filtered),
-                            }))
-                            .filter((r) => r.rinex.length > 0),
-                        groupId: `group-${index}`,
-                    };
-                })
-                .filter((item) => item.rinex.length > 0);
-
-            setRinex(rinexWithGroupId);
-
-            const problematic = rinexWithGroupId
-                .filter((rinex) =>
-                    rinex.rinex.some((r) =>
-                        r.rinex.some((r2) => !r2.has_station_info),
-                    ),
-                )
-                .map((rinex) => ({
-                    ...rinex,
-                    rinex: rinex.rinex
-                        .map((r) => ({
-                            ...r,
-                            rinex: r.rinex.filter((r2) => !r2.has_station_info),
-                        }))
-                        .filter((r) => r.rinex.length > 0),
-                }))
-                .filter((rinex) => rinex.rinex.length > 0);
-
-            setProblematicRinex(problematic);
-            setPages(Math.ceil(calculateTotalLength(res) / registersPerPage));
-            setRinexFilter(true);
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setLoading(false);
         }
     };
 
@@ -249,7 +140,7 @@ const RinexFilter = ({
 
     const handleSubmitForm = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-        getRinexFiltered();
+        getRinexFiltered(formState);
     };
 
     useEffect(() => {

@@ -31,7 +31,10 @@ import { useAuth, useApi } from "@hooks";
 import { getRinexWithStatusService } from "@services";
 
 import { ensureEndsWithZ, showModal } from "@utils";
+import { RINEX_FILTERS_STATE } from "@utils/reducerFormStates";
+
 import {
+    GetParams,
     RinexData,
     RinexItem,
     RinexObject,
@@ -39,18 +42,19 @@ import {
     StationData,
     StationInfoData,
 } from "@types";
-import { RINEX_FILTERS_STATE } from "@utils/reducerFormStates";
 
 type OutletContext = {
     station: StationData;
+    reStation: StationData;
     showSidebar: boolean;
+    getReStation: () => void;
 };
 
 type CloseFunction = () => void;
 
 const Actions = ({ close }: { close: CloseFunction }) => {
     return (
-        <div className="grid grid-cols-1 grid-flow-dense gap-3 relative">
+        <div className="grid grid-cols-1 grid-flow-dense gap-3 relative ">
             <button
                 type="button"
                 onClick={() => close()}
@@ -143,7 +147,8 @@ const Rinex = () => {
     const { token, logout } = useAuth();
     const api = useApi(token, logout);
 
-    const { station, showSidebar } = useOutletContext<OutletContext>();
+    const { station, reStation, showSidebar, getReStation } =
+        useOutletContext<OutletContext>();
 
     const [lastGroupIdPreviousPage, setLastGroupIdPreviousPage] = useState<
         string | undefined
@@ -162,11 +167,15 @@ const Rinex = () => {
             RINEX_FILTERS_STATE,
         );
 
+    const [operatorSelected, setOperatorSelected] = useState<string>("<"); // eslint-disable-line
+
     const [rinexFilterData, setRinexFilterData] = useState<
         RinexObject[] | undefined
     >(undefined);
 
     const [rinex, setRinex] = useState<RinexObject[] | undefined>(undefined);
+
+    const [shouldFetchRinex, setShouldFetchRinex] = useState<boolean>(false);
 
     // BUTTON FIRST LEVEL
     const [rinexStationInfoRelated, setRinexStationInfoRelated] = useState<
@@ -215,10 +224,22 @@ const Rinex = () => {
             if (title.includes("observation")) {
                 title = title.split("observation_").pop() || title;
             }
+            if (title.includes("receiver"))
+                title = title.replace("receiver_", "rx_");
+            if (title.includes("antenna"))
+                title = title.replace("antenna_", "ant_");
+            if (title.includes("ant_offset"))
+                title = title.replace("ant_offset", "height");
             return title.replace(/_/g, " ");
         });
 
         return formattedTitles;
+    };
+
+    const formatDateTime = (dateTime: string): string => {
+        const [date, time] = dateTime.split("T");
+        if (!date || !time) return "";
+        return `${date} ${time}`;
     };
 
     const titles = formattedTitles(rinex ?? []);
@@ -248,18 +269,110 @@ const Rinex = () => {
 
             setRinex(rinexWithGroupId);
 
-            const problematic = calculateProblematicRinex(rinexWithGroupId);
+            // const problematic = calculateProblematicRinex(rinexWithGroupId);
 
-            setPages(Math.ceil(calculateTotalLength(res) / REGISTERS_PER_PAGE));
+            // setPages(Math.ceil(calculateTotalLength(res) / REGISTERS_PER_PAGE));
 
-            if (rinexFilterData) {
-                const filterProblematic =
-                    calculateProblematicRinex(rinexFilterData);
-                setProblematicRinex(filterProblematic);
-                return;
-            }
+            // if (rinexFilterData) {
+            //     getRinexFiltered(filters);
+            //     return;
+            // }
 
-            setProblematicRinex(problematic);
+            // setProblematicRinex(problematic);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            // !rinexFilter && setLoading(false);
+            setLoading(false);
+        }
+    };
+
+    const getRinexFiltered = async (
+        filtersObj: Record<keyof typeof RINEX_FILTERS_STATE, any>,
+    ) => {
+        try {
+            const params: GetParams = {
+                observation_doy: filtersObj.doy,
+                observation_f_year: filtersObj["f_year"],
+                observation_s_time_since: formatDateTime(
+                    filtersObj["s_time"] ?? "",
+                ),
+                observation_e_time_until: formatDateTime(
+                    filtersObj["e_time"] ?? "",
+                ),
+                observation_year: filtersObj.year,
+                antenna_dome: filtersObj["antenna_dome"],
+                antenna_offset: filtersObj["antenna_offset"],
+                antenna_serial: filtersObj["antenna_serial"],
+                antenna_type: filtersObj["antenna_type"],
+                receiver_fw: filtersObj["receiver_fw"],
+                receiver_serial: filtersObj["receiver_serial"],
+                receiver_type: filtersObj["receiver_type"],
+                completion_operator:
+                    operatorSelected === "<"
+                        ? "LESS_THAN"
+                        : operatorSelected === ">"
+                          ? "GREATER_THAN"
+                          : "EQUAL",
+                completion: filtersObj.completion,
+                interval: filtersObj.interval,
+                offset: 0,
+                limit: REGISTERS_PER_PAGE,
+            };
+
+            Object.keys(params).forEach((key) => {
+                if (
+                    params[key as keyof GetParams] === undefined ||
+                    params[key as keyof GetParams] === ""
+                ) {
+                    delete params[key as keyof GetParams];
+                }
+            });
+
+            setLoading(true);
+            const res = await getRinexWithStatusService<RinexObject[]>(
+                api,
+                station.api_id ?? 0,
+                params,
+            );
+            const rinexWithGroupId = res
+                .map((item, index) => {
+                    return {
+                        ...item,
+                        rinex: item.rinex
+                            .map((r) => ({
+                                ...r,
+                                rinex: r.rinex.filter((r2) => !r2.filtered),
+                            }))
+                            .filter((r) => r.rinex.length > 0),
+                        groupId: `group-${index}`,
+                    };
+                })
+                .filter((item) => item.rinex.length > 0);
+
+            setRinexFilterData(rinexWithGroupId);
+
+            // const problematic = rinexWithGroupId
+            //     .filter((rinex) =>
+            //         rinex.rinex.some((r) =>
+            //             r.rinex.some((r2) => !r2.has_station_info),
+            //         ),
+            //     )
+            //     .map((rinex) => ({
+            //         ...rinex,
+            //         rinex: rinex.rinex
+            //             .map((r) => ({
+            //                 ...r,
+            //                 rinex: r.rinex.filter((r2) => !r2.has_station_info),
+            //             }))
+            //             .filter((r) => r.rinex.length > 0),
+            //     }))
+            //     .filter((rinex) => rinex.rinex.length > 0);
+
+            // setProblematicRinex(problematic);
+            // setPages(Math.ceil(calculateTotalLength(res) / REGISTERS_PER_PAGE));
+            setRinexFilter(true);
+            // handlePage(activePage);
         } catch (err) {
             console.error(err);
         } finally {
@@ -394,7 +507,11 @@ const Rinex = () => {
         let dataToPaginate: RinexObject[] = [];
 
         if (rinexCheckbox && rinexFilterData) {
-            dataToPaginate = problematicRinex ?? [];
+            const problematic = calculateProblematicRinex(
+                rinexFilterData ?? [],
+            );
+            setProblematicRinex(problematic);
+            dataToPaginate = problematic ?? [];
         } else if (rinexCheckbox && !rinexFilterData) {
             const problematic = calculateProblematicRinex(rinex ?? []);
             setProblematicRinex(problematic);
@@ -405,8 +522,19 @@ const Rinex = () => {
             dataToPaginate = rinex ?? [];
         }
 
-        const { paginated, lastGroupId } = paginateRinex(dataToPaginate, 1);
+        const pagesCalculated = Math.ceil(
+            calculateTotalLength(dataToPaginate) / REGISTERS_PER_PAGE,
+        );
+
+        const isActivePageValid = activePage <= pagesCalculated;
+
+        const { paginated, lastGroupId } = paginateRinex(
+            dataToPaginate,
+            isActivePageValid ? activePage : pagesCalculated,
+        );
+
         setPaginatedRinexs(paginated);
+        setActivePage(isActivePageValid ? activePage : pagesCalculated);
         setLastGroupIdPreviousPage(lastGroupId ?? "");
         setPages(
             Math.ceil(
@@ -422,15 +550,26 @@ const Rinex = () => {
     }, [station]); // eslint-disable-line
 
     useEffect(() => {
-        if (rinex) {
+        if (rinex && !shouldFetchRinex) {
             handleRinexData();
         }
-    }, [rinex, rinexCheckbox, rinexFilterData]); // eslint-disable-line
+    }, [rinex, rinexCheckbox, rinexFilterData, activePage, shouldFetchRinex]); // eslint-disable-line
+
+    useEffect(() => {
+        const fetchRinex = async () => {
+            if (shouldFetchRinex) {
+                await getRinex();
+                setShouldFetchRinex(false);
+            }
+        };
+
+        fetchRinex();
+    }, [shouldFetchRinex]); // eslint-disable-line
 
     useEffect(() => {
         setActivePage(1);
         setSameGroup(false);
-    }, [rinexCheckbox, rinexFilterData]);
+    }, [rinexCheckbox, rinexFilter]);
 
     useEffect(() => {
         modals?.show && showModal(modals.title);
@@ -466,9 +605,9 @@ const Rinex = () => {
                     antenna_code: subFirstRinex?.antenna_type ?? "",
                     antenna_serial: subFirstRinex?.antenna_serial ?? "",
                     antenna_height: String(subFirstRinex?.antenna_offset ?? ""),
-                    antenna_north: "",
-                    antenna_east: "",
-                    height_code: "",
+                    antenna_north: "0",
+                    antenna_east: "0",
+                    height_code: "DHARP",
                     radome_code: subFirstRinex?.antenna_dome,
                     date_start: ensureEndsWithZ(
                         subFirstRinex?.observation_s_time ?? "",
@@ -493,9 +632,9 @@ const Rinex = () => {
                     antenna_code: rinexGroup.antenna_type ?? "",
                     antenna_serial: rinexGroup.antenna_serial ?? "",
                     antenna_height: String(rinexGroup.antenna_offset ?? ""),
-                    antenna_north: "",
-                    antenna_east: "",
-                    height_code: "",
+                    antenna_north: "0",
+                    antenna_east: "0",
+                    height_code: "DHARP",
                     radome_code: rinexGroup.antenna_dome,
                     date_start: ensureEndsWithZ(
                         rinexGroup.observation_s_time ?? "",
@@ -524,7 +663,7 @@ const Rinex = () => {
                     minHeight={400}
                     maxHeight={640}
                     bounds={"window"}
-                    className="z-[1000] card border-[1px] border-neutral-300 shadow-2xl bg-base-100 p-4 overflow-y-auto overflow-x-hidden"
+                    className="z-[1000] card border-[1px] border-neutral-300 shadow-2xl bg-base-100 p-4 overflow-y-auto scrollbar-base overflow-x-hidden"
                 >
                     <Actions close={() => setActionsManual(false)} />
                 </Rnd>
@@ -590,9 +729,7 @@ const Rinex = () => {
                                                 setRinexFilter(false);
                                                 setRinexFilterData(undefined);
                                                 setFilters(RINEX_FILTERS_STATE);
-                                                // setTimeout(() => {
-                                                //     getRinex();
-                                                // }, 1000);
+                                                setShouldFetchRinex(true); // Set the flag to fetch Rinex data
                                             }}
                                         >
                                             <XMarkIcon className="size-5" />
@@ -632,16 +769,13 @@ const Rinex = () => {
             </div>
             {modals?.show && modals.title === "RinexFilters" && (
                 <RinexFilter
-                    registersPerPage={REGISTERS_PER_PAGE}
-                    stationApiId={station.api_id ?? undefined}
                     filters={filters}
-                    calculateTotalLength={calculateTotalLength}
                     setFilters={setFilters}
                     setRinex={setRinexFilterData}
                     setRinexFilter={setRinexFilter}
-                    setProblematicRinex={setProblematicRinex}
-                    setPages={setPages}
                     setStateModal={setModals}
+                    setOperatorSelected={setOperatorSelected}
+                    getRinexFiltered={getRinexFiltered}
                     handleCloseModal={() => undefined}
                 />
             )}
@@ -651,7 +785,8 @@ const Rinex = () => {
                     stationApiId={station.api_id ?? 0}
                     setModalState={setModals}
                     handleCloseModal={() => {
-                        getRinex();
+                        rinexFilter ? getRinexFiltered(filters) : getRinex();
+                        getReStation();
                     }}
                 />
             )}
@@ -662,9 +797,17 @@ const Rinex = () => {
                     rinex={singleRinex}
                     closeModal={() => {
                         setModals({ show: false, title: "", type: "none" });
-                        getRinex();
+                        rinexFilter ? getRinexFiltered(filters) : getRinex();
+                        getReStation();
+                        // setActivePage(1);
+                        // getRinex();
                     }}
-                    handleCloseModal={() => getRinex()}
+                    handleCloseModal={() => {
+                        rinexFilter ? getRinexFiltered(filters) : getRinex();
+                        getReStation();
+
+                        // setActivePage(1);
+                    }}
                     setModalState={setModals}
                 />
             )}
@@ -677,8 +820,9 @@ const Rinex = () => {
                     setModalState={setModals}
                     refetch={() => {
                         setRinexStationInfoRelated(undefined);
-                        setActivePage(1);
-                        getRinex();
+                        // setActivePage(1);
+                        rinexFilter ? getRinexFiltered(filters) : getRinex();
+                        getReStation();
                     }}
                 />
             )}
@@ -688,8 +832,9 @@ const Rinex = () => {
                     stationInfo={stationInfoByRinex}
                     modalType={modals.type}
                     reFetch={() => {
-                        setActivePage(1);
-                        getRinex();
+                        // setActivePage(1);
+                        rinexFilter ? getRinexFiltered(filters) : getRinex();
+                        getReStation();
                         setSingleRinex(undefined);
                         setRinexGroup(undefined);
                     }}

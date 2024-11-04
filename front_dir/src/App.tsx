@@ -38,6 +38,15 @@ const router = createBrowserRouter(
                 }}
             >
                 <Route index element={<Main />} />
+                {/* <Route
+                    element={
+                        <div className="flex flex-col justify-center items-center text-xl font-bold w-full min-h-[90vh]">
+                            <span>Leandro Dino Ricciardi at backend</span>
+                            <span>Franco Alex Laurino at frontend</span>
+                        </div>
+                    }
+                    path="16091998020720011704200028112001"
+                /> */}
                 <Route
                     path="campaigns"
                     element={<Campaigns />}

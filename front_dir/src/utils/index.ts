@@ -210,6 +210,10 @@ export const generateErrorMessages = (station: StationData) => {
     return errorMessages;
 };
 
+export const hasDifferences = (one: object, second: object) => {
+    return JSON.stringify(one) !== JSON.stringify(second);
+};
+
 export const transformParams = (params: any) => {
     return Object.entries(params)
         .map(([key, value]) => `${key}=${value}`)

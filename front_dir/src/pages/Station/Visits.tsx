@@ -334,7 +334,7 @@ const Visits = () => {
                                                                             alt={
                                                                                 img.description
                                                                             }
-                                                                            className="shadow-xl rounded-lg object-center object-cover w-full h-full"
+                                                                            className="shadow-xl rounded-lg object-center object-contain w-full h-full"
                                                                         />
                                                                     );
                                                                 },

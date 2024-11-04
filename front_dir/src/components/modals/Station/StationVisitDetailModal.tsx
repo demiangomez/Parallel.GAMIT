@@ -331,6 +331,10 @@ const StationVisitDetailModal = ({
             const formData = new FormData();
 
             Object.entries(rest).forEach(([key, value]) => {
+                if (key.includes("campaign")) {
+                    return;
+                }
+
                 if (key === "people") {
                     value.forEach((p: { id: number; name: string }) => {
                         formData.append("people", String(p.id));
@@ -397,6 +401,8 @@ const StationVisitDetailModal = ({
                     value.forEach((p: { id: number; name: string }) => {
                         formData.append("people", String(p.id));
                     });
+                } else if (key === "comments") {
+                    return;
                 } else {
                     formData.append(key, value);
                 }
@@ -446,6 +452,8 @@ const StationVisitDetailModal = ({
                     value.forEach((p: { id: number; name: string }) => {
                         formData.append("people", String(p.id));
                     });
+                } else if (key === "comments") {
+                    return;
                 } else {
                     formData.append(key, value);
                 }
@@ -501,6 +509,8 @@ const StationVisitDetailModal = ({
                     value.forEach((p: { id: number; name: string }) => {
                         formData.append("people", String(p.id));
                     });
+                } else if (key === "comments") {
+                    return;
                 } else {
                     formData.append(key, value);
                 }
@@ -579,7 +589,9 @@ const StationVisitDetailModal = ({
             type: "change_value",
             payload: {
                 inputName: "comments",
-                inputValue: visit?.comments ?? "",
+                inputValue: formState.comments
+                    ? formState.comments
+                    : visit?.comments ?? "",
             },
         });
     }, [visit]);

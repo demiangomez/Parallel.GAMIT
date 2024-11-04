@@ -26,11 +26,8 @@ const Login = () => {
     const { refresh, refreshToken, login, loginRefresh, setRefreshToken } =
         useAuth();
 
-    const genToast = () => {
-        const toast = document.getElementById("toasty");
-        if (toast) {
-            toast.style.display = "flex";
-        }
+    const closeToast = () => {
+        setMessage({ error: undefined, msg: "" });
     };
 
     const handleLogin = async (e: FormEvent<HTMLFormElement>) => {
@@ -38,6 +35,7 @@ const Login = () => {
 
         try {
             setLoading((prev) => !prev);
+            closeToast();
             // Login service
             const response = await loginService<LoginServiceData>(
                 username,
@@ -46,7 +44,6 @@ const Login = () => {
             // Save token in localstorage and navigate to home
             loginRefresh(response.refresh);
             login(response.access);
-            genToast();
             setMessage({ error: false, msg: "Login successfull" });
 
             return;
@@ -55,7 +52,6 @@ const Login = () => {
             if (error instanceof AxiosError) {
                 const apiErrorResponse = error.response?.data as Errors;
                 login(null);
-                genToast();
                 setMessage({
                     error: true,
                     msg: error.message,
@@ -72,6 +68,7 @@ const Login = () => {
         try {
             if (refreshToken) {
                 setLoading((prev) => !prev);
+                closeToast();
 
                 const response = await refreshTokenService<{ access: string }>(
                     refreshToken,
@@ -84,7 +81,6 @@ const Login = () => {
             if (error instanceof AxiosError) {
                 const apiErrorResponse = error.response?.data as Errors;
 
-                genToast();
                 setMessage({
                     error: true,
                     msg: apiErrorResponse
@@ -102,7 +98,7 @@ const Login = () => {
         if (refresh) {
             showModal("refresh");
         } else if (refresh === false) {
-            genToast();
+            closeToast();
             setMessage({ error: true, msg: "No refresh token found" });
         }
     }, [refresh]);

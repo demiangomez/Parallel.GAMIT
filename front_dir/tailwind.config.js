@@ -52,6 +52,21 @@ export default {
                         border: "1px solid white",
                     },
                 },
+                ".scrollbar-base": {
+                    "&::-webkit-scrollbar": {
+                        width: "9px",
+                    },
+                    "&::-webkit-scrollbar-track": {
+                        backgroundColor:
+                            "oklch(95.1276% 0.007445 260.731539 / 1)",
+                    },
+                    "&::-webkit-scrollbar-thumb": {
+                        backgroundColor:
+                            "oklch(89.9258% 0.016374 262.749256 / 1)",
+                        borderRadius: "20px",
+                        border: "1px solid white",
+                    },
+                },
             };
             addUtilities(newUtilities, ["responsive", "hover"]);
         },

@@ -5,15 +5,27 @@ import {
     useNavigate,
     useParams,
 } from "react-router-dom";
+
+import { useEffect, useMemo, useState } from "react";
+
+import {
+    Sidebar,
+    Skeleton,
+    Breadcrumb,
+    PdfContainer,
+    Toast,
+} from "@componentsReact";
 import { router } from "App";
 
-import { useEffect, useState } from "react";
-
-import { Sidebar, Skeleton, Breadcrumb, PdfContainer } from "@componentsReact";
+import {
+    ArrowPathIcon,
+    ExclamationCircleIcon,
+} from "@heroicons/react/24/outline";
 
 import { useAuth } from "@hooks/useAuth";
 
 import useApi from "@hooks/useApi";
+import { generateErrorMessages, hasDifferences } from "@utils";
 
 import {
     getStationImagesService,
@@ -23,6 +35,7 @@ import {
 } from "@services";
 
 import {
+    Errors,
     StationData,
     StationImagesData,
     StationImagesServiceData,
@@ -31,15 +44,23 @@ import {
     StationVisitsData,
     StationVisitsServiceData,
 } from "@types";
-import { generateErrorMessages } from "@utils/index";
-import { ExclamationCircleIcon } from "@heroicons/react/24/outline";
+import { AxiosError } from "axios";
 
 const Station = () => {
     const { sc, nc } = useParams<{ sc: string; nc: string }>();
     const { token, logout } = useAuth();
     const api = useApi(token, logout);
 
+    const [message, setMessage] = useState<{
+        error: boolean | undefined;
+        msg: string;
+        errors?: Errors;
+    }>({ error: undefined, msg: "", errors: undefined });
+
     const [station, setStation] = useState<StationData | undefined>(undefined);
+    const [reStation, setReStation] = useState<StationData | undefined>(
+        undefined,
+    );
 
     const [stationMeta, setStationMeta] = useState<
         StationMetadataServiceData | undefined
@@ -58,6 +79,7 @@ const Station = () => {
     );
 
     const [loading, setLoading] = useState<boolean>(true);
+    const [reLoading, setReLoading] = useState<boolean>(false);
     const [photoLoading, setPhotoLoading] = useState<boolean>(true);
 
     const [stationLocationScreen, setStationLocationScreen] =
@@ -81,6 +103,36 @@ const Station = () => {
             setStation(res.data[0]);
         } catch (e) {
             console.error(e);
+        }
+    };
+
+    const getReStation = async () => {
+        try {
+            setReLoading(true);
+            closeToast();
+            const res = await getStationsService<StationServiceData>(api, {
+                network_code: nc,
+                station_code: sc,
+                limit: 1,
+                offset: 0,
+            });
+            setReStation(res.data[0]);
+            setMessage({
+                error: false,
+                msg: "Station refetched successfully",
+            });
+        } catch (error: unknown) {
+            if (error instanceof AxiosError) {
+                const apiErrorResponse = error.response?.data as Errors;
+                setMessage({
+                    error: true,
+                    msg: error.message,
+                    errors: apiErrorResponse,
+                });
+                console.error(error);
+            }
+        } finally {
+            setReLoading(false);
         }
     };
 
@@ -151,6 +203,10 @@ const Station = () => {
         setLoadedMap(undefined);
     };
 
+    const closeToast = () => {
+        setMessage({ error: undefined, msg: "" });
+    };
+
     const location = useLocation();
 
     const [showSidebar, setShowSidebar] = useState<boolean>(false);
@@ -211,10 +267,30 @@ const Station = () => {
           station?.station_code?.toUpperCase()
         : "Station not found";
 
-    const errorMessages = station ? generateErrorMessages(station) : [];
+    const errorMessages = useMemo(() => {
+        if (station && reStation && hasDifferences(station, reStation)) {
+            return generateErrorMessages(reStation);
+        } else if (station) {
+            return generateErrorMessages(station);
+        }
+        return [];
+    }, [station, reStation]);
 
     return (
         <div className="max-h-[92vh] transition-all duration-200">
+            {typeof message.error === "boolean" &&
+                message.error !== undefined && (
+                    <Toast
+                        error={message.error}
+                        msg={
+                            !message.errors
+                                ? message.msg
+                                : message.errors.errors[0].code === "blank"
+                                  ? "Fields may not be blank."
+                                  : message.errors.errors[0].detail
+                        }
+                    />
+                )}
             {loading ? (
                 <div className="mt-24">
                     <Skeleton />
@@ -223,7 +299,13 @@ const Station = () => {
                 <div className="flex w-full">
                     <Sidebar
                         show={showSidebar}
-                        station={station}
+                        station={
+                            station &&
+                            reStation &&
+                            hasDifferences(station, reStation)
+                                ? reStation
+                                : station
+                        }
                         stationMeta={stationMeta}
                         refetchStationMeta={getStationMeta}
                         refetch={refetch}
@@ -231,7 +313,15 @@ const Station = () => {
                     />
                     <Breadcrumb
                         sidebar={showSidebar}
-                        state={station ? station : locationState}
+                        state={
+                            station &&
+                            reStation &&
+                            hasDifferences(station, reStation)
+                                ? reStation
+                                : station
+                                  ? station
+                                  : locationState
+                        }
                     />
                     <div className="w-full flex flex-col pt-20">
                         <h1 className="text-6xl font-bold text-center flex items-center justify-center">
@@ -239,7 +329,13 @@ const Station = () => {
 
                             {location.pathname === `/${nc}/${sc}` && (
                                 <PdfContainer
-                                    station={station}
+                                    station={
+                                        station &&
+                                        reStation &&
+                                        hasDifferences(station, reStation)
+                                            ? reStation
+                                            : station
+                                    }
                                     stationMeta={stationMeta}
                                     images={images}
                                     visits={visits}
@@ -264,10 +360,21 @@ const Station = () => {
                                         />
                                     </div>
                                 )}
+                            <button
+                                className={`hover:scale-110 btn-ghost rounded-lg p-1 ${location.pathname === `/${nc}/${sc}/rinex` ? "mb-4 ml-2" : "mb-6"}  transition-all `}
+                                disabled={reLoading}
+                                onClick={() => {
+                                    getReStation();
+                                }}
+                                title={"Fetch gaps status"}
+                            >
+                                <ArrowPathIcon className="size-6" />
+                            </button>
                         </h1>
                         <Outlet
                             context={{
                                 station,
+                                reStation,
                                 stationMeta,
                                 showSidebar,
                                 images,
@@ -275,6 +382,7 @@ const Station = () => {
                                 loadPdf,
                                 visitForKml,
                                 getStationImages,
+                                getReStation,
                                 setStationLocationScreen,
                                 setStationLocationDetailScreen,
                                 setLoadPdf,

@@ -55,6 +55,7 @@ const StationInfoModal = ({
         api_id, // eslint-disable-line
         network_code, // eslint-disable-line
         station_code, // eslint-disable-line
+        receiver_vers, // eslint-disable-line
         ...restOfStationInfo
     } = stationInfos?.[0] || {};
 
@@ -64,6 +65,8 @@ const StationInfoModal = ({
             api_id, // eslint-disable-line
             network_code, // eslint-disable-line
             station_code, // eslint-disable-line
+            receiver_vers, // eslint-disable-line
+
             ...restOfStationInfo
         }: StationInfoData) => {
             return Object.values(restOfStationInfo);

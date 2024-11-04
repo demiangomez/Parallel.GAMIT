@@ -133,7 +133,7 @@ const MapMarkers = ({
                                         s.station_code?.toUpperCase()}
                                 </strong>
                             </Tooltip>{" "}
-                            <Popup maxWidth={1000} minWidth={400}>
+                            <Popup maxWidth={600} minWidth={400}>
                                 <PopupChildren station={s} fromMain={true} />
                             </Popup>{" "}
                         </Marker>

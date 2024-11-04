@@ -1,5 +1,8 @@
+import { useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { MapStation, Photo } from "@componentsReact";
+
+import { hasDifferences } from "@utils";
 
 import {
     StationData,
@@ -7,10 +10,10 @@ import {
     StationMetadataServiceData,
     StationVisitsData,
 } from "@types";
-import { useState } from "react";
 
 interface OutletContext {
     station: StationData;
+    reStation: StationData;
     stationMeta: StationMetadataServiceData;
     images: StationImagesData[];
     visitForKml: StationVisitsData;
@@ -27,6 +30,7 @@ interface OutletContext {
 const StationMain = () => {
     const {
         station,
+        reStation,
         stationMeta,
         images,
         visitForKml,
@@ -66,7 +70,13 @@ const StationMain = () => {
             ) : null}
             <div className="flex w-full pr-2 space-x-2 px-2">
                 <MapStation
-                    station={station}
+                    station={
+                        station &&
+                        reStation &&
+                        hasDifferences(station, reStation)
+                            ? reStation
+                            : station
+                    }
                     base64Data={
                         changeKml
                             ? visitForKml.navigation_actual_file ?? ""
