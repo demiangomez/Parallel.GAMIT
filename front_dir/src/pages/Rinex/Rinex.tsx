@@ -147,7 +147,7 @@ const Rinex = () => {
     const { token, logout } = useAuth();
     const api = useApi(token, logout);
 
-    const { station, reStation, showSidebar, getReStation } =
+    const { station, showSidebar, getReStation } =
         useOutletContext<OutletContext>();
 
     const [lastGroupIdPreviousPage, setLastGroupIdPreviousPage] = useState<
