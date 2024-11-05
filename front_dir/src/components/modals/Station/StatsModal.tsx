@@ -412,10 +412,12 @@ const EditStatsModal = ({
                     ? "Add"
                     : modalType.charAt(0).toUpperCase() +
                       modalType.slice(1) +
-                      " " +
-                      stationInfo?.network_code.toUpperCase() +
-                      "." +
-                      stationInfo?.station_code.toUpperCase()}
+                      (modalType === "edit"
+                          ? " " +
+                            stationInfo?.network_code.toUpperCase() +
+                            "." +
+                            stationInfo?.station_code.toUpperCase()
+                          : "")}
             </h3>
             <form className="form-control space-y-4" onSubmit={handleSubmit}>
                 <div className="form-control space-y-2">
