@@ -64,17 +64,70 @@ const StationInfoModal = ({
         ...restOfStationInfo
     } = stationInfos?.[0] || {};
 
-    const titles = Object.keys(restOfStationInfo || {});
+    const AddStationInfoDropdown = () => (
+        <div className="dropdown dropdown-end dropdown-hover">
+            <summary role="button" className="btn btn-ghost m-1">
+                <label className="self-center">Add</label>
+                <PlusCircleIcon
+                    strokeWidth={1.5}
+                    stroke="currentColor"
+                    className="w-8 h-10"
+                />
+            </summary>
+            <ul
+                tabIndex={0}
+                className="dropdown-content menu bg-base-200 rounded-box z-[1] w-48 p-2 shadow"
+            >
+                <li className="font-semibold">
+                    <a
+                        onClick={() => {
+                            setModals({
+                                show: true,
+                                title: "EditStats",
+                                type: "none",
+                            });
+                            setStationInfo(lastStationInfo);
+                        }}
+                    >
+                        From last record
+                    </a>
+                </li>
+                <li className="font-semibold">
+                    <a
+                        onClick={() => {
+                            setModals({
+                                show: true,
+                                title: "EditStats",
+                                type: "add",
+                            });
+                            setStationInfo(undefined);
+                        }}
+                    >
+                        From empty record
+                    </a>
+                </li>
+            </ul>
+        </div>
+    );
+
+    const titles = Object.keys(restOfStationInfo || {}).sort((a, b) => {
+        if (a === "date_start") return -1;
+        if (b === "date_start") return 1;
+        if (a === "date_end") return -1;
+        if (b === "date_end") return 1;
+        return 0;
+    });
     const tableData = stationInfos?.map(
         ({
             api_id, // eslint-disable-line
             network_code, // eslint-disable-line
             station_code, // eslint-disable-line
             receiver_vers, // eslint-disable-line
-
+            date_start,
+            date_end,
             ...restOfStationInfo
         }: StationInfoData) => {
-            return Object.values(restOfStationInfo);
+            return [date_start, date_end, ...Object.values(restOfStationInfo)];
         },
     );
 
@@ -241,49 +294,8 @@ const StationInfoModal = ({
                 <h3 className="font-bold text-center text-3xl my-2 grow">
                     {station?.station_code.toUpperCase()}
                 </h3>
-                <div className="dropdown dropdown-end dropdown-hover">
-                    <summary role="button" className="btn btn-ghost m-1">
-                        <label className="self-center">Add</label>
-                        <PlusCircleIcon
-                            strokeWidth={1.5}
-                            stroke="currentColor"
-                            className="w-8 h-10"
-                        />
-                    </summary>
-                    <ul
-                        tabIndex={0}
-                        className="dropdown-content menu bg-base-200 rounded-box z-[1] w-48 p-2 shadow"
-                    >
-                        <li className="font-semibold">
-                            <a
-                                onClick={() => {
-                                    setModals({
-                                        show: true,
-                                        title: "EditStats",
-                                        type: "none",
-                                    });
-                                    setStationInfo(lastStationInfo);
-                                }}
-                            >
-                                From last record
-                            </a>
-                        </li>
-                        <li className="font-semibold">
-                            <a
-                                onClick={() => {
-                                    setModals({
-                                        show: true,
-                                        title: "EditStats",
-                                        type: "add",
-                                    });
-                                    setStationInfo(undefined);
-                                }}
-                            >
-                                From empty record
-                            </a>
-                        </li>
-                    </ul>
-                </div>
+
+                <AddStationInfoDropdown />
             </div>
 
             <Table
