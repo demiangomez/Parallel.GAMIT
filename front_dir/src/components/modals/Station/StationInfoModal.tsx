@@ -7,7 +7,7 @@ import { getStationInfoService } from "@services";
 import { useAuth } from "@hooks/useAuth";
 import useApi from "@hooks/useApi";
 
-import { showModal } from "@utils";
+import { showModal, woTz } from "@utils";
 
 import {
     GetParams,
@@ -45,9 +45,14 @@ const StationInfoModal = ({
     const [stationInfo, setStationInfo] = useState<StationInfoData | undefined>(
         undefined,
     );
+    const [lastStationInfo, setLastStationInfo] = useState<
+        StationInfoData | undefined
+    >(undefined);
     const [stationInfos, setStationInfos] = useState<
         StationInfoData[] | undefined
     >(undefined);
+
+    const [totalCount, setTotalCount] = useState<number>(0);
 
     const [loading, setLoading] = useState<boolean>(true);
 
@@ -96,12 +101,12 @@ const StationInfoModal = ({
     const [pages, setPages] = useState<number>(0);
     const PAGES_TO_SHOW = 2;
 
-    const getAllStationInfo = async (totalCount: number) => {
+    const getAllStationInfo = async (totalCount: number, limit = 0) => {
         let allData: StationInfoData[] = [];
 
         const newParams = {
             ...params,
-            limit: 0,
+            limit: limit,
             offset: totalCount,
         };
 
@@ -124,6 +129,7 @@ const StationInfoModal = ({
             );
 
             let allData = res.data;
+            setTotalCount(res.total_count);
             if (rinexStationInfo) {
                 allData = await getAllStationInfo(res.total_count);
                 allData = allData.filter((st) =>
@@ -142,6 +148,25 @@ const StationInfoModal = ({
             console.error(err);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const getLastStationInfo = async () => {
+        const arrInfo = await getAllStationInfo(totalCount - 1, totalCount);
+
+        const last = arrInfo[arrInfo.length - 1] as StationInfoData;
+
+        const lastStartDate = last.date_end
+            ? new Date(last.date_end)
+            : woTz(new Date());
+        if (lastStartDate instanceof Date) {
+            lastStartDate.setSeconds(lastStartDate.getSeconds() + 1);
+            const formmatedLast = {
+                ...last,
+                date_start: lastStartDate?.toISOString(),
+                date_end: "",
+            };
+            setLastStationInfo(formmatedLast);
         }
     };
 
@@ -198,6 +223,12 @@ const StationInfoModal = ({
         modals?.show && showModal(modals.title);
     }, [modals]);
 
+    useEffect(() => {
+        if (totalCount > 0) {
+            getLastStationInfo();
+        }
+    }, [totalCount, stationInfos]); // eslint-disable-line
+
     return (
         <Modal
             close={close}
@@ -210,24 +241,49 @@ const StationInfoModal = ({
                 <h3 className="font-bold text-center text-3xl my-2 grow">
                     {station?.station_code.toUpperCase()}
                 </h3>
-                <label className="self-center">Add</label>
-                <button
-                    className="btn btn-ghost btn-circle ml-2"
-                    onClick={() => {
-                        setModals({
-                            show: true,
-                            title: "EditStats",
-                            type: "add",
-                        });
-                        setStationInfo(undefined);
-                    }}
-                >
-                    <PlusCircleIcon
-                        strokeWidth={1.5}
-                        stroke="currentColor"
-                        className="w-8 h-10"
-                    />
-                </button>
+                <div className="dropdown dropdown-end dropdown-hover">
+                    <summary role="button" className="btn btn-ghost m-1">
+                        <label className="self-center">Add</label>
+                        <PlusCircleIcon
+                            strokeWidth={1.5}
+                            stroke="currentColor"
+                            className="w-8 h-10"
+                        />
+                    </summary>
+                    <ul
+                        tabIndex={0}
+                        className="dropdown-content menu bg-base-200 rounded-box z-[1] w-48 p-2 shadow"
+                    >
+                        <li className="font-semibold">
+                            <a
+                                onClick={() => {
+                                    setModals({
+                                        show: true,
+                                        title: "EditStats",
+                                        type: "none",
+                                    });
+                                    setStationInfo(lastStationInfo);
+                                }}
+                            >
+                                From last record
+                            </a>
+                        </li>
+                        <li className="font-semibold">
+                            <a
+                                onClick={() => {
+                                    setModals({
+                                        show: true,
+                                        title: "EditStats",
+                                        type: "add",
+                                    });
+                                    setStationInfo(undefined);
+                                }}
+                            >
+                                From empty record
+                            </a>
+                        </li>
+                    </ul>
+                </div>
             </div>
 
             <Table

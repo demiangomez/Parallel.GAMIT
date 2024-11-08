@@ -91,7 +91,23 @@ const Sidebar = ({
                                                     React.createElement(
                                                         icons[title],
                                                         {
-                                                            className: `h-8 w-full ${show ? "ml-16" : ""} text-white mt-2`,
+                                                            className: `h-8 w-full hover:scale-110 transition-all
+                                                             cursor-pointer ${show ? "ml-16" : ""} text-white mt-2 `,
+                                                            onClick: () => {
+                                                                stationPages.includes(
+                                                                    title,
+                                                                )
+                                                                    ? navigate(
+                                                                          `/${station.network_code}/${station.station_code}/${title.toLowerCase()}`,
+                                                                      )
+                                                                    : setModals(
+                                                                          {
+                                                                              show: true,
+                                                                              title: title,
+                                                                              type: "none",
+                                                                          },
+                                                                      );
+                                                            },
                                                         },
                                                     )}
                                             </div>
