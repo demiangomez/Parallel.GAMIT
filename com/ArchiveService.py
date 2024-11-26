@@ -462,7 +462,7 @@ def process_crinex_file(crinez, filename, data_rejected, data_retry):
                     except pyRinex.pyRinexExceptionNoAutoCoord as e:
                         # catch pyRinexExceptionNoAutoCoord and convert
                         #  it into a pyRunPPPException
-                        cnn.close()
+
                         raise pyPPP.pyRunPPPException(
                             '''Both PPP and sh_rx2apr failed to obtain
                             a coordinate for %s.\n
@@ -487,7 +487,7 @@ def process_crinex_file(crinez, filename, data_rejected, data_retry):
 
                 # check for unreasonable heights
                 if ppp.h[0] > 9000 or ppp.h[0] < -400:
-                    cnn.close()
+
                     raise pyRinex.pyRinexException(
                         os.path.relpath(crinez, Config.repository_data_in) +
                         ''' : unreasonable geodetic height (%.3f).
@@ -530,7 +530,7 @@ def process_crinex_file(crinez, filename, data_rejected, data_retry):
                                     match[0]['StationCode'])),
                             StationCode, ppp.x, ppp.y, ppp.z, ppp.lat[0],
                             ppp.lon[0], ppp.h[0])
-                    cnn.close()
+
                     raise pyPPP.pyRunPPPExceptionCoordConflict(error)
 
                 elif len(match) > 1:
@@ -563,7 +563,7 @@ def process_crinex_file(crinez, filename, data_rejected, data_retry):
                                 m['distance']) for m in match]),
                                 StationCode, ppp.x, ppp.y, ppp.z, ppp.lat[0],
                                 ppp.lon[0], ppp.h[0])
-                    cnn.close()
+
                     raise pyPPP.pyRunPPPExceptionCoordConflict(error)
 
                 else:
@@ -919,7 +919,8 @@ def main():
                                       'pgamit.dbConnection', 'pgamit.Utils',
                                       'pgamit.pyDate', 'pgamit.pyProducts',
                                       'pgamit.pyOptions', 'pgamit.pyEvents',
-                                      'pgamit.pyRinexName', 'os', 'uuid',
+                                      'pgamit.pyRinexName',
+                                      'pgamit.pyPPP', 'os', 'uuid',
                                       'datetime', 'numpy', 'traceback',
                                       'platform'))
 
