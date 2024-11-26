@@ -21,6 +21,7 @@ from logging import INFO, ERROR, WARNING, DEBUG, StreamHandler, Formatter
 import numpy as np
 from numpy import sin, cos, pi
 from scipy.stats import chi2
+from sklearn.cluster import DBSCAN
 import matplotlib
 
 if not os.environ.get('DISPLAY', None):
@@ -113,6 +114,12 @@ def toc(text):
     global tt
     print(text + ': ' + str(time() - tt))
 
+
+def prYellow(skk):
+    if os.fstat(0) == os.fstat(1):
+        return "\033[93m{}\033[00m" .format(skk)
+    else:
+        return skk
 
 LIMIT = 2.5
 
@@ -304,6 +311,31 @@ def to_list(dictionary):
     return dictionary
 
 
+def find_sets_with_tolerance(numbers, tolerance=2/365.25):
+    """
+    Finds sets of numbers within a given tolerance.
+
+    Args:
+        numbers (list): List of numbers to group into sets.
+        tolerance (float): The maximum allowed difference between two numbers in a set (default 2 days).
+
+    Returns:
+        list: set of unique values.
+    """
+
+    set = []
+    for number in numbers:
+        found_set = False
+        for i, set_ in enumerate(set):
+            if abs(number - set_) <= tolerance:
+                found_set = True
+                break
+        if not found_set:
+            set.append(number)
+
+    return set
+
+
 class PppSoln:
     """"class to extract the PPP solutions from the database"""
 
@@ -383,6 +415,9 @@ class PppSoln:
             ts = np.arange(np.min(self.mjd), np.max(self.mjd) + 1, 1)
             self.mjds = ts
             self.ts = np.array([pyDate.Date(mjd=tts).fyear for tts in ts])
+
+            # gaps: find all days without solutions which can be considered gaps in data
+            self.gaps = np.setdiff1d(self.mjds, self.mjd)
 
         elif len(self.blunders) >= 1:
             raise pyETMException('No viable PPP solutions available for %s (all blunders!)\n'
@@ -497,6 +532,9 @@ class GamitSoln:
                     ts = np.arange(np.min(self.mjd), np.max(self.mjd) + 1, 1)
                     self.mjds = ts
                     self.ts = np.array([pyDate.Date(mjd=tts).fyear for tts in ts])
+
+                    # gaps: find all days without solutions which can be considered gaps in data
+                    self.gaps = np.setdiff1d(self.mjds, self.mjd)
                 else:
                     dd = np.sqrt(np.square(np.sum(
                         np.square(a[:, 0:3] - np.array([stn['auto_x'], stn['auto_y'], stn['auto_z']])), axis=1)))
@@ -611,6 +649,25 @@ class JumpTable:
             jcs[0].constrain_data_points = np.count_nonzero(t[np.logical_and(t > jcs[0].min_date, t < t.max())])
 
         self.constrains = np.array([])
+
+        # automatic jump detection section
+        self.auto_jumps = []
+        auto_jumps = self.detect_jumps(soln)
+
+        for ja in auto_jumps:
+            present = False
+            for jt in self.table:
+                # check if this jump is in the table +- 2 days
+                # check that this is not a jump created by a data gap (-1 to make sure we fall in the gap)
+                if abs(jt.date.fyear - ja) < 2/365.25 or pyDate.Date(fyear=ja).mjd-1 in soln.gaps:
+                    present = True
+                    break
+            if not present:
+                date = pyDate.Date(fyear=ja)
+                logger.info(prYellow('Possible unmodeled jump detected on %.3f (%s / %s)'
+                            % (ja, date.datetime().strftime('%Y-%m-%d'), date.ddd())))
+                self.auto_jumps.append(Jump(NetworkCode, StationCode, soln, soln.t, date,
+                                            'auto-jump', silent=True))
 
     def param_count(self):
         return sum([jump.param_count for jump in self.table if jump.fit])
@@ -742,6 +799,50 @@ class JumpTable:
 
         return '\n'.join(output_n), '\n'.join(output_e), '\n'.join(output_u)
 
+    def find_jumps(self, cluster_labels, time):
+
+        jump_times = []
+        p_cluster = 0
+        p_time = 0
+        for i in range(1, len(cluster_labels)):
+            if cluster_labels[i] != -1:
+                if cluster_labels[i] != p_cluster:
+                    if time[i] - p_time > 20 / 365.25:
+                        # only allow jump if more than 20 days
+                        jump_times.append(time[i])
+                    p_cluster = cluster_labels[i]
+                    p_time = time[i]
+
+        return jump_times
+
+    def detect_jumps(self, soln):
+        """
+        this method uses dbscan to automatically look for jumps in the time series
+        """
+        # scale the time to match the scale of the gnss positions
+        time_scaled = (soln.t - soln.t.min()) / (1 / 365.25) * 0.0001
+
+        ecef = np.array([soln.x - soln.auto_x, soln.y - soln.auto_y, soln.z - soln.auto_z])
+        l = ct2lg(ecef[0], ecef[1], ecef[2], soln.lat, soln.lon)
+
+        E_data = np.column_stack((time_scaled, l[1]))
+        N_data = np.column_stack((time_scaled, l[0]))
+
+        # Apply DBSCAN clustering with tuned parameters
+        eps_value = 0.0028     # Adjust as needed to detect prominent clusters
+        min_samples_value = 15 # value from tests
+
+        dbscan = DBSCAN(eps=eps_value, min_samples=min_samples_value)
+        e_cluster_labels = dbscan.fit_predict(E_data)
+        n_cluster_labels = dbscan.fit_predict(N_data)
+
+        # from the detected jumps, remove duplicates with a +- 2 day difference
+        jump_times = find_sets_with_tolerance(self.find_jumps(e_cluster_labels, soln.t) +
+                                              self.find_jumps(n_cluster_labels, soln.t))
+        jump_times.sort()
+
+        return jump_times
+
 
 class EtmFunction:
 
@@ -797,7 +898,8 @@ class Jump(EtmFunction):
     :argument StationCode
     """
 
-    def __init__(self, NetworkCode, StationCode, soln, t, date, metadata, dtype=GENERIC_JUMP, action='A', fit=True):
+    def __init__(self, NetworkCode, StationCode, soln, t, date, metadata, dtype=GENERIC_JUMP, action='A', fit=True,
+                 silent=False):
 
         super(Jump, self).__init__(NetworkCode=NetworkCode, StationCode=StationCode, soln=soln)
 
@@ -835,9 +937,10 @@ class Jump(EtmFunction):
             self.design = np.array([])
             self.fit = False
 
+        # new silent option: do not show a message when adding an automatic jump
         if dtype not in (CO_SEISMIC_JUMP,
                          CO_SEISMIC_DECAY,
-                         CO_SEISMIC_JUMP_DECAY):
+                         CO_SEISMIC_JUMP_DECAY) and not silent:
             logger.info('Mec jump -> Adding jump on %s type: %s; Action: %s; Fit: %s'
                         % (self.date.yyyyddd(), type_dict[dtype], action, 'T' if self.fit else 'F'))
         Jump.rehash(self)
@@ -1942,7 +2045,7 @@ class ETM:
                         if jump.fit and \
                                 jump.p.jump_type in (CO_SEISMIC_JUMP_DECAY,
                                                      CO_SEISMIC_DECAY) and \
-                                np.any(np.abs(jump.p.params[:, -jump.nr:]) > 1):
+                                np.any(np.abs(jump.p.params[:, -jump.nr:]) > 4):
                             # unrealistic, remove
                             jump.remove_from_fit()
                             do_again = True
@@ -2103,7 +2206,7 @@ class ETM:
                          self.hash, self.soln.stack_name))
 
     def plot(self, pngfile=None, t_win=None, residuals=False, plot_missing=True,
-             ecef=False, plot_outliers=True, fileio=None):
+             ecef=False, plot_outliers=True, plot_auto_jumps=False, fileio=None):
 
         import matplotlib.pyplot as plt
 
@@ -2241,7 +2344,7 @@ class ETM:
                 self.set_lims(t_win, plt, ax)
 
                 # plot jumps
-                self.plot_jumps(ax)
+                self.plot_jumps(ax, plot_auto_jumps)
 
             # ################# OUTLIERS PLOT #################
             if plot_outliers:
@@ -2284,7 +2387,7 @@ class ETM:
 
                 self.set_lims(t_win, plt, ax)
 
-                self.plot_jumps(ax)
+                self.plot_jumps(ax, plot_auto_jumps)
 
                 if plot_missing:
                     self.plot_missing_soln(ax)
@@ -2527,7 +2630,7 @@ class ETM:
             ax.quiver((blunder, blunder), ax.get_ylim(), (0, 0), (-0.01, 0.01), scale_units='height',
                       units='height', pivot='tip', width=0.008, edgecolors='r')
 
-    def plot_jumps(self, ax):
+    def plot_jumps(self, ax, plot_auto_jumps=False):
 
         for jump in self.Jumps.table:
             if jump.date < self.soln.date[0] or jump.date > self.soln.date[-1]:
@@ -2552,6 +2655,14 @@ class ETM:
             else:
                 continue
             ax.axvline(jump.date.fyear, color=c, linestyle=':')
+
+        if plot_auto_jumps:
+            for jump in self.Jumps.auto_jumps:
+                if jump.date < self.soln.date[0] or jump.date > self.soln.date[-1]:
+                    continue
+
+                c = 'tab:orange'
+                ax.axvline(jump.date.fyear, color=c, linestyle='-.')
 
     def todictionary(self, time_series=False, model=False):
         # convert the ETM adjustment into a dictionary

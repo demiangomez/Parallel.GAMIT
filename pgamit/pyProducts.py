@@ -13,7 +13,7 @@ from datetime import datetime
 from pgamit import pyRunWithRetry
 from pgamit import pyEvents
 from pgamit import pyDate
-from pgamit.Utils import file_open, file_try_remove
+from pgamit.Utils import file_open, file_try_remove, indent
 
 
 class pyProductsException(Exception):
@@ -78,6 +78,7 @@ class OrbitalProduct:
         self.filename = ''
         self.archive_filename = ''
         self.version  = 0
+        self.interval = 0
 
         # DDG: new behavior -> search for all available versions of a file and use largest one
         # first, check if letter is upper case, which means we are getting a long filename
@@ -88,8 +89,18 @@ class OrbitalProduct:
                 if int(prod[3]) >= self.version:
                     # save the version
                     self.version = int(prod[3])
+                    # save the interval
+                    self.interval = int(prod[27:27 + 2])
                     # assign archive_filename with current product candidate
                     # archive_filename should be the basename without the compression extension
+                    self.archive_filename = os.path.splitext(os.path.basename(prod))[0]
+
+            # redo this loop to determine if there is a file with the selected version that has a > interval
+            for prod in match:
+                if int(prod[27:27+2]) > self.interval and int(prod[3]) >= self.version:
+                    # if interval is greater and version is the same, keep the file with larger interval
+                    # this is to speed up the processing
+                    self.interval = int(prod[27:27+2])
                     self.archive_filename = os.path.splitext(os.path.basename(prod))[0]
 
             # DDG: new behavior -> if short_name then use short name destination file
@@ -244,15 +255,19 @@ class GetEOP(OrbitalProduct):
         # loop through the types of sp3 files to try
         self.eop_path = None
 
-        # determine the date of the first day of the week
-        week = pyDate.Date(gpsWeek=date.gpsWeek, gpsWeekDay=0)
-
         for sp3type in sp3types:
+            # determine the date of the first day of the week
+            # DDG: COD products give the ERP at the end of the week, IGS at the beginning
+            if sp3type[0:3] == 'COD':
+                week = pyDate.Date(gpsWeek=date.gpsWeek, gpsWeekDay=6)
+            else:
+                week = pyDate.Date(gpsWeek=date.gpsWeek, gpsWeekDay=0)
+
             if sp3type[0].isupper():
                 # long name IGS format
                 self.eop_filename = (sp3type.replace('{YYYYDDD}', week.yyyyddd(space=False)).
                                      replace('{INT}', '01D').
-                                     replace('{PER}', '07D') + 'ERP.ERP')
+                                     replace('{PER}', '07D') + '(?:ERP|ORB).ERP')
             else:
                 # short name IGS format
                 self.eop_filename = sp3type.replace('{WWWWD}', week.wwww()) + '7.erp'

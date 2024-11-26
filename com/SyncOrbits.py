@@ -145,7 +145,7 @@ def main():
                     clk_filename = (sp3type.replace('{YYYYDDD}', date.yyyyddd(space=False)).
                                     replace('{INT}', '[0-3][0-5][SM]').replace('{PER}', '01D') + 'CLK.CLK')
                     eop_filename = (sp3type.replace('{YYYYDDD}', date.yyyyddd(space=False)).
-                                    replace('{INT}', '01D').replace('{PER}', '07D') + 'ERP.ERP')
+                                    replace('{INT}', '01D').replace('{PER}', '07D') + '(?:ERP|ORB).ERP')
                 else:
                     # short name IGS format
                     sp3_filename = sp3type.replace('{WWWWD}', date.wwwwd()) + '.sp3.Z'
