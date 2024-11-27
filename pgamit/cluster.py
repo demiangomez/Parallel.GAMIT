@@ -33,7 +33,7 @@ def prune(OC, method='linear'):
     """
     if method is "linear":
         subset = []
-        for i, row in enumerate(OC)
+        for i, row in enumerate(OC):
             mod = OC.copy()
             mod[i, :] = np.zeros(len(stations))
             counts = mod.sum(axis=0)
