@@ -35,7 +35,7 @@ def prune(OC, method='linear'):
         subset = []
         for i, row in enumerate(OC):
             mod = OC.copy()
-            mod[i, :] = np.zeros(len(stations))
+            mod[i, :] = np.zeros(len(row))
             counts = mod.sum(axis=0)
             problems = np.sum(counts == 0)
             if problems == 0:
