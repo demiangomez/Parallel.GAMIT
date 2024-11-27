@@ -18,6 +18,33 @@ from sklearn.cluster._k_means_common import _inertia_dense, _inertia_sparse
 from sklearn.cluster._kmeans import (_BaseKMeans, _kmeans_single_elkan,
                                      _kmeans_single_lloyd)
 
+def prune(OC, method='linear'):
+    """Prune redundant clusters from over cluster (OC) array
+
+    Parameters
+    ----------
+
+    OC : bool array of shape (n_clusters, n_coordinates)
+    method : ["linear", None]; defaults linear scan
+
+    Returns
+
+    OC : Pruned bool array of shape (n_clusters, n_coordinates)
+    """
+    if method is "linear":
+        subset = []
+        for i, row in enumerate(OC)
+            mod = OC.copy()
+            mod[i, :] = np.zeros(len(stations))
+            counts = mod.sum(axis=0)
+            problems = np.sum(counts == 0)
+            if problems == 0:
+                subset.append(i)
+                OC[i,:] = np.zeros(len(stations))
+        return OC[~np.array(subset)]
+    else:
+        return OC
+
 
 def select_central_point(labels, coordinates, centroids,
                          metric='euclidean'):
