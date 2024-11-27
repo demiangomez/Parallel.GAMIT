@@ -39,8 +39,6 @@ from pgamit.pyGamitSession import GamitSession
 from pgamit.pyStation import StationCollection
 from pgamit.cluster import (BisectingQMeans, over_cluster, prune, 
                             select_central_point)
-from pgamit.cluster import 
-prune
 from pgamit.plots import plot_global_network
 
 BACKBONE_NET = 45
