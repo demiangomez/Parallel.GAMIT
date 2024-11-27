@@ -18,6 +18,7 @@ from sklearn.cluster._k_means_common import _inertia_dense, _inertia_sparse
 from sklearn.cluster._kmeans import (_BaseKMeans, _kmeans_single_elkan,
                                      _kmeans_single_lloyd)
 
+
 def prune(OC, method='linear'):
     """Prune redundant clusters from over cluster (OC) array
 
@@ -40,7 +41,7 @@ def prune(OC, method='linear'):
             problems = np.sum(counts == 0)
             if problems == 0:
                 subset.append(i)
-                OC[i,:] = np.zeros(len(row))
+                OC[i, :] = np.zeros(len(row))
         return OC[~np.array(subset)]
     else:
         return OC
@@ -177,7 +178,8 @@ def over_cluster(labels, coordinates, metric='haversine', neighborhood=5,
     clusters = np.unique(labels)
     n_clusters = len(clusters)
 
-    if (n_clusters - 1) < neighborhood: neighborhood = (n_clusters - 1)
+    if (n_clusters - 1) < neighborhood:
+        neighborhood = (n_clusters - 1)
 
     # reference index for reverse lookups
     ridx = np.array(list(range(len(labels))))
@@ -664,4 +666,3 @@ class _BisectingTree:
         else:
             yield from self.left.iter_leaves()
             yield from self.right.iter_leaves()
-
