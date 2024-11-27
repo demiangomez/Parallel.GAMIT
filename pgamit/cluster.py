@@ -40,7 +40,7 @@ def prune(OC, method='linear'):
             problems = np.sum(counts == 0)
             if problems == 0:
                 subset.append(i)
-                OC[i,:] = np.zeros(len(stations))
+                OC[i,:] = np.zeros(len(row))
         return OC[~np.array(subset)]
     else:
         return OC
