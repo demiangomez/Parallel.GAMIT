@@ -31,7 +31,7 @@ def prune(OC, method='linear'):
 
     OC : Pruned bool array of shape (n_clusters, n_coordinates)
     """
-    if method is "linear":
+    if method == "linear":
         subset = []
         for i, row in enumerate(OC):
             mod = OC.copy()
