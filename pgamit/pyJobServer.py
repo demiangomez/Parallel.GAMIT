@@ -18,7 +18,7 @@ from tqdm import tqdm
 import dispy
 import dispy.httpd
 
-DELAY = 60
+DELAY = 90
 
 
 def test_node(check_gamit_tables=None, check_archive=True, check_executables=True, check_atx=True, software_sync=()):
@@ -264,8 +264,8 @@ class JobServer:
             # <nah> @todo aca si job es None bug, y no está claro si con el wait() el
             # delay es realmente necesario / delay arbitrario sin reintentos?
             start_t = time.time()
-            while job is None and (time.time() - start_t) < 2:
-                time.sleep(0.05)
+            while job is None and (time.time() - start_t) < DELAY:
+                time.sleep(1)
 
             self.result.append(job.result)
 
@@ -324,9 +324,10 @@ class JobServer:
             self.cluster = dispy.JobCluster(test_node,
                                             servers, 
                                             recover_file   = 'pg.dat',
-                                            pulse_interval = 60,
+                                            pulse_interval = 10,
+                                            ping_interval  = 10,
                                             cluster_status = self.check_cluster,
-                                            ip_addr        = self.ip_address)
+                                            host           = self.ip_address)
 
             # discover the available nodes
             self.cluster.discover_nodes(servers)
@@ -387,7 +388,8 @@ class JobServer:
                                             list(deps),
                                             callback,
                                             self.cluster_status,
-                                            pulse_interval=60,
+                                            pulse_interval=10,
+                                            ping_interval =10,
                                             # Note, exceptions in setup seems to be swallowed up and
                                             # never shown.
                                             setup          = node_setup or setup,
@@ -399,7 +401,7 @@ class JobServer:
                                             # disconnected node is really alive (temporal netsplit) the
                                             # job will run multiple times and maybe in parallel)
                                             reentrant      = True,
-                                            ip_addr        = self.ip_address)
+                                            host           = self.ip_address)
 
             self.http_server = dispy.httpd.DispyHTTPServer(self.cluster, poll_sec=2)
 

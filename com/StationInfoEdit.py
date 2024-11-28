@@ -485,8 +485,7 @@ class MyApp(object):
 
         main_menu.display()
 
-
-if __name__ == '__main__':
+def main():
 
     parser = argparse.ArgumentParser(description='Edit Stations info in the database')
 
@@ -514,3 +513,7 @@ if __name__ == '__main__':
         stn = rs.dictresult()[0]
 
     curses.wrapper(MyApp)
+
+
+if __name__ == '__main__':
+    main()
