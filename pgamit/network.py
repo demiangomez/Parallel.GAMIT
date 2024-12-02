@@ -37,7 +37,8 @@ from scipy.spatial import Delaunay, distance
 # app
 from pgamit.pyGamitSession import GamitSession
 from pgamit.pyStation import StationCollection
-from pgamit.cluster import over_cluster, select_central_point, BisectingQMeans
+from pgamit.cluster import (BisectingQMeans, over_cluster, prune, 
+                            select_central_point)
 from pgamit.plots import plot_global_network
 
 BACKBONE_NET = 45
@@ -186,6 +187,8 @@ class Network(object):
         # expand the initial clusters to overlap stations with neighbors
         OC = over_cluster(qmean.labels_, points, metric='euclidean',
                           neighborhood=5, overlap_points=2)
+        # set 'method=None' to disable
+        OC = prune(OC, method='linear')
         # calculate all 'tie' stations
         ties = np.where(np.sum(OC, axis=0) > 1)[0]
         # monotonic labels, compatible with previous data structure / api

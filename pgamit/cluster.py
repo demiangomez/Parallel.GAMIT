@@ -19,6 +19,34 @@ from sklearn.cluster._kmeans import (_BaseKMeans, _kmeans_single_elkan,
                                      _kmeans_single_lloyd)
 
 
+def prune(OC, method='linear'):
+    """Prune redundant clusters from over cluster (OC) array
+
+    Parameters
+    ----------
+
+    OC : bool array of shape (n_clusters, n_coordinates)
+    method : ["linear", None]; defaults linear scan
+
+    Returns
+
+    OC : Pruned bool array of shape (n_clusters, n_coordinates)
+    """
+    if method == "linear":
+        subset = []
+        for i, row in enumerate(OC):
+            mod = OC.copy()
+            mod[i, :] = np.zeros(len(row))
+            counts = mod.sum(axis=0)
+            problems = np.sum(counts == 0)
+            if problems == 0:
+                subset.append(i)
+                OC[i, :] = np.zeros(len(row))
+        return OC[~np.array(subset)]
+    else:
+        return OC
+
+
 def select_central_point(labels, coordinates, centroids,
                          metric='euclidean'):
     """Select the nearest central point in a given neighborhood
@@ -150,7 +178,8 @@ def over_cluster(labels, coordinates, metric='haversine', neighborhood=5,
     clusters = np.unique(labels)
     n_clusters = len(clusters)
 
-    if (n_clusters - 1) < neighborhood: neighborhood = (n_clusters - 1)
+    if (n_clusters - 1) < neighborhood:
+        neighborhood = (n_clusters - 1)
 
     # reference index for reverse lookups
     ridx = np.array(list(range(len(labels))))
@@ -637,4 +666,3 @@ class _BisectingTree:
         else:
             yield from self.left.iter_leaves()
             yield from self.right.iter_leaves()
-
