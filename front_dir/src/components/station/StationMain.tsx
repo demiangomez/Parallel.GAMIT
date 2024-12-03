@@ -45,6 +45,11 @@ const StationMain = () => {
 
     const [changeKml, setChangeKml] = useState<boolean | undefined>(undefined);
 
+    const definitiveStation =
+        station && reStation && hasDifferences(station, reStation)
+            ? reStation
+            : station;
+
     return (
         <div>
             <h1 className="text-2xl font-base text-center">
@@ -68,45 +73,41 @@ const StationMain = () => {
                     </div>
                 </div>
             ) : null}
-            <div className="flex w-full pr-2 space-x-2 px-2">
-                <MapStation
-                    station={
-                        station &&
-                        reStation &&
-                        hasDifferences(station, reStation)
-                            ? reStation
-                            : station
-                    }
-                    base64Data={
-                        changeKml
-                            ? visitForKml.navigation_actual_file ?? ""
-                            : stationMeta?.navigation_actual_file ?? ""
-                    }
-                    loadPdf={loadPdf}
-                    setStationLocationScreen={setStationLocationScreen}
-                    setStationLocationDetailScreen={
-                        setStationLocationDetailScreen
-                    }
-                    setLoadPdf={setLoadPdf}
-                    setLoadedMap={setLoadedMap}
-                />
+            <div className="flex flex-col items-center justify-center space-y-4 px-2 pb-4">
+                <div className="flex w-full space-x-2 ">
+                    <MapStation
+                        station={definitiveStation}
+                        base64Data={
+                            changeKml
+                                ? (visitForKml.navigation_actual_file ?? "")
+                                : (stationMeta?.navigation_actual_file ?? "")
+                        }
+                        loadPdf={loadPdf}
+                        setStationLocationScreen={setStationLocationScreen}
+                        setStationLocationDetailScreen={
+                            setStationLocationDetailScreen
+                        }
+                        setLoadPdf={setLoadPdf}
+                        setLoadedMap={setLoadedMap}
+                    />
 
-                <Photo
-                    loader={photoLoading}
-                    phArray={
-                        images?.map((img) => {
-                            return {
-                                id: img.id ?? 0,
-                                actual_image: img.actual_image ?? "",
-                                description: img.description ?? "",
-                                name: img.name ?? "",
-                            };
-                        }) ?? []
-                    }
-                    reFetch={() => {
-                        getStationImages();
-                    }}
-                />
+                    <Photo
+                        loader={photoLoading}
+                        phArray={
+                            images?.map((img) => {
+                                return {
+                                    id: img.id ?? 0,
+                                    actual_image: img.actual_image ?? "",
+                                    description: img.description ?? "",
+                                    name: img.name ?? "",
+                                };
+                            }) ?? []
+                        }
+                        reFetch={() => {
+                            getStationImages();
+                        }}
+                    />
+                </div>
             </div>
         </div>
     );

@@ -28,6 +28,7 @@
         "react-dom": "^18.2.0",
         "react-dropzone": "^14.2.9",
         "react-leaflet": "^4.2.1",
+        "react-pdf": "^9.1.1",
         "react-rnd": "^10.4.13",
         "react-router-dom": "^6.23.0",
         "react-slick": "^0.30.2",

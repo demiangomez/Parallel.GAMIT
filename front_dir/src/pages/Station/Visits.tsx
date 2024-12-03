@@ -50,7 +50,9 @@ const Visits = () => {
     const campaign = location.state
         ? "visitDetail" in location.state
             ? undefined
-            : (location.state as StationCampaignsData)
+            : "start_date" in location.state
+              ? (location.state as StationCampaignsData)
+              : undefined
         : undefined;
 
     const visitByCampaign = location.state

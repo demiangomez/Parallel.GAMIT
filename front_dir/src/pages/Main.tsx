@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { LatLngExpression } from "leaflet";
 import {
     Map,
+    MapSkeleton,
     SearchInput,
     Sidebar,
-    Skeleton,
     Spinner,
     StationsModal,
 } from "@componentsReact";
@@ -15,7 +16,6 @@ import { useAuth } from "@hooks/useAuth";
 import { getStationsService } from "@services";
 import { ChevronLeftIcon } from "@heroicons/react/24/outline";
 import { GetParams, StationData, StationServiceData } from "@types";
-import { useLocation } from "react-router-dom";
 
 const MainPage = () => {
     const { token, logout } = useAuth();
@@ -91,7 +91,18 @@ const MainPage = () => {
                 if (result.data?.length > 0) {
                     result.data.find((s) => {
                         if (s.lat && s.lon) {
-                            setInitialCenter([s.lat, s.lon]);
+                            const hasEqualParams =
+                                JSON.stringify(locationState?.mainParams) ===
+                                JSON.stringify(params);
+
+                            if (hasEqualParams) {
+                                setInitialCenter([
+                                    locationState?.lat,
+                                    locationState?.lon,
+                                ]);
+                            } else {
+                                setInitialCenter([s.lat, s.lon]);
+                            }
                         }
                     });
                 }
@@ -103,7 +114,6 @@ const MainPage = () => {
         }
     };
 
-    // const [showStations, setShowStations] = useState<boolean>(false);
     const [showSidebar, setShowSidebar] = useState<boolean>(false);
 
     const [params, setParams] = useState<GetParams>({
@@ -126,6 +136,14 @@ const MainPage = () => {
         ) {
             abortControllerRef.current?.abort();
             setStations(initialStations);
+            setInitialCenter(
+                initialCenter
+                    ? [
+                          (initialCenter as [number, number])[0],
+                          (initialCenter as [number, number])[1],
+                      ]
+                    : undefined,
+            );
         }
 
         if (
@@ -153,14 +171,6 @@ const MainPage = () => {
     }, [stationsUpdated]);
 
     useEffect(() => {
-        if (!initialStations) {
-            // FIXME: Corresponder las initialstations al rango de la vista
-            //que el usuario tenga determinada ??¿¿, seguro tenga que hacer un nuevo getStations
-            getInitialStations();
-        }
-    }, []);
-
-    useEffect(() => {
         const stateCoordinates =
             locationState !== null && Object.values(locationState).length > 0
                 ? ([locationState?.lat, locationState?.lon] as LatLngExpression)
@@ -171,10 +181,22 @@ const MainPage = () => {
         }
     }, [locationState]);
 
+    useEffect(() => {
+        if (!initialStations) {
+            // FIXME: Corresponder las initialstations al rango de la vista
+            //que el usuario tenga determinada ??¿¿, seguro tenga que hacer un nuevo getStations
+            getInitialStations();
+        }
+    }, []);
+
     return (
-        <div className={"my-auto flex flex-1 transition-all duration-200"}>
+        <div
+            className={
+                "my-auto flex flex-1 transition-all duration-200 relative "
+            }
+        >
             {loading ? (
-                <Skeleton />
+                <MapSkeleton />
             ) : (
                 <>
                     <Sidebar
@@ -206,7 +228,7 @@ const MainPage = () => {
                                 <ChevronLeftIcon className="h-6 w-6" />
                             </button>{" "}
                         </div>
-                        <div className="flex justify-center flex-wrap items-center">
+                        <div className="flex justify-center flex-wrap items-center absolute z-50 w-full top-8">
                             <SearchInput
                                 stations={stations}
                                 params={params}
@@ -223,6 +245,8 @@ const MainPage = () => {
                         <Map
                             stations={stations ? stations : initialStations}
                             initialCenter={initialCenter}
+                            mainParams={params}
+                            setMainParams={setParams}
                         />
                         {list && (
                             <div

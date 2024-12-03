@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
+import { PopupChildren } from "@componentsReact";
+
 import JSZip from "jszip";
 // @ts-expect-error leaflet omnivore doesnt have any types
 import omnivore from "leaflet-omnivore";
-import { StationData } from "@types";
 import { LatLngExpression } from "leaflet";
-import PopupChildren from "./PopupChildren";
+
+import { StationData } from "@types";
 
 interface MyMapContainerProps {
     zoom: number;

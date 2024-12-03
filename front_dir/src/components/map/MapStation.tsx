@@ -255,9 +255,11 @@ const MapStation = ({
                     key={station ? station.lat + station.lon : "key"}
                     position={mapProps.center ?? [0, 0]}
                 >
-                    <Popup maxWidth={600} minWidth={400}>
-                        <PopupChildren station={station} />
-                    </Popup>
+                    {!loadPdf && (
+                        <Popup maxWidth={600} minWidth={400}>
+                            <PopupChildren station={station} />
+                        </Popup>
+                    )}
                 </Marker>
             </MapContainer>
         </div>

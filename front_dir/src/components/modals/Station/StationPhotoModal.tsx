@@ -1,15 +1,14 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
-import { Modal, Alert } from "@componentsReact";
+import { Modal, FileDetails, FileAlert } from "@componentsReact";
 
 import ExifReader from "exifreader";
 
 import { useAuth } from "@hooks/useAuth";
 import useApi from "@hooks/useApi";
-import { useFormReducer } from "@hooks";
 
 import { apiOkStatuses } from "@utils";
-import { Errors, StationData } from "@types";
+import { FileErrors, FilesErrorResponse, StationData } from "@types";
 import { postStationsImagesService } from "@services";
 
 interface Props {
@@ -35,29 +34,17 @@ const StationPhotoModal = ({ modalType, reFetch, setStateModal }: Props) => {
 
     const [loading, setLoading] = useState<boolean>(false);
     const [msg, setMsg] = useState<
-        { status: number; msg: string; errors?: Errors } | undefined
+        { status: number; msg: string; errors?: FileErrors } | undefined
     >(undefined);
 
-    const { formState, dispatch } = useFormReducer({
-        image: undefined,
-        name: "",
-        description: "",
-    });
+    const [globalDescription, setGlobalDescription] = useState<string>("");
+
+    const [files, setFiles] = useState<
+        { file: File; description: string; id: number; name?: string }[]
+    >([]);
 
     const handleCloseModal = () => {
         return reFetch();
-    };
-
-    const handleChange = (e: HTMLInputElement | HTMLSelectElement) => {
-        const { name, value } = e;
-
-        dispatch({
-            type: "change_value",
-            payload: {
-                inputName: name,
-                inputValue: value,
-            },
-        });
     };
 
     const handleChangePhoto = async (e: HTMLInputElement) => {
@@ -65,51 +52,51 @@ const StationPhotoModal = ({ modalType, reFetch, setStateModal }: Props) => {
 
         if (!files || files.length === 0) return;
 
-        const file = files[0];
-        try {
-            const tags = await ExifReader.load(file, { async: true });
+        const newFiles = await Promise.all(
+            Array.from(files).map(async (file, idx) => {
+                try {
+                    const tags = await ExifReader.load(file, { async: true });
 
-            if (tags.DateTimeOriginal) {
-                const photoDatetime = tags.DateTimeOriginal?.description
-                    .replace(" ", "_")
-                    .replace(/:/g, "");
-                dispatch({
-                    type: "change_value",
-                    payload: {
-                        inputName: "name",
-                        inputValue:
-                            photoDatetime + "." + file.name.split(".").pop(),
-                    },
-                });
-                dispatch({
-                    type: "change_value",
-                    payload: {
-                        inputName: "image",
-                        inputValue: file,
-                    },
-                });
-            } else {
-                const lastModifiedDate = new Date(file["lastModified"]);
-                const formattedDate = `${lastModifiedDate.getFullYear()}${String(lastModifiedDate.getMonth() + 1).padStart(2, "0")}${String(lastModifiedDate.getDate()).padStart(2, "0")}_${String(lastModifiedDate.getHours()).padStart(2, "0")}${String(lastModifiedDate.getMinutes()).padStart(2, "0")}${String(lastModifiedDate.getSeconds()).padStart(2, "0")}`;
-                dispatch({
-                    type: "change_value",
-                    payload: {
-                        inputName: "name",
-                        inputValue:
-                            formattedDate + "." + file.name.split(".").pop(),
-                    },
-                });
-                dispatch({
-                    type: "change_value",
-                    payload: {
-                        inputName: "image",
-                        inputValue: file,
-                    },
-                });
-            }
-        } catch (err) {
-            console.error(err);
-        }
+                    if (tags.DateTimeOriginal) {
+                        const photoDatetime = tags.DateTimeOriginal?.description
+                            .replace(" ", "_")
+                            .replace(/:/g, "");
+
+                        return {
+                            file,
+                            description: "",
+                            id: idx,
+                            name:
+                                photoDatetime +
+                                "." +
+                                file.name.split(".").pop(),
+                        };
+                    } else {
+                        const lastModifiedDate = new Date(file["lastModified"]);
+                        const formattedDate = `${lastModifiedDate.getFullYear()}${String(lastModifiedDate.getMonth() + 1).padStart(2, "0")}${String(lastModifiedDate.getDate()).padStart(2, "0")}_${String(lastModifiedDate.getHours()).padStart(2, "0")}${String(lastModifiedDate.getMinutes()).padStart(2, "0")}${String(lastModifiedDate.getSeconds()).padStart(2, "0")}`;
+
+                        return {
+                            file,
+                            description: "",
+                            id: idx,
+                            name:
+                                formattedDate +
+                                "." +
+                                file.name.split(".").pop(),
+                        };
+                    }
+                } catch (err) {
+                    console.error(err);
+                    return {
+                        file,
+                        description: "",
+                        id: idx,
+                    };
+                }
+            }),
+        );
+
+        setFiles(newFiles);
     };
 
     const addPhoto = async () => {
@@ -118,23 +105,19 @@ const StationPhotoModal = ({ modalType, reFetch, setStateModal }: Props) => {
 
             const formData = new FormData();
 
-            formData.append("station", String(station.api_id));
-
-            Object.keys(formState).forEach((key) => {
-                if (key === "image") {
-                    formData.append(key, formState[key] as unknown as File);
-                } else {
-                    formData.append(
-                        key,
-                        formState[key as keyof typeof formState] ?? "",
-                    );
-                }
+            Object.values(files).forEach((value) => {
+                formData.append("image", value.file);
+                formData.append("name", value.name ?? value.file.name);
+                formData.append("description", value.description);
+                formData.append("station", String(station.api_id));
             });
-            const res = await postStationsImagesService<any>(api, formData);
+            const res = await postStationsImagesService<
+                any | FilesErrorResponse
+            >(api, formData);
             if ("status" in res) {
                 setMsg({
                     status: res.statusCode,
-                    msg: res.response.type,
+                    msg: "",
                     errors: res.response,
                 });
             } else {
@@ -155,11 +138,26 @@ const StationPhotoModal = ({ modalType, reFetch, setStateModal }: Props) => {
         addPhoto();
     };
 
+    useEffect(() => {
+        if (globalDescription) {
+            setFiles((prev) => {
+                return prev.map((p) => {
+                    return {
+                        file: p.file,
+                        description: globalDescription,
+                        id: p.id,
+                        name: p.name,
+                    };
+                });
+            });
+        }
+    }, [globalDescription]);
+
     return (
         <Modal
             close={false}
             modalId={"AddStationPhoto"}
-            size={"smPlus"}
+            size={"lg"}
             handleCloseModal={() => handleCloseModal()}
             setModalState={setStateModal}
         >
@@ -170,82 +168,82 @@ const StationPhotoModal = ({ modalType, reFetch, setStateModal }: Props) => {
             </div>
             <form className="form-control space-y-4" onSubmit={handleSubmit}>
                 <div className="form-control space-y-2">
-                    {Object.keys(formState || {}).map((key, index) => {
-                        const errorBadge = msg?.errors?.errors?.find(
-                            (error) => error.attr === key,
-                        );
-                        const optionalFields = ["description"];
-                        return (
-                            <div
-                                className="flex items-center gap-2"
-                                key={key + index}
-                            >
-                                {key === "image" ? (
-                                    <div className="flex gap-2 items-center w-full">
-                                        <input
-                                            type="file"
-                                            name="img"
-                                            className={` ${errorBadge && errorBadge?.attr === "image" ? "file-input-error" : ""} file-input file-input-bordered w-full `}
-                                            onChange={(e) => {
-                                                handleChangePhoto(e.target);
-                                            }}
-                                        />
-
-                                        {optionalFields.includes(key) && (
-                                            <span className="badge badge-secondary">
-                                                Optional
-                                            </span>
-                                        )}
-                                    </div>
-                                ) : (
-                                    <label
-                                        key={index}
-                                        id={key}
-                                        className={`w-full input input-bordered flex items-center gap-2 ${errorBadge ? "input-error" : ""}`}
-                                        title={
-                                            errorBadge ? errorBadge.detail : ""
-                                        }
-                                    >
-                                        <div className="label">
-                                            <span className="font-bold">
-                                                {key
-                                                    .toUpperCase()
-                                                    .replace("_", " ")
-                                                    .replace("_", " ")}
-                                            </span>
-                                        </div>
-                                        <input
-                                            type="text"
-                                            name={key}
-                                            value={
-                                                formState[
-                                                    key as keyof typeof formState
-                                                ] ?? ""
-                                            }
-                                            onChange={(e) => {
-                                                handleChange(e.target);
-                                            }}
-                                            className="grow "
-                                            autoComplete="off"
-                                            disabled={key === "id"}
-                                        />
-                                        {errorBadge && (
-                                            <span className="badge badge-error">
-                                                {errorBadge.code}
-                                            </span>
-                                        )}
-                                        {optionalFields.includes(key) && (
-                                            <span className="badge badge-secondary">
-                                                Optional
-                                            </span>
-                                        )}
-                                    </label>
-                                )}
+                    <div className="form-control space-y-2">
+                        <input
+                            type="file"
+                            multiple={true}
+                            title={"File"}
+                            className={` file-input file-input-bordered w-full `}
+                            accept="image/*"
+                            onChange={(e) => {
+                                setMsg(undefined);
+                                const files = e.target.files;
+                                if (files && files.length > 0) {
+                                    Array.from(files).forEach(() => {
+                                        handleChangePhoto(e.target);
+                                    });
+                                } else if (files && files.length === 0) {
+                                    setFiles([]);
+                                    setMsg(undefined);
+                                    setGlobalDescription("");
+                                }
+                            }}
+                        />
+                        <label
+                            className={`w-full input input-bordered flex items-center gap-2 `}
+                            title={"Description"}
+                        >
+                            <div className="label">
+                                <span className="font-bold">
+                                    GLOBAL DESCRIPTION
+                                </span>
                             </div>
-                        );
-                    })}
+                            <input
+                                type="text"
+                                value={globalDescription}
+                                onChange={(e) => {
+                                    setGlobalDescription(e.target.value);
+                                }}
+                                disabled={files.length === 0}
+                                className="grow "
+                                autoComplete="off"
+                            />
+                        </label>
+                        {files && files.length > 0 && (
+                            <div className="w-full">
+                                <label className="label font-bold">FILES</label>
+                                <div
+                                    className={`grid gap-4 grid-flow-dense w-full max-h-72 overflow-y-auto mt-6 pr-2 ${
+                                        files.length === 1
+                                            ? "grid-cols-1"
+                                            : files.length === 2
+                                              ? "grid-cols-2"
+                                              : "grid-cols-3"
+                                    }`}
+                                >
+                                    {Array.from(files).map((f) => (
+                                        <FileDetails
+                                            key={f.id}
+                                            file={{
+                                                id: String(f.id),
+                                            }}
+                                            files={files}
+                                            fileType={"stationImages"}
+                                            pageRecord={{
+                                                pageType: "station",
+                                                id: station.api_id ?? 0,
+                                            }}
+                                            // errorBadge={errorBadge}
+                                            msg={msg}
+                                            setFiles={setFiles}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
-                <Alert msg={msg} />
+                <FileAlert msg={msg} />
                 {loading && (
                     <div className="w-full text-center">
                         <span className="loading loading-spinner loading-lg self-center"></span>

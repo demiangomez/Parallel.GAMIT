@@ -91,6 +91,13 @@ const Station = () => {
     const [loadPdf, setLoadPdf] = useState<boolean>(false);
     const [loadedMap, setLoadedMap] = useState<boolean | undefined>(undefined);
 
+    const paramsByUrl = {
+        network_code: nc,
+        station_code: sc,
+        limit: 0,
+        offset: 0,
+    };
+
     const getStation = async () => {
         try {
             setLoading(true);
@@ -213,6 +220,32 @@ const Station = () => {
 
     const locationState = location.state as StationData;
 
+    const getButtonClasses = () => {
+        const baseClasses = "hover:scale-110 btn-ghost rounded-lg p-1";
+        let additionalClasses = "";
+
+        if (
+            location.pathname !== `/${nc}/${sc}` &&
+            location.pathname !== `/${nc}/${sc}/rinex`
+        ) {
+            additionalClasses = "mr-8";
+        } else if (location.pathname === `/${nc}/${sc}`) {
+            additionalClasses = "mr-0";
+        } else if (
+            errorMessages.length === 0 &&
+            location.pathname === `/${nc}/${sc}/rinex`
+        ) {
+            additionalClasses = "mr-8";
+        } else if (
+            errorMessages.length > 0 &&
+            location.pathname === `/${nc}/${sc}/rinex`
+        ) {
+            additionalClasses = "mr-2";
+        }
+
+        return `${baseClasses} ${additionalClasses}`;
+    };
+
     useEffect(() => {
         if (locationState && !loading) {
             setStation(locationState);
@@ -237,9 +270,13 @@ const Station = () => {
                 if (state.historyAction === NavigationType.Pop) {
                     if (state.location.pathname === "/") {
                         navigate("/temp", { replace: true, state: {} });
-
                         setTimeout(() => {
-                            navigate("/", { state: locationState });
+                            navigate("/", {
+                                state: {
+                                    ...locationState,
+                                    mainParams: paramsByUrl,
+                                },
+                            });
                         }, 0);
                     }
                 }
@@ -306,6 +343,7 @@ const Station = () => {
                                 ? reStation
                                 : station
                         }
+                        mainParams={locationState?.mainParams ?? paramsByUrl}
                         stationMeta={stationMeta}
                         refetchStationMeta={getStationMeta}
                         refetch={refetch}
@@ -317,60 +355,72 @@ const Station = () => {
                             station &&
                             reStation &&
                             hasDifferences(station, reStation)
-                                ? reStation
+                                ? {
+                                      ...reStation,
+                                      mainParams:
+                                          locationState?.mainParams ??
+                                          paramsByUrl,
+                                  }
                                 : station
-                                  ? station
+                                  ? {
+                                        ...station,
+                                        mainParams:
+                                            locationState?.mainParams ??
+                                            paramsByUrl,
+                                    }
                                   : locationState
                         }
                     />
                     <div className="w-full flex flex-col pt-20">
-                        <h1 className="text-6xl font-bold text-center flex items-center justify-center">
-                            {stationTitle}
-
-                            {location.pathname === `/${nc}/${sc}` && (
-                                <PdfContainer
-                                    station={
-                                        station &&
-                                        reStation &&
-                                        hasDifferences(station, reStation)
-                                            ? reStation
-                                            : station
-                                    }
-                                    stationMeta={stationMeta}
-                                    images={images}
-                                    visits={visits}
-                                    loadPdf={loadPdf}
-                                    stationLocationScreen={
-                                        stationLocationScreen
-                                    }
-                                    stationLocationDetailScreen={
-                                        stationLocationDetailScreen
-                                    }
-                                    loadedMap={loadedMap}
-                                    setLoadPdf={setLoadPdf}
-                                />
-                            )}
-
-                            {location.pathname === `/${nc}/${sc}/rinex` &&
-                                errorMessages.length > 0 && (
-                                    <div className="indicator absolute bottom-2 left-2">
-                                        <ExclamationCircleIcon
-                                            className={`size-7 fill-red-500`}
-                                            title={errorMessages.join("\n")}
-                                        />
-                                    </div>
+                        <div className="flex relative self-center">
+                            <h1 className="text-6xl font-bold text-center flex items-center justify-center">
+                                {stationTitle}
+                            </h1>
+                            <div className="absolute -right-[75px] top-3">
+                                {location.pathname === `/${nc}/${sc}` && (
+                                    <PdfContainer
+                                        station={
+                                            station &&
+                                            reStation &&
+                                            hasDifferences(station, reStation)
+                                                ? reStation
+                                                : station
+                                        }
+                                        stationMeta={stationMeta}
+                                        images={images}
+                                        visits={visits}
+                                        loadPdf={loadPdf}
+                                        stationLocationScreen={
+                                            stationLocationScreen
+                                        }
+                                        stationLocationDetailScreen={
+                                            stationLocationDetailScreen
+                                        }
+                                        loadedMap={loadedMap}
+                                        setLoadPdf={setLoadPdf}
+                                    />
                                 )}
-                            <button
-                                className={`hover:scale-110 btn-ghost rounded-lg p-1 ${location.pathname === `/${nc}/${sc}/rinex` ? "mb-4 ml-2" : "mb-6"}  transition-all `}
-                                disabled={reLoading}
-                                onClick={() => {
-                                    getReStation();
-                                }}
-                                title={"Fetch gaps status"}
-                            >
-                                <ArrowPathIcon className="size-6" />
-                            </button>
-                        </h1>
+
+                                {location.pathname === `/${nc}/${sc}/rinex` &&
+                                    errorMessages.length > 0 && (
+                                        <div className="indicator">
+                                            <ExclamationCircleIcon
+                                                className={`size-6 fill-red-500`}
+                                                title={errorMessages.join("\n")}
+                                            />
+                                        </div>
+                                    )}
+                                <button
+                                    className={getButtonClasses()}
+                                    disabled={reLoading}
+                                    onClick={getReStation}
+                                    title="Fetch gaps status"
+                                >
+                                    <ArrowPathIcon className="size-6" />
+                                </button>
+                            </div>
+                        </div>
+
                         <Outlet
                             context={{
                                 station,

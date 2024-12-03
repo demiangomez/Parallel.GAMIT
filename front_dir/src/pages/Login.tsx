@@ -1,15 +1,16 @@
 import { FormEvent, useEffect, useState } from "react";
-
 import { Toast, Modal } from "@componentsReact";
+import { AxiosError } from "axios";
 
+import osupng from "@assets/images/logo-osu-01.png";
+
+import { ExclamationCircleIcon } from "@heroicons/react/24/outline";
 import { useAuth } from "@hooks/useAuth";
 
 import { loginService, refreshTokenService } from "@services";
 
 import { showModal } from "@utils";
-import { AxiosError } from "axios";
 import { Errors, LoginServiceData } from "@types";
-import { ExclamationCircleIcon } from "@heroicons/react/24/outline";
 
 const Login = () => {
     const [username, setUsername] = useState("");
@@ -151,11 +152,12 @@ const Login = () => {
             )}
             <div
                 className="flex flex-col w-full max-w-md px-4 py-8 self-center my-auto rounded-lg 
-            shadow bg-gray-800 sm:px-6 md:px-8 lg:px-10"
+            shadow bg-base-200 sm:px-6 md:px-8 lg:px-10"
             >
-                <div className="self-center mb-6 text-xl font-light sm:text-2xl text-white">
-                    Login To Your Account
-                </div>
+                {/* <div className="self-center mb-6 text-xl font-bold sm:text-2xl ">
+                    Login
+                </div> */}
+                <img src={osupng} alt="parallel_gamit" />
                 <div className="mt-8">
                     <form action="#" autoComplete="off" onSubmit={handleLogin}>
                         <div className="flex flex-col mb-2">
@@ -200,7 +202,7 @@ const Login = () => {
                                     }
                                     className=" rounded-r-lg flex-1 appearance-none border border-gray-300 
                                     w-full py-2 px-4 bg-white text-gray-700 placeholder-gray-400 
-                                    shadow-sm text-base focus:outline-none focus:ring-2 focus:ring-purple-600 
+                                    shadow-sm text-base focus:outline-none focus:ring-1 focus:ring-gray-400 
                                     focus:border-transparent"
                                     placeholder="Your username"
                                 />
@@ -232,7 +234,7 @@ const Login = () => {
                                     className=" rounded-r-lg flex-1 appearance-none border
                                      border-gray-300 w-full py-2 px-4 bg-white 
                                      text-gray-700 placeholder-gray-400 shadow-sm 
-                                     text-base focus:outline-none focus:ring-2 focus:ring-purple-600
+                                     text-base focus:outline-none focus:ring-1 focus:ring-gray-400
                                       focus:border-transparent"
                                     placeholder="Your password"
                                 />
@@ -266,8 +268,8 @@ const Login = () => {
                                 type="submit"
                                 disabled={loading}
                                 className="flex justify-center py-2 px-4 disabled:opacity-50 
-                                disabled:hover:bg-purple-600 bg-purple-600 hover:bg-purple-700 
-                                focus:ring-purple-500 focus:ring-offset-purple-200 text-white 
+                                disabled:hover:bg-base-content bg-base-content hover:bg-opacity-85 
+                                focus:ring-gray-400 focus:ring-offset-gray-200 text-white 
                                 w-full transition ease-in duration-200 text-center text-base font-semibold 
                                 shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2  rounded-lg "
                             >

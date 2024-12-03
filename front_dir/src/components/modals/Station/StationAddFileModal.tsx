@@ -1,11 +1,17 @@
-import { useState } from "react";
-import { Alert, Modal } from "@componentsReact";
+import { useEffect, useState } from "react";
+import { Alert, FileAlert, FileDetails, Modal } from "@componentsReact";
 
 import { useFormReducer } from "@hooks";
 import useApi from "@hooks/useApi";
 import { useAuth } from "@hooks/useAuth";
 
-import { ErrorResponse, Errors, StationFilesData } from "@types";
+import {
+    ErrorResponse,
+    Errors,
+    FileErrors,
+    FilesErrorResponse,
+    StationFilesData,
+} from "@types";
 import {
     patchStationMetaService,
     postStationsFilesAttachedService,
@@ -39,20 +45,24 @@ const StationAddFileModal = ({
 
     const [loading, setLoading] = useState<boolean>(false);
 
-    const { formState, dispatch } = useFormReducer(
-        meta
-            ? { navigation_file: "", station: stationMetaId ?? undefined }
-            : {
-                  file: "",
-                  filename: "",
-                  description: "",
-                  station: stationId ?? undefined,
-              },
-    );
+    const { formState, dispatch } = useFormReducer({
+        navigation_file: "",
+        station: stationMetaId ?? undefined,
+    });
 
     const [msg, setMsg] = useState<
+        { status: number; msg: string; errors?: FileErrors } | undefined
+    >(undefined);
+
+    const [bMsg, setBMsg] = useState<
         { status: number; msg: string; errors?: Errors } | undefined
     >(undefined);
+
+    const [globalDescription, setGlobalDescription] = useState<string>("");
+
+    const [files, setFiles] = useState<
+        { file: File; description: string; id: number; name?: string }[]
+    >([]);
 
     const addFile = async () => {
         try {
@@ -60,19 +70,20 @@ const StationAddFileModal = ({
             if (stationId) {
                 const formData = new FormData();
 
-                Object.entries(formState).forEach(([key, value]) => {
-                    if (value !== undefined) {
-                        formData.append(key, value);
-                    }
+                Object.values(files).forEach((value) => {
+                    formData.append("file", value.file);
+                    formData.append("description", value.description);
+                    formData.append("station", stationId);
                 });
 
                 const res = await postStationsFilesAttachedService<
-                    StationFilesData | ErrorResponse
+                    StationFilesData | FilesErrorResponse
                 >(api, formData);
+
                 if ("status" in res) {
                     setMsg({
                         status: res.statusCode,
-                        msg: res.response.type,
+                        msg: res.msg ?? "",
                         errors: res.response,
                     });
                 } else {
@@ -110,13 +121,13 @@ const StationAddFileModal = ({
                     StationFilesData | ErrorResponse
                 >(api, Number(stationMetaId), formData);
                 if (res.statusCode !== 200 && "status" in res) {
-                    setMsg({
+                    setBMsg({
                         status: res.statusCode,
                         msg: res.response.type,
                         errors: res.response,
                     });
                 } else if (res.statusCode === 200) {
-                    setMsg({
+                    setBMsg({
                         status: res.statusCode,
                         msg: "File added successfully",
                     });
@@ -138,13 +149,57 @@ const StationAddFileModal = ({
         !meta ? addFile() : addMetaDataFile();
     };
 
-    const errorBadge = msg?.errors?.errors?.map((error) => error.attr);
+    const handleChangeFiles = (e: HTMLInputElement) => {
+        const { files } = e;
+
+        if (!files || files.length === 0) return;
+
+        const newFiles = Array.from(files).map((file, idx) => {
+            return {
+                file,
+                description: "",
+                id: idx,
+            };
+        });
+
+        setFiles(newFiles);
+    };
+
+    useEffect(() => {
+        if (globalDescription) {
+            setFiles((prev) => {
+                return prev.map((p) => {
+                    return {
+                        file: p.file,
+                        description: globalDescription,
+                        id: p.id,
+                        name: p.name,
+                    };
+                });
+            });
+        }
+    }, [globalDescription]);
+
+    const getInputTitle = (key: string) => {
+        if (meta) {
+            if (otherErrorBadge?.includes(key)) {
+                return bMsg?.errors?.errors.find((e) => e.attr === key)?.detail;
+            } else return key;
+        }
+    };
+
+    const otherErrorBadge = bMsg?.errors?.errors?.map((error) => error.attr);
+
+    // if meta is true, it means we are adding a navigation file to metadata,
+    // else we are adding a attached file to metadata
+
+    // if meta is true multiple input is false, else multiple input is true
 
     return (
         <Modal
             close={false}
             modalId={"AddFile"}
-            size={"sm"}
+            size={!meta ? "lg" : "sm"}
             handleCloseModal={() => handleCloseModal()}
             setModalState={setStateModal}
         >
@@ -158,17 +213,11 @@ const StationAddFileModal = ({
                     <input
                         type="file"
                         title={
-                            errorBadge?.includes(
-                                meta ? "navigation_file" : "file",
-                            )
-                                ? msg?.errors?.errors.find(
-                                      (e) =>
-                                          e.attr ===
-                                          (meta ? "navigation_file" : "file"),
-                                  )?.detail
-                                : "File"
+                            getInputTitle("navigation_file") ??
+                            "Navigation File"
                         }
-                        className={` ${errorBadge?.includes(meta ? "navigation_file" : "file") ? "file-input-error" : ""} file-input file-input-bordered w-full `}
+                        multiple={!meta}
+                        className={` ${otherErrorBadge?.includes("navigation_file") ? "file-input-error" : ""} file-input file-input-bordered w-full `}
                         onChange={(e) => {
                             if (meta) {
                                 dispatch({
@@ -183,64 +232,78 @@ const StationAddFileModal = ({
                                     },
                                 });
                             } else {
-                                dispatch({
-                                    type: "change_value",
-                                    payload: {
-                                        inputName: "file",
-                                        inputValue:
-                                            e.target.files &&
-                                            e.target.files.length > 0
-                                                ? e.target.files[0]
-                                                : undefined,
-                                    },
-                                });
-                                dispatch({
-                                    type: "change_value",
-                                    payload: {
-                                        inputName: "filename",
-                                        inputValue:
-                                            e.target.files &&
-                                            e.target.files.length > 0
-                                                ? e.target.files[0].name
-                                                : undefined,
-                                    },
-                                });
+                                setMsg(undefined);
+                                setBMsg(undefined);
+                                const files = e.target.files;
+
+                                if (files && files.length > 0) {
+                                    Array.from(files).forEach(() => {
+                                        handleChangeFiles(e.target);
+                                    });
+                                } else if (files && files.length === 0) {
+                                    setFiles([]);
+                                    setMsg(undefined);
+                                    setGlobalDescription("");
+                                }
                             }
                         }}
                     />
                     {!meta && (
                         <label
-                            className={`w-full input input-bordered flex items-center gap-2  ${errorBadge?.includes("description") ? "input-error" : ""}`}
-                            title={
-                                errorBadge?.includes("description")
-                                    ? msg?.errors?.errors.find(
-                                          (e) => e.attr === "description",
-                                      )?.detail
-                                    : "Description"
-                            }
+                            className={`w-full input input-bordered flex items-center gap-2 `}
+                            title={globalDescription}
                         >
                             <div className="label">
-                                <span className="font-bold">DESCRIPTION</span>
+                                <span className="font-bold">
+                                    GLOBAL DESCRIPTION
+                                </span>
                             </div>
                             <input
                                 type="text"
-                                value={formState["description"]}
+                                value={globalDescription}
                                 onChange={(e) => {
-                                    dispatch({
-                                        type: "change_value",
-                                        payload: {
-                                            inputName: "description",
-                                            inputValue: e.target.value,
-                                        },
-                                    });
+                                    setGlobalDescription(e.target.value);
                                 }}
+                                disabled={files.length === 0}
                                 className="grow "
                                 autoComplete="off"
                             />
                         </label>
                     )}
+                    {files && files.length > 0 && (
+                        <div className="w-full">
+                            <label className="label font-bold">FILES</label>
+                            <div
+                                className={`grid gap-4 grid-flow-dense w-full max-h-72 overflow-y-auto mt-6 pr-2 ${
+                                    files.length === 1
+                                        ? "grid-cols-1"
+                                        : files.length === 2
+                                          ? "grid-cols-2"
+                                          : "grid-cols-3"
+                                }`}
+                            >
+                                {Array.from(files).map((f) => (
+                                    <FileDetails
+                                        key={f.id}
+                                        file={{
+                                            id: String(f.id),
+                                        }}
+                                        files={files}
+                                        fileType={"other"}
+                                        pageRecord={{
+                                            pageType: "station",
+                                            id: stationId ?? 0,
+                                        }}
+                                        msg={msg}
+                                        setFiles={setFiles}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
-                <Alert msg={msg} />
+                {!meta && <FileAlert msg={msg} />}
+                {meta && <Alert msg={bMsg} />}
                 {loading && (
                     <div className="w-full text-center">
                         <span className="loading loading-spinner loading-lg self-center"></span>
@@ -249,7 +312,9 @@ const StationAddFileModal = ({
                 <button
                     className="btn btn-success self-center w-3/12"
                     disabled={
-                        loading || apiOkStatuses.includes(Number(msg?.status))
+                        loading ||
+                        apiOkStatuses.includes(Number(msg?.status)) ||
+                        apiOkStatuses.includes(Number(bMsg?.status))
                     }
                 >
                     {" "}

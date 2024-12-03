@@ -254,6 +254,33 @@ export const decimalToDMS = (coordinate: number, isLatitude: boolean) => {
     return `${degrees}°${minutes}'${seconds.toFixed(4)}"${direction}`;
 };
 
+export const formatValue = (
+    val: string | boolean | number,
+    subString = true,
+): string => {
+    const isDateFunc = (val: any) => {
+        const isoDateRegex =
+            /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$/;
+        return typeof val === "string" && isoDateRegex.test(val);
+    };
+
+    const isDate = isDateFunc(val) && val !== "";
+
+    if (isDate) {
+        return formattedDates(woTz(new Date(val as string)) as Date) ?? "";
+    } else if (typeof val === "boolean") {
+        return val ? "✔" : "✘";
+    } else if (typeof val === "string" && val.length > 0) {
+        return val.length > 15 && subString
+            ? val.substring(0, 15) + "..."
+            : val;
+    } else if (typeof val === "number") {
+        return val.toString();
+    } else {
+        return "-";
+    }
+};
+
 export const rinexMockup = {
     data: [
         {

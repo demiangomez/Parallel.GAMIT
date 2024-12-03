@@ -119,23 +119,13 @@ const Nav = () => {
                     </div>
                     <ul
                         tabIndex={0}
-                        className="menu menu-sm dropdown-content mt-3 z-30 space-y-1 p-2 shadow bg-gray-800 rounded-box w-52"
+                        className="menu menu-sm dropdown-content mt-3 z-30 space-y-1 p-2 shadow bg-gray-800 border-[1px] border-gray-600 rounded-box w-52"
                     >
                         <div className=" border-b-[1px] border-gray-600 flex justify-center">
                             <span className="mb-2">
                                 <strong>{userName?.toUpperCase()}</strong>
                             </span>
                         </div>
-                        {/* <li className="">
-                            <a //TODO: CHANGE TO LINK
-                                className="hover:bg-slate-600 flex justify-start "
-                                onClick={() => console.log("Profile")}
-                            >
-                                <UserIcon className="size-6" />
-
-                                <span className="ml-[40px]">Profile</span>
-                            </a>
-                        </li> */}
                         <li className="">
                             <Link
                                 className="hover:bg-slate-600 flex justify-start focus:text-primary"

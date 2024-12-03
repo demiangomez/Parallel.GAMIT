@@ -23,7 +23,7 @@
             "@hooks/*": ["./hooks/*"],
             "@pages/*": ["./pages/*"],
             "@utils/*": ["./utils/*"],
-            "@routes/*": ["./routes/*"],
+            "@routes": ["./routes/index.tsx"],
             "@componentsReact": ["./components/index.tsx"],
             "@pagesReact": ["./pages/index.tsx"],
             "@services": ["./services/index.ts"],

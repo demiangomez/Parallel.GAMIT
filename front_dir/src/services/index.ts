@@ -905,6 +905,65 @@ export async function delStationVisitFilesService<T>(
     }
 }
 
+// Station Time Series
+
+export async function getStationTimeSeriesService<T>(
+    api: AxiosInstance,
+    id: number,
+    params: any,
+): Promise<T> {
+    try {
+        const paramsArr = params ? transformParams(params) : "";
+        const response = await api.get(
+            `api/time-series/${id}${paramsArr.length > 0 ? `?${paramsArr}` : ""}`,
+        );
+        return response.data as Promise<T>;
+    } catch (error) {
+        return Promise.reject(error);
+    }
+}
+
+export async function getStackNamesService<T>(
+    api: AxiosInstance,
+    id: number,
+): Promise<T> {
+    try {
+        const response = await api.get(`api/distinct-stack-names/${id}`);
+        return response.data as Promise<T>;
+    } catch (error) {
+        return Promise.reject(error);
+    }
+}
+
+// Station Events
+
+export async function getStationEventsService<T>(
+    api: AxiosInstance,
+    params: GetParams,
+): Promise<T> {
+    try {
+        const paramsArr = params ? transformParams(params) : "";
+        const response = await api.get(
+            `api/events${paramsArr.length > 0 ? `?${paramsArr}` : ""}`,
+        );
+        return response.data as Promise<T>;
+    } catch (error) {
+        return Promise.reject(error);
+    }
+}
+
+export async function getStationEventByIdService<T>(
+    api: AxiosInstance,
+    id: number,
+): Promise<T> {
+    try {
+        const response = await api.get(`api/events/${id}`);
+        return response.data as Promise<T>;
+    } catch (error) {
+        return Promise.reject(error);
+    }
+}
+
 // Antennas
 export async function getAntennasService<T>(api: AxiosInstance): Promise<T> {
     try {

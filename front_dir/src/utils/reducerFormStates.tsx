@@ -69,6 +69,20 @@ export const CAMPAIGN_STATE = {
     end_date: "",
 };
 
+export const EVENTS_FILTERS_STATE = {
+    description: "",
+    doy: "",
+    event_date_since: "",
+    event_date_until: "",
+    event_type: "",
+    module: "",
+    network_code: "",
+    node: "",
+    stack: "",
+    station_code: "",
+    year: "",
+};
+
 export const RINEX_FILTERS_STATE = {
     antenna_dome: "",
     antenna_offset: "",
@@ -86,4 +100,18 @@ export const RINEX_FILTERS_STATE = {
     receiver_fw: "",
     receiver_serial: "",
     receiver_type: "",
+};
+
+export const SERIES_FILTERS_STATE = {
+    solution: "PPP",
+    stack: "",
+    date_start: "",
+    date_end: "",
+    residuals: false,
+    no_missing_data: false,
+    plot_outliers: false,
+    plot_auto_jumps: false,
+    no_model: false,
+    remove_jumps: false,
+    remove_polynomial: false,
 };

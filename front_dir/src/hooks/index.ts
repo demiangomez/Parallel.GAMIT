@@ -9,3 +9,7 @@ export { default as useResize } from "./useResize";
 export { default as useFormReducer } from "./useFormReducer";
 
 export { default as useFormValidation } from "./useFormValidation";
+
+export { default as useResizeObserver } from "./useResizeObserver";
+
+export { default as usePopup } from "./usePopup";

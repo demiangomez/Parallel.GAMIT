@@ -1,4 +1,4 @@
-import { LatLng, LatLngExpression } from "leaflet";
+import { LatLngExpression } from "leaflet";
 import L from "leaflet";
 import {
     MapContainer,
@@ -8,10 +8,10 @@ import {
     Tooltip,
     useMap,
 } from "react-leaflet";
-
-import { StationData } from "@types";
 import { useEffect, useState } from "react";
-import PopupChildren from "./PopupChildren";
+import { PopupChildren } from "@componentsReact";
+
+import { GetParams, StationData } from "@types";
 
 interface MyMapContainerProps {
     center: LatLngExpression;
@@ -23,6 +23,8 @@ interface MyMapContainerProps {
 interface MapProps {
     stations: StationData[] | undefined;
     initialCenter: LatLngExpression | undefined;
+    mainParams: GetParams;
+    setMainParams?: React.Dispatch<React.SetStateAction<GetParams>>;
 }
 
 const ChangeView = ({
@@ -44,32 +46,61 @@ const ChangeView = ({
 const MapMarkers = ({
     stations,
     initialCenter,
-}: {
-    stations: StationData[] | undefined;
-    initialCenter: LatLngExpression | undefined;
-}) => {
+    mainParams,
+    setMainParams,
+}: MapProps) => {
     const map = useMap();
 
     const [markersByBounds, setMarkersByBounds] = useState<
         StationData[] | undefined
     >(undefined);
 
-    map.on("move", () => {
+    const updateMarkersByBounds = () => {
         const mapBounds = map.getBounds();
 
         const mapEastCorner = mapBounds.getNorthEast();
         const mapWestCorner = mapBounds.getSouthWest();
 
-        setMarkersByBounds(
-            stations?.filter(
-                (s) =>
-                    s?.lat < mapEastCorner?.lat &&
-                    s?.lon < mapEastCorner?.lng &&
-                    s?.lat > mapWestCorner?.lat &&
-                    s?.lon > mapWestCorner?.lng,
-            ),
+        const filteredStations = stations?.filter(
+            (s) =>
+                s?.lat < mapEastCorner?.lat &&
+                s?.lon < mapEastCorner?.lng &&
+                s?.lat > mapWestCorner?.lat &&
+                s?.lon > mapWestCorner?.lng,
         );
-    });
+
+        setMarkersByBounds(filteredStations);
+    };
+
+    useEffect(() => {
+        // Actualizar marcadores cuando cambia initialCenter
+        if (initialCenter) {
+            const hasGeneralParams = (obj: any) =>
+                obj?.country_code?.trim() !== "" ||
+                obj?.network_code?.trim() !== "";
+            const hasStationParam = (obj: any) =>
+                obj?.station_code?.trim() !== "";
+
+            const gralParams = hasGeneralParams(mainParams);
+            const stationParam = hasStationParam(mainParams);
+
+            const zoomOut = (!gralParams && !stationParam) || gralParams;
+            const zoomIn = stationParam && gralParams;
+
+            map.setView(initialCenter, zoomOut && !zoomIn ? 4 : 8);
+            updateMarkersByBounds();
+        }
+    }, [initialCenter, map]);
+
+    useEffect(() => {
+        // Actualizar marcadores cuando el mapa se mueve
+        const onMove = () => updateMarkersByBounds();
+        map.on("move", onMove);
+
+        return () => {
+            map.off("move", onMove);
+        };
+    }, [stations, map]);
 
     const southWest = L.latLng(-100.98155760646617, -250);
     const nortEast = L.latLng(100.99346179538875, 250);
@@ -93,24 +124,11 @@ const MapMarkers = ({
         iconSize: [20, 20],
     });
 
-    useEffect(() => {
-        if (stations && initialCenter) {
-            let lat, lng;
-
-            if (initialCenter instanceof LatLng) {
-                lat = initialCenter?.lat;
-                lng = initialCenter?.lng;
-            } else if (Array.isArray(initialCenter)) {
-                lat = initialCenter[0];
-                lng = initialCenter[1];
-            } else {
-                lat = initialCenter?.lat;
-                lng = initialCenter?.lng;
-            }
-
-            map.setView([lat + 1, lng + 1], 4);
-        }
-    }, [stations]);
+    const stationTooltip = (s: StationData) => {
+        return (s.network_code?.toUpperCase() +
+            "." +
+            s.station_code?.toUpperCase()) as string;
+    };
 
     return (
         <>
@@ -128,13 +146,16 @@ const MapMarkers = ({
                             {" "}
                             <Tooltip>
                                 <strong className="text-lg">
-                                    {s.network_code?.toUpperCase() +
-                                        "." +
-                                        s.station_code?.toUpperCase()}
+                                    {stationTooltip(s)}
                                 </strong>
                             </Tooltip>{" "}
                             <Popup maxWidth={600} minWidth={400}>
-                                <PopupChildren station={s} fromMain={true} />
+                                <PopupChildren
+                                    station={s}
+                                    fromMain={true}
+                                    mainParams={mainParams}
+                                    setMainParams={setMainParams}
+                                />
                             </Popup>{" "}
                         </Marker>
                     );
@@ -143,7 +164,12 @@ const MapMarkers = ({
     );
 };
 
-const Map = ({ stations, initialCenter }: MapProps) => {
+const Map = ({
+    stations,
+    initialCenter,
+    mainParams,
+    setMainParams,
+}: MapProps) => {
     const [mapProps, setMapProps] = useState<MyMapContainerProps>({
         center: [0, 0],
         zoom: 4,
@@ -162,34 +188,32 @@ const Map = ({ stations, initialCenter }: MapProps) => {
 
         setMapProps((prevProps) => ({
             ...prevProps,
-            zoom: 8,
+            zoom: 4,
             center: pos,
         }));
-    }, [stations]);
+    }, []);
 
     return (
-        <div className="z-10 pt-6 w-full flex justify-center">
+        <div className="z-10 w-full flex justify-center">
             <MapContainer
                 {...mapProps}
                 preferCanvas={true}
                 maxBoundsViscosity={1.0}
                 worldCopyJump={true}
-                className="w-[80vw] h-[70vh] xl:w-[70vw] lg:w-[60vw] md:w-[50vw] sm:w-[40vw]"
+                className="w-[100vw] h-[92vh]"
             >
                 <TileLayer
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                     minZoom={4}
                 />
-
-                {/* <TileLayer
-                    url="https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png"
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-                    subdomains="abcd"
-                    minZoom={5}
-                /> */}
                 <ChangeView center={mapProps.center} zoom={mapProps.zoom} />
-                <MapMarkers stations={stations} initialCenter={initialCenter} />
+                <MapMarkers
+                    stations={stations}
+                    initialCenter={initialCenter}
+                    mainParams={mainParams}
+                    setMainParams={setMainParams}
+                />
             </MapContainer>
         </div>
     );

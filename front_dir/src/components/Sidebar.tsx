@@ -4,19 +4,22 @@ import { useNavigate } from "react-router-dom";
 import { StationInfoModal, StationMetadataModal } from "@componentsReact";
 
 import {
+    ClipboardDocumentListIcon,
     CodeBracketIcon,
     DocumentTextIcon,
     InformationCircleIcon,
     PaperAirplaneIcon,
+    PresentationChartLineIcon,
     UsersIcon,
 } from "@heroicons/react/24/outline";
 
-import { StationData, StationMetadataServiceData } from "@types";
+import { GetParams, StationData, StationMetadataServiceData } from "@types";
 import { showModal } from "@utils";
 
 interface SidebarProps {
     show: boolean;
     station: StationData | undefined;
+    mainParams?: GetParams;
     stationMeta?: StationMetadataServiceData | undefined;
     refetchStationMeta?: () => void;
     refetch?: () => void;
@@ -30,6 +33,7 @@ interface Icons {
 const Sidebar = ({
     show,
     station,
+    mainParams,
     stationMeta,
     refetchStationMeta,
     refetch,
@@ -45,16 +49,26 @@ const Sidebar = ({
     const icons: Icons = {
         Information: InformationCircleIcon,
         Metadata: CodeBracketIcon,
-        Visits: PaperAirplaneIcon,
+        TimeSeries: PresentationChartLineIcon,
         Rinex: DocumentTextIcon,
+        Visits: PaperAirplaneIcon,
         People: UsersIcon,
+        Events: ClipboardDocumentListIcon,
     };
 
     // const longTitles = ["Information", "Metadata", "Visits", "People"];
-    const longTitles = ["Information", "Metadata", "Visits", "Rinex", "People"];
+    const longTitles = [
+        "Information",
+        "Metadata",
+        "TimeSeries",
+        "Rinex",
+        "Visits",
+        "People",
+        "Events",
+    ];
 
     // const stationPages = ["People", "Visits"];
-    const stationPages = ["People", "Visits", "Rinex"];
+    const stationPages = ["People", "Visits", "Rinex", "TimeSeries", "Events"];
 
     // const admTitles = ["Admin", "Users", "Settings"];
     const sidebarWidth = show ? "w-72" : "w-32";
@@ -83,7 +97,7 @@ const Sidebar = ({
                                 <nav className="mt-10 space-y-8 flex flex-col items-center text-center">
                                     {longTitles.map((title, idx) => (
                                         <div
-                                            className="flex w-full justify-center mt-20"
+                                            className="flex w-full justify-center mt-16"
                                             key={idx}
                                         >
                                             <div className="flex items-center justify-center w-4/12 ">
@@ -99,6 +113,13 @@ const Sidebar = ({
                                                                 )
                                                                     ? navigate(
                                                                           `/${station.network_code}/${station.station_code}/${title.toLowerCase()}`,
+                                                                          {
+                                                                              state: {
+                                                                                  ...station,
+                                                                                  mainParams:
+                                                                                      mainParams,
+                                                                              },
+                                                                          },
                                                                       )
                                                                     : setModals(
                                                                           {
@@ -125,6 +146,13 @@ const Sidebar = ({
                                                             )
                                                                 ? navigate(
                                                                       `/${station.network_code}/${station.station_code}/${title.toLowerCase()}`,
+                                                                      {
+                                                                          state: {
+                                                                              ...station,
+                                                                              mainParams:
+                                                                                  mainParams,
+                                                                          },
+                                                                      },
                                                                   )
                                                                 : setModals({
                                                                       show: true,

@@ -142,7 +142,7 @@ const StationsModal = ({ setState, stations }: Props) => {
                     table={"Stations"}
                     dataOnly={true}
                     onClickFunction={() => undefined}
-                    state={stations}
+                    state={paginatedStations}
                 />
                 {stations && stations?.length > 0 && (
                     <Pagination

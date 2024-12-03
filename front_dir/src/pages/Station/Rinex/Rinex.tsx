@@ -268,17 +268,6 @@ const Rinex = () => {
             }));
 
             setRinex(rinexWithGroupId);
-
-            // const problematic = calculateProblematicRinex(rinexWithGroupId);
-
-            // setPages(Math.ceil(calculateTotalLength(res) / REGISTERS_PER_PAGE));
-
-            // if (rinexFilterData) {
-            //     getRinexFiltered(filters);
-            //     return;
-            // }
-
-            // setProblematicRinex(problematic);
         } catch (err) {
             console.error(err);
         } finally {
@@ -352,27 +341,7 @@ const Rinex = () => {
 
             setRinexFilterData(rinexWithGroupId);
 
-            // const problematic = rinexWithGroupId
-            //     .filter((rinex) =>
-            //         rinex.rinex.some((r) =>
-            //             r.rinex.some((r2) => !r2.has_station_info),
-            //         ),
-            //     )
-            //     .map((rinex) => ({
-            //         ...rinex,
-            //         rinex: rinex.rinex
-            //             .map((r) => ({
-            //                 ...r,
-            //                 rinex: r.rinex.filter((r2) => !r2.has_station_info),
-            //             }))
-            //             .filter((r) => r.rinex.length > 0),
-            //     }))
-            //     .filter((rinex) => rinex.rinex.length > 0);
-
-            // setProblematicRinex(problematic);
-            // setPages(Math.ceil(calculateTotalLength(res) / REGISTERS_PER_PAGE));
             setRinexFilter(true);
-            // handlePage(activePage);
         } catch (err) {
             console.error(err);
         } finally {

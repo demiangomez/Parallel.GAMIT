@@ -25,10 +25,7 @@ const Breadcrumb = ({ sidebar, state }: Props) => {
             <ul>
                 {crumbs.map((c: string, idx: number) => (
                     <li key={c + String(idx)}>
-                        <Link
-                            to={`${matches[idx].pathname}`}
-                            state={matches[idx].pathname === "/" ? state : null}
-                        >
+                        <Link to={`${matches[idx].pathname}`} state={state}>
                             {c}
                         </Link>
                     </li>

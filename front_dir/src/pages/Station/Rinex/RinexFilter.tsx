@@ -549,7 +549,7 @@ const RinexFilter = ({
                         type="submit"
                         disabled={!allFieldsValid}
                     >
-                        apply filters
+                        Apply filters
                     </button>
 
                     <a
@@ -561,7 +561,7 @@ const RinexFilter = ({
                             setFilters(RINEX_FILTERS_STATE);
                         }}
                     >
-                        clean filters
+                        Clean filters
                     </a>
                 </div>
             </form>

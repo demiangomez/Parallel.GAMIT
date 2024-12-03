@@ -6,6 +6,7 @@ import { useAuth } from "@hooks/useAuth";
 import { getRinexService, getStationMetaService } from "@services";
 
 import {
+    GetParams,
     RinexData,
     RinexServiceData,
     StationData,
@@ -17,6 +18,8 @@ import { formattedDates, generateErrorMessages, woTz } from "@utils";
 interface PopupChildrenProps {
     station: StationData | undefined;
     fromMain?: boolean | undefined;
+    mainParams?: GetParams;
+    setMainParams?: React.Dispatch<React.SetStateAction<GetParams>>;
 }
 
 const child = (key: string, text: string, idx: number) => {
@@ -29,7 +32,12 @@ const child = (key: string, text: string, idx: number) => {
     );
 };
 
-const PopupChildren = ({ station, fromMain }: PopupChildrenProps) => {
+const PopupChildren = ({
+    station,
+    fromMain,
+    mainParams,
+    setMainParams,
+}: PopupChildrenProps) => {
     const { station_code, network_code, country_code, lat, lon, height } =
         station || {};
 
@@ -108,6 +116,12 @@ const PopupChildren = ({ station, fromMain }: PopupChildrenProps) => {
     useEffect(() => {
         getStationMeta();
     }, []);
+
+    const params = {
+        ...mainParams,
+        network_code,
+        station_code,
+    };
 
     return (
         <div
@@ -203,13 +217,13 @@ const PopupChildren = ({ station, fromMain }: PopupChildrenProps) => {
                             <span className="font-bold">Last gaps update </span>
                             <span>
                                 {stationMeta?.has_gaps_last_update_datetime
-                                    ? formattedDates(
+                                    ? (formattedDates(
                                           woTz(
                                               new Date(
                                                   stationMeta.has_gaps_last_update_datetime as string,
                                               ),
                                           ) as Date,
-                                      ) ?? ""
+                                      ) ?? "")
                                     : "No update date available"}
                             </span>
                         </div>
@@ -245,7 +259,18 @@ const PopupChildren = ({ station, fromMain }: PopupChildrenProps) => {
                 <Link
                     to={`/${network_code}/${station_code}`}
                     className=" text-center"
-                    state={station}
+                    onClick={() => {
+                        if (setMainParams) {
+                            setMainParams({
+                                ...mainParams,
+                                station_code,
+                                network_code,
+                                offset: mainParams?.offset ?? 0,
+                                limit: mainParams?.limit ?? 0,
+                            });
+                        }
+                    }}
+                    state={{ ...station, mainParams: params }}
                 >
                     {" "}
                     Navigate to Station{" "}

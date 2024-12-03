@@ -11,10 +11,7 @@ import {
     StationAddFileModal,
 } from "@componentsReact";
 
-import useApi from "@hooks/useApi";
-import { useAuth } from "@hooks/useAuth";
-import UseFormReducer from "@hooks/useFormReducer";
-
+import { useApi, useAuth, useFormReducer, usePopup } from "@hooks";
 import {
     ArrowDownTrayIcon,
     ClipboardDocumentIcon,
@@ -84,6 +81,10 @@ const StationMetadataModal = ({
     const { token, logout } = useAuth();
     const api = useApi(token, logout);
 
+    const { show, showPopup } = usePopup(2000);
+
+    const [copyId, setCopyId] = useState<string | null>(null);
+
     const [metaMsg, setMetaMsg] = useState<
         { status: number; msg: string; errors?: Errors } | undefined
     >(undefined);
@@ -137,6 +138,16 @@ const StationMetadataModal = ({
         | { show: boolean; title: string; type: "add" | "edit" | "none" }
         | undefined
     >(undefined);
+
+    const [showAllFiles, setShowAllFiles] = useState<boolean>(false);
+
+    const handleShowMore = () => {
+        setShowAllFiles(true);
+    };
+
+    const handleShowLess = () => {
+        setShowAllFiles(false);
+    };
 
     const getTypes = async () => {
         try {
@@ -359,6 +370,8 @@ const StationMetadataModal = ({
                         (st) => st.id === Number(stationMeta?.status),
                     )?.name ?? "",
                 remote_access_link: stationMeta?.remote_access_link ?? "",
+                station_name: station?.station_name ?? "",
+                dome: station?.dome ?? "",
             },
             station: {
                 lat: String(station?.lat) ?? "",
@@ -371,7 +384,7 @@ const StationMetadataModal = ({
         };
     }, [stationType, monumentType, stationStatus]);
 
-    const { formState, dispatch } = UseFormReducer(formattedData);
+    const { formState, dispatch } = useFormReducer(formattedData);
 
     useEffect(() => {
         dispatch({
@@ -464,7 +477,11 @@ const StationMetadataModal = ({
                 }
                 const res = await patchStationService<
                     ExtendedStationData | ErrorResponse
-                >(api, Number(station?.api_id), formState.station);
+                >(api, Number(station?.api_id), {
+                    ...formState.station,
+                    dome: formState.stationMeta.dome ?? "",
+                    station_name: formState.stationMeta.station_name ?? "",
+                });
                 if (res.statusCode !== 200 && "status" in res) {
                     setStationMsg({
                         status: res.statusCode,
@@ -496,6 +513,8 @@ const StationMetadataModal = ({
         "Monument",
         "Status",
         "Remote Access Link",
+        "Station Name",
+        "Domes Number",
     ];
     const generalFields2 = ["Battery", "Communications"];
     const generalFields3 = [
@@ -517,6 +536,10 @@ const StationMetadataModal = ({
     useEffect(() => {
         modals?.show && showModal(modals.title);
     }, [modals]);
+
+    // FIXME: HANDLEAR CUANDO LA REQ NO LLEGA A LA API
+
+    // API/STATION-ATTACHED-FILE, NO TENOG RESPUESTA AGREGAR.
 
     return (
         <Modal
@@ -562,7 +585,14 @@ const StationMetadataModal = ({
 
                                                 return (
                                                     <div key={idx}>
-                                                        <div className="text-sm font-bold flex items-center">
+                                                        <div
+                                                            className="text-sm font-bold flex items-center"
+                                                            title={
+                                                                generalFields[
+                                                                    idx
+                                                                ]
+                                                            }
+                                                        >
                                                             {generalFields[idx]}{" "}
                                                             <div
                                                                 className={`size-3  rounded-full ml-3`}
@@ -635,23 +665,32 @@ const StationMetadataModal = ({
                                                             </div>
                                                         ) : key ===
                                                           "remote_access_link" ? (
-                                                            <a
-                                                                target="_blank"
-                                                                className="link link-hover break-words"
-                                                                href={
-                                                                    formState
-                                                                        .stationMeta[
-                                                                        key as keyof typeof formState.stationMeta
-                                                                    ]
-                                                                }
-                                                            >
-                                                                {
-                                                                    formState
-                                                                        .stationMeta[
-                                                                        key as keyof typeof formState.stationMeta
-                                                                    ]
-                                                                }
-                                                            </a>
+                                                            formState
+                                                                .stationMeta[
+                                                                key as keyof typeof formState.stationMeta
+                                                            ] ? (
+                                                                <a
+                                                                    target="_blank"
+                                                                    className="link link-hover break-words"
+                                                                    href={
+                                                                        formState
+                                                                            .stationMeta[
+                                                                            key as keyof typeof formState.stationMeta
+                                                                        ]
+                                                                    }
+                                                                >
+                                                                    {
+                                                                        formState
+                                                                            .stationMeta[
+                                                                            key as keyof typeof formState.stationMeta
+                                                                        ]
+                                                                    }
+                                                                </a>
+                                                            ) : (
+                                                                <span className="text-gray-400">
+                                                                    No info
+                                                                </span>
+                                                            )
                                                         ) : (
                                                             <p className="break-words">
                                                                 {formState
@@ -952,21 +991,17 @@ const StationMetadataModal = ({
                                                     </div>
                                                 );
                                             } else {
-                                                const errorBadge =
-                                                    metaMsg?.errors?.errors?.find(
-                                                        (error) =>
-                                                            error.attr === key,
-                                                    );
-                                                return (
-                                                    <div key={idx}>
-                                                        <div className="text-sm font-bold flex items-center justify-between">
-                                                            {
-                                                                generalFields3[
-                                                                    idx
-                                                                ]
-                                                            }
-                                                            {key ===
-                                                                "navigation_file" && (
+                                                // const errorBadge =
+                                                //     metaMsg?.errors?.errors?.find(
+                                                //         (error) =>
+                                                //             error.attr === key,
+                                                //     );
+
+                                                if (key === "navigation_file") {
+                                                    return (
+                                                        <div>
+                                                            <div className="text-sm font-bold flex items-center justify-between">
+                                                                Navigation File
                                                                 <button
                                                                     className="btn btn-ghost btn-circle ml-2 -mt-2"
                                                                     onClick={() => {
@@ -996,52 +1031,10 @@ const StationMetadataModal = ({
                                                                         className="size-6"
                                                                     />
                                                                 </button>
-                                                            )}
-                                                        </div>
+                                                            </div>
 
-                                                        {edit ? (
-                                                            <div className="flex flex-col space-y-1">
-                                                                {key ===
-                                                                "comments" ? (
-                                                                    <label
-                                                                        className={`form-control`}
-                                                                        title={
-                                                                            errorBadge
-                                                                                ? errorBadge.detail
-                                                                                : ""
-                                                                        }
-                                                                    >
-                                                                        <textarea
-                                                                            className={`textarea textarea-bordered w-full ${errorBadge ? "textarea-error" : ""}`}
-                                                                            autoComplete="off"
-                                                                            value={
-                                                                                formState
-                                                                                    .rinex[
-                                                                                    key as keyof typeof formState.rinex
-                                                                                ] ??
-                                                                                ""
-                                                                            }
-                                                                            name={
-                                                                                "rinex." +
-                                                                                key
-                                                                            }
-                                                                            onChange={(
-                                                                                e,
-                                                                            ) =>
-                                                                                handleChange(
-                                                                                    e,
-                                                                                )
-                                                                            }
-                                                                        />
-                                                                        {errorBadge && (
-                                                                            <span className="badge badge-error self-end">
-                                                                                {
-                                                                                    errorBadge.code
-                                                                                }
-                                                                            </span>
-                                                                        )}
-                                                                    </label>
-                                                                ) : (
+                                                            {edit ? (
+                                                                <div className="flex flex-col space-y-1">
                                                                     <div className="bg-neutral-content p-4 rounded-md flex-grow flex items-center">
                                                                         {formState
                                                                             .rinex[
@@ -1098,30 +1091,32 @@ const StationMetadataModal = ({
                                                                             </a>
                                                                         )}
                                                                     </div>
-                                                                )}
-                                                            </div>
-                                                        ) : (
-                                                            <p className="break-words">
-                                                                {formState
-                                                                    .rinex[
-                                                                    key as keyof typeof formState.rinex
-                                                                ] &&
-                                                                formState.rinex[
-                                                                    key as keyof typeof formState.rinex
-                                                                ] !== "" ? (
+                                                                </div>
+                                                            ) : (
+                                                                <p className="break-words">
+                                                                    {formState
+                                                                        .rinex[
+                                                                        key as keyof typeof formState.rinex
+                                                                    ] &&
                                                                     formState
                                                                         .rinex[
                                                                         key as keyof typeof formState.rinex
-                                                                    ]
-                                                                ) : (
-                                                                    <span className="text-gray-400">
-                                                                        No info
-                                                                    </span>
-                                                                )}
-                                                            </p>
-                                                        )}
-                                                    </div>
-                                                );
+                                                                    ] !== "" ? (
+                                                                        formState
+                                                                            .rinex[
+                                                                            key as keyof typeof formState.rinex
+                                                                        ]
+                                                                    ) : (
+                                                                        <span className="text-gray-400">
+                                                                            No
+                                                                            info
+                                                                        </span>
+                                                                    )}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                }
                                             }
                                         },
                                     )}
@@ -1162,11 +1157,226 @@ const StationMetadataModal = ({
                         </div>
 
                         <div className="card bg-base-200 grow shadow-xl mr-4">
+                            <div className="card bg-base-200 grow shadow-xl">
+                                <h2 className="card-title border-b-2 border-base-300 p-2 justify-between">
+                                    Attached Files
+                                    <button
+                                        className="btn btn-ghost btn-circle ml-2"
+                                        onClick={() => {
+                                            setModals({
+                                                show: true,
+                                                title: "AddFile",
+                                                type: "add",
+                                            });
+                                        }}
+                                    >
+                                        <PlusCircleIcon
+                                            strokeWidth={1.5}
+                                            stroke="currentColor"
+                                            className="w-8 h-10"
+                                        />
+                                    </button>
+                                </h2>
+                                <div
+                                    className={`card-body ${showAllFiles ? "overflow-y-auto max-h-44 scrollbar-base" : ""}`}
+                                >
+                                    <div
+                                        className={`grid ${files && files.length > 0 ? "grid-cols-2 md:grid-cols-2" : "grid-cols-1"} grid-flow-dense gap-2`}
+                                    >
+                                        {files && files.length > 0 ? (
+                                            files
+                                                .slice(
+                                                    0,
+                                                    showAllFiles
+                                                        ? files.length
+                                                        : 2,
+                                                )
+                                                .map((file) => {
+                                                    return (
+                                                        <div
+                                                            className="flex items-center w-full rounded-md bg-neutral-content"
+                                                            key={
+                                                                file.filename +
+                                                                file.id
+                                                            }
+                                                        >
+                                                            <div className="flex-grow overflow-hidden ">
+                                                                <div className="p-6 flex w-full justify-between items-center">
+                                                                    <button
+                                                                        className="btn btn-ghost btn-circle mr-4"
+                                                                        onClick={() => {
+                                                                            setModals(
+                                                                                {
+                                                                                    show: true,
+                                                                                    title: "ConfirmDelete",
+                                                                                    type: "edit",
+                                                                                },
+                                                                            );
+                                                                            setFileToDel(
+                                                                                file.id,
+                                                                            );
+                                                                        }}
+                                                                    >
+                                                                        <TrashIcon className="size-8 text-red-600" />
+                                                                    </button>
+                                                                    <div className="flex flex-col w-8/12 text-wrap truncate max-w-full">
+                                                                        <h2
+                                                                            className="font-semibold text-xl mb-2 truncate"
+                                                                            title={
+                                                                                file.filename
+                                                                            }
+                                                                        >
+                                                                            {
+                                                                                file.filename
+                                                                            }
+                                                                        </h2>
+                                                                        <p
+                                                                            className="truncate"
+                                                                            title={
+                                                                                file.description
+                                                                            }
+                                                                        >
+                                                                            {
+                                                                                file.description
+                                                                            }
+                                                                        </p>
+                                                                    </div>
+                                                                    <a
+                                                                        className="btn-circle btn-ghost flex justify-center w-4/12"
+                                                                        download={
+                                                                            file.filename
+                                                                        }
+                                                                        href={`data:application/pdf;base64,${file.actual_file}`}
+                                                                    >
+                                                                        <ArrowDownTrayIcon className="size-6 self-center" />
+                                                                    </a>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })
+                                        ) : (
+                                            <div className="text-center text-neutral text-2xl font-bold w-full rounded-md bg-neutral-content p-6">
+                                                There is no files registered
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                                {files && files.length > 2 && (
+                                    <div className="text-center my-4 font-bold">
+                                        {!showAllFiles ? (
+                                            <button onClick={handleShowMore}>
+                                                Show More
+                                            </button>
+                                        ) : (
+                                            <button onClick={handleShowLess}>
+                                                Show Less
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="card bg-base-200 grow shadow-xl">
+                            <div className="card bg-base-200 grow shadow-xl">
+                                <h2 className="card-title border-b-2 border-base-300 p-2 justify-between h-16">
+                                    Comments
+                                </h2>
+                                <div className="card-body overflow-y-auto max-h-64">
+                                    <div>
+                                        {Object.entries(formState.rinex).map(
+                                            ([key], idx) => {
+                                                if (key === "comments") {
+                                                    const errorBadge =
+                                                        metaMsg?.errors?.errors?.find(
+                                                            (error) =>
+                                                                error.attr ===
+                                                                key,
+                                                        );
+
+                                                    return (
+                                                        <div key={idx}>
+                                                            {edit ? (
+                                                                <label
+                                                                    className={`form-control`}
+                                                                    title={
+                                                                        errorBadge
+                                                                            ? errorBadge.detail
+                                                                            : ""
+                                                                    }
+                                                                >
+                                                                    <textarea
+                                                                        className={`textarea textarea-bordered w-full ${errorBadge ? "textarea-error" : ""}`}
+                                                                        autoComplete="off"
+                                                                        value={
+                                                                            formState
+                                                                                .rinex[
+                                                                                key as keyof typeof formState.rinex
+                                                                            ] ??
+                                                                            ""
+                                                                        }
+                                                                        name={
+                                                                            "rinex." +
+                                                                            key
+                                                                        }
+                                                                        onChange={(
+                                                                            e,
+                                                                        ) =>
+                                                                            handleChange(
+                                                                                e,
+                                                                            )
+                                                                        }
+                                                                    />
+                                                                    {errorBadge && (
+                                                                        <span className="badge badge-error self-end">
+                                                                            {
+                                                                                errorBadge.code
+                                                                            }
+                                                                        </span>
+                                                                    )}
+                                                                </label>
+                                                            ) : (
+                                                                <p className="break-words">
+                                                                    {formState
+                                                                        .rinex[
+                                                                        key as keyof typeof formState.rinex
+                                                                    ] &&
+                                                                    formState
+                                                                        .rinex[
+                                                                        key as keyof typeof formState.rinex
+                                                                    ] !== "" ? (
+                                                                        formState
+                                                                            .rinex[
+                                                                            key as keyof typeof formState.rinex
+                                                                        ]
+                                                                    ) : (
+                                                                        <span className="text-gray-400">
+                                                                            No
+                                                                            info
+                                                                        </span>
+                                                                    )}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                }
+                                            },
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="card bg-base-200 grow shadow-xl mr-4">
                             <h2 className="card-title border-b-2 border-base-300 p-2 justify-between">
                                 Geodetic Coordinates
-                                <button className="btn btn-ghost btn-circle">
+                                <button
+                                    className={` ${showPopup && copyId === "geodetic" ? "tooltip tooltip-open" : ""} mr-2`}
+                                    data-tip="Copied !"
+                                >
                                     <ClipboardDocumentIcon
-                                        className="size-6"
+                                        className="size-6 cursor-pointer rounded-md transition-all duration-75 btn-ghost hover:scale-125"
                                         title={"copy coordinates"}
                                         onClick={() => {
                                             navigator.clipboard.writeText(
@@ -1177,6 +1387,8 @@ const StationMetadataModal = ({
                                                     ",HEIGHT: " +
                                                     formState.station.height,
                                             );
+                                            setCopyId("geodetic");
+                                            show();
                                         }}
                                     />
                                 </button>
@@ -1295,9 +1507,12 @@ const StationMetadataModal = ({
                         <div className="card bg-base-200 grow shadow-xl">
                             <h2 className="card-title border-b-2 border-base-300 p-2 justify-between">
                                 Cartesian Coordinates
-                                <button className="btn btn-ghost btn-circle">
+                                <button
+                                    className={` ${showPopup && copyId === "coordinates" ? "tooltip tooltip-open" : ""} mr-2`}
+                                    data-tip="Copied !"
+                                >
                                     <ClipboardDocumentIcon
-                                        className="size-6"
+                                        className="size-6 cursor-pointer rounded-md transition-all duration-75 btn-ghost hover:scale-125"
                                         title={"copy coordinates"}
                                         onClick={() => {
                                             navigator.clipboard.writeText(
@@ -1308,6 +1523,8 @@ const StationMetadataModal = ({
                                                     ",Z: " +
                                                     formState.station.auto_z,
                                             );
+                                            setCopyId("coordinates");
+                                            show();
                                         }}
                                     />
                                 </button>
@@ -1428,7 +1645,11 @@ const StationMetadataModal = ({
                                                                 value
                                                             ) : (
                                                                 <span className="text-gray-400">
-                                                                    No {key}
+                                                                    No{" "}
+                                                                    {key.replace(
+                                                                        "_",
+                                                                        " ",
+                                                                    )}
                                                                 </span>
                                                             )}
                                                         </p>
@@ -1441,96 +1662,10 @@ const StationMetadataModal = ({
                             </div>
                         </div>
                     </div>
-                    <div className="grid grid-cols-1 space-y-4 grid-flow-dense">
-                        <div className="card bg-base-200 grow shadow-xl">
-                            <h2 className="card-title border-b-2 border-base-300 p-2 justify-between">
-                                Attached Files
-                                <button
-                                    className="btn btn-ghost btn-circle ml-2"
-                                    onClick={() => {
-                                        setModals({
-                                            show: true,
-                                            title: "AddFile",
-                                            type: "add",
-                                        });
-                                    }}
-                                >
-                                    <PlusCircleIcon
-                                        strokeWidth={1.5}
-                                        stroke="currentColor"
-                                        className="w-8 h-10"
-                                    />
-                                </button>
-                            </h2>
-                            <div className="card-body">
-                                <div
-                                    className={`grid ${files && files.length > 0 ? "grid-cols-3 md:grid-cols-2" : "grid-cols-1"} grid-flow-dense gap-2`}
-                                >
-                                    {files && files.length > 0 ? (
-                                        files.map((file) => {
-                                            return (
-                                                <div
-                                                    className="flex items-center w-full rounded-md bg-neutral-content"
-                                                    key={
-                                                        file.filename + file.id
-                                                    }
-                                                >
-                                                    <div className="flex-grow overflow-hidden ">
-                                                        <div className="p-6 flex w-full justify-between items-center">
-                                                            <button
-                                                                className="btn btn-ghost btn-circle mr-4"
-                                                                onClick={() => {
-                                                                    setModals({
-                                                                        show: true,
-                                                                        title: "ConfirmDelete",
-                                                                        type: "edit",
-                                                                    });
-                                                                    setFileToDel(
-                                                                        file.id,
-                                                                    );
-                                                                }}
-                                                            >
-                                                                <TrashIcon className="size-8 text-red-600" />
-                                                            </button>
-                                                            <div className="flex flex-col w-8/12 text-pretty break-words max-w-full">
-                                                                <h2 className="card-title">
-                                                                    {
-                                                                        file.filename
-                                                                    }
-                                                                </h2>
-                                                                <p>
-                                                                    {
-                                                                        file.description
-                                                                    }
-                                                                </p>
-                                                            </div>
-                                                            <a
-                                                                className="btn-circle btn-ghost flex justify-center w-4/12"
-                                                                download={
-                                                                    file.filename
-                                                                }
-                                                                href={`data:application/pdf;base64,${file.actual_file}`}
-                                                            >
-                                                                <ArrowDownTrayIcon className="size-6 self-center" />
-                                                            </a>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })
-                                    ) : (
-                                        <div className="text-center text-neutral text-2xl font-bold w-full rounded-md bg-neutral-content p-6">
-                                            There is no files registered
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             )}
             {edit && (
-                <div className="w-full flex flex-col items-center justify-center">
+                <div className="w-full flex flex-col mt-4 items-center justify-center">
                     <Alert
                         msg={
                             metaMsg?.status === 200 &&

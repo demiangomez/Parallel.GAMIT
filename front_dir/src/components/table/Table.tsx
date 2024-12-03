@@ -227,6 +227,34 @@ const Table = ({
                                                         table === "Stations" &&
                                                         navigate(
                                                             `/${state?.[index].network_code}/${state?.[index].station_code}`,
+                                                            {
+                                                                state: {
+                                                                    station:
+                                                                        state?.[
+                                                                            index
+                                                                        ],
+                                                                    mainParams:
+                                                                        {
+                                                                            country_code:
+                                                                                state?.[
+                                                                                    index
+                                                                                ]
+                                                                                    .country_code,
+                                                                            network_code:
+                                                                                state?.[
+                                                                                    index
+                                                                                ]
+                                                                                    .network_code,
+                                                                            station_code:
+                                                                                state?.[
+                                                                                    index
+                                                                                ]
+                                                                                    .station_code,
+                                                                            limit: 0,
+                                                                            offset: 0,
+                                                                        },
+                                                                },
+                                                            },
                                                         );
                                                 }}
                                             >

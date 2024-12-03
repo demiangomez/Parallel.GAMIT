@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Dropdown } from "@componentsReact";
 
 import {
@@ -29,6 +29,10 @@ const SearchInput = ({ stations, params, setParams }: SearchInputProps) => {
 
     const navigate = useNavigate();
 
+    const location = useLocation();
+
+    const locationState = location.state as StationData;
+
     const [countries, setCountries] = useState<CountriesData[] | undefined>(
         undefined,
     );
@@ -40,8 +44,12 @@ const SearchInput = ({ stations, params, setParams }: SearchInputProps) => {
         type: undefined | string;
         dropdown: boolean;
     }>({ type: undefined, dropdown: false });
-    const [codeSelected, setCodeSelected] = useState<string>("");
-    const [networkSelected, setNetworkSelected] = useState<string>("");
+    const [codeSelected, setCodeSelected] = useState<string>(
+        locationState?.mainParams?.country_code?.toUpperCase() ?? "",
+    );
+    const [networkSelected, setNetworkSelected] = useState<string>(
+        locationState?.mainParams?.network_code?.toUpperCase() ?? "",
+    );
 
     const [dropdownClassnames, setDropdownClassnames] = useState("hidden");
 
@@ -78,14 +86,25 @@ const SearchInput = ({ stations, params, setParams }: SearchInputProps) => {
     }, []);
 
     useEffect(() => {
-        setNetworkSelected("");
+        if (!locationState) {
+            setNetworkSelected("");
+        }
     }, [codeSelected]);
+
+    useEffect(() => {
+        if (locationState?.mainParams) {
+            const stateParams = locationState?.mainParams;
+            setCodeSelected(stateParams.country_code?.toUpperCase() ?? "");
+            setNetworkSelected(stateParams.network_code?.toUpperCase() ?? "");
+        }
+    }, [locationState]);
 
     useEffect(() => {
         setParams({
             ...params,
             country_code: codeSelected,
             network_code: networkSelected.toLowerCase(),
+            station_code: locationState?.mainParams?.station_code ?? "",
         });
     }, [networkSelected, codeSelected]);
 
@@ -97,16 +116,20 @@ const SearchInput = ({ stations, params, setParams }: SearchInputProps) => {
         const { value } = searchInput;
 
         if (value) {
+            const networkSelected = e.currentTarget.textContent?.split(".")[0];
+            const codeSelected = e.currentTarget.textContent?.split(".")[1];
+
             const foundStation: StationData | undefined = stations?.find(
                 (station) =>
-                    station?.station_code
-                        ?.toLowerCase()
-                        .includes(value?.toLowerCase()),
+                    station.network_code?.toLowerCase() ===
+                        networkSelected?.toLowerCase() &&
+                    station.station_code?.toLowerCase() ===
+                        codeSelected?.toLowerCase(),
             );
             if (foundStation) {
                 navigate(
                     `/${foundStation.network_code}/${foundStation.station_code}`,
-                    { state: foundStation },
+                    { state: { ...foundStation, mainParams: params } },
                 );
 
                 // return;
@@ -208,6 +231,12 @@ const SearchInput = ({ stations, params, setParams }: SearchInputProps) => {
                             setDropdownClassnames("hidden");
                             setCodeSelected("");
                             setNetworkSelected("");
+                            location.state
+                                ? location.state.mainParams
+                                    ? delete location.state.mainParams
+                                    : null
+                                : null;
+
                             setParams({
                                 ...params,
                                 country_code: "",
@@ -256,6 +285,7 @@ const SearchInput = ({ stations, params, setParams }: SearchInputProps) => {
                         onChange={(e) => {
                             handleChange(e);
                         }}
+                        value={params.station_code}
                     />
                     <label
                         className="absolute left-[170px] text-black text-xs pointer-events-none

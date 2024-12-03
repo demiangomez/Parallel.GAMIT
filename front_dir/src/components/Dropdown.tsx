@@ -103,6 +103,7 @@ const Dropdown = ({
                         <input
                             type="text"
                             id="country-input"
+                            autoComplete="off"
                             autoFocus
                             className="w-full h-16 peer placeholder-transparent mt-1
                       bg-transparent bg-clip-padding py-[0.25rem] pl-4 border-b-2
@@ -206,6 +207,7 @@ const Dropdown = ({
                             <input
                                 type="text"
                                 id="network-code"
+                                autoComplete="off"
                                 autoFocus
                                 className="w-full h-16 peer placeholder-transparent mt-1
                       bg-transparent bg-clip-padding py-[0.25rem] pl-4 border-b-2

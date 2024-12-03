@@ -5,6 +5,7 @@ import {
     ConfirmDeleteModal,
     ImageModal,
     Modal,
+    RenderFileModal,
     Spinner,
     VisitCampaignModal,
     VisitPeopleModal,
@@ -24,6 +25,7 @@ import defPhoto from "@assets/images/placeholder.png";
 
 import {
     ArrowDownTrayIcon,
+    BookOpenIcon,
     PencilSquareIcon,
     PlusCircleIcon,
     TrashIcon,
@@ -52,7 +54,7 @@ import {
     StationCampaignsData,
 } from "@types";
 
-import { showModal } from "@utils";
+import { apiOkStatuses, showModal } from "@utils";
 import { useFormReducer } from "@hooks/index";
 
 interface Props {
@@ -141,6 +143,25 @@ const StationVisitDetailModal = ({
         undefined,
     );
 
+    const [showGnssFiles, setShowGnssFiles] = useState<boolean>(false);
+    const [showFiles, setShowFiles] = useState<boolean>(false);
+
+    const handleShowMore = (key: string) => {
+        if (key === "gnss") {
+            setShowGnssFiles(true);
+        } else {
+            setShowFiles(true);
+        }
+    };
+
+    const handleShowLess = (key: string) => {
+        if (key === "gnss") {
+            setShowGnssFiles(false);
+        } else {
+            setShowFiles(false);
+        }
+    };
+
     const visitCampaign = campaigns?.find(
         (c) => c.id === Number(visit?.campaign),
     );
@@ -158,6 +179,7 @@ const StationVisitDetailModal = ({
 
     const { formState, dispatch } = useFormReducer({
         comments: "",
+        date: "",
     });
 
     const getVisitById = async () => {
@@ -322,6 +344,7 @@ const StationVisitDetailModal = ({
             const rest = { ...visit };
 
             rest.comments = formState["comments"];
+            rest.date = formState["date"];
 
             delete rest.log_sheet_actual_file;
             delete rest.log_sheet_filename;
@@ -358,8 +381,9 @@ const StationVisitDetailModal = ({
             } else {
                 setCommentsMsg({
                     status: 200,
-                    msg: "Comments updated successfully",
+                    msg: "Comments or Date updated successfully",
                 });
+                getAll();
             }
         } catch (err) {
             console.error(err);
@@ -591,7 +615,16 @@ const StationVisitDetailModal = ({
                 inputName: "comments",
                 inputValue: formState.comments
                     ? formState.comments
-                    : visit?.comments ?? "",
+                    : (visit?.comments ?? ""),
+            },
+        });
+        dispatch({
+            type: "change_value",
+            payload: {
+                inputName: "date",
+                inputValue: formState.date
+                    ? formState.date
+                    : (visit?.date ?? ""),
             },
         });
     }, [visit]);
@@ -612,6 +645,9 @@ const StationVisitDetailModal = ({
         (error) => error.attr === "comments",
     );
 
+    // note .. para que no haya problemas con la campania y el update de la fecha, primero, eliminar la campania
+    // luego actualizar la fecha y por ultimo agregar la campania.
+
     return (
         <Modal
             close={false}
@@ -623,7 +659,25 @@ const StationVisitDetailModal = ({
             <div className="space-y-4">
                 <div className="w-full inline-flex">
                     <h1 className="w-full flex justify-center mb-4 text-2xl font-bold">
-                        {visit?.date}
+                        {edit ? (
+                            <input
+                                type="date"
+                                className="w-full max-w-sm text-center border-b-2 border-gray-300 focus:outline-none focus:border-blue-500 bg-transparent"
+                                value={formState["date"] ?? ""}
+                                name={"date"}
+                                onChange={(e) => {
+                                    dispatch({
+                                        type: "change_value",
+                                        payload: {
+                                            inputName: "date",
+                                            inputValue: e.target.value,
+                                        },
+                                    });
+                                }}
+                            />
+                        ) : (
+                            visit?.date
+                        )}
                     </h1>
 
                     <button
@@ -859,20 +913,24 @@ const StationVisitDetailModal = ({
                                                             </button>
                                                             <div className="flex w-full items-center justify-between text-pretty break-words max-w-full px-2">
                                                                 <h2 className="font-semibold text-md">
-                                                                    {/* {p?.name?.toUpperCase()} */}
                                                                     {visit?.log_sheet_filename
                                                                         ? visit.log_sheet_filename
                                                                         : "N/A"}
                                                                 </h2>
-                                                                <a
+                                                                <button
                                                                     className="btn-circle btn-ghost flex justify-center"
-                                                                    download={
-                                                                        visit.log_sheet_filename
-                                                                    }
-                                                                    href={`data:application/octet-stream;base64,${visit.log_sheet_actual_file}`}
+                                                                    onClick={() => {
+                                                                        setModals(
+                                                                            {
+                                                                                show: true,
+                                                                                title: "FileRender",
+                                                                                type: "edit",
+                                                                            },
+                                                                        );
+                                                                    }}
                                                                 >
-                                                                    <ArrowDownTrayIcon className="size-6 self-center" />
-                                                                </a>
+                                                                    <BookOpenIcon className="size-6 self-center" />
+                                                                </button>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -946,7 +1004,6 @@ const StationVisitDetailModal = ({
                                                             </button>
                                                             <div className="flex w-full items-center justify-between text-pretty break-words max-w-full px-2">
                                                                 <h2 className="font-semibold text-md">
-                                                                    {/* {p?.name?.toUpperCase()} */}
                                                                     {visit?.navigation_filename
                                                                         ? visit.navigation_filename
                                                                         : "N/A"}
@@ -1014,24 +1071,6 @@ const StationVisitDetailModal = ({
                                                 </span>
                                             )}
                                         </label>
-
-                                        <Alert msg={commentsMsg} />
-
-                                        {edit && (
-                                            <button
-                                                className="w-36 self-center btn btn-success rounded"
-                                                onClick={() => patchVisit()}
-                                            >
-                                                {commentLoading && (
-                                                    <div
-                                                        className="inline-block size-6
-                                mx-2 animate-spin rounded-full border-4 border-solid border-current border-e-transparent align-[-0.125em] text-white motion-reduce:animate-[spin_1.5s_linear_infinite]"
-                                                        role="status"
-                                                    ></div>
-                                                )}
-                                                Save comments
-                                            </button>
-                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -1239,67 +1278,79 @@ const StationVisitDetailModal = ({
                             </button>
                         </h2>
 
-                        <div className="card-body">
+                        <div
+                            className={`card-body ${showGnssFiles ? "overflow-y-auto max-h-80 scrollbar-base" : ""}`}
+                        >
                             <div
                                 className={`grid 
                                     ${gnssFiles && gnssFiles.length > 1 ? "grid-cols-2 md:grid-cols-1" : "grid-cols-1"} 
                                     grid-flow-dense gap-2`}
                             >
                                 {gnssFiles && gnssFiles.length > 0 ? (
-                                    gnssFiles.map((f) => {
-                                        return (
-                                            <div
-                                                className="flex items-center w-full rounded-md bg-neutral-content"
-                                                key={f.description + f.id}
-                                            >
-                                                <div className="flex-grow overflow-hidden ">
-                                                    <div className="p-6 flex w-full justify-between items-center">
-                                                        <button
-                                                            className="btn btn-ghost btn-circle mr-4"
-                                                            style={{
-                                                                display: !edit
-                                                                    ? "none"
-                                                                    : "",
-                                                            }}
-                                                            onClick={() => {
-                                                                setFileType(
-                                                                    "gnss",
-                                                                );
+                                    gnssFiles
+                                        .slice(
+                                            0,
+                                            showGnssFiles
+                                                ? gnssFiles.length
+                                                : 4,
+                                        )
+                                        .map((f) => {
+                                            return (
+                                                <div
+                                                    className="flex items-center w-full rounded-md bg-neutral-content"
+                                                    key={f.description + f.id}
+                                                >
+                                                    <div className="flex-grow overflow-hidden ">
+                                                        <div className="p-6 flex w-full justify-between items-center">
+                                                            <button
+                                                                className="btn btn-ghost btn-circle mr-4"
+                                                                style={{
+                                                                    display:
+                                                                        !edit
+                                                                            ? "none"
+                                                                            : "",
+                                                                }}
+                                                                onClick={() => {
+                                                                    setFileType(
+                                                                        "gnss",
+                                                                    );
 
-                                                                setModals({
-                                                                    show: true,
-                                                                    title: "ConfirmDelete",
-                                                                    type: "edit",
-                                                                });
-                                                                setFileToDel(
-                                                                    f.id,
-                                                                );
-                                                            }}
-                                                        >
-                                                            <TrashIcon className="size-8 text-red-600" />
-                                                        </button>
-                                                        <div className="flex flex-col w-8/12 text-pretty break-words max-w-full">
-                                                            <h2 className="card-title">
-                                                                {f.filename}
-                                                            </h2>
-                                                            <p>
-                                                                {f.description}
-                                                            </p>
+                                                                    setModals({
+                                                                        show: true,
+                                                                        title: "ConfirmDelete",
+                                                                        type: "edit",
+                                                                    });
+                                                                    setFileToDel(
+                                                                        f.id,
+                                                                    );
+                                                                }}
+                                                            >
+                                                                <TrashIcon className="size-8 text-red-600" />
+                                                            </button>
+                                                            <div className="flex flex-col w-8/12 text-pretty break-words max-w-full">
+                                                                <h2 className="card-title">
+                                                                    {f.filename}
+                                                                </h2>
+                                                                <p>
+                                                                    {
+                                                                        f.description
+                                                                    }
+                                                                </p>
+                                                            </div>
+                                                            <a
+                                                                className="btn-circle btn-ghost flex justify-center w-4/12"
+                                                                download={
+                                                                    f.filename
+                                                                }
+                                                                href={`data:application/octet-stream;base64,${f.actual_file}`}
+                                                            >
+                                                                <ArrowDownTrayIcon className="size-6 self-center" />
+                                                            </a>
                                                         </div>
-                                                        <a
-                                                            className="btn-circle btn-ghost flex justify-center w-4/12"
-                                                            download={
-                                                                f.filename
-                                                            }
-                                                            href={`data:application/octet-stream;base64,${f.actual_file}`}
-                                                        >
-                                                            <ArrowDownTrayIcon className="size-6 self-center" />
-                                                        </a>
                                                     </div>
                                                 </div>
-                                            </div>
-                                        );
-                                    })
+                                            );
+                                        })
                                 ) : (
                                     <div className="text-center text-neutral text-2xl font-bold w-full rounded-md bg-neutral-content p-6">
                                         There is no files registered
@@ -1307,6 +1358,23 @@ const StationVisitDetailModal = ({
                                 )}
                             </div>
                         </div>
+                        {gnssFiles && gnssFiles.length > 4 && (
+                            <div className="text-center my-4 font-bold">
+                                {!showGnssFiles ? (
+                                    <button
+                                        onClick={() => handleShowMore("gnss")}
+                                    >
+                                        Show More
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={() => handleShowLess("gnss")}
+                                    >
+                                        Show Less
+                                    </button>
+                                )}
+                            </div>
+                        )}
                     </div>
                     <div className="card bg-base-200 grow shadow-xl mr-4">
                         <h2 className="card-title border-b-2 border-base-300 p-2 justify-between">
@@ -1330,65 +1398,76 @@ const StationVisitDetailModal = ({
                             </button>
                         </h2>
 
-                        <div className="card-body">
+                        <div
+                            className={`card-body ${showFiles ? "overflow-y-auto max-h-80 scrollbar-base" : ""}`}
+                        >
                             <div
                                 className={`grid ${files && files.length > 1 ? "grid-cols-2 md:grid-cols-1" : "grid-cols-1"} grid-flow-dense gap-2`}
                             >
                                 {files && files.length > 0 ? (
-                                    files.map((f) => {
-                                        return (
-                                            <div
-                                                className="flex items-center w-full rounded-md bg-neutral-content"
-                                                key={f.description + f.id}
-                                            >
-                                                <div className="flex-grow overflow-hidden ">
-                                                    <div className="p-6 flex w-full justify-between items-center">
-                                                        <button
-                                                            className="btn btn-ghost btn-circle mr-4"
-                                                            style={{
-                                                                display: !edit
-                                                                    ? "none"
-                                                                    : "",
-                                                            }}
-                                                            onClick={() => {
-                                                                setFileType(
-                                                                    "other",
-                                                                );
+                                    files
+                                        .slice(
+                                            0,
 
-                                                                setModals({
-                                                                    show: true,
-                                                                    title: "ConfirmDelete",
-                                                                    type: "edit",
-                                                                });
-                                                                setFileToDel(
-                                                                    f.id,
-                                                                );
-                                                            }}
-                                                        >
-                                                            <TrashIcon className="size-8 text-red-600" />
-                                                        </button>
-                                                        <div className="flex flex-col w-8/12 text-pretty break-words max-w-full">
-                                                            <h2 className="card-title">
-                                                                {f.filename}
-                                                            </h2>
-                                                            <p>
-                                                                {f.description}
-                                                            </p>
+                                            showFiles ? files.length : 4,
+                                        )
+                                        .map((f) => {
+                                            return (
+                                                <div
+                                                    className="flex items-center w-full rounded-md bg-neutral-content"
+                                                    key={f.description + f.id}
+                                                >
+                                                    <div className="flex-grow overflow-hidden ">
+                                                        <div className="p-6 flex w-full justify-between items-center">
+                                                            <button
+                                                                className="btn btn-ghost btn-circle mr-4"
+                                                                style={{
+                                                                    display:
+                                                                        !edit
+                                                                            ? "none"
+                                                                            : "",
+                                                                }}
+                                                                onClick={() => {
+                                                                    setFileType(
+                                                                        "other",
+                                                                    );
+
+                                                                    setModals({
+                                                                        show: true,
+                                                                        title: "ConfirmDelete",
+                                                                        type: "edit",
+                                                                    });
+                                                                    setFileToDel(
+                                                                        f.id,
+                                                                    );
+                                                                }}
+                                                            >
+                                                                <TrashIcon className="size-8 text-red-600" />
+                                                            </button>
+                                                            <div className="flex flex-col w-8/12 text-pretty break-words max-w-full">
+                                                                <h2 className="card-title">
+                                                                    {f.filename}
+                                                                </h2>
+                                                                <p>
+                                                                    {
+                                                                        f.description
+                                                                    }
+                                                                </p>
+                                                            </div>
+                                                            <a
+                                                                className="btn-circle btn-ghost flex justify-center w-4/12"
+                                                                download={
+                                                                    f.filename
+                                                                }
+                                                                href={`data:application/octet-stream;base64,${f.actual_file}`}
+                                                            >
+                                                                <ArrowDownTrayIcon className="size-6 self-center" />
+                                                            </a>
                                                         </div>
-                                                        <a
-                                                            className="btn-circle btn-ghost flex justify-center w-4/12"
-                                                            download={
-                                                                f.filename
-                                                            }
-                                                            href={`data:application/octet-stream;base64,${f.actual_file}`}
-                                                        >
-                                                            <ArrowDownTrayIcon className="size-6 self-center" />
-                                                        </a>
                                                     </div>
                                                 </div>
-                                            </div>
-                                        );
-                                    })
+                                            );
+                                        })
                                 ) : (
                                     <div className="text-center text-neutral text-2xl font-bold w-full rounded-md bg-neutral-content p-6">
                                         There is no files registered
@@ -1396,7 +1475,47 @@ const StationVisitDetailModal = ({
                                 )}
                             </div>
                         </div>
+                        {files && files.length > 4 && (
+                            <div className="text-center my-4 font-bold">
+                                {!showFiles ? (
+                                    <button
+                                        onClick={() => handleShowMore("other")}
+                                    >
+                                        Show More
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={() => handleShowLess("other")}
+                                    >
+                                        Show Less
+                                    </button>
+                                )}
+                            </div>
+                        )}
                     </div>
+                    <Alert msg={commentsMsg} />
+
+                    {edit && (
+                        <div className="flex justify-center">
+                            <button
+                                className="w-36 align btn btn-success rounded my-2"
+                                onClick={() => patchVisit()}
+                                disabled={
+                                    apiOkStatuses.includes(
+                                        commentsMsg?.status ?? 0,
+                                    ) || commentLoading
+                                }
+                            >
+                                {commentLoading && (
+                                    <div
+                                        className="inline-block size-6 mx-2 animate-spin rounded-full border-4 border-solid border-current border-e-transparent align-[-0.125em] text-white motion-reduce:animate-[spin_1.5s_linear_infinite]"
+                                        role="status"
+                                    ></div>
+                                )}
+                                UPDATE
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
             {modals && modals?.title === "AddFile" && (
@@ -1440,6 +1559,15 @@ const StationVisitDetailModal = ({
                     closeModal={() => {
                         setPhoto(undefined);
                     }}
+                    setStateModal={setModals}
+                />
+            )}
+
+            {modals && modals.title === "FileRender" && (
+                <RenderFileModal
+                    file={`data:application/pdf;base64,${visit?.log_sheet_actual_file}`}
+                    filename={visit?.log_sheet_filename}
+                    closeModal={() => undefined}
                     setStateModal={setModals}
                 />
             )}

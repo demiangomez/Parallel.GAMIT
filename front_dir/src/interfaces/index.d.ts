@@ -8,7 +8,26 @@ export interface GetParams {
     station_api_id?: string;
     visit_api_id?: string;
     api_id?: string;
+    doy?: string;
+    event_type?: string;
+    event_date_since?: string;
+    event_date_until?: string;
+    module?: string;
+    node?: string;
+    stack?: string;
+    year?: string;
+    description?: string;
     role_type?: "FRONT" | "API";
+    solution?: string;
+    date_start?: string;
+    date_end?: string;
+    residuals?: boolean;
+    no_missing_data?: boolean;
+    plot_outliers?: boolean;
+    plot_auto_jumps?: boolean;
+    no_model?: boolean;
+    remove_jumps?: boolean;
+    remove_polynomial?: boolean;
     observation_doy?: string | number;
     observation_f_year?: string | number;
     observation_s_time_since?: string;
@@ -48,6 +67,13 @@ export interface ErrorResponse {
     statusCode: number;
 }
 
+export interface FilesErrorResponse {
+    msg: string;
+    response: FileErrors;
+    status: string;
+    statusCode: number;
+}
+
 export interface RinexAddFile {
     msg: string;
     response: RinexFileResponse;
@@ -62,6 +88,10 @@ export interface ExtendedErrors extends Errors {
 export interface Errors {
     errors: [{ code: string; detail: string; attr: string }];
     type: string;
+}
+
+export interface FileErrors {
+    error_message: [{ [key: string]: string[] }];
 }
 
 export interface StationServiceData {
@@ -110,6 +140,13 @@ export interface StationStatusServiceData {
     count: number;
     total_count: number;
     data: StationStatus[];
+    statusCode: number;
+}
+
+export interface StationEventsData {
+    count: number;
+    total_count: number;
+    data: StationEvents[];
     statusCode: number;
 }
 
@@ -344,6 +381,20 @@ export interface StationFilesData {
     statusCode: number;
 }
 
+export interface StationEvents {
+    event_id: string | null;
+    event_date: string | null;
+    event_type: string | null;
+    network_code: string | null;
+    station_code: string | null;
+    year: string | null;
+    doy: string | null;
+    description: string | null;
+    stack: string | null;
+    module: string | null;
+    node: string | null;
+}
+
 export interface VisitFilesData {
     id: number;
     visit: number;
@@ -533,6 +584,7 @@ export interface StationData {
     country_code: string;
     marker: number;
     gaps: GapData[];
+    mainParams?: GetParams;
 }
 
 export interface StationInfoData {

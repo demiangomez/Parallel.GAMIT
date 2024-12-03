@@ -13,13 +13,21 @@ import {
     Station,
     Overview,
     Campaigns,
-    Rinex,
 } from "@pagesReact";
 
-import { StationMain, StationPeople, StationVisits } from "@componentsReact";
+import {
+    StationEvents,
+    StationMain,
+    StationPeople,
+    StationRinex,
+    StationTimeSeries,
+    StationVisits,
+} from "@componentsReact";
 
-import { ProtectedRoute, UnprotectedRoute } from "@routes/index";
+import { ProtectedRoute, UnprotectedRoute } from "@routes";
 import { AuthProvider } from "@hooks/useAuth";
+
+// note: future tags are for the new features of the react-router-dom v7
 
 const router = createBrowserRouter(
     createRoutesFromElements(
@@ -86,7 +94,7 @@ const router = createBrowserRouter(
                     <Route index element={<StationMain />} />
                     <Route
                         path="rinex"
-                        element={<Rinex />}
+                        element={<StationRinex />}
                         handle={{
                             crumb: () => {
                                 return "Rinex";
@@ -112,20 +120,51 @@ const router = createBrowserRouter(
                             },
                         }}
                     />
+
+                    <Route
+                        path="timeseries"
+                        element={<StationTimeSeries />}
+                        handle={{
+                            crumb: () => {
+                                return "Time Series";
+                            },
+                        }}
+                    />
+                    <Route
+                        path="events"
+                        element={<StationEvents />}
+                        handle={{
+                            crumb: () => {
+                                return "Events";
+                            },
+                        }}
+                    />
                 </Route>
                 <Route path="*" element={<Error />} />
             </Route>
         </>,
     ),
+    {
+        future: {
+            v7_relativeSplatPath: true,
+            v7_fetcherPersist: true,
+            v7_normalizeFormMethod: true,
+            v7_partialHydration: true,
+            v7_skipActionErrorRevalidation: true,
+        },
+    },
 );
 
 function App() {
     return (
         <AuthProvider>
-            <RouterProvider router={router} />
+            <RouterProvider
+                router={router}
+                future={{ v7_startTransition: true }}
+            />
         </AuthProvider>
     );
 }
 
-export { router };
+export { router }; //eslint-disable-line
 export default App;
