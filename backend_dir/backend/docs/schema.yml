@@ -4326,6 +4326,113 @@ paths:
           description: ''
         '204':
           description: No response body
+  /api/delete-update-gaps-status-block:
+    post:
+      operationId: delete_update_gaps_status_block_create
+      tags:
+      - delete-update-gaps-status-block
+      security:
+      - jwtAuth: []
+      responses:
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteUpdateGapsStatusBlockCreateErrorResponse400'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse401'
+              examples:
+                AuthenticationFailed:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: authentication_failed
+                      detail: Incorrect authentication credentials.
+                      attr: null
+                NotAuthenticated:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: not_authenticated
+                      detail: Authentication credentials were not provided.
+                      attr: null
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse403'
+              examples:
+                PermissionDenied:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: permission_denied
+                      detail: You do not have permission to perform this action.
+                      attr: null
+          description: ''
+        '405':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse405'
+              examples:
+                MethodNotAllowed:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: method_not_allowed
+                      detail: Method "get" not allowed.
+                      attr: null
+          description: ''
+        '406':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse406'
+              examples:
+                NotAcceptable:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: not_acceptable
+                      detail: Could not satisfy the request Accept header.
+                      attr: null
+          description: ''
+        '415':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse415'
+              examples:
+                UnsupportedMediaType:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: unsupported_media_type
+                      detail: Unsupported media type "application/json" in request.
+                      attr: null
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse500'
+              examples:
+                APIException:
+                  value:
+                    type: server_error
+                    errors:
+                    - code: error
+                      detail: A server error occurred.
+                      attr: null
+          description: ''
+        '200':
+          description: No response body
   /api/earthquakes:
     get:
       operationId: earthquakes_list
@@ -8276,16 +8383,62 @@ paths:
     get:
       operationId: events_list
       parameters:
+      - in: query
+        name: description
+        schema:
+          type: string
+      - in: query
+        name: doy
+        schema:
+          type: integer
+      - in: query
+        name: event_date_since
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: event_date_until
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: event_type
+        schema:
+          type: string
       - name: limit
         required: false
         in: query
         description: Number of results to return per page.
         schema:
           type: integer
+      - in: query
+        name: module
+        schema:
+          type: string
+      - in: query
+        name: network_code
+        schema:
+          type: string
+      - in: query
+        name: node
+        schema:
+          type: string
       - name: offset
         required: false
         in: query
         description: The initial index from which to return the results.
+        schema:
+          type: integer
+      - in: query
+        name: stack
+        schema:
+          type: string
+      - in: query
+        name: station_code
+        schema:
+          type: string
+      - in: query
+        name: year
         schema:
           type: integer
       tags:
@@ -14592,6 +14745,291 @@ paths:
           description: ''
         '204':
           description: No response body
+  /api/get-rinex-with-status/{station_api_id}:
+    get:
+      operationId: get_rinex_with_status_list
+      parameters:
+      - name: limit
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: offset
+        required: false
+        in: query
+        description: The initial index from which to return the results.
+        schema:
+          type: integer
+      - in: path
+        name: station_api_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - get-rinex-with-status
+      security:
+      - jwtAuth: []
+      responses:
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetRinexWithStatusListErrorResponse400'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse401'
+              examples:
+                AuthenticationFailed:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: authentication_failed
+                      detail: Incorrect authentication credentials.
+                      attr: null
+                NotAuthenticated:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: not_authenticated
+                      detail: Authentication credentials were not provided.
+                      attr: null
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse403'
+              examples:
+                PermissionDenied:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: permission_denied
+                      detail: You do not have permission to perform this action.
+                      attr: null
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse404'
+              examples:
+                NotFound:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: not_found
+                      detail: Not found.
+                      attr: null
+          description: ''
+        '405':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse405'
+              examples:
+                MethodNotAllowed:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: method_not_allowed
+                      detail: Method "get" not allowed.
+                      attr: null
+          description: ''
+        '406':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse406'
+              examples:
+                NotAcceptable:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: not_acceptable
+                      detail: Could not satisfy the request Accept header.
+                      attr: null
+          description: ''
+        '415':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse415'
+              examples:
+                UnsupportedMediaType:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: unsupported_media_type
+                      detail: Unsupported media type "application/json" in request.
+                      attr: null
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse500'
+              examples:
+                APIException:
+                  value:
+                    type: server_error
+                    errors:
+                    - code: error
+                      detail: A server error occurred.
+                      attr: null
+          description: ''
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedRinexList'
+          description: ''
+    post:
+      operationId: get_rinex_with_status_create
+      parameters:
+      - in: path
+        name: station_api_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - get-rinex-with-status
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Rinex'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Rinex'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Rinex'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetRinexWithStatusCreateErrorResponse400'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse401'
+              examples:
+                AuthenticationFailed:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: authentication_failed
+                      detail: Incorrect authentication credentials.
+                      attr: null
+                NotAuthenticated:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: not_authenticated
+                      detail: Authentication credentials were not provided.
+                      attr: null
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse403'
+              examples:
+                PermissionDenied:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: permission_denied
+                      detail: You do not have permission to perform this action.
+                      attr: null
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse404'
+              examples:
+                NotFound:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: not_found
+                      detail: Not found.
+                      attr: null
+          description: ''
+        '405':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse405'
+              examples:
+                MethodNotAllowed:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: method_not_allowed
+                      detail: Method "get" not allowed.
+                      attr: null
+          description: ''
+        '406':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse406'
+              examples:
+                NotAcceptable:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: not_acceptable
+                      detail: Could not satisfy the request Accept header.
+                      attr: null
+          description: ''
+        '415':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse415'
+              examples:
+                UnsupportedMediaType:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: unsupported_media_type
+                      detail: Unsupported media type "application/json" in request.
+                      attr: null
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse500'
+              examples:
+                APIException:
+                  value:
+                    type: server_error
+                    errors:
+                    - code: error
+                      detail: A server error occurred.
+                      attr: null
+          description: ''
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rinex'
+          description: ''
   /api/health-check:
     get:
       operationId: health_check_retrieve
@@ -23391,6 +23829,268 @@ paths:
           description: ''
         '204':
           description: No response body
+  /api/rinex/{id}/get-next-station-info:
+    get:
+      operationId: rinex_get_next_station_info_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - rinex
+      security:
+      - jwtAuth: []
+      responses:
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RinexGetNextStationInfoRetrieveErrorResponse400'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse401'
+              examples:
+                AuthenticationFailed:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: authentication_failed
+                      detail: Incorrect authentication credentials.
+                      attr: null
+                NotAuthenticated:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: not_authenticated
+                      detail: Authentication credentials were not provided.
+                      attr: null
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse403'
+              examples:
+                PermissionDenied:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: permission_denied
+                      detail: You do not have permission to perform this action.
+                      attr: null
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse404'
+              examples:
+                NotFound:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: not_found
+                      detail: Not found.
+                      attr: null
+          description: ''
+        '405':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse405'
+              examples:
+                MethodNotAllowed:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: method_not_allowed
+                      detail: Method "get" not allowed.
+                      attr: null
+          description: ''
+        '406':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse406'
+              examples:
+                NotAcceptable:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: not_acceptable
+                      detail: Could not satisfy the request Accept header.
+                      attr: null
+          description: ''
+        '415':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse415'
+              examples:
+                UnsupportedMediaType:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: unsupported_media_type
+                      detail: Unsupported media type "application/json" in request.
+                      attr: null
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse500'
+              examples:
+                APIException:
+                  value:
+                    type: server_error
+                    errors:
+                    - code: error
+                      detail: A server error occurred.
+                      attr: null
+          description: ''
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rinex'
+          description: ''
+  /api/rinex/{id}/get-previous-station-info:
+    get:
+      operationId: rinex_get_previous_station_info_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - rinex
+      security:
+      - jwtAuth: []
+      responses:
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RinexGetPreviousStationInfoRetrieveErrorResponse400'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse401'
+              examples:
+                AuthenticationFailed:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: authentication_failed
+                      detail: Incorrect authentication credentials.
+                      attr: null
+                NotAuthenticated:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: not_authenticated
+                      detail: Authentication credentials were not provided.
+                      attr: null
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse403'
+              examples:
+                PermissionDenied:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: permission_denied
+                      detail: You do not have permission to perform this action.
+                      attr: null
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse404'
+              examples:
+                NotFound:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: not_found
+                      detail: Not found.
+                      attr: null
+          description: ''
+        '405':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse405'
+              examples:
+                MethodNotAllowed:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: method_not_allowed
+                      detail: Method "get" not allowed.
+                      attr: null
+          description: ''
+        '406':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse406'
+              examples:
+                NotAcceptable:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: not_acceptable
+                      detail: Could not satisfy the request Accept header.
+                      attr: null
+          description: ''
+        '415':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse415'
+              examples:
+                UnsupportedMediaType:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: unsupported_media_type
+                      detail: Unsupported media type "application/json" in request.
+                      attr: null
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse500'
+              examples:
+                APIException:
+                  value:
+                    type: server_error
+                    errors:
+                    - code: error
+                      detail: A server error occurred.
+                      attr: null
+          description: ''
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rinex'
+          description: ''
   /api/role-person-station:
     get:
       operationId: role_person_station_list
@@ -28131,16 +28831,12 @@ paths:
           description: ''
     post:
       operationId: station_attached_files_create
+      description: 'The endpoint expects each one of the following parameters per
+        file: ''station'' for station api_id, ''file'', ''description''.'
       tags:
       - station-attached-files
       requestBody:
         content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/StationAttachedFiles'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/StationAttachedFiles'
           multipart/form-data:
             schema:
               $ref: '#/components/schemas/StationAttachedFiles'
@@ -28781,19 +29477,15 @@ paths:
           description: ''
     post:
       operationId: station_images_create
-      description: In the filesystem, image name will be the same as uploaded image
-        unless 'name' parameter is specified (also specify image extension in 'name').
-        If 'name' is an empty string, it will be treated as no name either.
+      description: "In the filesystem, image name will be the same as uploaded image\
+        \ unless 'name' parameter is specified (also specify image extension in 'name').\
+        \ If 'name' is an empty string, it will be treated as no name either.\n  \
+        \                 \nThe endpoint expects each one of the following parameters\
+        \ per image: 'station' for station api_id, 'image', 'name', 'description'."
       tags:
       - station-images
       requestBody:
         content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/StationImages'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/StationImages'
           multipart/form-data:
             schema:
               $ref: '#/components/schemas/StationImages'
@@ -32966,6 +33658,150 @@ paths:
           description: ''
         '204':
           description: No response body
+  /api/station/{station_api_id}/insert-station-info-by-file:
+    post:
+      operationId: station_insert_station_info_by_file_create
+      description: "This endpoint uses PGAMIT module to parse the file. \nIt returns\
+        \ a value with key 'inserted_station_info' containing a list of station info\
+        \ successfully inserted. \nIf at least one station info insert failed, another\
+        \ value with key 'error_message' detailing the error is returned."
+      parameters:
+      - in: query
+        name: file
+        schema:
+          type: string
+          format: binary
+        description: The file to upload.
+        required: true
+      - in: path
+        name: station_api_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - station
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: {}
+      security:
+      - jwtAuth: []
+      responses:
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StationInsertStationInfoByFileCreateErrorResponse400'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse401'
+              examples:
+                AuthenticationFailed:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: authentication_failed
+                      detail: Incorrect authentication credentials.
+                      attr: null
+                NotAuthenticated:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: not_authenticated
+                      detail: Authentication credentials were not provided.
+                      attr: null
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse403'
+              examples:
+                PermissionDenied:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: permission_denied
+                      detail: You do not have permission to perform this action.
+                      attr: null
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse404'
+              examples:
+                NotFound:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: not_found
+                      detail: Not found.
+                      attr: null
+          description: ''
+        '405':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse405'
+              examples:
+                MethodNotAllowed:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: method_not_allowed
+                      detail: Method "get" not allowed.
+                      attr: null
+          description: ''
+        '406':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse406'
+              examples:
+                NotAcceptable:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: not_acceptable
+                      detail: Could not satisfy the request Accept header.
+                      attr: null
+          description: ''
+        '415':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse415'
+              examples:
+                UnsupportedMediaType:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: unsupported_media_type
+                      detail: Unsupported media type "application/json" in request.
+                      attr: null
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse500'
+              examples:
+                APIException:
+                  value:
+                    type: server_error
+                    errors:
+                    - code: error
+                      detail: A server error occurred.
+                      attr: null
+          description: ''
+        '200':
+          description: No response body
   /api/stationalias:
     get:
       operationId: stationalias_list
@@ -34562,6 +35398,149 @@ paths:
           description: ''
         '204':
           description: No response body
+  /api/time-series/{station_api_id}:
+    get:
+      operationId: time_series_list
+      parameters:
+      - name: limit
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: offset
+        required: false
+        in: query
+        description: The initial index from which to return the results.
+        schema:
+          type: integer
+      - in: path
+        name: station_api_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - time-series
+      security:
+      - jwtAuth: []
+      responses:
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimeSeriesListErrorResponse400'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse401'
+              examples:
+                AuthenticationFailed:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: authentication_failed
+                      detail: Incorrect authentication credentials.
+                      attr: null
+                NotAuthenticated:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: not_authenticated
+                      detail: Authentication credentials were not provided.
+                      attr: null
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse403'
+              examples:
+                PermissionDenied:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: permission_denied
+                      detail: You do not have permission to perform this action.
+                      attr: null
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse404'
+              examples:
+                NotFound:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: not_found
+                      detail: Not found.
+                      attr: null
+          description: ''
+        '405':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse405'
+              examples:
+                MethodNotAllowed:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: method_not_allowed
+                      detail: Method "get" not allowed.
+                      attr: null
+          description: ''
+        '406':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse406'
+              examples:
+                NotAcceptable:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: not_acceptable
+                      detail: Could not satisfy the request Accept header.
+                      attr: null
+          description: ''
+        '415':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse415'
+              examples:
+                UnsupportedMediaType:
+                  value:
+                    type: client_error
+                    errors:
+                    - code: unsupported_media_type
+                      detail: Unsupported media type "application/json" in request.
+                      attr: null
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse500'
+              examples:
+                APIException:
+                  value:
+                    type: server_error
+                    errors:
+                    - code: error
+                      detail: A server error occurred.
+                      attr: null
+          description: ''
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedRinexList'
+          description: ''
   /api/token:
     post:
       operationId: token_create
@@ -35752,16 +36731,12 @@ paths:
           description: ''
     post:
       operationId: visit_attached_files_create
+      description: 'The endpoint expects each one of the following parameters per
+        file: ''visit'' for visit api_id, ''file'', ''description''.'
       tags:
       - visit-attached-files
       requestBody:
         content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/VisitAttachedFiles'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/VisitAttachedFiles'
           multipart/form-data:
             schema:
               $ref: '#/components/schemas/VisitAttachedFiles'
@@ -36263,16 +37238,12 @@ paths:
           description: ''
     post:
       operationId: visit_gnss_data_files_create
+      description: 'The endpoint expects each one of the following parameters per
+        file: ''visit'' for visit id, ''file'', ''description''.'
       tags:
       - visit-gnss-data-files
       requestBody:
         content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/VisitGNSSDataFiles'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/VisitGNSSDataFiles'
           multipart/form-data:
             schema:
               $ref: '#/components/schemas/VisitGNSSDataFiles'
@@ -36774,19 +37745,15 @@ paths:
           description: ''
     post:
       operationId: visit_images_create
-      description: In the filesystem, image name will be the same as uploaded image
-        unless 'name' parameter is specified (also specify image extension in 'name').
-        If 'name' is an empty string, it will be treated as no name either.
+      description: "In the filesystem, image name will be the same as uploaded image\
+        \ unless 'name' parameter is specified (also specify image extension in 'name').\
+        \ If 'name' is an empty string, it will be treated as no name either.\n  \
+        \                 \nThe endpoint expects each one of the following parameters\
+        \ per image: 'visit' for station api_id, 'image', 'name', 'description'."
       tags:
       - visit-images
       requestBody:
         content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/VisitImages'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/VisitImages'
           multipart/form-data:
             schema:
               $ref: '#/components/schemas/VisitImages'
@@ -42604,6 +43571,53 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/DataSourcesUpdateError'
+      required:
+      - errors
+      - type
+    DeleteUpdateGapsStatusBlockCreateError:
+      oneOf:
+      - $ref: '#/components/schemas/DeleteUpdateGapsStatusBlockCreateNonFieldErrorsErrorComponent'
+      discriminator:
+        propertyName: attr
+        mapping:
+          non_field_errors: '#/components/schemas/DeleteUpdateGapsStatusBlockCreateNonFieldErrorsErrorComponent'
+    DeleteUpdateGapsStatusBlockCreateErrorResponse400:
+      oneOf:
+      - $ref: '#/components/schemas/DeleteUpdateGapsStatusBlockCreateValidationError'
+      - $ref: '#/components/schemas/ParseErrorResponse'
+      discriminator:
+        propertyName: type
+        mapping:
+          validation_error: '#/components/schemas/DeleteUpdateGapsStatusBlockCreateValidationError'
+          client_error: '#/components/schemas/ParseErrorResponse'
+    DeleteUpdateGapsStatusBlockCreateNonFieldErrorsErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - non_field_errors
+          type: string
+          description: '* `non_field_errors` - non_field_errors'
+        code:
+          enum:
+          - invalid
+          type: string
+          description: '* `invalid` - invalid'
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    DeleteUpdateGapsStatusBlockCreateValidationError:
+      type: object
+      properties:
+        type:
+          $ref: '#/components/schemas/ValidationErrorEnum'
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeleteUpdateGapsStatusBlockCreateError'
       required:
       - errors
       - type
@@ -49086,13 +50100,269 @@ components:
         propertyName: type
         mapping:
           client_error: '#/components/schemas/ParseErrorResponse'
+    EventsListDescriptionErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - description
+          type: string
+          description: '* `description` - description'
+        code:
+          enum:
+          - null_characters_not_allowed
+          type: string
+          description: '* `null_characters_not_allowed` - null_characters_not_allowed'
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    EventsListDoyErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - doy
+          type: string
+          description: '* `doy` - doy'
+        code:
+          enum:
+          - invalid
+          - max_value
+          type: string
+          description: |-
+            * `invalid` - invalid
+            * `max_value` - max_value
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    EventsListError:
+      oneOf:
+      - $ref: '#/components/schemas/EventsListEventDateSinceErrorComponent'
+      - $ref: '#/components/schemas/EventsListEventDateUntilErrorComponent'
+      - $ref: '#/components/schemas/EventsListEventTypeErrorComponent'
+      - $ref: '#/components/schemas/EventsListNetworkCodeErrorComponent'
+      - $ref: '#/components/schemas/EventsListStationCodeErrorComponent'
+      - $ref: '#/components/schemas/EventsListYearErrorComponent'
+      - $ref: '#/components/schemas/EventsListDoyErrorComponent'
+      - $ref: '#/components/schemas/EventsListDescriptionErrorComponent'
+      - $ref: '#/components/schemas/EventsListStackErrorComponent'
+      - $ref: '#/components/schemas/EventsListModuleErrorComponent'
+      - $ref: '#/components/schemas/EventsListNodeErrorComponent'
+      discriminator:
+        propertyName: attr
+        mapping:
+          event_date_since: '#/components/schemas/EventsListEventDateSinceErrorComponent'
+          event_date_until: '#/components/schemas/EventsListEventDateUntilErrorComponent'
+          event_type: '#/components/schemas/EventsListEventTypeErrorComponent'
+          network_code: '#/components/schemas/EventsListNetworkCodeErrorComponent'
+          station_code: '#/components/schemas/EventsListStationCodeErrorComponent'
+          year: '#/components/schemas/EventsListYearErrorComponent'
+          doy: '#/components/schemas/EventsListDoyErrorComponent'
+          description: '#/components/schemas/EventsListDescriptionErrorComponent'
+          stack: '#/components/schemas/EventsListStackErrorComponent'
+          module: '#/components/schemas/EventsListModuleErrorComponent'
+          node: '#/components/schemas/EventsListNodeErrorComponent'
     EventsListErrorResponse400:
       oneOf:
+      - $ref: '#/components/schemas/EventsListValidationError'
       - $ref: '#/components/schemas/ParseErrorResponse'
       discriminator:
         propertyName: type
         mapping:
+          validation_error: '#/components/schemas/EventsListValidationError'
           client_error: '#/components/schemas/ParseErrorResponse'
+    EventsListEventDateSinceErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - event_date_since
+          type: string
+          description: '* `event_date_since` - event_date_since'
+        code:
+          enum:
+          - invalid
+          type: string
+          description: '* `invalid` - invalid'
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    EventsListEventDateUntilErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - event_date_until
+          type: string
+          description: '* `event_date_until` - event_date_until'
+        code:
+          enum:
+          - invalid
+          type: string
+          description: '* `invalid` - invalid'
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    EventsListEventTypeErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - event_type
+          type: string
+          description: '* `event_type` - event_type'
+        code:
+          enum:
+          - null_characters_not_allowed
+          type: string
+          description: '* `null_characters_not_allowed` - null_characters_not_allowed'
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    EventsListModuleErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - module
+          type: string
+          description: '* `module` - module'
+        code:
+          enum:
+          - null_characters_not_allowed
+          type: string
+          description: '* `null_characters_not_allowed` - null_characters_not_allowed'
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    EventsListNetworkCodeErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - network_code
+          type: string
+          description: '* `network_code` - network_code'
+        code:
+          enum:
+          - null_characters_not_allowed
+          type: string
+          description: '* `null_characters_not_allowed` - null_characters_not_allowed'
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    EventsListNodeErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - node
+          type: string
+          description: '* `node` - node'
+        code:
+          enum:
+          - null_characters_not_allowed
+          type: string
+          description: '* `null_characters_not_allowed` - null_characters_not_allowed'
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    EventsListStackErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - stack
+          type: string
+          description: '* `stack` - stack'
+        code:
+          enum:
+          - null_characters_not_allowed
+          type: string
+          description: '* `null_characters_not_allowed` - null_characters_not_allowed'
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    EventsListStationCodeErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - station_code
+          type: string
+          description: '* `station_code` - station_code'
+        code:
+          enum:
+          - null_characters_not_allowed
+          type: string
+          description: '* `null_characters_not_allowed` - null_characters_not_allowed'
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    EventsListValidationError:
+      type: object
+      properties:
+        type:
+          $ref: '#/components/schemas/ValidationErrorEnum'
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/EventsListError'
+      required:
+      - errors
+      - type
+    EventsListYearErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - year
+          type: string
+          description: '* `year` - year'
+        code:
+          enum:
+          - invalid
+          - max_value
+          type: string
+          description: |-
+            * `invalid` - invalid
+            * `max_value` - max_value
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
     EventsPartialUpdateDescriptionErrorComponent:
       type: object
       properties:
@@ -57418,6 +58688,649 @@ components:
       - attr
       - code
       - detail
+    GetRinexWithStatusCreateAntennaDomeErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - antenna_dome
+          type: string
+          description: '* `antenna_dome` - antenna_dome'
+        code:
+          enum:
+          - invalid
+          - max_length
+          - null_characters_not_allowed
+          - surrogate_characters_not_allowed
+          type: string
+          description: |-
+            * `invalid` - invalid
+            * `max_length` - max_length
+            * `null_characters_not_allowed` - null_characters_not_allowed
+            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    GetRinexWithStatusCreateAntennaOffsetErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - antenna_offset
+          type: string
+          description: '* `antenna_offset` - antenna_offset'
+        code:
+          enum:
+          - invalid
+          - max_decimal_places
+          - max_digits
+          - max_string_length
+          - max_whole_digits
+          type: string
+          description: |-
+            * `invalid` - invalid
+            * `max_decimal_places` - max_decimal_places
+            * `max_digits` - max_digits
+            * `max_string_length` - max_string_length
+            * `max_whole_digits` - max_whole_digits
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    GetRinexWithStatusCreateAntennaSerialErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - antenna_serial
+          type: string
+          description: '* `antenna_serial` - antenna_serial'
+        code:
+          enum:
+          - invalid
+          - max_length
+          - null_characters_not_allowed
+          - surrogate_characters_not_allowed
+          type: string
+          description: |-
+            * `invalid` - invalid
+            * `max_length` - max_length
+            * `null_characters_not_allowed` - null_characters_not_allowed
+            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    GetRinexWithStatusCreateAntennaTypeErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - antenna_type
+          type: string
+          description: '* `antenna_type` - antenna_type'
+        code:
+          enum:
+          - invalid
+          - max_length
+          - null_characters_not_allowed
+          - surrogate_characters_not_allowed
+          type: string
+          description: |-
+            * `invalid` - invalid
+            * `max_length` - max_length
+            * `null_characters_not_allowed` - null_characters_not_allowed
+            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    GetRinexWithStatusCreateCompletionErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - completion
+          type: string
+          description: '* `completion` - completion'
+        code:
+          enum:
+          - invalid
+          - max_decimal_places
+          - max_digits
+          - max_string_length
+          - max_whole_digits
+          - 'null'
+          - required
+          type: string
+          description: |-
+            * `invalid` - invalid
+            * `max_decimal_places` - max_decimal_places
+            * `max_digits` - max_digits
+            * `max_string_length` - max_string_length
+            * `max_whole_digits` - max_whole_digits
+            * `null` - null
+            * `required` - required
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    GetRinexWithStatusCreateError:
+      oneOf:
+      - $ref: '#/components/schemas/GetRinexWithStatusCreateNonFieldErrorsErrorComponent'
+      - $ref: '#/components/schemas/GetRinexWithStatusCreateNetworkCodeErrorComponent'
+      - $ref: '#/components/schemas/GetRinexWithStatusCreateStationCodeErrorComponent'
+      - $ref: '#/components/schemas/GetRinexWithStatusCreateObservationYearErrorComponent'
+      - $ref: '#/components/schemas/GetRinexWithStatusCreateObservationMonthErrorComponent'
+      - $ref: '#/components/schemas/GetRinexWithStatusCreateObservationDayErrorComponent'
+      - $ref: '#/components/schemas/GetRinexWithStatusCreateObservationDoyErrorComponent'
+      - $ref: '#/components/schemas/GetRinexWithStatusCreateObservationFYearErrorComponent'
+      - $ref: '#/components/schemas/GetRinexWithStatusCreateObservationSTimeErrorComponent'
+      - $ref: '#/components/schemas/GetRinexWithStatusCreateObservationETimeErrorComponent'
+      - $ref: '#/components/schemas/GetRinexWithStatusCreateReceiverTypeErrorComponent'
+      - $ref: '#/components/schemas/GetRinexWithStatusCreateReceiverSerialErrorComponent'
+      - $ref: '#/components/schemas/GetRinexWithStatusCreateReceiverFwErrorComponent'
+      - $ref: '#/components/schemas/GetRinexWithStatusCreateAntennaTypeErrorComponent'
+      - $ref: '#/components/schemas/GetRinexWithStatusCreateAntennaSerialErrorComponent'
+      - $ref: '#/components/schemas/GetRinexWithStatusCreateAntennaDomeErrorComponent'
+      - $ref: '#/components/schemas/GetRinexWithStatusCreateFilenameErrorComponent'
+      - $ref: '#/components/schemas/GetRinexWithStatusCreateIntervalErrorComponent'
+      - $ref: '#/components/schemas/GetRinexWithStatusCreateAntennaOffsetErrorComponent'
+      - $ref: '#/components/schemas/GetRinexWithStatusCreateCompletionErrorComponent'
+      discriminator:
+        propertyName: attr
+        mapping:
+          non_field_errors: '#/components/schemas/GetRinexWithStatusCreateNonFieldErrorsErrorComponent'
+          network_code: '#/components/schemas/GetRinexWithStatusCreateNetworkCodeErrorComponent'
+          station_code: '#/components/schemas/GetRinexWithStatusCreateStationCodeErrorComponent'
+          observation_year: '#/components/schemas/GetRinexWithStatusCreateObservationYearErrorComponent'
+          observation_month: '#/components/schemas/GetRinexWithStatusCreateObservationMonthErrorComponent'
+          observation_day: '#/components/schemas/GetRinexWithStatusCreateObservationDayErrorComponent'
+          observation_doy: '#/components/schemas/GetRinexWithStatusCreateObservationDoyErrorComponent'
+          observation_f_year: '#/components/schemas/GetRinexWithStatusCreateObservationFYearErrorComponent'
+          observation_s_time: '#/components/schemas/GetRinexWithStatusCreateObservationSTimeErrorComponent'
+          observation_e_time: '#/components/schemas/GetRinexWithStatusCreateObservationETimeErrorComponent'
+          receiver_type: '#/components/schemas/GetRinexWithStatusCreateReceiverTypeErrorComponent'
+          receiver_serial: '#/components/schemas/GetRinexWithStatusCreateReceiverSerialErrorComponent'
+          receiver_fw: '#/components/schemas/GetRinexWithStatusCreateReceiverFwErrorComponent'
+          antenna_type: '#/components/schemas/GetRinexWithStatusCreateAntennaTypeErrorComponent'
+          antenna_serial: '#/components/schemas/GetRinexWithStatusCreateAntennaSerialErrorComponent'
+          antenna_dome: '#/components/schemas/GetRinexWithStatusCreateAntennaDomeErrorComponent'
+          filename: '#/components/schemas/GetRinexWithStatusCreateFilenameErrorComponent'
+          interval: '#/components/schemas/GetRinexWithStatusCreateIntervalErrorComponent'
+          antenna_offset: '#/components/schemas/GetRinexWithStatusCreateAntennaOffsetErrorComponent'
+          completion: '#/components/schemas/GetRinexWithStatusCreateCompletionErrorComponent'
+    GetRinexWithStatusCreateErrorResponse400:
+      oneOf:
+      - $ref: '#/components/schemas/GetRinexWithStatusCreateValidationError'
+      - $ref: '#/components/schemas/ParseErrorResponse'
+      discriminator:
+        propertyName: type
+        mapping:
+          validation_error: '#/components/schemas/GetRinexWithStatusCreateValidationError'
+          client_error: '#/components/schemas/ParseErrorResponse'
+    GetRinexWithStatusCreateFilenameErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - filename
+          type: string
+          description: '* `filename` - filename'
+        code:
+          enum:
+          - invalid
+          - max_length
+          - null_characters_not_allowed
+          - surrogate_characters_not_allowed
+          type: string
+          description: |-
+            * `invalid` - invalid
+            * `max_length` - max_length
+            * `null_characters_not_allowed` - null_characters_not_allowed
+            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    GetRinexWithStatusCreateIntervalErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - interval
+          type: string
+          description: '* `interval` - interval'
+        code:
+          enum:
+          - invalid
+          - max_decimal_places
+          - max_digits
+          - max_string_length
+          - max_whole_digits
+          - 'null'
+          - required
+          type: string
+          description: |-
+            * `invalid` - invalid
+            * `max_decimal_places` - max_decimal_places
+            * `max_digits` - max_digits
+            * `max_string_length` - max_string_length
+            * `max_whole_digits` - max_whole_digits
+            * `null` - null
+            * `required` - required
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    GetRinexWithStatusCreateNetworkCodeErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - network_code
+          type: string
+          description: '* `network_code` - network_code'
+        code:
+          enum:
+          - blank
+          - invalid
+          - max_length
+          - 'null'
+          - null_characters_not_allowed
+          - required
+          - surrogate_characters_not_allowed
+          type: string
+          description: |-
+            * `blank` - blank
+            * `invalid` - invalid
+            * `max_length` - max_length
+            * `null` - null
+            * `null_characters_not_allowed` - null_characters_not_allowed
+            * `required` - required
+            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    GetRinexWithStatusCreateNonFieldErrorsErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - non_field_errors
+          type: string
+          description: '* `non_field_errors` - non_field_errors'
+        code:
+          enum:
+          - invalid
+          - unique
+          type: string
+          description: |-
+            * `invalid` - invalid
+            * `unique` - unique
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    GetRinexWithStatusCreateObservationDayErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - observation_day
+          type: string
+          description: '* `observation_day` - observation_day'
+        code:
+          enum:
+          - invalid
+          - max_decimal_places
+          - max_digits
+          - max_string_length
+          - max_whole_digits
+          - 'null'
+          - required
+          type: string
+          description: |-
+            * `invalid` - invalid
+            * `max_decimal_places` - max_decimal_places
+            * `max_digits` - max_digits
+            * `max_string_length` - max_string_length
+            * `max_whole_digits` - max_whole_digits
+            * `null` - null
+            * `required` - required
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    GetRinexWithStatusCreateObservationDoyErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - observation_doy
+          type: string
+          description: '* `observation_doy` - observation_doy'
+        code:
+          enum:
+          - invalid
+          - max_decimal_places
+          - max_digits
+          - max_string_length
+          - max_whole_digits
+          - 'null'
+          - required
+          type: string
+          description: |-
+            * `invalid` - invalid
+            * `max_decimal_places` - max_decimal_places
+            * `max_digits` - max_digits
+            * `max_string_length` - max_string_length
+            * `max_whole_digits` - max_whole_digits
+            * `null` - null
+            * `required` - required
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    GetRinexWithStatusCreateObservationETimeErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - observation_e_time
+          type: string
+          description: '* `observation_e_time` - observation_e_time'
+        code:
+          enum:
+          - date
+          - invalid
+          - make_aware
+          - overflow
+          type: string
+          description: |-
+            * `date` - date
+            * `invalid` - invalid
+            * `make_aware` - make_aware
+            * `overflow` - overflow
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    GetRinexWithStatusCreateObservationFYearErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - observation_f_year
+          type: string
+          description: '* `observation_f_year` - observation_f_year'
+        code:
+          enum:
+          - invalid
+          - max_decimal_places
+          - max_digits
+          - max_string_length
+          - max_whole_digits
+          - 'null'
+          - required
+          type: string
+          description: |-
+            * `invalid` - invalid
+            * `max_decimal_places` - max_decimal_places
+            * `max_digits` - max_digits
+            * `max_string_length` - max_string_length
+            * `max_whole_digits` - max_whole_digits
+            * `null` - null
+            * `required` - required
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    GetRinexWithStatusCreateObservationMonthErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - observation_month
+          type: string
+          description: '* `observation_month` - observation_month'
+        code:
+          enum:
+          - invalid
+          - max_decimal_places
+          - max_digits
+          - max_string_length
+          - max_whole_digits
+          - 'null'
+          - required
+          type: string
+          description: |-
+            * `invalid` - invalid
+            * `max_decimal_places` - max_decimal_places
+            * `max_digits` - max_digits
+            * `max_string_length` - max_string_length
+            * `max_whole_digits` - max_whole_digits
+            * `null` - null
+            * `required` - required
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    GetRinexWithStatusCreateObservationSTimeErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - observation_s_time
+          type: string
+          description: '* `observation_s_time` - observation_s_time'
+        code:
+          enum:
+          - date
+          - invalid
+          - make_aware
+          - overflow
+          type: string
+          description: |-
+            * `date` - date
+            * `invalid` - invalid
+            * `make_aware` - make_aware
+            * `overflow` - overflow
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    GetRinexWithStatusCreateObservationYearErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - observation_year
+          type: string
+          description: '* `observation_year` - observation_year'
+        code:
+          enum:
+          - invalid
+          - max_decimal_places
+          - max_digits
+          - max_string_length
+          - max_whole_digits
+          - 'null'
+          - required
+          type: string
+          description: |-
+            * `invalid` - invalid
+            * `max_decimal_places` - max_decimal_places
+            * `max_digits` - max_digits
+            * `max_string_length` - max_string_length
+            * `max_whole_digits` - max_whole_digits
+            * `null` - null
+            * `required` - required
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    GetRinexWithStatusCreateReceiverFwErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - receiver_fw
+          type: string
+          description: '* `receiver_fw` - receiver_fw'
+        code:
+          enum:
+          - invalid
+          - max_length
+          - null_characters_not_allowed
+          - surrogate_characters_not_allowed
+          type: string
+          description: |-
+            * `invalid` - invalid
+            * `max_length` - max_length
+            * `null_characters_not_allowed` - null_characters_not_allowed
+            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    GetRinexWithStatusCreateReceiverSerialErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - receiver_serial
+          type: string
+          description: '* `receiver_serial` - receiver_serial'
+        code:
+          enum:
+          - invalid
+          - max_length
+          - null_characters_not_allowed
+          - surrogate_characters_not_allowed
+          type: string
+          description: |-
+            * `invalid` - invalid
+            * `max_length` - max_length
+            * `null_characters_not_allowed` - null_characters_not_allowed
+            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    GetRinexWithStatusCreateReceiverTypeErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - receiver_type
+          type: string
+          description: '* `receiver_type` - receiver_type'
+        code:
+          enum:
+          - invalid
+          - max_length
+          - null_characters_not_allowed
+          - surrogate_characters_not_allowed
+          type: string
+          description: |-
+            * `invalid` - invalid
+            * `max_length` - max_length
+            * `null_characters_not_allowed` - null_characters_not_allowed
+            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    GetRinexWithStatusCreateStationCodeErrorComponent:
+      type: object
+      properties:
+        attr:
+          enum:
+          - station_code
+          type: string
+          description: '* `station_code` - station_code'
+        code:
+          enum:
+          - blank
+          - invalid
+          - 'null'
+          - null_characters_not_allowed
+          - required
+          - surrogate_characters_not_allowed
+          type: string
+          description: |-
+            * `blank` - blank
+            * `invalid` - invalid
+            * `null` - null
+            * `null_characters_not_allowed` - null_characters_not_allowed
+            * `required` - required
+            * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
+        detail:
+          type: string
+      required:
+      - attr
+      - code
+      - detail
+    GetRinexWithStatusCreateValidationError:
+      type: object
+      properties:
+        type:
+          $ref: '#/components/schemas/ValidationErrorEnum'
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/GetRinexWithStatusCreateError'
+      required:
+      - errors
+      - type
+    GetRinexWithStatusListErrorResponse400:
+      oneOf:
+      - $ref: '#/components/schemas/ParseErrorResponse'
+      discriminator:
+        propertyName: type
+        mapping:
+          client_error: '#/components/schemas/ParseErrorResponse'
     HealthCheckRetrieveErrorResponse400:
       oneOf:
       - $ref: '#/components/schemas/ParseErrorResponse'
@@ -66084,6 +67997,20 @@ components:
         propertyName: type
         mapping:
           client_error: '#/components/schemas/ParseErrorResponse'
+    RinexGetNextStationInfoRetrieveErrorResponse400:
+      oneOf:
+      - $ref: '#/components/schemas/ParseErrorResponse'
+      discriminator:
+        propertyName: type
+        mapping:
+          client_error: '#/components/schemas/ParseErrorResponse'
+    RinexGetPreviousStationInfoRetrieveErrorResponse400:
+      oneOf:
+      - $ref: '#/components/schemas/ParseErrorResponse'
+      discriminator:
+        propertyName: type
+        mapping:
+          client_error: '#/components/schemas/ParseErrorResponse'
     RinexListError:
       oneOf:
       - $ref: '#/components/schemas/RinexListNetworkCodeErrorComponent'
@@ -73395,6 +75322,7 @@ components:
       required:
       - actual_file
       - file
+      - filename
       - id
       - station
     StationAttachedFilesCreateDescriptionErrorComponent:
@@ -73493,6 +75421,7 @@ components:
           - max_length
           - 'null'
           - null_characters_not_allowed
+          - required
           - surrogate_characters_not_allowed
           type: string
           description: |-
@@ -73500,6 +75429,7 @@ components:
             * `max_length` - max_length
             * `null` - null
             * `null_characters_not_allowed` - null_characters_not_allowed
+            * `required` - required
             * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
         detail:
           type: string
@@ -73518,8 +75448,11 @@ components:
         code:
           enum:
           - invalid
+          - unique
           type: string
-          description: '* `invalid` - invalid'
+          description: |-
+            * `invalid` - invalid
+            * `unique` - unique
         detail:
           type: string
       required:
@@ -73665,6 +75598,7 @@ components:
       - actual_image
       - id
       - image
+      - name
       - station
     StationImagesCreateDescriptionErrorComponent:
       type: object
@@ -73764,6 +75698,7 @@ components:
           - max_length
           - 'null'
           - null_characters_not_allowed
+          - required
           - surrogate_characters_not_allowed
           type: string
           description: |-
@@ -73771,6 +75706,7 @@ components:
             * `max_length` - max_length
             * `null` - null
             * `null_characters_not_allowed` - null_characters_not_allowed
+            * `required` - required
             * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
         detail:
           type: string
@@ -73789,8 +75725,11 @@ components:
         code:
           enum:
           - invalid
+          - unique
           type: string
-          description: '* `invalid` - invalid'
+          description: |-
+            * `invalid` - invalid
+            * `unique` - unique
         detail:
           type: string
       required:
@@ -75058,6 +76997,13 @@ components:
       required:
       - errors
       - type
+    StationInsertStationInfoByFileCreateErrorResponse400:
+      oneOf:
+      - $ref: '#/components/schemas/ParseErrorResponse'
+      discriminator:
+        propertyName: type
+        mapping:
+          client_error: '#/components/schemas/ParseErrorResponse'
     StationMeta:
       type: object
       properties:
@@ -79471,6 +81417,13 @@ components:
       required:
       - errors
       - type
+    TimeSeriesListErrorResponse400:
+      oneOf:
+      - $ref: '#/components/schemas/ParseErrorResponse'
+      discriminator:
+        propertyName: type
+        mapping:
+          client_error: '#/components/schemas/ParseErrorResponse'
     TokenCreateError:
       oneOf:
       - $ref: '#/components/schemas/TokenCreateNonFieldErrorsErrorComponent'
@@ -80933,6 +82886,7 @@ components:
       required:
       - actual_file
       - file
+      - filename
       - id
       - visit
     VisitAttachedFilesCreateDescriptionErrorComponent:
@@ -81031,6 +82985,7 @@ components:
           - max_length
           - 'null'
           - null_characters_not_allowed
+          - required
           - surrogate_characters_not_allowed
           type: string
           description: |-
@@ -81038,6 +82993,7 @@ components:
             * `max_length` - max_length
             * `null` - null
             * `null_characters_not_allowed` - null_characters_not_allowed
+            * `required` - required
             * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
         detail:
           type: string
@@ -81056,8 +83012,11 @@ components:
         code:
           enum:
           - invalid
+          - unique
           type: string
-          description: '* `invalid` - invalid'
+          description: |-
+            * `invalid` - invalid
+            * `unique` - unique
         detail:
           type: string
       required:
@@ -81208,6 +83167,7 @@ components:
       required:
       - actual_file
       - file
+      - filename
       - id
       - visit
     VisitGnssDataFilesCreateDescriptionErrorComponent:
@@ -81306,6 +83266,7 @@ components:
           - max_length
           - 'null'
           - null_characters_not_allowed
+          - required
           - surrogate_characters_not_allowed
           type: string
           description: |-
@@ -81313,6 +83274,7 @@ components:
             * `max_length` - max_length
             * `null` - null
             * `null_characters_not_allowed` - null_characters_not_allowed
+            * `required` - required
             * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
         detail:
           type: string
@@ -81331,8 +83293,11 @@ components:
         code:
           enum:
           - invalid
+          - unique
           type: string
-          description: '* `invalid` - invalid'
+          description: |-
+            * `invalid` - invalid
+            * `unique` - unique
         detail:
           type: string
       required:
@@ -81484,6 +83449,7 @@ components:
       - actual_image
       - id
       - image
+      - name
       - visit
     VisitImagesCreateDescriptionErrorComponent:
       type: object
@@ -81583,6 +83549,7 @@ components:
           - max_length
           - 'null'
           - null_characters_not_allowed
+          - required
           - surrogate_characters_not_allowed
           type: string
           description: |-
@@ -81590,6 +83557,7 @@ components:
             * `max_length` - max_length
             * `null` - null
             * `null_characters_not_allowed` - null_characters_not_allowed
+            * `required` - required
             * `surrogate_characters_not_allowed` - surrogate_characters_not_allowed
         detail:
           type: string
@@ -81608,8 +83576,11 @@ components:
         code:
           enum:
           - invalid
+          - unique
           type: string
-          description: '* `invalid` - invalid'
+          description: |-
+            * `invalid` - invalid
+            * `unique` - unique
         detail:
           type: string
       required:

@@ -112,3 +112,22 @@ class EndpointsClusterFilter(filters.FilterSet):
     class Meta:
         model = models.EndPointsCluster
         fields = ['role_type']
+
+class EventsFilter(filters.FilterSet):
+    event_date_since = filters.DateTimeFilter(field_name='event_date', lookup_expr='gte')
+    event_date_until = filters.DateTimeFilter(field_name='event_date', lookup_expr='lte')
+    event_type = filters.CharFilter(field_name='event_type', lookup_expr='icontains')
+    network_code = filters.CharFilter(
+        field_name='network_code', lookup_expr='exact')
+    station_code = filters.CharFilter(
+        field_name='station_code', lookup_expr='exact')
+    year = filters.NumberFilter(field_name='year', lookup_expr='icontains')
+    doy = filters.NumberFilter(field_name='doy', lookup_expr='icontains')
+    description = filters.CharFilter(field_name='description', lookup_expr='icontains')
+    stack = filters.CharFilter(field_name='stack', lookup_expr='icontains')
+    module = filters.CharFilter(field_name='module', lookup_expr='icontains')
+    node = filters.CharFilter(field_name='node', lookup_expr='icontains')
+
+    class Meta:
+        model = models.Events
+        fields = ['event_date_since', 'event_date_until']

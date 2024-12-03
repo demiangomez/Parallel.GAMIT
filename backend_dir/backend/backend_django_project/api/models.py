@@ -236,6 +236,7 @@ class Events(BaseModel):
     class Meta:
         managed = False
         db_table = 'events'
+        ordering = ["-event_date"]
         unique_together = (('event_id', 'event_date'),)
 
 
@@ -1006,7 +1007,7 @@ class Person(BaseModel):
 
     def __str__(self):
         return self.first_name + ' ' + self.last_name
-    
+
     class Meta:
         ordering = ["last_name", "first_name"]
 
@@ -1028,6 +1029,12 @@ class StationImages(BaseModel):
     image = models.ImageField(upload_to=station_images_path)
     name = models.CharField(max_length=255, blank=True)
     description = models.CharField(max_length=500, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['station', 'name'], name='station_name_unique')
+        ]
 
 
 class StationStatus(BaseModel):
@@ -1055,6 +1062,12 @@ class StationAttachedFiles(BaseModel):
     file = models.FileField(upload_to=station_attached_files_path)
     filename = models.CharField(max_length=255, blank=True)
     description = models.CharField(max_length=500, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['station', 'filename'], name='station_filename_unique')
+        ]
 
 
 class StationMeta(BaseModel):
@@ -1135,6 +1148,12 @@ class VisitImages(BaseModel):
     name = models.CharField(max_length=255, blank=True)
     description = models.CharField(max_length=500, blank=True)
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['visit', 'name'], name='visit_name_unique')
+        ]
+
 
 class VisitAttachedFiles(BaseModel):
     visit = models.ForeignKey(Visits, models.CASCADE)
@@ -1142,12 +1161,24 @@ class VisitAttachedFiles(BaseModel):
     filename = models.CharField(max_length=255, blank=True)
     description = models.CharField(max_length=500, blank=True)
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['visit', 'filename'], name='visit_filename_unique')
+        ]
+
 
 class VisitGNSSDataFiles(BaseModel):
     visit = models.ForeignKey(Visits, models.CASCADE)
     file = models.FileField(upload_to=visits_gnss_data_files_path)
     filename = models.CharField(max_length=255, blank=True)
     description = models.CharField(max_length=500, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['visit', 'filename'], name='visit_filename_gnss_unique')
+        ]
 
 
 def enable_automatic_auditlog():

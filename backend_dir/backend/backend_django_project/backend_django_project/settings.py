@@ -39,7 +39,7 @@ CONFIG_FILE_ABSOLUTE_PATH = "/code/gnss_data.cfg"
 
 config.read(CONFIG_FILE_ABSOLUTE_PATH)
 
-DATA_UPLOAD_MAX_MEMORY_SIZE = 1000000000 # 1 GB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 1000000000  # 1 GB
 
 MAX_SIZE_IMAGE_MB = config['django']['max_size_image_mb']
 
@@ -58,6 +58,14 @@ SECRET_KEY = config['django']['secret_key']
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config['django']['debug'] == "True"
+
+if config['django']['https'] == "True":
+    SECURE_SSL_REDIRECT = True
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_HSTS_SECONDS = 31536000  # 1 year
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
 
 ALLOWED_HOSTS = ["*"]
 
@@ -178,11 +186,11 @@ LOGGING = {
         'standard': {
             'format': '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
         },
-    },  
+    },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
-            'formatter':'standard',
+            'formatter': 'standard',
         },
         "django_file": {
             "level": "INFO",
@@ -190,7 +198,7 @@ LOGGING = {
             "filename": os.path.join(PROJECT_PATH, "logs", "django_logs.txt"),
             "maxBytes": 1000000,
             "backupCount": 25,
-            'formatter':'standard',
+            'formatter': 'standard',
         },
         'gunicorn_access': {
             'level': 'INFO',

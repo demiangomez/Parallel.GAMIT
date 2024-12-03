@@ -30,7 +30,11 @@ from django.core.cache import cache
 import time
 from .tasks import update_gaps_status
 from django.core.files.storage import default_storage
-from pgamit import pyStationInfo, dbConnection, pyDate
+from pgamit import pyStationInfo, dbConnection, pyDate, pyETM
+from pgamit import Utils as pyUtils
+import dateutil.parser
+from io import BytesIO
+
 
 def response_is_paginated(response_data):
     return type(response_data) == dict
@@ -171,6 +175,7 @@ class EndpointsClusterDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = models.EndPointsCluster.objects.all()
     serializer_class = serializers.EndpointsClusterSerializer
 
+
 class NetworkList(CustomListCreateAPIView):
     queryset = models.Networks.objects.all()
     serializer_class = serializers.NetworkSerializer
@@ -226,13 +231,16 @@ class StationList(CustomListCreateAPIView):
 
             station_meta_query = models.StationMeta.objects.values_list(
                 'station', 'has_gaps', 'has_stationinfo', 'id')
-            
-            station_meta_gaps = models.StationMetaGaps.objects.select_related('station_meta').all()
 
-            station_meta_gaps_dict = {station_meta_object[3]: [] for station_meta_object in station_meta_query}
+            station_meta_gaps = models.StationMetaGaps.objects.select_related(
+                'station_meta').all()
+
+            station_meta_gaps_dict = {station_meta_object[3]: [
+            ] for station_meta_object in station_meta_query}
 
             for gap in station_meta_gaps:
-                station_meta_gaps_dict[gap.station_meta.id].append(model_to_dict(gap))
+                station_meta_gaps_dict[gap.station_meta.id].append(
+                    model_to_dict(gap))
 
             station_meta_dict = {
                 station_meta_object[0]: (
@@ -248,7 +256,8 @@ class StationList(CustomListCreateAPIView):
                 if 'api_id' in station:
 
                     if station['api_id'] in station_meta_dict:
-                        has_gaps, has_stationinfo, station_meta_id = station_meta_dict[station['api_id']]
+                        has_gaps, has_stationinfo, station_meta_id = station_meta_dict[
+                            station['api_id']]
                         station["has_gaps"] = has_gaps
                         station["has_stationinfo"] = has_stationinfo
                         station["gaps"] = station_meta_gaps_dict[station_meta_id]
@@ -269,10 +278,12 @@ class StationDetail(generics.RetrieveUpdateDestroyAPIView):
 
             if 'api_id' in response.data:
 
-                stationmeta = models.StationMeta.objects.get(station=response.data['api_id'])
+                stationmeta = models.StationMeta.objects.get(
+                    station=response.data['api_id'])
                 response.data["has_gaps"] = stationmeta.has_gaps
                 response.data["has_stationinfo"] = stationmeta.has_stationinfo
-                response.data["gaps"] = [model_to_dict(gap) for gap in stationmeta.stationmetagaps_set.all()]
+                response.data["gaps"] = [model_to_dict(
+                    gap) for gap in stationmeta.stationmetagaps_set.all()]
 
         return response
 
@@ -295,6 +306,150 @@ class StationCodesList(CustomListAPIView):
                                      for station in response.data["data"]]
 
         return response
+
+
+class TimeSeries(CustomListAPIView):
+    serializer_class = serializers.RinexSerializer
+
+    def get_queryset(self, pk):
+        return None
+
+    def _get_required_param(self, request, params, param_name):
+        param_value = request.query_params.get(param_name)
+
+        # param_value can't be None or an empty string
+        if param_value is not None and (isinstance(param_value, str) and param_value != ""):
+            params[param_name] = param_value
+        else:
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "'" + param_name + "'" + " parameter is required.")
+
+    def _convert_to_bool(self, params, param_name):
+        param_value = params[param_name].strip().lower()
+
+        if param_value in ("true", "false"):
+            params[param_name] = bool(param_value)
+        else:
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "'" + param_name + "'" + " parameter is not a valid boolean.")
+
+    def _check_params(self, request):
+        params = {}
+
+        for param_name in ("solution", "residuals", "no_missing_data", "plot_outliers", "plot_auto_jumps",
+                           "no_model", "remove_jumps", "remove_polynomial"):
+            self._get_required_param(request, params, param_name)
+
+        self._get_dates_param(request, params)
+
+        for param_name in ("residuals", "no_missing_data", "plot_outliers", "plot_auto_jumps", "no_model", "remove_jumps", "remove_polynomial"):
+            self._convert_to_bool(params, param_name)
+
+        params["solution"] = params["solution"].strip().upper()
+
+        if params["solution"] not in ("PPP", "GAMIT"):
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "'solution' parameter must be either 'PPP' or 'GAMIT'")
+
+        if params["solution"] == "GAMIT":
+            self._get_required_param(request, params, "stack")
+
+        return params
+
+    def _deprecated_check_params(self, request, params):
+
+        date_start = request.query_params.get("date_start")
+        date_end = request.query_params.get("date_end")
+
+        for param_name, param_value in (("date_start", date_start), ("date_end", date_end)):
+
+            if param_value is not None:
+                try:
+                    date = dateutil.parser.parse(param_value)
+                except (dateutil.parser.ParserError, ValueError):
+                    raise exceptions.CustomValidationErrorExceptionHandler(
+                        "'" + param_name + "'" + " parameter has a wrong format.")
+                else:
+                    params[param_name] = date
+                    print(f"{type(date)=}")
+
+        if isinstance(params["date_start"], datetime.datetime) and isinstance(params["date_end"], datetime.datetime):
+            if params["date_start"] > params["date_end"]:
+                raise exceptions.CustomValidationErrorExceptionHandler(
+                    "'date_start' parameter can't be greater than 'date_end' parameter.")
+
+    def _get_dates_param(self, request, params):
+        date_start = request.query_params.get("date_start")
+        date_end = request.query_params.get("date_end")
+
+        time_window = []
+
+        if date_start is not None:
+            time_window.append(date_start)
+        if date_end is not None:
+            time_window.append(date_end)
+
+        dates = None
+        try:
+            if len(time_window) > 0:
+                if len(time_window) == 1:
+                    try:
+                        dates = pyUtils.process_date(
+                            time_window, missing_input=None, allow_days=False)
+                        dates = (dates[0].fyear, )
+                    except ValueError:
+                        # an integer value
+                        dates = float(time_window[0])
+                else:
+                    dates = pyUtils.process_date(time_window)
+                    dates = (dates[0].fyear, dates[1].fyear)
+        except Exception as e:
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                e.detail if hasattr(e, 'detail') else str(e))
+
+        params["dates"] = dates
+
+    def _get_station(self, station_api_id):
+        try:
+            station = models.Stations.objects.get(api_id=station_api_id)
+        except models.Stations.DoesNotExist:
+            raise Http404
+        else:
+            return station.network_code.network_code, station.station_code
+
+    def list(self, request, *args, **kwargs):
+        network_code, station_code = self._get_station(
+            kwargs.get("station_api_id"))
+
+        params = self._check_params(request)
+
+        cnn = dbConnection.Cnn(settings.CONFIG_FILE_ABSOLUTE_PATH)
+        try:
+            if params["solution"] == "GAMIT":
+                polyhedrons = cnn.query_float('SELECT "X", "Y", "Z", "Year", "DOY" FROM stacks '
+                                              'WHERE "name" = \'%s\' AND "NetworkCode" = \'%s\' AND '
+                                              '"StationCode" = \'%s\' '
+                                              'ORDER BY "Year", "DOY", "NetworkCode", "StationCode"'
+                                              % (params["stack"], network_code, station_code))
+
+                soln = pyETM.GamitSoln(
+                    cnn, polyhedrons, network_code, station_code, params["stack"])
+
+                etm = pyETM.GamitETM(cnn, network_code, station_code, False,
+                                     params["no_model"], gamit_soln=soln, plot_remove_jumps=params["remove_jumps"],
+                                     plot_polynomial_removed=params["remove_polynomial"])
+            else:
+                etm = pyETM.PPPETM(cnn, network_code, station_code, False, params["no_model"],
+                                   plot_remove_jumps=params["remove_jumps"],
+                                   plot_polynomial_removed=params["remove_polynomial"])
+            fileio = BytesIO()
+            image = etm.plot(pngfile=None, t_win=params["dates"], residuals=params["residuals"],
+                             plot_missing=params["no_missing_data"], plot_outliers=params["plot_outliers"], fileio=fileio)
+        except Exception as e:
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                e.detail if hasattr(e, 'detail') else str(e))
+
+        return Response(data={"time_series": image}, status=status.HTTP_200_OK)
 
 
 class StationMetaList(CustomListCreateAPIView):
@@ -341,6 +496,11 @@ class StationAttachedFilesList(CustomListCreateAPIView):
     serializer_class = serializers.StationAttachedFilesSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_class = filters.StationAttachedFilesFilter
+    parser_classes = [MultiPartParser]
+
+    @extend_schema(description="""The endpoint expects each one of the following parameters per file: 'station' for station api_id, 'file', 'description'.""")
+    def post(self, request, *args, **kwargs):
+        return utils.UploadMultipleFilesUtils.upload_multiple_files(self, request, 'station')
 
 
 class StationAttachedFilesDetail(generics.RetrieveDestroyAPIView):
@@ -353,10 +513,12 @@ class StationImagesList(CustomListCreateAPIView):
     serializer_class = serializers.StationImagesSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_class = filters.StationImagesFilter
+    parser_classes = [MultiPartParser]
 
-    @extend_schema(description="In the filesystem, image name will be the same as uploaded image unless 'name' parameter is specified (also specify image extension in 'name'). If 'name' is an empty string, it will be treated as no name either.")
+    @extend_schema(description="""In the filesystem, image name will be the same as uploaded image unless 'name' parameter is specified (also specify image extension in 'name'). If 'name' is an empty string, it will be treated as no name either.
+                   \nThe endpoint expects each one of the following parameters per image: 'station' for station api_id, 'image', 'name', 'description'.""")
     def post(self, request, *args, **kwargs):
-        return super().post(request, *args, **kwargs)
+        return utils.UploadMultipleFilesUtils.upload_multiple_images(self, request, 'station')
 
 
 class StationImagesDetail(generics.RetrieveDestroyAPIView):
@@ -457,6 +619,11 @@ class VisitAttachedFilesList(CustomListCreateAPIView):
     serializer_class = serializers.VisitAttachedFilesSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_class = filters.VisitAttachedFilesFilter
+    parser_classes = [MultiPartParser]
+
+    @extend_schema(description="""The endpoint expects each one of the following parameters per file: 'visit' for visit api_id, 'file', 'description'.""")
+    def post(self, request, *args, **kwargs):
+        return utils.UploadMultipleFilesUtils.upload_multiple_files(self, request, 'visit')
 
 
 class VisitAttachedFilesDetail(generics.RetrieveDestroyAPIView):
@@ -469,10 +636,13 @@ class VisitImagesList(CustomListCreateAPIView):
     serializer_class = serializers.VisitImagesSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_class = filters.VisitImagesFilter
+    parser_classes = [MultiPartParser]
 
-    @extend_schema(description="In the filesystem, image name will be the same as uploaded image unless 'name' parameter is specified (also specify image extension in 'name'). If 'name' is an empty string, it will be treated as no name either.")
+    @extend_schema(description="""In the filesystem, image name will be the same as uploaded image unless 'name' parameter is specified (also specify image extension in 'name'). If 'name' is an empty string, it will be treated as no name either.
+                   \nThe endpoint expects each one of the following parameters per image: 'visit' for station api_id, 'image', 'name', 'description'.""")
     def post(self, request, *args, **kwargs):
-        return super().post(request, *args, **kwargs)
+
+        return utils.UploadMultipleFilesUtils.upload_multiple_images(self, request, 'visit')
 
 
 class VisitImagesDetail(generics.RetrieveDestroyAPIView):
@@ -485,6 +655,11 @@ class VisitGNSSDataFilesList(CustomListCreateAPIView):
     serializer_class = serializers.VisitGNSSDataFilesSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_class = filters.VisitGNSSDataFilesFilter
+    parser_classes = [MultiPartParser]
+
+    @extend_schema(description="""The endpoint expects each one of the following parameters per file: 'visit' for visit id, 'file', 'description'.""")
+    def post(self, request, *args, **kwargs):
+        return utils.UploadMultipleFilesUtils.upload_multiple_files(self, request, 'visit')
 
 
 class VisitGNSSDataFilesDetail(generics.RetrieveDestroyAPIView):
@@ -592,6 +767,8 @@ class EtmsDetail(generics.RetrieveUpdateDestroyAPIView):
 class EventsList(CustomListCreateAPIView):
     queryset = models.Events.objects.all()
     serializer_class = serializers.EventsSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = filters.EventsFilter
 
 
 class EventsDetail(generics.RetrieveUpdateDestroyAPIView):
@@ -761,8 +938,10 @@ class RinexList(CustomListCreateAPIView):
     filter_backends = [DjangoFilterBackend]
     filterset_class = filters.RinexFilter
 
+
 class GetRinexWithStatus(CustomListCreateAPIView):
     serializer_class = serializers.RinexSerializer
+
     def get_queryset(self):
         # get all rinex from given station
 
@@ -776,46 +955,60 @@ class GetRinexWithStatus(CustomListCreateAPIView):
                 network_code=station.network_code_id,
                 station_code=station.station_code
             ).exclude(observation_s_time__isnull=True).exclude(observation_e_time__isnull=True)
-        
+
     def _get_filters_from_request(self, request):
         filters = {}
 
-        filters["observation_doy"] = request.query_params.get("observation_doy", None)
-        filters["observation_s_time_since"] = request.query_params.get("observation_s_time_since", None)
-        filters["observation_s_time_until"] = request.query_params.get("observation_s_time_until", None)
-        filters["observation_e_time_since"] = request.query_params.get("observation_e_time_since", None)
-        filters["observation_e_time_until"] = request.query_params.get("observation_e_time_until", None)
-        filters["observation_f_year"] = request.query_params.get("observation_f_year", None)
-        filters["observation_year"] = request.query_params.get("observation_year", None)
-        filters["antenna_dome"] = request.query_params.get("antenna_dome", None)
-        filters["antenna_offset"] = request.query_params.get("antenna_offset", None)
-        filters["antenna_serial"] = request.query_params.get("antenna_serial", None)
-        filters["antenna_type"] = request.query_params.get("antenna_type", None)
+        filters["observation_doy"] = request.query_params.get(
+            "observation_doy", None)
+        filters["observation_s_time_since"] = request.query_params.get(
+            "observation_s_time_since", None)
+        filters["observation_s_time_until"] = request.query_params.get(
+            "observation_s_time_until", None)
+        filters["observation_e_time_since"] = request.query_params.get(
+            "observation_e_time_since", None)
+        filters["observation_e_time_until"] = request.query_params.get(
+            "observation_e_time_until", None)
+        filters["observation_f_year"] = request.query_params.get(
+            "observation_f_year", None)
+        filters["observation_year"] = request.query_params.get(
+            "observation_year", None)
+        filters["antenna_dome"] = request.query_params.get(
+            "antenna_dome", None)
+        filters["antenna_offset"] = request.query_params.get(
+            "antenna_offset", None)
+        filters["antenna_serial"] = request.query_params.get(
+            "antenna_serial", None)
+        filters["antenna_type"] = request.query_params.get(
+            "antenna_type", None)
         filters["receiver_fw"] = request.query_params.get("receiver_fw", None)
-        filters["receiver_serial"] = request.query_params.get("receiver_serial", None)
-        filters["receiver_type"] = request.query_params.get("receiver_type", None)
-        filters["completion_operator"] = request.query_params.get("completion_operator", None)
+        filters["receiver_serial"] = request.query_params.get(
+            "receiver_serial", None)
+        filters["receiver_type"] = request.query_params.get(
+            "receiver_type", None)
+        filters["completion_operator"] = request.query_params.get(
+            "completion_operator", None)
         filters["completion"] = request.query_params.get("completion", None)
         filters["interval"] = request.query_params.get("interval", None)
 
         return filters
 
-
     def list(self, request, *args, **kwargs):
-    
+
         rinex_list = self.get_queryset()
 
         filters = self._get_filters_from_request(request)
 
-        rinex_with_status = utils.RinexUtils.get_rinex_with_status(rinex_list, filters)
+        rinex_with_status = utils.RinexUtils.get_rinex_with_status(
+            rinex_list, filters)
 
         return Response(rinex_with_status)
-
 
 
 class RinexDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = models.Rinex.objects.all()
     serializer_class = serializers.RinexSerializer
+
 
 class GetNextStationInfoFromRinex(APIView):
     serializer_class = serializers.RinexSerializer
@@ -834,11 +1027,12 @@ class GetNextStationInfoFromRinex(APIView):
             if next_station_info == None:
                 raise exceptions.CustomValidationErrorExceptionHandler(
                     'No station info to extend for %s.%s' % (rinex.network_code.network_code, rinex.station_code))
-            
+
         except Exception as e:
             raise exceptions.CustomValidationErrorExceptionHandler(e)
-        
+
         return Response(data={"next_station_info_api_id": next_station_info.api_id}, status=status.HTTP_200_OK)
+
 
 class GetPreviousStationInfoFromRinex(APIView):
     serializer_class = serializers.RinexSerializer
@@ -853,15 +1047,16 @@ class GetPreviousStationInfoFromRinex(APIView):
 
         rinex = self.get_queryset(pk)
         try:
-            previous_station_info = utils.RinexUtils.get_previous_station_info(rinex)
+            previous_station_info = utils.RinexUtils.get_previous_station_info(
+                rinex)
 
             if previous_station_info == None:
                 raise exceptions.CustomValidationErrorExceptionHandler(
                     'No station info to extend for %s.%s' % (rinex.network_code.network_code, rinex.station_code))
-            
+
         except Exception as e:
             raise exceptions.CustomValidationErrorExceptionHandler(e)
-        
+
         return Response(data={"previous_station_info_api_id": previous_station_info.api_id}, status=status.HTTP_200_OK)
 
 
@@ -1027,7 +1222,6 @@ class StationinfoList(CustomListCreateAPIView):
                             ' has been been modified to ' +
                             serializer.validated_data['date_start'].strftime("%Y-%m-%d %H:%M:%S"), status=status.HTTP_201_CREATED, headers=headers)
 
-
     def _custom_post(self, serializer):
         def pk_already_exists(serializer):
             return self.queryset.filter(network_code=serializer.validated_data['network_code'], station_code=serializer.validated_data['station_code'], date_start=serializer.validated_data['date_start']).exists()
@@ -1091,7 +1285,7 @@ class StationinfoList(CustomListCreateAPIView):
                     ' -> '.join([str(overlap_record.date_start), str(overlap_record.date_end)]))
 
             return ' '.join(stroverlap)
-        
+
         if not pk_already_exists(serializer):
             # can insert because it's not the same record
             # 1) verify the record is not between any two existing records
@@ -1151,8 +1345,10 @@ class StationinfoList(CustomListCreateAPIView):
         else:
             raise exceptions.CustomValidationErrorExceptionHandler(
                 'The record already exists in the database.')
-        
+
+
 class InsertStationInfoByFile(APIView):
+    parser_classes = [MultiPartParser]
 
     def _station_info_pgamit_to_serializer(self, station_info_record_from_pgamit):
         station_info_instance = {
@@ -1168,70 +1364,87 @@ class InsertStationInfoByFile(APIView):
             "antenna_east": station_info_record_from_pgamit.AntennaEast,
             "height_code": station_info_record_from_pgamit.HeightCode,
             "radome_code": station_info_record_from_pgamit.RadomeCode,
-            "date_start": pyDate.Date(stninfo = station_info_record_from_pgamit.DateStart).datetime(),
-            "date_end": pyDate.Date(stninfo = station_info_record_from_pgamit.DateEnd).datetime(),
+            "date_start": pyDate.Date(stninfo=station_info_record_from_pgamit.DateStart).datetime(),
+            "date_end": pyDate.Date(stninfo=station_info_record_from_pgamit.DateEnd).datetime(),
             "receiver_vers": station_info_record_from_pgamit.ReceiverVers,
             "comments": station_info_record_from_pgamit.Comments
         }
-        station_info_serializer = serializers.StationinfoSerializer(data=station_info_instance)
+        station_info_serializer = serializers.StationinfoSerializer(
+            data=station_info_instance)
 
         station_info_serializer.is_valid(raise_exception=True)
 
         return station_info_serializer
 
+    @extend_schema(
+        request=OpenApiTypes.OBJECT,
+        parameters=[
+            OpenApiParameter(name='file', type=OpenApiTypes.BINARY,
+                             required=True, description='The file to upload.')
+        ],
+        description="This endpoint uses PGAMIT module to parse the file. \nIt returns a value with key 'inserted_station_info' containing a list of station info successfully inserted. \nIf at least one station info insert failed, another value with key 'error_message' detailing the error is returned."
+    )
     def post(self, request, *args, **kwargs):
         if 'file' not in request.FILES:
-            raise exceptions.CustomValidationErrorExceptionHandler("No file was uploaded.")
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "No file was uploaded.")
 
         uploaded_file = request.FILES['file']
-        
+
         # Save the file temporarily to pass file path to parser
         file_path = default_storage.save(uploaded_file.name, uploaded_file)
         full_file_path = os.path.join(default_storage.location, file_path)
 
         try:
-            station = models.Stations.objects.get(api_id=kwargs['station_api_id'])
+            station = models.Stations.objects.get(
+                api_id=kwargs['station_api_id'])
         except models.Stations.DoesNotExist:
             if os.path.exists(full_file_path):
                 os.remove(full_file_path)
-            raise exceptions.CustomValidationErrorExceptionHandler("Station does not exist.")
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "Station does not exist.")
         except models.Stations.MultipleObjectsReturned:
             if os.path.exists(full_file_path):
                 os.remove(full_file_path)
-            raise exceptions.CustomServerErrorExceptionHandler("Multiple stations with the same API ID exist.")
-        
+            raise exceptions.CustomServerErrorExceptionHandler(
+                "Multiple stations with the same API ID exist.")
+
         succesfully_inserted = []
 
         try:
             cnn = dbConnection.Cnn(settings.CONFIG_FILE_ABSOLUTE_PATH)
-            
-            pgamit_stationinfo = pyStationInfo.StationInfo(cnn=cnn, NetworkCode=station.network_code.network_code, StationCode=station.station_code, allow_empty=True)
-            station_info_records = pgamit_stationinfo.parse_station_info(full_file_path)
-            
+
+            pgamit_stationinfo = pyStationInfo.StationInfo(
+                cnn=cnn, NetworkCode=station.network_code.network_code, StationCode=station.station_code, allow_empty=True)
+            station_info_records = pgamit_stationinfo.parse_station_info(
+                full_file_path)
+
             for station_info_record in station_info_records:
-                station_info_serializer = self._station_info_pgamit_to_serializer(station_info_record)
+                station_info_serializer = self._station_info_pgamit_to_serializer(
+                    station_info_record)
 
                 if station_info_serializer.validated_data['station_code'] == station.station_code and station_info_serializer.validated_data['network_code'] == station.network_code.network_code:
                     station_info_list = StationinfoList()
                     station_info_list._custom_post(station_info_serializer)
 
-                    succesfully_inserted.append({"station_code": station_info_serializer.validated_data['station_code'], "network_code": station_info_serializer.validated_data['network_code'], "date_start": station_info_serializer.validated_data['date_start']})
-            
+                    succesfully_inserted.append({"station_code": station_info_serializer.validated_data['station_code'], "network_code": station_info_serializer.validated_data[
+                                                'network_code'], "date_start": station_info_serializer.validated_data['date_start']})
+
             if os.path.exists(full_file_path):
                 os.remove(full_file_path)
 
             return Response({"inserted_station_info": succesfully_inserted}, status=status.HTTP_201_CREATED)
         except Exception as e:
-            
+
             if os.path.exists(full_file_path):
                 os.remove(full_file_path)
-            
+
             if len(succesfully_inserted) == 0:
                 return Response({"inserted_station_info": [], "error_message": e.detail if hasattr(e, 'detail') else str(e)}, status=status.HTTP_400_BAD_REQUEST)
             else:
                 return Response({"inserted_station_info": succesfully_inserted, "error_message": e.detail if hasattr(e, 'detail') else str(e)}, status=status.HTTP_201_CREATED)
-            
-    
+
+
 class StationinfoDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = models.Stationinfo.objects.all()
     serializer_class = serializers.StationinfoSerializer
@@ -1315,16 +1528,32 @@ class UpdateGapsStatus(APIView):
 
     @extend_schema(description="Computes gaps status for all station_meta objects with 'has_gaps_update_needed' = true")
     def post(self, request, format=None):
-           
-        if cache.add('update_gaps_status_lock', 'locked', timeout=60*60): 
+
+        if cache.add('update_gaps_status_lock', 'locked', timeout=60*60):
             update_gaps_status.delay()
             return Response(status=status.HTTP_201_CREATED)
         else:
             return Response(status=status.HTTP_429_TOO_MANY_REQUESTS)
-        
+
+
 class DeleteUpdateGapsStatusBlock(APIView):
     serializer_class = serializers.DummySerializer
 
     def post(self, request, format=None):
         cache.delete('update_gaps_status_lock')
         return Response(status=status.HTTP_201_CREATED)
+
+
+class DistinctStackNames(APIView):
+    serializer_class = serializers.DummySerializer
+
+    def get(self, *args, **kwargs):
+        station_api_id = kwargs.get('station_api_id')
+        try:
+            station = models.Stations.objects.get(api_id=station_api_id)
+        except models.Stations.DoesNotExist:
+            raise Http404
+        else:
+            stack_names = models.Stacks.objects.filter(
+                station_code=station.station_code, network_code=station.network_code.network_code).values_list('name', flat=True).distinct()
+            return Response({"stack_names": stack_names})
