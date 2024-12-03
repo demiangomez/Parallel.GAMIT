@@ -328,7 +328,7 @@ class TimeSeries(CustomListAPIView):
         param_value = params[param_name].strip().lower()
 
         if param_value in ("true", "false"):
-            params[param_name] = bool(param_value)
+            params[param_name] = param_value == "true"
         else:
             raise exceptions.CustomValidationErrorExceptionHandler(
                 "'" + param_name + "'" + " parameter is not a valid boolean.")
