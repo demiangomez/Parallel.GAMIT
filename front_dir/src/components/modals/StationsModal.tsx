@@ -120,8 +120,6 @@ const StationsModal = ({ stations, mainParams, setState }: Props) => {
         );
     /* eslint-enable */
 
-    console.log(mainParams);
-
     return (
         <div className="flex flex-col">
             <div className="card bg-base-200 p-4 space-y-2 w-[700px]">
