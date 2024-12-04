@@ -91,13 +91,6 @@ const Station = () => {
     const [loadPdf, setLoadPdf] = useState<boolean>(false);
     const [loadedMap, setLoadedMap] = useState<boolean | undefined>(undefined);
 
-    const paramsByUrl = {
-        network_code: nc,
-        station_code: sc,
-        limit: 0,
-        offset: 0,
-    };
-
     const getStation = async () => {
         try {
             setLoading(true);
@@ -274,7 +267,8 @@ const Station = () => {
                             navigate("/", {
                                 state: {
                                     ...locationState,
-                                    mainParams: paramsByUrl,
+                                    mainParams:
+                                        locationState.mainParams ?? undefined,
                                 },
                             });
                         }, 0);
@@ -343,7 +337,7 @@ const Station = () => {
                                 ? reStation
                                 : station
                         }
-                        mainParams={locationState?.mainParams ?? paramsByUrl}
+                        mainParams={locationState?.mainParams ?? undefined}
                         stationMeta={stationMeta}
                         refetchStationMeta={getStationMeta}
                         refetch={refetch}
@@ -359,14 +353,14 @@ const Station = () => {
                                       ...reStation,
                                       mainParams:
                                           locationState?.mainParams ??
-                                          paramsByUrl,
+                                          undefined,
                                   }
                                 : station
                                   ? {
                                         ...station,
                                         mainParams:
                                             locationState?.mainParams ??
-                                            paramsByUrl,
+                                            undefined,
                                     }
                                   : locationState
                         }

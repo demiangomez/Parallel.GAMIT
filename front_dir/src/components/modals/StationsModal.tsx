@@ -7,11 +7,12 @@ import { XMarkIcon } from "@heroicons/react/24/outline";
 import { GetParams, StationData } from "@types";
 
 interface Props {
-    setState: React.Dispatch<React.SetStateAction<boolean>>;
     stations: StationData[] | undefined;
+    mainParams: GetParams;
+    setState: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-const StationsModal = ({ setState, stations }: Props) => {
+const StationsModal = ({ stations, mainParams, setState }: Props) => {
     const [paginatedStations, setPaginatedStations] = useState<
         StationData[] | undefined
     >(undefined);
@@ -119,6 +120,8 @@ const StationsModal = ({ setState, stations }: Props) => {
         );
     /* eslint-enable */
 
+    console.log(mainParams);
+
     return (
         <div className="flex flex-col">
             <div className="card bg-base-200 p-4 space-y-2 w-[700px]">
@@ -140,6 +143,7 @@ const StationsModal = ({ setState, stations }: Props) => {
                     titles={titles}
                     body={tableData}
                     table={"Stations"}
+                    alterInfo={mainParams}
                     dataOnly={true}
                     onClickFunction={() => undefined}
                     state={paginatedStations}

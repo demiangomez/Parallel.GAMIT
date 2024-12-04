@@ -1,12 +1,13 @@
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-
 import { Spinner } from "@componentsReact";
 
-import { formattedDates } from "@utils";
 import { findFlagUrlByIso3Code } from "country-flags-svg-v2";
+
 import { TrashIcon } from "@heroicons/react/24/outline";
+
+import { formattedDates } from "@utils";
 import { StationVisitsData } from "@types";
-import { useState } from "react";
 
 interface TableProps {
     table: string;
@@ -205,7 +206,8 @@ const Table = ({
                                                                       val as string,
                                                                   ),
                                                               )
-                                                            : String(val) ?? ""
+                                                            : (String(val) ??
+                                                              "")
                                                         : ""
                                                 }
                                                 className={`text-center max-w-[200px] overflow-visible text-ellipsis whitespace-nowrap
@@ -234,25 +236,7 @@ const Table = ({
                                                                             index
                                                                         ],
                                                                     mainParams:
-                                                                        {
-                                                                            country_code:
-                                                                                state?.[
-                                                                                    index
-                                                                                ]
-                                                                                    .country_code,
-                                                                            network_code:
-                                                                                state?.[
-                                                                                    index
-                                                                                ]
-                                                                                    .network_code,
-                                                                            station_code:
-                                                                                state?.[
-                                                                                    index
-                                                                                ]
-                                                                                    .station_code,
-                                                                            limit: 0,
-                                                                            offset: 0,
-                                                                        },
+                                                                        alterInfo,
                                                                 },
                                                             },
                                                         );
@@ -338,70 +322,72 @@ const Table = ({
                                                                   ) + "..."
                                                                 : val}
                                                         </div>
-                                                        {alterInfo && (
-                                                            <div
-                                                                className={`absolute -translate-x-2/4 left-[50%] top-auto bottom-6 ${
-                                                                    visibleTooltipIndex ===
-                                                                    index
-                                                                        ? "block"
-                                                                        : "hidden"
-                                                                } bg-gray-800 text-white p-2 rounded 
-                                                            text-pretty whitespace-nowrap w-[200px] z-50 overflow-visible`}
-                                                                onMouseEnter={() =>
-                                                                    setVisibleTooltipIndex(
-                                                                        index,
-                                                                    )
-                                                                }
-                                                                onMouseLeave={() =>
-                                                                    setVisibleTooltipIndex(
-                                                                        null,
-                                                                    )
-                                                                }
-                                                            >
-                                                                {alterInfo?.[
-                                                                    `${state?.[index].name}/~/${state?.[index].id}`
-                                                                ]?.map(
-                                                                    (
-                                                                        v: StationVisitsData,
-                                                                    ) => {
-                                                                        const stationNetwork =
-                                                                            v?.station_formatted?.split(
-                                                                                ".",
-                                                                            )[0];
-                                                                        const stationCode =
-                                                                            v?.station_formatted?.split(
-                                                                                ".",
-                                                                            )[1];
-                                                                        return (
-                                                                            <Link
-                                                                                className="text-base block mb-1 even:bg-gray-700 rounded last:mb-0"
-                                                                                key={
-                                                                                    v.id
-                                                                                }
-                                                                                to={`/${stationNetwork}/${stationCode}/visits`}
-                                                                                state={{
-                                                                                    visitDetail:
-                                                                                        v,
-                                                                                }}
-                                                                            >
-                                                                                {" " +
-                                                                                    "(" +
-                                                                                    v.station_formatted +
-                                                                                    ")" +
-                                                                                    " - " +
-                                                                                    v.date}{" "}
-                                                                            </Link>
-                                                                        );
-                                                                    },
-                                                                )}
+                                                        {alterInfo &&
+                                                            table !==
+                                                                "Stations" && (
                                                                 <div
-                                                                    className="absolute top-[100%] left-2/4 w-0 
+                                                                    className={`absolute -translate-x-2/4 left-[50%] top-auto bottom-6 ${
+                                                                        visibleTooltipIndex ===
+                                                                        index
+                                                                            ? "block"
+                                                                            : "hidden"
+                                                                    } bg-gray-800 text-white p-2 rounded 
+                                                            text-pretty whitespace-nowrap w-[200px] z-50 overflow-visible`}
+                                                                    onMouseEnter={() =>
+                                                                        setVisibleTooltipIndex(
+                                                                            index,
+                                                                        )
+                                                                    }
+                                                                    onMouseLeave={() =>
+                                                                        setVisibleTooltipIndex(
+                                                                            null,
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    {alterInfo?.[
+                                                                        `${state?.[index].name}/~/${state?.[index].id}`
+                                                                    ]?.map(
+                                                                        (
+                                                                            v: StationVisitsData,
+                                                                        ) => {
+                                                                            const stationNetwork =
+                                                                                v?.station_formatted?.split(
+                                                                                    ".",
+                                                                                )[0];
+                                                                            const stationCode =
+                                                                                v?.station_formatted?.split(
+                                                                                    ".",
+                                                                                )[1];
+                                                                            return (
+                                                                                <Link
+                                                                                    className="text-base block mb-1 even:bg-gray-700 rounded last:mb-0"
+                                                                                    key={
+                                                                                        v.id
+                                                                                    }
+                                                                                    to={`/${stationNetwork}/${stationCode}/visits`}
+                                                                                    state={{
+                                                                                        visitDetail:
+                                                                                            v,
+                                                                                    }}
+                                                                                >
+                                                                                    {" " +
+                                                                                        "(" +
+                                                                                        v.station_formatted +
+                                                                                        ")" +
+                                                                                        " - " +
+                                                                                        v.date}{" "}
+                                                                                </Link>
+                                                                            );
+                                                                        },
+                                                                    )}
+                                                                    <div
+                                                                        className="absolute top-[100%] left-2/4 w-0 
                                                             -translate-x-2/4 h-0 border-l-8 border-l-transparent 
                                                             border-r-8 border-r-transparent border-t-8
                                                              border-t-gray-800"
-                                                                ></div>
-                                                            </div>
-                                                        )}
+                                                                    ></div>
+                                                                </div>
+                                                            )}
                                                     </div>
                                                 ) : (
                                                     "-"

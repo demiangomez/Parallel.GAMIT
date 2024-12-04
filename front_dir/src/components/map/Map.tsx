@@ -24,7 +24,6 @@ interface MapProps {
     stations: StationData[] | undefined;
     initialCenter: LatLngExpression | undefined;
     mainParams: GetParams;
-    setMainParams?: React.Dispatch<React.SetStateAction<GetParams>>;
 }
 
 const ChangeView = ({
@@ -43,12 +42,7 @@ const ChangeView = ({
     return null;
 };
 
-const MapMarkers = ({
-    stations,
-    initialCenter,
-    mainParams,
-    setMainParams,
-}: MapProps) => {
+const MapMarkers = ({ stations, initialCenter, mainParams }: MapProps) => {
     const map = useMap();
 
     const [markersByBounds, setMarkersByBounds] = useState<
@@ -75,19 +69,19 @@ const MapMarkers = ({
     useEffect(() => {
         // Actualizar marcadores cuando cambia initialCenter
         if (initialCenter) {
-            const hasGeneralParams = (obj: any) =>
-                obj?.country_code?.trim() !== "" ||
-                obj?.network_code?.trim() !== "";
-            const hasStationParam = (obj: any) =>
-                obj?.station_code?.trim() !== "";
+            // const hasGeneralParams = (obj: any) =>
+            //     obj?.country_code?.trim() !== "" ||
+            //     obj?.network_code?.trim() !== "";
+            // const hasStationParam = (obj: any) =>
+            //     obj?.station_code?.trim() !== "";
 
-            const gralParams = hasGeneralParams(mainParams);
-            const stationParam = hasStationParam(mainParams);
+            // const gralParams = hasGeneralParams(mainParams);
+            // const stationParam = hasStationParam(mainParams);
 
-            const zoomOut = (!gralParams && !stationParam) || gralParams;
-            const zoomIn = stationParam && gralParams;
+            // const zoomOut = (!gralParams && !stationParam) || gralParams;
+            // const zoomIn = stationParam && gralParams;
 
-            map.setView(initialCenter, zoomOut && !zoomIn ? 4 : 8);
+            map.setView(initialCenter, 8);
             updateMarkersByBounds();
         }
     }, [initialCenter, map]);
@@ -154,7 +148,6 @@ const MapMarkers = ({
                                     station={s}
                                     fromMain={true}
                                     mainParams={mainParams}
-                                    setMainParams={setMainParams}
                                 />
                             </Popup>{" "}
                         </Marker>
@@ -164,12 +157,7 @@ const MapMarkers = ({
     );
 };
 
-const Map = ({
-    stations,
-    initialCenter,
-    mainParams,
-    setMainParams,
-}: MapProps) => {
+const Map = ({ stations, initialCenter, mainParams }: MapProps) => {
     const [mapProps, setMapProps] = useState<MyMapContainerProps>({
         center: [0, 0],
         zoom: 4,
@@ -188,7 +176,7 @@ const Map = ({
 
         setMapProps((prevProps) => ({
             ...prevProps,
-            zoom: 4,
+            zoom: 8,
             center: pos,
         }));
     }, []);
@@ -212,7 +200,6 @@ const Map = ({
                     stations={stations}
                     initialCenter={initialCenter}
                     mainParams={mainParams}
-                    setMainParams={setMainParams}
                 />
             </MapContainer>
         </div>

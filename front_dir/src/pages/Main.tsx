@@ -246,7 +246,6 @@ const MainPage = () => {
                             stations={stations ? stations : initialStations}
                             initialCenter={initialCenter}
                             mainParams={params}
-                            setMainParams={setParams}
                         />
                         {list && (
                             <div
@@ -256,6 +255,7 @@ const MainPage = () => {
                                 <StationsModal
                                     setState={setList}
                                     stations={stations}
+                                    mainParams={params}
                                 />
                             </div>
                         )}

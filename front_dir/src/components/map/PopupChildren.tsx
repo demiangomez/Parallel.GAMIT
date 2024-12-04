@@ -19,7 +19,6 @@ interface PopupChildrenProps {
     station: StationData | undefined;
     fromMain?: boolean | undefined;
     mainParams?: GetParams;
-    setMainParams?: React.Dispatch<React.SetStateAction<GetParams>>;
 }
 
 const child = (key: string, text: string, idx: number) => {
@@ -36,7 +35,6 @@ const PopupChildren = ({
     station,
     fromMain,
     mainParams,
-    setMainParams,
 }: PopupChildrenProps) => {
     const { station_code, network_code, country_code, lat, lon, height } =
         station || {};
@@ -116,12 +114,6 @@ const PopupChildren = ({
     useEffect(() => {
         getStationMeta();
     }, []);
-
-    const params = {
-        ...mainParams,
-        network_code,
-        station_code,
-    };
 
     return (
         <div
@@ -259,18 +251,7 @@ const PopupChildren = ({
                 <Link
                     to={`/${network_code}/${station_code}`}
                     className=" text-center"
-                    onClick={() => {
-                        if (setMainParams) {
-                            setMainParams({
-                                ...mainParams,
-                                station_code,
-                                network_code,
-                                offset: mainParams?.offset ?? 0,
-                                limit: mainParams?.limit ?? 0,
-                            });
-                        }
-                    }}
-                    state={{ ...station, mainParams: params }}
+                    state={{ ...station, mainParams: mainParams }}
                 >
                     {" "}
                     Navigate to Station{" "}
