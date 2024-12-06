@@ -20,6 +20,7 @@ import {
     FilesErrorResponse,
     VisitFilesData,
 } from "@types";
+import Pako from "pako";
 
 interface Props {
     id: number | undefined;
@@ -71,6 +72,8 @@ const AddFileModal = ({
     const [files, setFiles] = useState<
         { file: File; description: string; id: number; name?: string }[]
     >([]);
+
+    const [progressBar, setProgressBar] = useState<boolean>(false);
 
     const getFileRecordKeys = () => {
         const filetype =
@@ -164,18 +167,77 @@ const AddFileModal = ({
 
     const addFile = async () => {
         try {
-            setLoading(true);
             if (pageType === "visit") {
                 const formData = new FormData();
 
+                const CHUNK_SIZE = 1024 * 1024 * 3; // 3MB por fragmento
+                const totalChunks = Object.values(files).reduce(
+                    (total, value) => {
+                        const file = value.file;
+                        return total + Math.ceil(file.size / CHUNK_SIZE);
+                    },
+                    0,
+                );
+
+                let uploadedChunks = 0; // Fragmentos subidos globalmente
+
                 if (fileType === "gnss" || fileType === "other") {
-                    Object.values(files).forEach((value) => {
-                        const { filetype, filename } = getFileRecordKeys();
-                        formData.append(filetype, value.file);
-                        formData.append(filename, value.file.name);
-                        formData.append("description", value.description);
-                        formData.append(pageType, String(id));
-                    });
+                    setProgressBar(true);
+
+                    await Promise.all(
+                        Object.values(files).map(async (value) => {
+                            const { filetype } = getFileRecordKeys();
+
+                            const file = value.file;
+                            const totalChunksByFile = Math.ceil(
+                                file.size / CHUNK_SIZE,
+                            );
+
+                            for (let i = 0; i < totalChunksByFile; i++) {
+                                // Fragmento del archivo
+                                const start = i * CHUNK_SIZE;
+                                const end = Math.min(
+                                    start + CHUNK_SIZE,
+                                    file.size,
+                                );
+                                const chunk = file.slice(start, end);
+
+                                // Opcional: Comprimir el fragmento
+                                const chunkBuffer = await chunk.arrayBuffer();
+                                const compressedChunk = Pako.gzip(
+                                    new Uint8Array(chunkBuffer),
+                                );
+
+                                // FormData para enviar
+                                formData.append(
+                                    filetype,
+                                    new Blob([compressedChunk]),
+                                    `${value.file.name}.part${i + 1}`,
+                                );
+                                formData.append(
+                                    "description",
+                                    value.description,
+                                );
+                                formData.append(pageType, String(id));
+
+                                // Actualiza progreso
+                                uploadedChunks++;
+                                const progress = Math.min(
+                                    (uploadedChunks / totalChunks) * 100,
+                                    100,
+                                );
+
+                                document.querySelector("progress")!.value =
+                                    progress;
+
+                                document.getElementById(
+                                    "progress-value",
+                                )!.innerText = `${progress.toFixed(0)}%`;
+
+                                progress === 100 && setLoading(true);
+                            }
+                        }),
+                    );
 
                     const service =
                         fileType === "gnss"
@@ -199,16 +261,66 @@ const AddFileModal = ({
                 }
 
                 if (fileType === "visitImage") {
-                    Object.values(files).forEach((value) => {
-                        const { filetype, filename } = getFileRecordKeys();
-                        formData.append(filetype, value.file);
-                        formData.append(
-                            filename,
-                            value.name ?? value.file.name,
-                        );
-                        formData.append("description", value.description);
-                        formData.append(pageType, String(id));
-                    });
+                    setProgressBar(true);
+
+                    await Promise.all(
+                        Object.values(files).map(async (value) => {
+                            const { filetype, filename } = getFileRecordKeys();
+
+                            const file = value.file;
+                            const totalChunksByFile = Math.ceil(
+                                file.size / CHUNK_SIZE,
+                            );
+
+                            for (let i = 0; i < totalChunksByFile; i++) {
+                                // Fragmento del archivo
+                                const start = i * CHUNK_SIZE;
+                                const end = Math.min(
+                                    start + CHUNK_SIZE,
+                                    file.size,
+                                );
+                                const chunk = file.slice(start, end);
+
+                                // Opcional: Comprimir el fragmento
+                                const chunkBuffer = await chunk.arrayBuffer();
+                                const compressedChunk = Pako.gzip(
+                                    new Uint8Array(chunkBuffer),
+                                );
+
+                                // FormData para enviar
+                                formData.append(
+                                    filetype,
+                                    new Blob([compressedChunk]),
+                                    `${value.file.name}.part${i + 1}`,
+                                );
+                                formData.append(
+                                    filename,
+                                    value.name ?? value.file.name,
+                                );
+                                formData.append(
+                                    "description",
+                                    value.description,
+                                );
+                                formData.append(pageType, String(id));
+
+                                // Actualiza progreso
+                                uploadedChunks++;
+                                const progress = Math.min(
+                                    (uploadedChunks / totalChunks) * 100,
+                                    100,
+                                );
+
+                                document.querySelector("progress")!.value =
+                                    progress;
+
+                                document.getElementById(
+                                    "progress-value",
+                                )!.innerText = `${progress.toFixed(0)}%`;
+
+                                progress === 100 && setLoading(true);
+                            }
+                        }),
+                    );
 
                     const res = await postStationVisitsImagesService<
                         VisitFilesData | FilesErrorResponse
@@ -230,6 +342,8 @@ const AddFileModal = ({
 
                 if (fileType === "logsheet" || fileType === "navfile") {
                     try {
+                        setLoading(true);
+
                         const formattedVisit = {
                             ...visit,
                             [fileType === "logsheet"
@@ -382,6 +496,8 @@ const AddFileModal = ({
                         onChange={(e) => {
                             setMsg(undefined);
                             setBMsg(undefined);
+                            setProgressBar(false);
+
                             const files = e.target.files;
                             if (files && files.length > 0) {
                                 Array.from(files).forEach((file) => {
@@ -421,6 +537,7 @@ const AddFileModal = ({
                                 });
                             } else if (files && files.length === 0) {
                                 setFiles([]);
+                                setProgressBar(false);
                                 setMsg(undefined);
                                 setBMsg(undefined);
                                 setGlobalDescription("");
@@ -466,6 +583,7 @@ const AddFileModal = ({
                                         key={f.id}
                                         file={{
                                             id: String(f.id),
+                                            name: String(f.file.name),
                                         }}
                                         files={files}
                                         fileType={fileType}
@@ -478,6 +596,20 @@ const AddFileModal = ({
                         </div>
                     )}
                 </div>
+                {progressBar && (
+                    <div className="w-[500px] self-center text-center">
+                        File upload progress
+                        <progress
+                            className="progress progress-success"
+                            value={0}
+                            max="100"
+                        ></progress>
+                        <span
+                            id="progress-value"
+                            className="font-semibold"
+                        ></span>
+                    </div>
+                )}
                 {bMsg && <Alert msg={bMsg} />}
                 {msg && <FileAlert msg={msg} />}
                 {loading && (
@@ -488,6 +620,7 @@ const AddFileModal = ({
                 <button
                     className="btn btn-success self-center w-3/12"
                     disabled={
+                        progressBar ||
                         loading ||
                         apiOkStatuses.includes(Number(msg?.status)) ||
                         apiOkStatuses.includes(Number(bMsg?.status))

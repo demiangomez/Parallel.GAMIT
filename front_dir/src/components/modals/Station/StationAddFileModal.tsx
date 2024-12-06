@@ -17,6 +17,7 @@ import {
     postStationsFilesAttachedService,
 } from "@services";
 import { apiOkStatuses } from "@utils";
+import Pako from "pako";
 
 interface Props {
     stationId: string | undefined;
@@ -64,17 +65,70 @@ const StationAddFileModal = ({
         { file: File; description: string; id: number; name?: string }[]
     >([]);
 
+    const [progressBar, setProgressBar] = useState<boolean>(false);
+
     const addFile = async () => {
         try {
-            setLoading(true);
+            setProgressBar(true);
             if (stationId) {
+                const CHUNK_SIZE = 1024 * 1024 * 3; // 3MB por fragmento
+                const totalChunks = Object.values(files).reduce(
+                    (total, value) => {
+                        const file = value.file;
+                        return total + Math.ceil(file.size / CHUNK_SIZE);
+                    },
+                    0,
+                );
+
+                let uploadedChunks = 0; // Fragmentos subidos globalmente
                 const formData = new FormData();
 
-                Object.values(files).forEach((value) => {
-                    formData.append("file", value.file);
-                    formData.append("description", value.description);
-                    formData.append("station", stationId);
-                });
+                await Promise.all(
+                    Object.values(files).map(async (value) => {
+                        const file = value.file;
+                        const totalChunksByFile = Math.ceil(
+                            file.size / CHUNK_SIZE,
+                        );
+
+                        for (let i = 0; i < totalChunksByFile; i++) {
+                            // Fragmento del archivo
+                            const start = i * CHUNK_SIZE;
+                            const end = Math.min(start + CHUNK_SIZE, file.size);
+                            const chunk = file.slice(start, end);
+
+                            // Opcional: Comprimir el fragmento
+                            const chunkBuffer = await chunk.arrayBuffer();
+                            const compressedChunk = Pako.gzip(
+                                new Uint8Array(chunkBuffer),
+                            );
+
+                            // FormData para enviar
+                            formData.append(
+                                "file",
+                                new Blob([compressedChunk]),
+                                `${value.file.name}.part${i + 1}`,
+                            );
+                            formData.append("description", value.description);
+                            formData.append("station", stationId);
+
+                            // Actualiza progreso
+                            uploadedChunks++;
+                            const progress = Math.min(
+                                (uploadedChunks / totalChunks) * 100,
+                                100,
+                            );
+
+                            document.querySelector("progress")!.value =
+                                progress;
+
+                            document.getElementById(
+                                "progress-value",
+                            )!.innerText = `${progress.toFixed(0)}%`;
+
+                            progress === 100 && setLoading(true);
+                        }
+                    }),
+                );
 
                 const res = await postStationsFilesAttachedService<
                     StationFilesData | FilesErrorResponse
@@ -83,7 +137,7 @@ const StationAddFileModal = ({
                 if ("status" in res) {
                     setMsg({
                         status: res.statusCode,
-                        msg: res.msg ?? "",
+                        msg: "",
                         errors: res.response,
                     });
                 } else {
@@ -232,6 +286,7 @@ const StationAddFileModal = ({
                                     },
                                 });
                             } else {
+                                setProgressBar(false);
                                 setMsg(undefined);
                                 setBMsg(undefined);
                                 const files = e.target.files;
@@ -287,6 +342,7 @@ const StationAddFileModal = ({
                                         key={f.id}
                                         file={{
                                             id: String(f.id),
+                                            name: String(f.file.name),
                                         }}
                                         files={files}
                                         fileType={"other"}
@@ -302,6 +358,20 @@ const StationAddFileModal = ({
                         </div>
                     )}
                 </div>
+                {progressBar && (
+                    <div className="w-[500px] self-center text-center">
+                        File upload progress
+                        <progress
+                            className="progress progress-success"
+                            value={0}
+                            max="100"
+                        ></progress>
+                        <span
+                            id="progress-value"
+                            className="font-semibold"
+                        ></span>
+                    </div>
+                )}
                 {!meta && <FileAlert msg={msg} />}
                 {meta && <Alert msg={bMsg} />}
                 {loading && (
@@ -309,9 +379,12 @@ const StationAddFileModal = ({
                         <span className="loading loading-spinner loading-lg self-center"></span>
                     </div>
                 )}
+
                 <button
                     className="btn btn-success self-center w-3/12"
+                    type="submit"
                     disabled={
+                        progressBar ||
                         loading ||
                         apiOkStatuses.includes(Number(msg?.status)) ||
                         apiOkStatuses.includes(Number(bMsg?.status))

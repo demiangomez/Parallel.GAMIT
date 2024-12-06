@@ -11,7 +11,13 @@ import {
     StationAddFileModal,
 } from "@componentsReact";
 
-import { useApi, useAuth, useFormReducer, usePopup } from "@hooks";
+import {
+    useApi,
+    useAuth,
+    useFormReducer,
+    usePopup,
+    useWaitCursor,
+} from "@hooks";
 import {
     ArrowDownTrayIcon,
     ClipboardDocumentIcon,
@@ -26,6 +32,7 @@ import {
     delStationsFilesAttachedService,
     getMonumentsTypesService,
     getRinexService,
+    getStationFileByIdAttachedService,
     getStationInfoService,
     getStationsFilesAttachedService,
     getStationStatusService,
@@ -101,6 +108,10 @@ const StationMetadataModal = ({
     >(undefined);
 
     const [loading, setLoading] = useState<boolean>(false);
+    const [loadFile, setLoadFile] = useState<boolean>(false);
+
+    useWaitCursor(loadFile);
+
     const [updateLoading, setUpdateLoading] = useState<boolean>(false);
     const [edit, setEdit] = useState<boolean>(false);
 
@@ -240,7 +251,12 @@ const StationMetadataModal = ({
                 const res =
                     await getStationsFilesAttachedService<StationFilesServiceData>(
                         api,
-                        { station_api_id: stationId, offset: 0, limit: 0 },
+                        {
+                            station_api_id: stationId,
+                            offset: 0,
+                            limit: 0,
+                            only_metadata: true,
+                        },
                     );
                 setFiles(res.data);
             }
@@ -248,6 +264,24 @@ const StationMetadataModal = ({
             console.error(err);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const getFileById = async (id: number) => {
+        try {
+            setLoadFile(true);
+            if (stationId) {
+                const res =
+                    await getStationFileByIdAttachedService<StationFilesData>(
+                        api,
+                        id,
+                    );
+                return res;
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoadFile(false);
         }
     };
 
@@ -537,10 +571,6 @@ const StationMetadataModal = ({
         modals?.show && showModal(modals.title);
     }, [modals]);
 
-    // FIXME: HANDLEAR CUANDO LA REQ NO LLEGA A LA API
-
-    // API/STATION-ATTACHED-FILE, NO TENOG RESPUESTA AGREGAR.
-
     return (
         <Modal
             close={close}
@@ -584,7 +614,7 @@ const StationMetadataModal = ({
                                                     );
 
                                                 return (
-                                                    <div key={idx}>
+                                                    <div key={idx + key}>
                                                         <div
                                                             className="text-sm font-bold flex items-center"
                                                             title={
@@ -997,6 +1027,8 @@ const StationMetadataModal = ({
                                                 //             error.attr === key,
                                                 //     );
 
+                                                // TODO: HANDLEAR EL APPLICATION, ESTA PUESTO SOLO PDF. XQ NOSE
+
                                                 if (key === "navigation_file") {
                                                     return (
                                                         <div>
@@ -1085,7 +1117,7 @@ const StationMetadataModal = ({
                                                                                         .rinex
                                                                                         .navigation_file
                                                                                 }
-                                                                                href={`data:application/pdf;base64,${stationMeta?.navigation_actual_file}`}
+                                                                                href={`data:application/octet-stream;base64,${stationMeta?.navigation_actual_file}`}
                                                                             >
                                                                                 <ArrowDownTrayIcon className="size-6 self-center" />
                                                                             </a>
@@ -1202,23 +1234,25 @@ const StationMetadataModal = ({
                                                         >
                                                             <div className="flex-grow overflow-hidden ">
                                                                 <div className="p-6 flex w-full justify-between items-center">
-                                                                    <button
-                                                                        className="btn btn-ghost btn-circle mr-4"
-                                                                        onClick={() => {
-                                                                            setModals(
-                                                                                {
-                                                                                    show: true,
-                                                                                    title: "ConfirmDelete",
-                                                                                    type: "edit",
-                                                                                },
-                                                                            );
-                                                                            setFileToDel(
-                                                                                file.id,
-                                                                            );
-                                                                        }}
-                                                                    >
-                                                                        <TrashIcon className="size-8 text-red-600" />
-                                                                    </button>
+                                                                    {edit && (
+                                                                        <button
+                                                                            className="btn btn-ghost btn-circle mr-4"
+                                                                            onClick={() => {
+                                                                                setModals(
+                                                                                    {
+                                                                                        show: true,
+                                                                                        title: "ConfirmDelete",
+                                                                                        type: "edit",
+                                                                                    },
+                                                                                );
+                                                                                setFileToDel(
+                                                                                    file.id,
+                                                                                );
+                                                                            }}
+                                                                        >
+                                                                            <TrashIcon className="size-8 text-red-600" />
+                                                                        </button>
+                                                                    )}
                                                                     <div className="flex flex-col w-8/12 text-wrap truncate max-w-full">
                                                                         <h2
                                                                             className="font-semibold text-xl mb-2 truncate"
@@ -1242,11 +1276,26 @@ const StationMetadataModal = ({
                                                                         </p>
                                                                     </div>
                                                                     <a
-                                                                        className="btn-circle btn-ghost flex justify-center w-4/12"
-                                                                        download={
-                                                                            file.filename
-                                                                        }
-                                                                        href={`data:application/pdf;base64,${file.actual_file}`}
+                                                                        className="btn-circle btn-ghost cursor-pointer flex justify-center w-4/12"
+                                                                        onClick={async () => {
+                                                                            const res =
+                                                                                await getFileById(
+                                                                                    file.id,
+                                                                                );
+                                                                            if (
+                                                                                res
+                                                                            ) {
+                                                                                const link =
+                                                                                    document.createElement(
+                                                                                        "a",
+                                                                                    );
+
+                                                                                link.href = `data:application/octet-stream;base64,${res.actual_file}`;
+                                                                                link.download =
+                                                                                    res.filename;
+                                                                                link.click();
+                                                                            }
+                                                                        }}
                                                                     >
                                                                         <ArrowDownTrayIcon className="size-6 self-center" />
                                                                     </a>

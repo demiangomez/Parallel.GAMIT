@@ -8,6 +8,7 @@ export interface GetParams {
     station_api_id?: string;
     visit_api_id?: string;
     api_id?: string;
+    only_metadata?: boolean;
     doy?: string;
     event_type?: string;
     event_date_since?: string;

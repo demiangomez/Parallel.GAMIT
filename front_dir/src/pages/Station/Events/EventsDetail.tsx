@@ -66,8 +66,10 @@ const EventsDetail = ({ event, setStateModal }: Props) => {
                                         </div>
                                     )}
                                 </h2>
-                                <div className="card-body text-center font-medium">
-                                    <span>{formatValue(value, false)}</span>
+                                <div className="card-body font-medium">
+                                    <span className="whitespace-pre-wrap">
+                                        {formatValue(value, false)}
+                                    </span>
                                 </div>
                             </div>
                         );

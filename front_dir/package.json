@@ -23,6 +23,7 @@
         "leaflet": "^1.9.4",
         "leaflet-omnivore": "^0.3.4",
         "moment": "^2.30.1",
+        "pako": "^2.1.0",
         "react": "^18.2.0",
         "react-datepicker": "^6.9.0",
         "react-dom": "^18.2.0",
@@ -38,6 +39,7 @@
     "devDependencies": {
         "@types/dom-to-image": "^2.6.7",
         "@types/leaflet": "^1.9.12",
+        "@types/pako": "^2.0.3",
         "@types/react": "^18.2.66",
         "@types/react-datepicker": "^6.2.0",
         "@types/react-dom": "^18.2.22",

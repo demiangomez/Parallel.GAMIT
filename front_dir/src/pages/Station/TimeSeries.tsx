@@ -13,13 +13,14 @@ import { getStackNamesService, getStationTimeSeriesService } from "@services";
 import { useAuth, useApi } from "@hooks";
 import { showModal } from "@utils";
 
+import { SERIES_FILTERS_STATE } from "@utils/reducerFormStates";
+
 import {
     ErrorResponse,
     Errors,
     StationData,
     StationMetadataServiceData,
 } from "@types";
-import { SERIES_FILTERS_STATE } from "@utils/reducerFormStates";
 
 interface OutletContext {
     station: StationData;
@@ -191,6 +192,19 @@ const TimeSeries = () => {
                                 }
                                 selectFunction={(option: string) => {
                                     setSolutionSelected(option);
+                                    setParams({
+                                        solution: solutionSelected,
+                                        stack: stackSelected,
+                                        date_start: "",
+                                        date_end: "",
+                                        residuals: false,
+                                        no_missing_data: false,
+                                        plot_outliers: false,
+                                        plot_auto_jumps: false,
+                                        no_model: false,
+                                        remove_jumps: false,
+                                        remove_polynomial: false,
+                                    });
                                 }}
                             />
                             {solutionSelected === "GAMIT" &&

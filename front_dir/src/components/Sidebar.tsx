@@ -49,7 +49,7 @@ const Sidebar = ({
     const icons: Icons = {
         Information: InformationCircleIcon,
         Metadata: CodeBracketIcon,
-        TimeSeries: PresentationChartLineIcon,
+        "Time Series": PresentationChartLineIcon,
         Rinex: DocumentTextIcon,
         Visits: PaperAirplaneIcon,
         People: UsersIcon,
@@ -60,7 +60,7 @@ const Sidebar = ({
     const longTitles = [
         "Information",
         "Metadata",
-        "TimeSeries",
+        "Time Series",
         "Rinex",
         "Visits",
         "People",
@@ -161,7 +161,7 @@ const Sidebar = ({
                                                                   });
                                                         }}
                                                     >
-                                                        <span className="mx-4 text-lg font-normal">
+                                                        <span className="mx-4 text-lg font-normal whitespace-nowrap">
                                                             {title}
                                                         </span>
                                                     </button>

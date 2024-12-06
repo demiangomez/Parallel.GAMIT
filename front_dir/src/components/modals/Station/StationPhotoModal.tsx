@@ -10,6 +10,7 @@ import useApi from "@hooks/useApi";
 import { apiOkStatuses } from "@utils";
 import { FileErrors, FilesErrorResponse, StationData } from "@types";
 import { postStationsImagesService } from "@services";
+import Pako from "pako";
 
 interface Props {
     modalType: string;
@@ -42,6 +43,8 @@ const StationPhotoModal = ({ modalType, reFetch, setStateModal }: Props) => {
     const [files, setFiles] = useState<
         { file: File; description: string; id: number; name?: string }[]
     >([]);
+
+    const [progressBar, setProgressBar] = useState<boolean>(false);
 
     const handleCloseModal = () => {
         return reFetch();
@@ -101,16 +104,62 @@ const StationPhotoModal = ({ modalType, reFetch, setStateModal }: Props) => {
 
     const addPhoto = async () => {
         try {
-            setLoading(true);
+            setProgressBar(true);
 
             const formData = new FormData();
 
-            Object.values(files).forEach((value) => {
-                formData.append("image", value.file);
-                formData.append("name", value.name ?? value.file.name);
-                formData.append("description", value.description);
-                formData.append("station", String(station.api_id));
-            });
+            const CHUNK_SIZE = 1024 * 1024 * 3; // 3MB por fragmento
+            const totalChunks = Object.values(files).reduce((total, value) => {
+                const file = value.file;
+                return total + Math.ceil(file.size / CHUNK_SIZE);
+            }, 0);
+
+            let uploadedChunks = 0; // Fragmentos subidos globalmente
+
+            await Promise.all(
+                Object.values(files).map(async (value) => {
+                    const file = value.file;
+                    const totalChunksByFile = Math.ceil(file.size / CHUNK_SIZE);
+
+                    for (let i = 0; i < totalChunksByFile; i++) {
+                        // Fragmento del archivo
+                        const start = i * CHUNK_SIZE;
+                        const end = Math.min(start + CHUNK_SIZE, file.size);
+                        const chunk = file.slice(start, end);
+
+                        // Opcional: Comprimir el fragmento
+                        const chunkBuffer = await chunk.arrayBuffer();
+                        const compressedChunk = Pako.gzip(
+                            new Uint8Array(chunkBuffer),
+                        );
+
+                        // FormData para enviar
+                        formData.append(
+                            "image",
+                            new Blob([compressedChunk]),
+                            `${value.file.name}.part${i + 1}`,
+                        );
+                        formData.append("name", value.name ?? value.file.name);
+                        formData.append("description", value.description);
+                        formData.append("station", String(station.api_id));
+
+                        // Actualiza progreso
+                        uploadedChunks++;
+                        const progress = Math.min(
+                            (uploadedChunks / totalChunks) * 100,
+                            100,
+                        );
+
+                        document.querySelector("progress")!.value = progress;
+
+                        document.getElementById("progress-value")!.innerText =
+                            `${progress.toFixed(0)}%`;
+
+                        progress === 100 && setLoading(true);
+                    }
+                }),
+            );
+
             const res = await postStationsImagesService<
                 any | FilesErrorResponse
             >(api, formData);
@@ -177,6 +226,8 @@ const StationPhotoModal = ({ modalType, reFetch, setStateModal }: Props) => {
                             accept="image/*"
                             onChange={(e) => {
                                 setMsg(undefined);
+                                setProgressBar(false);
+
                                 const files = e.target.files;
                                 if (files && files.length > 0) {
                                     Array.from(files).forEach(() => {
@@ -226,6 +277,7 @@ const StationPhotoModal = ({ modalType, reFetch, setStateModal }: Props) => {
                                             key={f.id}
                                             file={{
                                                 id: String(f.id),
+                                                name: String(f.file.name),
                                             }}
                                             files={files}
                                             fileType={"stationImages"}
@@ -243,7 +295,21 @@ const StationPhotoModal = ({ modalType, reFetch, setStateModal }: Props) => {
                         )}
                     </div>
                 </div>
-                <FileAlert msg={msg} />
+                {progressBar && (
+                    <div className="w-[500px] self-center text-center">
+                        File upload progress
+                        <progress
+                            className="progress progress-success"
+                            value={0}
+                            max="100"
+                        ></progress>
+                        <span
+                            id="progress-value"
+                            className="font-semibold"
+                        ></span>
+                    </div>
+                )}
+                {msg && <FileAlert msg={msg} />}
                 {loading && (
                     <div className="w-full text-center">
                         <span className="loading loading-spinner loading-lg self-center"></span>
@@ -255,7 +321,8 @@ const StationPhotoModal = ({ modalType, reFetch, setStateModal }: Props) => {
                         className="btn btn-success w-5/12"
                         disabled={
                             apiOkStatuses.includes(Number(msg?.status)) ||
-                            loading
+                            loading ||
+                            progressBar
                         }
                     >
                         Submit

@@ -3,7 +3,7 @@ import { FileErrors } from "@types";
 import { useEffect } from "react";
 
 interface FileDetailsProps {
-    file: { id: string };
+    file: { id: string; name?: string };
     files: { file: File; description: string; id: number; name?: string }[];
     fileType: string;
     pageRecord: Record<string, string | number>;
@@ -121,7 +121,7 @@ const FileDetails = ({
             : undefined;
 
     const errorMessageKey = Object.keys(
-        errorMessages?.[Number(file.id)] ?? {},
+        errorMessages?.[(file?.name as any) ?? Number(file.id)] ?? {},
     )[0]; // [0] bcs it return just the first file who returned an error
 
     return (
@@ -133,7 +133,7 @@ const FileDetails = ({
                 <label className="label font-bold">FILE NAME</label>
                 <label
                     className={`w-full input input-bordered flex items-center gap-2 
-                        ${errorMessages?.[Number(file.id)]?.[errorMessageKey] ? "input-error" : ""}
+                        ${errorMessages?.[(file?.name as any) ?? Number(file.id)]?.[errorMessageKey] ? "input-error" : ""}
                     `}
                     title={formState["filename"] as string}
                 >

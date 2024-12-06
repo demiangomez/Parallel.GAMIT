@@ -11,15 +11,12 @@ import {
     VisitPeopleModal,
 } from "@componentsReact";
 
+// ------------------------ //
 import Slider from "react-slick";
-
 import "slick-carousel/slick/slick.css";
 import "slick-carousel/slick/slick-theme.css";
-
 import "@assets/slickCustom.css";
-
-import useApi from "@hooks/useApi";
-import { useAuth } from "@hooks/useAuth";
+// ------------------------ //
 
 import defPhoto from "@assets/images/placeholder.png";
 
@@ -36,12 +33,18 @@ import {
     delStationVisitGnssFilesService,
     delStationVisitsImagesService,
     getPeopleService,
+    getStationVisitFileByIdService,
     getStationVisitFilesService,
+    getStationVisitGnssFileByIdService,
     getStationVisitGnssFilesService,
     getStationVisitsByIdService,
     getStationVisitsImagesService,
     patchStationVisitService,
 } from "@services";
+
+import { useFormReducer, useWaitCursor, useApi, useAuth } from "@hooks";
+
+import { apiOkStatuses, showModal } from "@utils";
 
 import {
     People as PeopleType,
@@ -54,9 +57,6 @@ import {
     StationCampaignsData,
 } from "@types";
 
-import { apiOkStatuses, showModal } from "@utils";
-import { useFormReducer } from "@hooks/index";
-
 interface Props {
     campaigns: StationCampaignsData[] | undefined;
     visitId: number | undefined;
@@ -68,6 +68,17 @@ interface Props {
         >
     >;
 }
+
+type Photo = {
+    id: number;
+    actual_image: string;
+    description: string;
+    name: string;
+};
+
+type expandedStationVisitData = StationVisitsData & {
+    statusCode: number;
+};
 
 const StationVisitDetailModal = ({
     campaigns,
@@ -110,10 +121,11 @@ const StationVisitDetailModal = ({
     // ---
 
     const [loading, setLoading] = useState<boolean>(false);
-
     const [imagesLoading, setImagesLoading] = useState<boolean>(false);
-
     const [commentLoading, setCommentLoading] = useState<boolean>(false);
+    const [fileLoading, setFileLoading] = useState<boolean>(false);
+
+    useWaitCursor(fileLoading);
 
     const [edit, setEdit] = useState<boolean>(false);
 
@@ -165,17 +177,6 @@ const StationVisitDetailModal = ({
     const visitCampaign = campaigns?.find(
         (c) => c.id === Number(visit?.campaign),
     );
-
-    type Photo = {
-        id: number;
-        actual_image: string;
-        description: string;
-        name: string;
-    };
-
-    type expandedStationVisitData = StationVisitsData & {
-        statusCode: number;
-    };
 
     const { formState, dispatch } = useFormReducer({
         comments: "",
@@ -235,6 +236,7 @@ const StationVisitDetailModal = ({
                         limit: 0,
                         offset: 0,
                         visit_api_id: String(visitId),
+                        only_metadata: true,
                     },
                 );
 
@@ -245,6 +247,23 @@ const StationVisitDetailModal = ({
             console.error(error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const getVisitAttachedFileById = async (id: number) => {
+        try {
+            setFileLoading(true);
+            if (!visitId) return null;
+            const res =
+                await getStationVisitFileByIdService<StationVisitsFilesData>(
+                    api,
+                    id,
+                );
+            return res;
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setFileLoading(false);
         }
     };
 
@@ -287,6 +306,7 @@ const StationVisitDetailModal = ({
                         limit: 0,
                         offset: 0,
                         visit_api_id: String(visitId),
+                        only_metadata: true,
                     },
                 );
             if (res.statusCode === 200) {
@@ -296,6 +316,23 @@ const StationVisitDetailModal = ({
             console.error(error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const getVisitGnssFileById = async (id: number) => {
+        try {
+            setFileLoading(true);
+            if (!visitId) return null;
+            const res =
+                await getStationVisitGnssFileByIdService<StationVisitsFilesData>(
+                    api,
+                    id ?? 0,
+                );
+            return res;
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setFileLoading(false);
         }
     };
 
@@ -1328,7 +1365,12 @@ const StationVisitDetailModal = ({
                                                                 <TrashIcon className="size-8 text-red-600" />
                                                             </button>
                                                             <div className="flex flex-col w-8/12 text-pretty break-words max-w-full">
-                                                                <h2 className="card-title">
+                                                                <h2
+                                                                    className="card-title truncate"
+                                                                    title={
+                                                                        f.filename
+                                                                    }
+                                                                >
                                                                     {f.filename}
                                                                 </h2>
                                                                 <p>
@@ -1338,11 +1380,27 @@ const StationVisitDetailModal = ({
                                                                 </p>
                                                             </div>
                                                             <a
-                                                                className="btn-circle btn-ghost flex justify-center w-4/12"
+                                                                className="btn-circle btn-ghost cursor-pointer flex justify-center w-4/12"
                                                                 download={
                                                                     f.filename
                                                                 }
-                                                                href={`data:application/octet-stream;base64,${f.actual_file}`}
+                                                                onClick={async () => {
+                                                                    const res =
+                                                                        await getVisitGnssFileById(
+                                                                            f.id,
+                                                                        );
+                                                                    if (res) {
+                                                                        const link =
+                                                                            document.createElement(
+                                                                                "a",
+                                                                            );
+
+                                                                        link.href = `data:application/octet-stream;base64,${res.actual_file}`;
+                                                                        link.download =
+                                                                            res.filename;
+                                                                        link.click();
+                                                                    }
+                                                                }}
                                                             >
                                                                 <ArrowDownTrayIcon className="size-6 self-center" />
                                                             </a>
@@ -1445,7 +1503,12 @@ const StationVisitDetailModal = ({
                                                                 <TrashIcon className="size-8 text-red-600" />
                                                             </button>
                                                             <div className="flex flex-col w-8/12 text-pretty break-words max-w-full">
-                                                                <h2 className="card-title">
+                                                                <h2
+                                                                    className="card-title truncate"
+                                                                    title={
+                                                                        f.filename
+                                                                    }
+                                                                >
                                                                     {f.filename}
                                                                 </h2>
                                                                 <p>
@@ -1455,13 +1518,26 @@ const StationVisitDetailModal = ({
                                                                 </p>
                                                             </div>
                                                             <a
-                                                                className="btn-circle btn-ghost flex justify-center w-4/12"
-                                                                download={
-                                                                    f.filename
-                                                                }
-                                                                href={`data:application/octet-stream;base64,${f.actual_file}`}
+                                                                className="btn-circle btn-ghost cursor-pointer flex justify-center w-4/12"
+                                                                onClick={async () => {
+                                                                    const res =
+                                                                        await getVisitAttachedFileById(
+                                                                            f.id,
+                                                                        );
+                                                                    if (res) {
+                                                                        const link =
+                                                                            document.createElement(
+                                                                                "a",
+                                                                            );
+
+                                                                        link.href = `data:application/octet-stream;base64,${res.actual_file}`;
+                                                                        link.download =
+                                                                            res.filename;
+                                                                        link.click();
+                                                                    }
+                                                                }}
                                                             >
-                                                                <ArrowDownTrayIcon className="size-6 self-center" />
+                                                                <ArrowDownTrayIcon className="size-6  self-center" />
                                                             </a>
                                                         </div>
                                                     </div>
@@ -1475,6 +1551,7 @@ const StationVisitDetailModal = ({
                                 )}
                             </div>
                         </div>
+
                         {files && files.length > 4 && (
                             <div className="text-center my-4 font-bold">
                                 {!showFiles ? (

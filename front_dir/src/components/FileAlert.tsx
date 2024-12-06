@@ -1,4 +1,5 @@
 import { FileErrors } from "@types";
+
 interface AlertProps {
     msg:
         | {
@@ -15,12 +16,11 @@ const FileAlert = ({ msg }: AlertProps) => {
             ? msg.errors.error_message
             : undefined;
 
-    const errorMessagesKeys = errorMessages
-        ? Object.keys(errorMessages).flatMap((key) =>
-              Object.keys(errorMessages[key as any]),
-          )
-        : [];
-
+    // const errorMessagesKeys = errorMessages
+    //     ? Object.keys(errorMessages).flatMap((key) =>
+    //           Object.keys(errorMessages[key as any]),
+    //       )
+    //     : [];
     return (
         <div className="flex flex-col w-full">
             {msg && (
@@ -50,32 +50,60 @@ const FileAlert = ({ msg }: AlertProps) => {
                                         msg?.msg?.slice(1)
                                     )?.replace("_", " ")}
                                 </span>
-                                {errorMessagesKeys.map(
-                                    (e: string, idx: number) => (
-                                        <div key={e + idx}>
-                                            <span className="text-base font-semibold">
-                                                {e.toUpperCase()}
-                                            </span>
-                                            <span className="font-light text-sm">
-                                                {errorMessages &&
-                                                    Object.keys(
-                                                        errorMessages,
-                                                    ).map((key) => (
-                                                        <span
-                                                            key={key}
-                                                            className="block"
-                                                        >
-                                                            {
-                                                                errorMessages[
-                                                                    key as any
-                                                                ][e]
-                                                            }
+                                {Object.keys(errorMessages || {}).map((key) => {
+                                    const error = errorMessages?.[key as any];
+                                    if (typeof error === "string") {
+                                        return (
+                                            <div
+                                                key={key}
+                                                className="flex flex-col"
+                                            >
+                                                <span className="text-base font-semibold">
+                                                    ERROR
+                                                </span>
+                                                <span className="font-light text-sm">
+                                                    {error}
+                                                </span>
+                                            </div>
+                                        );
+                                    } else if (typeof error === "object") {
+                                        return Object.keys(error).map(
+                                            (subKey) => (
+                                                <div
+                                                    key={subKey}
+                                                    className="flex flex-col"
+                                                >
+                                                    <span className="text-base font-semibold">
+                                                        {subKey.toUpperCase()}
+                                                    </span>
+                                                    {Array.isArray(
+                                                        error[subKey],
+                                                    ) ? (
+                                                        error[subKey].map(
+                                                            (
+                                                                msg: string,
+                                                                idx: number,
+                                                            ) => (
+                                                                <span
+                                                                    key={idx}
+                                                                    className="font-light text-sm"
+                                                                >
+                                                                    {msg}
+                                                                </span>
+                                                            ),
+                                                        )
+                                                    ) : (
+                                                        <span className="font-light text-sm">
+                                                            {error[subKey]}
                                                         </span>
-                                                    ))}
-                                            </span>
-                                        </div>
-                                    ),
-                                )}
+                                                    )}
+                                                </div>
+                                            ),
+                                        );
+                                    } else {
+                                        return null;
+                                    }
+                                })}
                             </div>
                         </>
                     ) : (

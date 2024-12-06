@@ -512,6 +512,18 @@ export async function getStationsFilesAttachedService<T>(
     }
 }
 
+export async function getStationFileByIdAttachedService<T>(
+    api: AxiosInstance,
+    id: number,
+): Promise<T> {
+    try {
+        const response = await api.get(`api/station-attached-files/${id}`);
+        return response.data as Promise<T>;
+    } catch (error) {
+        return Promise.reject(error);
+    }
+}
+
 export async function getStationImagesService<T>(
     api: AxiosInstance,
     params?: GetParams,
@@ -819,6 +831,18 @@ export async function getStationVisitGnssFilesService<T>(
     }
 }
 
+export async function getStationVisitGnssFileByIdService<T>(
+    api: AxiosInstance,
+    id: number,
+): Promise<T> {
+    try {
+        const response = await api.get(`api/visit-gnss-data-files/${id}`);
+        return response.data as Promise<T>;
+    } catch (error) {
+        return Promise.reject(error);
+    }
+}
+
 export async function postStationVisitGnssFilesService<T>(
     api: AxiosInstance,
     data: FormData,
@@ -864,6 +888,18 @@ export async function getStationVisitFilesService<T>(
         const response = await api.get(
             `api/visit-attached-files${paramsArr.length > 0 ? `?${paramsArr}` : ""}`,
         );
+        return response.data as Promise<T>;
+    } catch (error) {
+        return Promise.reject(error);
+    }
+}
+
+export async function getStationVisitFileByIdService<T>(
+    api: AxiosInstance,
+    id: number,
+): Promise<T> {
+    try {
+        const response = await api.get(`api/visit-attached-files/${id}`);
         return response.data as Promise<T>;
     } catch (error) {
         return Promise.reject(error);

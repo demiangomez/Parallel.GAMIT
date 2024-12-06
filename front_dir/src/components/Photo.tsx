@@ -13,8 +13,7 @@ import { delStationsImagesService } from "@services";
 
 import { showModal } from "@utils";
 
-import { useAuth } from "@hooks/useAuth";
-import useApi from "@hooks/useApi";
+import { useAuth, useApi } from "@hooks";
 
 import { ErrorResponse, Errors } from "@types";
 

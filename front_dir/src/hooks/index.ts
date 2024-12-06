@@ -13,3 +13,5 @@ export { default as useFormValidation } from "./useFormValidation";
 export { default as useResizeObserver } from "./useResizeObserver";
 
 export { default as usePopup } from "./usePopup";
+
+export { default as useWaitCursor } from "./useWaitCursor";
