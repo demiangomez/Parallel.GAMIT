@@ -486,6 +486,7 @@ class MyApp(object):
         main_menu.display()
 
 def main():
+    global stn
 
     parser = argparse.ArgumentParser(description='Edit Stations info in the database')
 
