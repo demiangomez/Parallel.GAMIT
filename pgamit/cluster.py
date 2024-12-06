@@ -19,8 +19,8 @@ from sklearn.cluster._kmeans import (_BaseKMeans, _kmeans_single_elkan,
                                      _kmeans_single_lloyd)
 
 
-def prune(OC, method='linear'):
-    """Prune redundant clusters from over cluster (OC) array
+def prune(OC, central_points, method='linear'):
+    """Prune redundant clusters from over cluster (OC) and other arrays
 
     Parameters
     ----------
@@ -30,7 +30,8 @@ def prune(OC, method='linear'):
 
     Returns
 
-    OC : Pruned bool array of shape (n_clusters, n_coordinates)
+    OC : Pruned bool array of shape (n_clusters - N, n_coordinates)
+    central_points : Pruned int array of shape (n_clusters -N,)
     """
     if method == "linear":
         subset = []
@@ -42,13 +43,12 @@ def prune(OC, method='linear'):
             if problems == 0:
                 subset.append(i)
                 OC[i, :] = np.zeros(len(row))
-        return OC[~np.array(subset)]
+        return OC[~np.array(subset)], central_points[~np.array(subset)]
     else:
-        return OC
+        return OC, central_points
 
 
-def select_central_point(labels, coordinates, centroids,
-                         metric='euclidean'):
+def select_central_point(coordinates, centroids, metric='euclidean'):
     """Select the nearest central point in a given neighborhood
 
     Note this code explicitly assumes that centroids are passed from a
@@ -61,8 +61,6 @@ def select_central_point(labels, coordinates, centroids,
     Parameters
     ----------
 
-    labels : ndarray of type int, and shape (n_samples,)
-        Cluster labels for each point in the dataset from prior clustering.
     coordinates : ndarray of shape (n_samples, n_features)
         Coordinates do not need to match what was used for the prior
         clustering; i.e., if 'Euclidean' was used to calculate the prior
