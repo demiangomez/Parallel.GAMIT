@@ -11,6 +11,10 @@ from django.conf import settings
 from django.forms.models import model_to_dict
 from rest_framework.response import Response
 from rest_framework import status
+import gzip
+from django.core.files.base import ContentFile
+from io import BytesIO
+import re
 
 logger = logging.getLogger('django')
 
@@ -207,9 +211,9 @@ class EndpointsClusterUtils:
 
 
 class UploadMultipleFilesUtils:
+
     @staticmethod
     def upload_multiple_files(view, request, main_object_type):
-
         if not isinstance(main_object_type, str) or main_object_type not in ('visit', 'station'):
             raise exceptions.CustomServerErrorExceptionHandler(
                 "main_object_type must be 'visit' or 'station'")
@@ -226,10 +230,44 @@ class UploadMultipleFilesUtils:
             created_files = []
             created_file_instances = set()
             created_file_index = 0
-            for file, main_object, description in zip(files, main_objects, description):
+            file_parts_dict = {}
 
-                data = {'file': file, main_object_type: main_object,
-                        'description': description, 'filename': ''}
+            for file, main_object, description in zip(files, main_objects, description):
+                # check if file ends with regex .part followed by a number
+                if not bool(re.search(r'part\d+$', file.name)):
+                    raise exceptions.CustomValidationErrorExceptionHandler(
+                        f"File {file.name} does not end with 'part' and a number")
+
+                # check that file name has just one .part string on it
+                if len(file.name.split('.part')) > 2:
+                    raise exceptions.CustomValidationErrorExceptionHandler(
+                        f"File {file.name} has more than one '.part' string on it")
+
+                file_name = file.name.rsplit('.part', 1)[0]
+                if file_name not in file_parts_dict:
+                    file_parts_dict[file_name] = []
+                file_parts_dict[file_name].append(
+                    (file, main_object, description))
+
+            for file_name, parts in file_parts_dict.items():
+                parts.sort(key=lambda x: int(
+                    x[0].name.rsplit('.part', 1)[1]))
+                joined_file_content = b''.join(
+                    [part[0].read() for part in parts])
+
+                # Decompress the file using gzip
+                try:
+                    with gzip.GzipFile(fileobj=BytesIO(joined_file_content), mode='rb') as f:
+                        decompressed_data = f.read()
+                except Exception as e:
+                    raise exceptions.CustomValidationErrorExceptionHandler(
+                        f"Failed to decompress file: {str(e)}")
+
+                main_object = parts[0][1]
+                description = parts[0][2]
+                data = {'file': ContentFile(decompressed_data, name=file_name), main_object_type: main_object,
+                        'description': description, 'filename': file_name}
+
                 serializer = view.get_serializer(data=data)
                 serializer.is_valid(raise_exception=True)
                 created_file_instance = serializer.save()
@@ -239,13 +277,12 @@ class UploadMultipleFilesUtils:
                 created_file_index += 1
 
         except Exception as e:
-            # delete created files
             for created_file_instance in created_file_instances:
                 created_file_instance.delete()
 
             return Response({"error_message": {created_file_index: e.detail if hasattr(e, 'detail') else str(e)}}, status=status.HTTP_400_BAD_REQUEST)
         else:
-            return Response({"created_files": created_files}, status=status.HTTP_201_CREATED)
+            return Response({"created_files": [created_file.filename for created_file in created_file_instances]}, status=status.HTTP_201_CREATED)
 
     def upload_multiple_images(view, request, main_object_type):
 
@@ -266,26 +303,60 @@ class UploadMultipleFilesUtils:
             created_images = []
             created_image_instances = set()
             current_image_index = 0
-            for image, main_object, description, name in zip(images, main_objects, description, names):
+            image_parts_dict = {}
 
-                data = {'image': image, main_object_type: main_object,
+            for image, main_object, description, name in zip(images, main_objects, description, names):
+                # check if image ends with regex .part followed by a number
+                if not bool(re.search(r'part\d+$', image.name)):
+                    raise exceptions.CustomValidationErrorExceptionHandler(
+                        f"Image {image.name} does not end with 'part' and a number")
+
+                # check that image name has just one .part string on it
+                if len(image.name.split('.part')) > 2:
+                    raise exceptions.CustomValidationErrorExceptionHandler(
+                        f"Image {image.name} has more than one '.part' string on it")
+
+                image_name = image.name.rsplit('.part', 1)[0]
+                if image_name not in image_parts_dict:
+                    image_parts_dict[image_name] = []
+                image_parts_dict[image_name].append(
+                    (image, main_object, description, name))
+
+            for image_name, parts in image_parts_dict.items():
+                parts.sort(key=lambda x: int(
+                    x[0].name.rsplit('.part', 1)[1]))
+                joined_image_content = b''.join(
+                    [part[0].read() for part in parts])
+
+                # Decompress the image using gzip
+                try:
+                    with gzip.GzipFile(fileobj=BytesIO(joined_image_content), mode='rb') as f:
+                        decompressed_data = f.read()
+                except Exception as e:
+                    raise exceptions.CustomValidationErrorExceptionHandler(
+                        f"Failed to decompress image: {str(e)}")
+
+                main_object = parts[0][1]
+                description = parts[0][2]
+                name = parts[0][3]
+                data = {'image': ContentFile(decompressed_data, name=image_name), main_object_type: main_object,
                         'description': description, 'name': name}
+
                 serializer = view.get_serializer(data=data)
                 serializer.is_valid(raise_exception=True)
                 created_image_instance = serializer.save()
                 created_image_instances.add(created_image_instance)
-                created_images.append({current_image_index: serializer.data})
 
+                created_images.append({current_image_index: serializer.data})
                 current_image_index += 1
 
         except Exception as e:
-            # delete created images
             for created_image_instance in created_image_instances:
                 created_image_instance.delete()
 
             return Response({"error_message": {current_image_index: e.detail if hasattr(e, 'detail') else str(e)}}, status=status.HTTP_400_BAD_REQUEST)
         else:
-            return Response({"created_images": created_images}, status=status.HTTP_201_CREATED)
+            return Response({"created_images": [created_image.name for created_image in created_image_instances]}, status=status.HTTP_201_CREATED)
 
 
 class StationInfoUtils:

@@ -6,6 +6,7 @@ services:
     build: ./backend
     volumes:
       - ./backend:/code
+      - /fs/project/gomez.124/archive_media_osu/:/code/backend_django_project/media
     ports:
       - "8000:8000"
     restart: always

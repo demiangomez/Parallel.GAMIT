@@ -91,7 +91,7 @@ class PersonSerializer(serializers.ModelSerializer):
                 "First name must not contain '/' character.")
         else:
             return value
-        
+
     def validate_last_name(self, value):
         if isinstance(value, str) and "/" in value:
             raise serializers.ValidationError(
@@ -266,10 +266,12 @@ class StationSerializer(serializers.ModelSerializer):
         model = models.Stations
         fields = '__all__'
 
+
 class StationMetaGapsSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.StationMetaGaps
         fields = '__all__'
+
 
 class StationMetaSerializer(serializers.ModelSerializer):
     navigation_actual_file = serializers.SerializerMethodField()
@@ -291,7 +293,7 @@ class StationMetaSerializer(serializers.ModelSerializer):
             'has_gaps': {'read_only': True},
             'has_stationinfo': {'read_only': True}
         }
-    
+
     def get_station_gaps(self, obj):
         gaps = models.StationMetaGaps.objects.filter(station_meta=obj)
         return StationMetaGapsSerializer(gaps, many=True).data
@@ -313,7 +315,7 @@ class StationMetaSerializer(serializers.ModelSerializer):
             return obj.station_type.name
         else:
             return None
-        
+
     def get_station_status_name(self, obj):
 
         if hasattr(obj, "status") and obj.status is not None:
@@ -395,6 +397,12 @@ class StationAttachedFilesSerializer(serializers.ModelSerializer):
         return validate_file_size(value)
 
 
+class StationAttachedFilesOnlyMetadataSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.StationAttachedFiles
+        fields = ['id', 'station', 'filename', 'description']
+
+
 class StationImagesSerializer(serializers.ModelSerializer):
     actual_image = serializers.SerializerMethodField()
 
@@ -428,28 +436,39 @@ class StationImagesSerializer(serializers.ModelSerializer):
         return validate_image_size(value)
 
 
+class StationImagesOnlyMetadataSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.StationImages
+        fields = ['id', 'station', 'name', 'description']
+
+
 class CampaignSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Campaigns
         fields = '__all__'
 
     def validate(self, data):
-        
+
         # Check that date start is before date end.
-        start_date = data['start_date'] if 'start_date' in data else (self.instance.start_date if self.instance is not None and hasattr(self.instance, 'start_date') else None)
-        end_date = data['end_date'] if 'end_date' in data else (self.instance.end_date if self.instance is not None and hasattr(self.instance, 'end_date') else None)
-        
+        start_date = data['start_date'] if 'start_date' in data else (
+            self.instance.start_date if self.instance is not None and hasattr(self.instance, 'start_date') else None)
+        end_date = data['end_date'] if 'end_date' in data else (
+            self.instance.end_date if self.instance is not None and hasattr(self.instance, 'end_date') else None)
+
         if start_date is not None and end_date is not None and start_date > end_date:
-            raise serializers.ValidationError("End Date must occur after Start Date")
-        
+            raise serializers.ValidationError(
+                "End Date must occur after Start Date")
+
         # check if all related visits date fall between campaign date range
         if self.instance is not None:
-            visit_dates = models.Visits.objects.filter(campaign=self.instance).values_list('date', flat=True)
+            visit_dates = models.Visits.objects.filter(
+                campaign=self.instance).values_list('date', flat=True)
 
             for visit_date in visit_dates:
                 if visit_date < start_date or visit_date > end_date:
-                    raise serializers.ValidationError("All visits related to this campaign must have their date within the campaign date range")
-        
+                    raise serializers.ValidationError(
+                        "All visits related to this campaign must have their date within the campaign date range")
+
         return data
 
 
@@ -471,20 +490,23 @@ class VisitSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         # Check that visit date in between campaing date range
-        campaign = data['campaign'] if 'campaign' in data else (self.instance.campaign if self.instance is not None and hasattr(self.instance, 'campaign') else None)
-        date = data['date'] if 'date' in data else (self.instance.date if self.instance is not None and hasattr(self.instance, 'date') else None)
+        campaign = data['campaign'] if 'campaign' in data else (
+            self.instance.campaign if self.instance is not None and hasattr(self.instance, 'campaign') else None)
+        date = data['date'] if 'date' in data else (
+            self.instance.date if self.instance is not None and hasattr(self.instance, 'date') else None)
 
         if campaign is not None and date is not None:
             if date < campaign.start_date or date > campaign.end_date:
-                raise serializers.ValidationError("The visit date is NOT within the campaign date range")
+                raise serializers.ValidationError(
+                    "The visit date is NOT within the campaign date range")
         return data
-    
+
     def get_campaign_name(self, obj):
         if hasattr(obj, "campaign") and obj.campaign is not None:
             return obj.campaign.name
         else:
             return None
-        
+
     def get_log_sheet_actual_file(self, obj):
         """Returns the actual file encoded in base64"""
 
@@ -582,6 +604,12 @@ class VisitAttachedFilesSerializer(serializers.ModelSerializer):
         return validate_file_size(value)
 
 
+class VisitAttachedFilesOnlyMetadataSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.VisitAttachedFiles
+        fields = ['id', 'visit', 'filename', 'description']
+
+
 class VisitImagesSerializer(serializers.ModelSerializer):
     actual_image = serializers.SerializerMethodField()
 
@@ -615,6 +643,12 @@ class VisitImagesSerializer(serializers.ModelSerializer):
         return validate_image_size(value)
 
 
+class VisitImagesOnlyMetadataSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.VisitImages
+        fields = ['id', 'visit', 'name', 'description']
+
+
 class VisitGNSSDataFilesSerializer(serializers.ModelSerializer):
     actual_file = serializers.SerializerMethodField()
 
@@ -646,6 +680,12 @@ class VisitGNSSDataFilesSerializer(serializers.ModelSerializer):
 
     def validate_file(self, value):
         return validate_file_size(value)
+
+
+class VisitGNSSDataFilesOnlyMetadataSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.VisitGNSSDataFiles
+        fields = ['id', 'visit', 'filename', 'description']
 
 
 class StationCodeSerializer(serializers.ModelSerializer):

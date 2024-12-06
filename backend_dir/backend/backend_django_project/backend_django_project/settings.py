@@ -71,7 +71,7 @@ if config['django']['https'] == "True":
 
 ALLOWED_HOSTS = ["*"]
 
-MEDIA_ROOT = config['django']['media_root']
+MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 MEDIA_URL = '/media/'
 
 # Application definition
@@ -93,6 +93,10 @@ INSTALLED_APPS = [
     'auditlog',
     'drf_standardized_errors',
     'django_cleanup.apps.CleanupConfig',
+]
+
+CORS_ALLOW_HEADERS = [
+    'Content-Encoding',
 ]
 
 CORS_ALLOW_ALL_ORIGINS = True

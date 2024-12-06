@@ -502,6 +502,13 @@ class StationAttachedFilesList(CustomListCreateAPIView):
     def post(self, request, *args, **kwargs):
         return utils.UploadMultipleFilesUtils.upload_multiple_files(self, request, 'station')
 
+    def list(self, request, *args, **kwargs):
+        only_metadata = request.query_params.get(
+            'only_metadata', 'false').lower() == 'true'
+        if only_metadata:
+            self.serializer_class = serializers.StationAttachedFilesOnlyMetadataSerializer
+        return super().list(request, *args, **kwargs)
+
 
 class StationAttachedFilesDetail(generics.RetrieveDestroyAPIView):
     queryset = models.StationAttachedFiles.objects.all()
@@ -519,6 +526,13 @@ class StationImagesList(CustomListCreateAPIView):
                    \nThe endpoint expects each one of the following parameters per image: 'station' for station api_id, 'image', 'name', 'description'.""")
     def post(self, request, *args, **kwargs):
         return utils.UploadMultipleFilesUtils.upload_multiple_images(self, request, 'station')
+
+    def list(self, request, *args, **kwargs):
+        only_metadata = request.query_params.get(
+            'only_metadata', 'false').lower() == 'true'
+        if only_metadata:
+            self.serializer_class = serializers.StationImagesOnlyMetadataSerializer
+        return super().list(request, *args, **kwargs)
 
 
 class StationImagesDetail(generics.RetrieveDestroyAPIView):
@@ -625,6 +639,13 @@ class VisitAttachedFilesList(CustomListCreateAPIView):
     def post(self, request, *args, **kwargs):
         return utils.UploadMultipleFilesUtils.upload_multiple_files(self, request, 'visit')
 
+    def list(self, request, *args, **kwargs):
+        only_metadata = request.query_params.get(
+            'only_metadata', 'false').lower() == 'true'
+        if only_metadata:
+            self.serializer_class = serializers.VisitAttachedFilesOnlyMetadataSerializer
+        return super().list(request, *args, **kwargs)
+
 
 class VisitAttachedFilesDetail(generics.RetrieveDestroyAPIView):
     queryset = models.VisitAttachedFiles.objects.all()
@@ -644,6 +665,13 @@ class VisitImagesList(CustomListCreateAPIView):
 
         return utils.UploadMultipleFilesUtils.upload_multiple_images(self, request, 'visit')
 
+    def list(self, request, *args, **kwargs):
+        only_metadata = request.query_params.get(
+            'only_metadata', 'false').lower() == 'true'
+        if only_metadata:
+            self.serializer_class = serializers.VisitImagesOnlyMetadataSerializer
+        return super().list(request, *args, **kwargs)
+
 
 class VisitImagesDetail(generics.RetrieveDestroyAPIView):
     queryset = models.VisitImages.objects.all()
@@ -660,6 +688,13 @@ class VisitGNSSDataFilesList(CustomListCreateAPIView):
     @extend_schema(description="""The endpoint expects each one of the following parameters per file: 'visit' for visit id, 'file', 'description'.""")
     def post(self, request, *args, **kwargs):
         return utils.UploadMultipleFilesUtils.upload_multiple_files(self, request, 'visit')
+
+    def list(self, request, *args, **kwargs):
+        only_metadata = request.query_params.get(
+            'only_metadata', 'false').lower() == 'true'
+        if only_metadata:
+            self.serializer_class = serializers.VisitGNSSDataFilesOnlyMetadataSerializer
+        return super().list(request, *args, **kwargs)
 
 
 class VisitGNSSDataFilesDetail(generics.RetrieveDestroyAPIView):
