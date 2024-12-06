@@ -4,6 +4,7 @@ services:
     build: ./backend_dir/backend
     volumes:
       - ./backend_dir/backend:/code
+      - /fs/project/gomez.124/archive_media_osu/:/code/backend_django_project/media
     ports:
       - "8000:8000"
     restart: always
@@ -16,6 +17,6 @@ services:
       - ./front_dir/.env:/app/.env
       - ./front_dir/nginx.conf:/etc/nginx/nginx.conf
     ports:
-      - '80:5100'
+      - '2375:5100'
     depends_on:
       - backend
