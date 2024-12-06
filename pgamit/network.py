@@ -182,15 +182,15 @@ class Network(object):
         qmean = BisectingQMeans(min_size=2, random_state=42)
         qmean.fit(points)
         # snap centroids to closest station coordinate
-        central_points = select_central_point(qmean.labels_, points,
-                                              qmean.cluster_centers_)
+        central_points = select_central_point(points, qmean.cluster_centers_)
         # expand the initial clusters to overlap stations with neighbors
         OC = over_cluster(qmean.labels_, points, metric='euclidean',
                           neighborhood=5, overlap_points=2)
         # set 'method=None' to disable
-        OC = prune(OC, method='linear')
+        OC, central_points = prune(OC, central_points, method='linear')
         # calculate all 'tie' stations
         ties = np.where(np.sum(OC, axis=0) > 1)[0]
+
         # monotonic labels, compatible with previous data structure / api
         cluster_labels = []
         station_labels = []
