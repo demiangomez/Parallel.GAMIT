@@ -71,7 +71,7 @@ if config['django']['https'] == "True":
 
 ALLOWED_HOSTS = ["*"]
 
-MEDIA_ROOT = os.path.join(BASE_DIR, config['django']['media_relative_path'])
+MEDIA_ROOT = config['django']['media_root']
 MEDIA_URL = '/media/'
 
 # Application definition

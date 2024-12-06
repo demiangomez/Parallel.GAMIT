@@ -13,3 +13,4 @@ media_relative_path = media
 max_size_image_mb = 75
 max_size_file_mb = 75
 https = False
+media_root = /home/user/media
