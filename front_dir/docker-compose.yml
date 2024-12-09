@@ -1,11 +1,12 @@
-version: "3.8"
 services:
     webgps:
         build: .
-        container_name: webgps
+        container_name: gnss-frontend
         restart: always
         volumes:
             - .env:/app/.env
             - ./nginx.conf:/etc/nginx/nginx.conf
         ports:
-            - 80:80
+            - '${APP_PORT}:5100'
+        depends_on:
+        - backend

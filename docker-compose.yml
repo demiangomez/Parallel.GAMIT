@@ -1,22 +1,11 @@
 services:
   backend:
-    container_name: gnss-backend
-    build: ./backend_dir/backend
-    volumes:
-      - ./backend_dir/backend:/code
-      - ${MEDIA_FOLDER_HOST_PATH}:/code/backend_django_project/media
-    ports:
-      - "8000:8000"
-    restart: always
+    extends:
+      file: backend_dir/docker-compose.yml
+      service: backend
 
   webgps:
-    build: ./front_dir
-    container_name: gnss-frontend
-    restart: always
-    volumes:
-      - ./front_dir/.env:/app/.env
-      - ./front_dir/nginx.conf:/etc/nginx/nginx.conf
-    ports:
-      - '2375:5100'
-    depends_on:
-      - backend
+    extends:
+      file: front_dir/docker-compose.yml
+      service: webgps
+    

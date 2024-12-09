@@ -19,12 +19,13 @@ Skip this part if you are using an existing db
 
 ### Procedure
 
-1. Define a conf file named "gnss_data.cfg" under 'backend_dir/backend/' following 'backend_dir/backend/conf_example.txt'
-2. Define a conf file named ".env" under 'front_dir/' following 'front_dir/.env.sample'
-3. From the root directory:
+1. Define a conf file named ".env" inside the root folder following '.env.sample'
+2. Define a conf file named "gnss_data.cfg" under 'backend_dir/backend/' following 'backend_dir/backend/conf_example.txt'
+3. Define a conf file named ".env" under 'front_dir/' following 'front_dir/.env.sample'
+4. From the root directory:
 
 ```
-   MEDIA_FOLDER_HOST_PATH=/path/to/media-folder docker compose up --build -d
+   docker compose up --build -d
 ```
 
 ### Usage
