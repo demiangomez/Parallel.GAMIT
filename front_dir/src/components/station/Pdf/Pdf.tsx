@@ -306,6 +306,8 @@ const Pdf = ({
                             src={{
                                 uri: stationLocationScreen ?? "",
                                 method: "GET",
+                                headers: {},
+                                body: "",
                             }}
                             style={{
                                 // height: 230,
@@ -339,6 +341,8 @@ const Pdf = ({
                             src={{
                                 uri: stationLocationDetailScreen ?? "",
                                 method: "GET",
+                                headers: {},
+                                body: "",
                             }}
                             style={{
                                 marginVertical: 10,
@@ -437,6 +441,9 @@ const Pdf = ({
                                     }}
                                     src={{
                                         uri: `${img.actual_image}`,
+                                        method: "GET",
+                                        headers: {},
+                                        body: "",
                                     }}
                                 />
                             ))
@@ -562,11 +569,11 @@ const Pdf = ({
                                 <Text>First RINEX: </Text>
                                 <Text style={{ fontWeight: "bold" }}>
                                     {firstRinex
-                                        ? formattedDates(
+                                        ? (formattedDates(
                                               new Date(
                                                   firstRinex?.observation_s_time,
                                               ),
-                                          ) ?? "N/A"
+                                          ) ?? "N/A")
                                         : "N/A"}
                                 </Text>
                             </View>
@@ -579,11 +586,11 @@ const Pdf = ({
                                 <Text>Last RINEX: </Text>
                                 <Text style={{ fontWeight: "bold" }}>
                                     {lastRinex
-                                        ? formattedDates(
+                                        ? (formattedDates(
                                               new Date(
                                                   lastRinex?.observation_s_time,
                                               ),
-                                          ) ?? "N/A"
+                                          ) ?? "N/A")
                                         : "N/A"}
                                 </Text>
                             </View>
