@@ -148,6 +148,7 @@ const Visits = () => {
                         limit: 0,
                         offset: 0,
                         station_api_id: String(station?.api_id),
+                        thumbnail: true,
                     },
                 );
 

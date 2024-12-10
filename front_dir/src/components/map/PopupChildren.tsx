@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useOutletContext } from "react-router-dom";
 
 import useApi from "@hooks/useApi";
 import { useAuth } from "@hooks/useAuth";
@@ -39,6 +39,11 @@ const PopupChildren = ({
     const { station_code, network_code, country_code, lat, lon, height } =
         station || {};
 
+    const outletContext = useOutletContext<{
+        stationMeta: StationMetadataServiceData;
+    }>();
+    const stationMeta = outletContext ? outletContext.stationMeta : undefined;
+
     const data = {
         Station: station_code,
         Network: network_code,
@@ -58,7 +63,7 @@ const PopupChildren = ({
         undefined,
     );
 
-    const [stationMeta, setStationMeta] = useState<
+    const [stationMetaByMain, setStationMetaByMain] = useState<
         StationMetadataServiceData | undefined
     >(undefined);
 
@@ -96,7 +101,7 @@ const PopupChildren = ({
                 Number(station?.api_id),
             );
             if (res) {
-                setStationMeta(res);
+                setStationMetaByMain(res);
             }
         } catch (err) {
             console.error(err);
@@ -108,21 +113,22 @@ const PopupChildren = ({
     useEffect(() => {
         if (fromMain) {
             getRinex();
+            getStationMeta();
         }
     }, [fromMain]);
-
-    useEffect(() => {
-        getStationMeta();
-    }, []);
 
     return (
         <div
             className={`flex flex-col self-start space-y-2 max-h-82 overflow-y-auto pr-2 md:w-[400px] lg:w-[450px] `}
         >
             <span className="w-full bg-green-400 px-4 py-1 text-center font-bold self-center">
-                {stationMeta?.station_type_name
-                    ? stationMeta?.station_type_name.toUpperCase()
-                    : "Station type not defined"}
+                {fromMain
+                    ? stationMetaByMain?.station_type_name
+                        ? stationMetaByMain?.station_type_name.toUpperCase()
+                        : "Station type not defined"
+                    : stationMeta?.station_type_name
+                      ? stationMeta?.station_type_name.toUpperCase()
+                      : "Station type not defined"}
             </span>
             <div className="flex justify-between w-full divide-x-2">
                 <div className="flex flex-col grow justify-center space-y-2">

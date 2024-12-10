@@ -1035,6 +1035,7 @@ class StationImages(BaseModel):
             models.UniqueConstraint(
                 fields=['station', 'name'], name='station_name_unique')
         ]
+        ordering = ["name"]
 
 
 class StationStatus(BaseModel):
@@ -1068,6 +1069,7 @@ class StationAttachedFiles(BaseModel):
             models.UniqueConstraint(
                 fields=['station', 'filename'], name='station_filename_unique')
         ]
+        ordering = ["filename"]
 
 
 class StationMeta(BaseModel):
@@ -1153,6 +1155,7 @@ class VisitImages(BaseModel):
             models.UniqueConstraint(
                 fields=['visit', 'name'], name='visit_name_unique')
         ]
+        ordering = ["name"]
 
 
 class VisitAttachedFiles(BaseModel):
@@ -1166,6 +1169,7 @@ class VisitAttachedFiles(BaseModel):
             models.UniqueConstraint(
                 fields=['visit', 'filename'], name='visit_filename_unique')
         ]
+        ordering = ["filename"]
 
 
 class VisitGNSSDataFiles(BaseModel):
@@ -1179,6 +1183,7 @@ class VisitGNSSDataFiles(BaseModel):
             models.UniqueConstraint(
                 fields=['visit', 'filename'], name='visit_filename_gnss_unique')
         ]
+        ordering = ["filename"]
 
 
 def enable_automatic_auditlog():

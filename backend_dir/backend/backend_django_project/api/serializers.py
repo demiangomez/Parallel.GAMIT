@@ -421,16 +421,8 @@ class StationImagesSerializer(serializers.ModelSerializer):
         return internal_value
 
     def get_actual_image(self, obj):
-        """Returns the actual image encoded in base64"""
-
-        if obj.image and obj.image.name:
-            try:
-                with open(obj.image.path, 'rb') as photo_file:
-                    return base64.b64encode(photo_file.read()).decode('utf-8')
-            except FileNotFoundError:
-                return None
-        else:
-            return None
+        request = self.context.get('request', None)
+        return utils.get_actual_image(obj, request)
 
     def validate_image(self, value):
         return validate_image_size(value)
@@ -628,16 +620,8 @@ class VisitImagesSerializer(serializers.ModelSerializer):
         return internal_value
 
     def get_actual_image(self, obj):
-        """Returns the actual image encoded in base64"""
-
-        if obj.image and obj.image.name:
-            try:
-                with open(obj.image.path, 'rb') as photo_file:
-                    return base64.b64encode(photo_file.read()).decode('utf-8')
-            except FileNotFoundError:
-                return None
-        else:
-            return None
+        request = self.context.get('request', None)
+        return utils.get_actual_image(obj, request)
 
     def validate_image(self, value):
         return validate_image_size(value)

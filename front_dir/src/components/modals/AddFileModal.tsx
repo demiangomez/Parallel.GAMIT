@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Alert, FileAlert, FileDetails, Modal } from "@componentsReact";
+import { Alert, FileDetails, FileResultCard, Modal } from "@componentsReact";
 
 import { useApi, useAuth, useFormReducer } from "@hooks";
 
@@ -49,10 +49,6 @@ const AddFileModal = ({
 
     const [loading, setLoading] = useState<boolean>(false);
 
-    const [msg, setMsg] = useState<
-        { status: number; msg: string; errors?: FileErrors } | undefined
-    >(undefined);
-
     const [bMsg, setBMsg] = useState<
         { status: number; msg: string; errors?: Errors } | undefined
     >(undefined);
@@ -71,6 +67,10 @@ const AddFileModal = ({
 
     const [files, setFiles] = useState<
         { file: File; description: string; id: number; name?: string }[]
+    >([]);
+
+    const [fileResults, setFileResults] = useState<
+        { id: number; errors: FileErrors | undefined }[]
     >([]);
 
     const [progressBar, setProgressBar] = useState<boolean>(false);
@@ -169,7 +169,6 @@ const AddFileModal = ({
         try {
             if (pageType === "visit") {
                 const formData = new FormData();
-
                 const CHUNK_SIZE = 1024 * 1024 * 3; // 3MB por fragmento
                 const totalChunks = Object.values(files).reduce(
                     (total, value) => {
@@ -179,6 +178,9 @@ const AddFileModal = ({
                     0,
                 );
 
+                let res: VisitFilesData | FilesErrorResponse | undefined =
+                    undefined;
+
                 let uploadedChunks = 0; // Fragmentos subidos globalmente
 
                 if (fileType === "gnss" || fileType === "other") {
@@ -186,6 +188,7 @@ const AddFileModal = ({
 
                     await Promise.all(
                         Object.values(files).map(async (value) => {
+                            const formDataByFile = new FormData();
                             const { filetype } = getFileRecordKeys();
 
                             const file = value.file;
@@ -209,16 +212,16 @@ const AddFileModal = ({
                                 );
 
                                 // FormData para enviar
-                                formData.append(
+                                formDataByFile.append(
                                     filetype,
                                     new Blob([compressedChunk]),
                                     `${value.file.name}.part${i + 1}`,
                                 );
-                                formData.append(
+                                formDataByFile.append(
                                     "description",
                                     value.description,
                                 );
-                                formData.append(pageType, String(id));
+                                formDataByFile.append(pageType, String(id));
 
                                 // Actualiza progreso
                                 uploadedChunks++;
@@ -236,28 +239,56 @@ const AddFileModal = ({
 
                                 progress === 100 && setLoading(true);
                             }
+
+                            const service =
+                                fileType === "gnss"
+                                    ? postStationVisitGnssFilesService
+                                    : postStationVisitFilesService;
+                            res = await service<
+                                VisitFilesData | FilesErrorResponse
+                            >(api, formDataByFile);
+                            if (res) {
+                                if ("status" in res) {
+                                    setFileResults((prev: any[]) => {
+                                        if (
+                                            res &&
+                                            "status" in res &&
+                                            res.response
+                                        ) {
+                                            const errorWithId = {
+                                                id: value.id,
+                                                errors: res.response
+                                                    .error_message,
+                                            };
+
+                                            return [...prev, errorWithId];
+                                        }
+                                        return prev;
+                                    });
+                                } else {
+                                    const fileName =
+                                        value.name ?? value.file.name;
+                                    setFileResults((prev: any[]) => {
+                                        if (res) {
+                                            const errorWithId = {
+                                                id: value.id,
+                                                errors: {
+                                                    [fileName]: {
+                                                        success: [
+                                                            "File added successfully",
+                                                        ],
+                                                    },
+                                                },
+                                            };
+
+                                            return [...prev, errorWithId];
+                                        }
+                                        return prev;
+                                    });
+                                }
+                            }
                         }),
                     );
-
-                    const service =
-                        fileType === "gnss"
-                            ? postStationVisitGnssFilesService
-                            : postStationVisitFilesService;
-                    const res = await service<
-                        VisitFilesData | FilesErrorResponse
-                    >(api, formData);
-                    if ("status" in res) {
-                        setMsg({
-                            status: res.statusCode,
-                            msg: "",
-                            errors: res.response,
-                        });
-                    } else {
-                        setMsg({
-                            status: res.statusCode,
-                            msg: "File added successfully",
-                        });
-                    }
                 }
 
                 if (fileType === "visitImage") {
@@ -265,6 +296,8 @@ const AddFileModal = ({
 
                     await Promise.all(
                         Object.values(files).map(async (value) => {
+                            const formDataByFile = new FormData();
+
                             const { filetype, filename } = getFileRecordKeys();
 
                             const file = value.file;
@@ -288,20 +321,20 @@ const AddFileModal = ({
                                 );
 
                                 // FormData para enviar
-                                formData.append(
+                                formDataByFile.append(
                                     filetype,
                                     new Blob([compressedChunk]),
-                                    `${value.file.name}.part${i + 1}`,
+                                    `${value.name}.part${i + 1}`,
                                 );
-                                formData.append(
+                                formDataByFile.append(
                                     filename,
                                     value.name ?? value.file.name,
                                 );
-                                formData.append(
+                                formDataByFile.append(
                                     "description",
                                     value.description,
                                 );
-                                formData.append(pageType, String(id));
+                                formDataByFile.append(pageType, String(id));
 
                                 // Actualiza progreso
                                 uploadedChunks++;
@@ -319,25 +352,53 @@ const AddFileModal = ({
 
                                 progress === 100 && setLoading(true);
                             }
+
+                            res = await postStationVisitsImagesService<
+                                VisitFilesData | FilesErrorResponse
+                            >(api, formDataByFile);
+
+                            if (res) {
+                                if ("status" in res) {
+                                    setFileResults((prev: any[]) => {
+                                        if (
+                                            res &&
+                                            "status" in res &&
+                                            res.response
+                                        ) {
+                                            const errorWithId = {
+                                                id: value.id,
+                                                errors: res.response
+                                                    .error_message,
+                                            };
+
+                                            return [...prev, errorWithId];
+                                        }
+                                        return prev;
+                                    });
+                                } else {
+                                    const fileName =
+                                        value.name ?? value.file.name;
+                                    setFileResults((prev: any[]) => {
+                                        if (res) {
+                                            const errorWithId = {
+                                                id: value.id,
+                                                errors: {
+                                                    [fileName]: {
+                                                        success: [
+                                                            "Image added successfully",
+                                                        ],
+                                                    },
+                                                },
+                                            };
+
+                                            return [...prev, errorWithId];
+                                        }
+                                        return prev;
+                                    });
+                                }
+                            }
                         }),
                     );
-
-                    const res = await postStationVisitsImagesService<
-                        VisitFilesData | FilesErrorResponse
-                    >(api, formData);
-
-                    if ("status" in res) {
-                        setMsg({
-                            status: res.statusCode,
-                            msg: "",
-                            errors: res.response,
-                        });
-                    } else {
-                        setMsg({
-                            status: res.statusCode,
-                            msg: "Images added successfully",
-                        });
-                    }
                 }
 
                 if (fileType === "logsheet" || fileType === "navfile") {
@@ -466,9 +527,21 @@ const AddFileModal = ({
 
     const multipleFileTypes = ["gnss", "other", "visitImage"];
 
+    const hasErrorMessage = fileResults.some(
+        (result) =>
+            result.errors &&
+            Object.values(result.errors).some((error) => !error.success),
+    );
+
+    const hasSuccessMessage = fileResults.some(
+        (result) =>
+            result.errors &&
+            Object.values(result.errors).some((error) => error.success),
+    );
+
     return (
         <Modal
-            close={false}
+            close={true}
             modalId={"AddFile"}
             size={!multipleFileTypes.includes(fileType) ? "sm" : "lg"}
             handleCloseModal={() => handleCloseModal()}
@@ -494,9 +567,9 @@ const AddFileModal = ({
                         accept={fileType === "visitImage" ? "image/*" : "*"}
                         className={` ${otherErrorBadge?.includes("file") ? "file-input-error" : ""} file-input file-input-bordered w-full `}
                         onChange={(e) => {
-                            setMsg(undefined);
                             setBMsg(undefined);
                             setProgressBar(false);
+                            setFileResults([]);
 
                             const files = e.target.files;
                             if (files && files.length > 0) {
@@ -538,7 +611,6 @@ const AddFileModal = ({
                             } else if (files && files.length === 0) {
                                 setFiles([]);
                                 setProgressBar(false);
-                                setMsg(undefined);
                                 setBMsg(undefined);
                                 setGlobalDescription("");
                             }
@@ -588,7 +660,7 @@ const AddFileModal = ({
                                         files={files}
                                         fileType={fileType}
                                         pageRecord={{ pageType, id: id ?? 0 }}
-                                        msg={msg}
+                                        fileResults={fileResults}
                                         setFiles={setFiles}
                                     />
                                 ))}
@@ -596,11 +668,14 @@ const AddFileModal = ({
                         </div>
                     )}
                 </div>
+
+                <FileResultCard fileResults={fileResults} />
+
                 {progressBar && (
-                    <div className="w-[500px] self-center text-center">
+                    <div className="w-8/12 self-center text-center">
                         File upload progress
                         <progress
-                            className="progress progress-success"
+                            className={`progress ${fileResults.length > 0 ? (hasErrorMessage && !hasSuccessMessage ? "progress-error" : hasErrorMessage && hasSuccessMessage ? "progress-warning" : "progress-success") : "progress-success"}`}
                             value={0}
                             max="100"
                         ></progress>
@@ -610,8 +685,8 @@ const AddFileModal = ({
                         ></span>
                     </div>
                 )}
+
                 {bMsg && <Alert msg={bMsg} />}
-                {msg && <FileAlert msg={msg} />}
                 {loading && (
                     <div className="w-full text-center">
                         <span className="loading loading-spinner loading-lg self-center"></span>
@@ -620,10 +695,11 @@ const AddFileModal = ({
                 <button
                     className="btn btn-success self-center w-3/12"
                     disabled={
+                        files.length === 0 ||
                         progressBar ||
                         loading ||
-                        apiOkStatuses.includes(Number(msg?.status)) ||
-                        apiOkStatuses.includes(Number(bMsg?.status))
+                        apiOkStatuses.includes(Number(bMsg?.status)) ||
+                        fileResults.length > 0
                     }
                 >
                     {" "}

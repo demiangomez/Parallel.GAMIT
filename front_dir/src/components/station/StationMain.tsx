@@ -19,6 +19,7 @@ interface OutletContext {
     visitForKml: StationVisitsData;
     photoLoading: boolean;
     loadPdf: boolean;
+    loadedPdfData: boolean;
     loadedMap: boolean;
     getStationImages: () => void;
     setStationLocationScreen: (url: string) => void;
@@ -36,6 +37,7 @@ const StationMain = () => {
         visitForKml,
         photoLoading,
         loadPdf,
+        loadedPdfData,
         getStationImages,
         setStationLocationScreen,
         setStationLocationDetailScreen,
@@ -83,6 +85,7 @@ const StationMain = () => {
                                 : (stationMeta?.navigation_actual_file ?? "")
                         }
                         loadPdf={loadPdf}
+                        loadedPdfData={loadedPdfData}
                         setStationLocationScreen={setStationLocationScreen}
                         setStationLocationDetailScreen={
                             setStationLocationDetailScreen

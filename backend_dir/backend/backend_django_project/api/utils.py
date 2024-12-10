@@ -15,8 +15,45 @@ import gzip
 from django.core.files.base import ContentFile
 from io import BytesIO
 import re
+import base64
+from io import BytesIO
+from PIL import Image
 
 logger = logging.getLogger('django')
+
+
+def get_actual_image(obj, request):
+    """Returns the actual image encoded in base64, optionally as a thumbnail"""
+    thumbnail = request.query_params.get(
+        'thumbnail', 'false').lower() == 'true' if request else False
+    original_quality = request.query_params.get(
+        'original_quality', 'false').lower() == 'true' if request else False
+
+    if obj.image and obj.image.name:
+        try:
+            with open(obj.image.path, 'rb') as photo_file:
+                image_data = photo_file.read()
+                if thumbnail:
+                    image = Image.open(BytesIO(image_data))
+                    image.thumbnail((400, 400))
+                    buffer = BytesIO()
+                    if image.mode in ("RGBA", "P"):
+                        image = image.convert("RGB")
+                    image.save(buffer, format="JPEG")
+                    image_data = buffer.getvalue()
+                elif not original_quality:
+                    image = Image.open(BytesIO(image_data))
+                    image.thumbnail((1000, 1000))
+                    buffer = BytesIO()
+                    if image.mode in ("RGBA", "P"):
+                        image = image.convert("RGB")
+                    image.save(buffer, format="JPEG")
+                    image_data = buffer.getvalue()
+                return base64.b64encode(image_data).decode('utf-8')
+        except FileNotFoundError:
+            return None
+    else:
+        return None
 
 
 class StationMetaUtils:
@@ -280,7 +317,7 @@ class UploadMultipleFilesUtils:
             for created_file_instance in created_file_instances:
                 created_file_instance.delete()
 
-            return Response({"error_message": {created_file_index: e.detail if hasattr(e, 'detail') else str(e)}}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error_message": {file_name: e.detail if hasattr(e, 'detail') else str(e)}}, status=status.HTTP_400_BAD_REQUEST)
         else:
             return Response({"created_files": [created_file.filename for created_file in created_file_instances]}, status=status.HTTP_201_CREATED)
 
@@ -354,7 +391,7 @@ class UploadMultipleFilesUtils:
             for created_image_instance in created_image_instances:
                 created_image_instance.delete()
 
-            return Response({"error_message": {current_image_index: e.detail if hasattr(e, 'detail') else str(e)}}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error_message": {image_name: e.detail if hasattr(e, 'detail') else str(e)}}, status=status.HTTP_400_BAD_REQUEST)
         else:
             return Response({"created_images": [created_image.name for created_image in created_image_instances]}, status=status.HTTP_201_CREATED)
 

@@ -23,7 +23,7 @@ Skip this part if you are using an existing db
 2. From the root directory:
 
 ```
-   docker compose up --build -d
+   MEDIA_FOLDER_HOST_PATH=/path/to/media-folder docker compose up --build -d
 ```
 
 ### Usage

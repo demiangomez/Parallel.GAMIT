@@ -68,7 +68,7 @@ const Sidebar = ({
     ];
 
     // const stationPages = ["People", "Visits"];
-    const stationPages = ["People", "Visits", "Rinex", "TimeSeries", "Events"];
+    const stationPages = ["People", "Visits", "Rinex", "Time Series", "Events"];
 
     // const admTitles = ["Admin", "Users", "Settings"];
     const sidebarWidth = show ? "w-72" : "w-32";
@@ -145,7 +145,7 @@ const Sidebar = ({
                                                                 title,
                                                             )
                                                                 ? navigate(
-                                                                      `/${station.network_code}/${station.station_code}/${title.toLowerCase()}`,
+                                                                      `/${station.network_code}/${station.station_code}/${title.replace(" ", "").toLowerCase()}`,
                                                                       {
                                                                           state: {
                                                                               ...station,

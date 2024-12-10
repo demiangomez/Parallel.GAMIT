@@ -8,6 +8,7 @@ import {
     useMap,
 } from "react-leaflet";
 import { PopupChildren, Spinner } from "@componentsReact";
+
 import domtoimage from "dom-to-image";
 import JSZip from "jszip";
 import { LatLngExpression } from "leaflet";
@@ -20,19 +21,11 @@ import gapsIcon from "@assets/images/caution.png";
 
 import { StationData } from "@types";
 
-// interface MyMapContainerProps {
-//     center: LatLngExpression;
-//     zoom: number;
-//     scrollWheelZoom: boolean;
-//     style?: React.CSSProperties;
-//     id: string;
-//     zoomAnimation: boolean;
-// }
-
 interface MapProps {
     station: StationData | undefined;
     base64Data: string; // Base64 data from the database
     loadPdf: boolean;
+    loadedPdfData: boolean;
     setStationLocationScreen?: (url: string) => void;
     setStationLocationDetailScreen?: (url: string) => void;
     setLoadPdf: React.Dispatch<React.SetStateAction<boolean>>;
@@ -107,6 +100,7 @@ const MapStation = ({
     station,
     base64Data,
     loadPdf,
+    loadedPdfData,
     setStationLocationScreen,
     setStationLocationDetailScreen,
     setLoadPdf,
@@ -120,7 +114,92 @@ const MapStation = ({
         zoomAnimation: true,
     });
 
+    const [isMapReady, setIsMapReady] = useState(false);
+    const MapEvents = ({
+        setIsMapReady,
+    }: {
+        setIsMapReady: (ready: boolean) => void;
+    }) => {
+        const map = useMap();
+        const tilesLoading = new Set<string>(); // Usamos un Set para rastrear los tiles en carga.
+
+        useEffect(() => {
+            const handleTileLoadStart = (e: any) => {
+                tilesLoading.add(e.tile.src); // Agregar la URL del tile en carga.
+                setIsMapReady(false); // Mapa no está listo mientras haya tiles en carga.
+            };
+
+            const handleTileLoad = (e: any) => {
+                tilesLoading.delete(e.tile.src); // Eliminar el tile cargado del Set.
+
+                if (tilesLoading.size === 0) {
+                    setIsMapReady(true); // Marca el mapa como listo.
+                }
+            };
+
+            const handleZoomStart = () => {
+                setIsMapReady(false); // Reinicia el estado al cambiar el nivel de zoom.
+                tilesLoading.clear(); // Limpia el contador durante el zoom.
+            };
+
+            // Añadir listeners a los TileLayers
+            map.eachLayer((layer) => {
+                if (layer instanceof L.TileLayer) {
+                    layer.on("tileloadstart", handleTileLoadStart);
+                    layer.on("tileload", handleTileLoad);
+                }
+            });
+
+            map.on("zoomstart", handleZoomStart);
+
+            return () => {
+                // Quitar listeners al desmontar
+                map.eachLayer((layer) => {
+                    if (layer instanceof L.TileLayer) {
+                        layer.off("tileloadstart", handleTileLoadStart);
+                        layer.off("tileload", handleTileLoad);
+                    }
+                });
+                map.off("zoomstart", handleZoomStart);
+            };
+        }, [map, setIsMapReady]);
+
+        return null;
+    };
+
+    useEffect(() => {
+        const map = mapRef.current;
+        const zoom = map?.getZoom();
+        if (isMapReady && loadPdf) {
+            if (zoom && zoom === 6) {
+                captureImage(1000, (dataUrl) => {
+                    setStationLocationScreen &&
+                        setStationLocationScreen(dataUrl);
+                });
+            }
+            if (zoom && zoom === 16) {
+                captureImage(4000, (dataUrl) => {
+                    setStationLocationDetailScreen &&
+                        setStationLocationDetailScreen(dataUrl);
+                });
+            }
+        }
+    }, [isMapReady, loadPdf]);
+
     const mapRef = useRef<L.Map | null>(null);
+
+    useEffect(() => {
+        const map = mapRef.current;
+        if (!map) return;
+
+        map.on("load", () => {
+            setIsMapReady(true);
+        });
+
+        return () => {
+            map.off("load");
+        };
+    }, [mapRef]);
 
     const captureImage = (
         timeout: number,
@@ -158,22 +237,13 @@ const MapStation = ({
                 }));
             }, 50);
 
-            captureImage(500, (dataUrl) => {
-                setStationLocationScreen && setStationLocationScreen(dataUrl);
-            });
-
             setTimeout(() => {
                 setMapProps((prevProps) => ({
                     ...prevProps,
                     center: [station?.lat ?? 0, station?.lon ?? 0],
                     zoom: 16,
                 }));
-            }, 1500);
-
-            captureImage(3000, (dataUrl) => {
-                setStationLocationDetailScreen &&
-                    setStationLocationDetailScreen(dataUrl);
-            });
+            }, 6000);
 
             setTimeout(() => {
                 setMapProps((prevProps) => ({
@@ -182,7 +252,7 @@ const MapStation = ({
                 }));
                 setLoadPdf(false);
                 setLoadedMap(true);
-            }, 4000);
+            }, 15000);
         }
     }, [station, mapRef, loadPdf]);
 
@@ -219,7 +289,7 @@ const MapStation = ({
 
     return (
         <div className="z-10 pt-6 w-6/12 flex justify-center">
-            {loadPdf && (
+            {loadedPdfData === false && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000]">
                     <div className=" flex flex-col w-[400px] items-center card card-bordered bg-base-200 p-6 ">
                         <span className="card-title border-b-2 text-xl mb-4">
@@ -237,6 +307,7 @@ const MapStation = ({
                 className="w-[55vw] h-[55vh] xl:w-[40vw] lg:w-[30vw] md:w-[30vw] sm:w-[20vw]"
                 ref={mapRef}
             >
+                <MapEvents setIsMapReady={setIsMapReady} />
                 <TileLayer
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"

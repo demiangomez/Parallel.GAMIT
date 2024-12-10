@@ -539,6 +539,18 @@ export async function getStationImagesService<T>(
     }
 }
 
+export async function getStationImageByIdService<T>(
+    api: AxiosInstance,
+    id: number,
+): Promise<T> {
+    try {
+        const response = await api.get(`api/station-images/${id}`);
+        return response.data as Promise<T>;
+    } catch (error) {
+        return Promise.reject(error);
+    }
+}
+
 export async function postStationsImagesService<T>(
     api: AxiosInstance,
     data: FormData,
@@ -780,7 +792,7 @@ export async function getStationVisitsImagesByIdService<T>(
     id: number,
 ): Promise<T> {
     try {
-        const response = await api.get(`api/visits-images/${id}`);
+        const response = await api.get(`api/visit-images/${id}`);
         return response.data as Promise<T>;
     } catch (error) {
         return Promise.reject(error);

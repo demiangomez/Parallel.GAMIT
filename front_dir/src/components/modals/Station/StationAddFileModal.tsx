@@ -1,9 +1,15 @@
 import { useEffect, useState } from "react";
-import { Alert, FileAlert, FileDetails, Modal } from "@componentsReact";
+import { Alert, FileDetails, FileResultCard, Modal } from "@componentsReact";
+import Pako from "pako";
 
-import { useFormReducer } from "@hooks";
-import useApi from "@hooks/useApi";
-import { useAuth } from "@hooks/useAuth";
+import { useFormReducer, useApi, useAuth } from "@hooks";
+
+import { apiOkStatuses } from "@utils";
+
+import {
+    patchStationMetaService,
+    postStationsFilesAttachedService,
+} from "@services";
 
 import {
     ErrorResponse,
@@ -12,12 +18,6 @@ import {
     FilesErrorResponse,
     StationFilesData,
 } from "@types";
-import {
-    patchStationMetaService,
-    postStationsFilesAttachedService,
-} from "@services";
-import { apiOkStatuses } from "@utils";
-import Pako from "pako";
 
 interface Props {
     stationId: string | undefined;
@@ -51,13 +51,13 @@ const StationAddFileModal = ({
         station: stationMetaId ?? undefined,
     });
 
-    const [msg, setMsg] = useState<
-        { status: number; msg: string; errors?: FileErrors } | undefined
-    >(undefined);
-
     const [bMsg, setBMsg] = useState<
         { status: number; msg: string; errors?: Errors } | undefined
     >(undefined);
+
+    const [fileResults, setFileResults] = useState<
+        { id: number; errors: FileErrors | undefined }[]
+    >([]);
 
     const [globalDescription, setGlobalDescription] = useState<string>("");
 
@@ -79,12 +79,13 @@ const StationAddFileModal = ({
                     },
                     0,
                 );
-
+                let res: StationFilesData | FilesErrorResponse | undefined =
+                    undefined;
                 let uploadedChunks = 0; // Fragmentos subidos globalmente
-                const formData = new FormData();
-
                 await Promise.all(
                     Object.values(files).map(async (value) => {
+                        const formData = new FormData();
+
                         const file = value.file;
                         const totalChunksByFile = Math.ceil(
                             file.size / CHUNK_SIZE,
@@ -127,25 +128,51 @@ const StationAddFileModal = ({
 
                             progress === 100 && setLoading(true);
                         }
+
+                        res = await postStationsFilesAttachedService<
+                            StationFilesData | FilesErrorResponse
+                        >(api, formData);
+
+                        if (res) {
+                            if ("status" in res) {
+                                setFileResults((prev: any[]) => {
+                                    if (
+                                        res &&
+                                        "status" in res &&
+                                        res.response
+                                    ) {
+                                        const errorWithId = {
+                                            id: value.id,
+                                            errors: res.response.error_message,
+                                        };
+
+                                        return [...prev, errorWithId];
+                                    }
+                                    return prev;
+                                });
+                            } else {
+                                const fileName = value.name ?? value.file.name;
+                                setFileResults((prev: any[]) => {
+                                    if (res) {
+                                        const errorWithId = {
+                                            id: value.id,
+                                            errors: {
+                                                [fileName]: {
+                                                    success: [
+                                                        "File added successfully",
+                                                    ],
+                                                },
+                                            },
+                                        };
+
+                                        return [...prev, errorWithId];
+                                    }
+                                    return prev;
+                                });
+                            }
+                        }
                     }),
                 );
-
-                const res = await postStationsFilesAttachedService<
-                    StationFilesData | FilesErrorResponse
-                >(api, formData);
-
-                if ("status" in res) {
-                    setMsg({
-                        status: res.statusCode,
-                        msg: "",
-                        errors: res.response,
-                    });
-                } else {
-                    setMsg({
-                        status: res.statusCode,
-                        msg: "File added successfully",
-                    });
-                }
             }
         } catch (err) {
             console.error(err);
@@ -244,6 +271,18 @@ const StationAddFileModal = ({
 
     const otherErrorBadge = bMsg?.errors?.errors?.map((error) => error.attr);
 
+    const hasErrorMessage = fileResults.some(
+        (result) =>
+            result.errors &&
+            Object.values(result.errors).some((error) => !error.success),
+    );
+
+    const hasSuccessMessage = fileResults.some(
+        (result) =>
+            result.errors &&
+            Object.values(result.errors).some((error) => error.success),
+    );
+
     // if meta is true, it means we are adding a navigation file to metadata,
     // else we are adding a attached file to metadata
 
@@ -287,8 +326,8 @@ const StationAddFileModal = ({
                                 });
                             } else {
                                 setProgressBar(false);
-                                setMsg(undefined);
                                 setBMsg(undefined);
+                                setFileResults([]);
                                 const files = e.target.files;
 
                                 if (files && files.length > 0) {
@@ -297,7 +336,6 @@ const StationAddFileModal = ({
                                     });
                                 } else if (files && files.length === 0) {
                                     setFiles([]);
-                                    setMsg(undefined);
                                     setGlobalDescription("");
                                 }
                             }
@@ -350,7 +388,7 @@ const StationAddFileModal = ({
                                             pageType: "station",
                                             id: stationId ?? 0,
                                         }}
-                                        msg={msg}
+                                        fileResults={fileResults}
                                         setFiles={setFiles}
                                     />
                                 ))}
@@ -358,11 +396,14 @@ const StationAddFileModal = ({
                         </div>
                     )}
                 </div>
+
+                <FileResultCard fileResults={fileResults} />
+
                 {progressBar && (
-                    <div className="w-[500px] self-center text-center">
+                    <div className="w-8/12 self-center text-center">
                         File upload progress
                         <progress
-                            className="progress progress-success"
+                            className={`progress ${fileResults.length > 0 ? (hasErrorMessage && !hasSuccessMessage ? "progress-error" : hasErrorMessage && hasSuccessMessage ? "progress-warning" : "progress-success") : "progress-success"}`}
                             value={0}
                             max="100"
                         ></progress>
@@ -372,7 +413,7 @@ const StationAddFileModal = ({
                         ></span>
                     </div>
                 )}
-                {!meta && <FileAlert msg={msg} />}
+
                 {meta && <Alert msg={bMsg} />}
                 {loading && (
                     <div className="w-full text-center">
@@ -384,9 +425,9 @@ const StationAddFileModal = ({
                     className="btn btn-success self-center w-3/12"
                     type="submit"
                     disabled={
+                        files.length === 0 ||
                         progressBar ||
                         loading ||
-                        apiOkStatuses.includes(Number(msg?.status)) ||
                         apiOkStatuses.includes(Number(bMsg?.status))
                     }
                 >

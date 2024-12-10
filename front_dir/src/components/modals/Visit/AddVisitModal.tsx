@@ -6,6 +6,7 @@ import {
     MenuButton,
     MenuContent,
     Modal,
+    Spinner,
 } from "@componentsReact";
 
 import { useApi, useAuth, useFormReducer } from "@hooks";
@@ -60,6 +61,10 @@ const AddVisitModal = ({
     const api = useApi(token, logout);
 
     const [loading, setLoading] = useState<boolean>(false);
+
+    const [loadingGnss, setLoadingGnss] = useState<boolean>(false);
+
+    const [loadingFiles, setLoadingFiles] = useState<boolean>(false);
 
     const [msg, setMsg] = useState<
         { status: number; msg: string; errors?: Errors } | undefined
@@ -212,6 +217,7 @@ const AddVisitModal = ({
                         limit: 0,
                         offset: 0,
                         visit_api_id: String(visitId),
+                        thumbnail: true,
                     },
                 );
             if (res.statusCode === 200) {
@@ -227,7 +233,7 @@ const AddVisitModal = ({
     const getVisitsAttachedFiles = async () => {
         try {
             if (!visitId) return null;
-            setLoading(true);
+            setLoadingFiles(true);
             const res =
                 await getStationVisitFilesService<StationVisitsFilesServiceData>(
                     api,
@@ -244,14 +250,14 @@ const AddVisitModal = ({
         } catch (error) {
             console.error(error);
         } finally {
-            setLoading(false);
+            setLoadingFiles(false);
         }
     };
 
     const getVisitsGnssFiles = async () => {
         try {
             if (!visitId) return null;
-            setLoading(true);
+            setLoadingGnss(true);
             const res =
                 await getStationVisitGnssFilesService<StationVisitsFilesServiceData>(
                     api,
@@ -267,7 +273,7 @@ const AddVisitModal = ({
         } catch (error) {
             console.error(error);
         } finally {
-            setLoading(false);
+            setLoadingGnss(false);
         }
     };
 
@@ -531,9 +537,9 @@ const AddVisitModal = ({
                                                     value={
                                                         key === "station"
                                                             ? station?.api_id
-                                                            : formState[
+                                                            : (formState[
                                                                   key as keyof typeof formState
-                                                              ] ?? ""
+                                                              ] ?? "")
                                                     }
                                                     onChange={(e) => {
                                                         handleChange(e.target);
@@ -714,17 +720,31 @@ const AddVisitModal = ({
                                         </button>
                                     </h3>
                                     <div className="flex flex-col flex-grow w-full max-h-56 overflow-y-auto p-2">
+                                        {loadingGnss && (
+                                            <div className="w-full text-center">
+                                                <Spinner size="lg" />
+                                            </div>
+                                        )}
                                         <div
                                             className={`grid
-                                    ${gnssFiles && gnssFiles.length > 1 ? "grid-cols-2 md:grid-cols-1" : "grid-cols-1"} 
+                                    ${gnssFiles && gnssFiles.length > 1 && !loadingGnss ? "grid-cols-2 md:grid-cols-1" : "grid-cols-1"} 
                                     grid-flow-dense gap-2`}
                                         >
                                             {gnssFiles &&
-                                            gnssFiles.length > 0 ? (
+                                                gnssFiles.length === 0 &&
+                                                !loadingGnss && (
+                                                    <div className="text-center text-neutral text-2xl font-bold w-full rounded-md bg-neutral-content p-4">
+                                                        There is no files
+                                                        registered
+                                                    </div>
+                                                )}
+                                            {gnssFiles &&
+                                                gnssFiles.length > 0 &&
+                                                !loadingGnss &&
                                                 gnssFiles.map((f) => {
                                                     return (
                                                         <div
-                                                            className="flex items-center w-full shadow-md bg-neutral-content"
+                                                            className="flex items-center w-full shadow-lg border-[1px] border-gray-300 rounded-lg bg-neutral-content"
                                                             key={
                                                                 f.description +
                                                                 f.id
@@ -746,12 +766,7 @@ const AddVisitModal = ({
                                                             </div>
                                                         </div>
                                                     );
-                                                })
-                                            ) : (
-                                                <div className="text-center text-neutral text-2xl font-bold w-full rounded-md bg-neutral-content p-4">
-                                                    There is no files registered
-                                                </div>
-                                            )}
+                                                })}
                                         </div>
                                     </div>
                                 </div>
@@ -781,16 +796,32 @@ const AddVisitModal = ({
                                         </button>
                                     </h3>
                                     <div className="flex flex-col flex-grow w-full max-h-56 overflow-y-auto p-2">
+                                        {loadingFiles && (
+                                            <div className="w-full text-center">
+                                                <Spinner size="lg" />
+                                            </div>
+                                        )}
+
                                         <div
                                             className={`grid
-                                    ${files && files.length > 1 ? "grid-cols-2 md:grid-cols-1" : "grid-cols-1"} 
+                                    ${files && files.length > 1 && !loadingFiles ? "grid-cols-2 md:grid-cols-1" : "grid-cols-1"} 
                                     grid-flow-dense gap-2`}
                                         >
-                                            {files && files.length > 0 ? (
+                                            {files &&
+                                                files.length === 0 &&
+                                                !loadingFiles && (
+                                                    <div className="text-center text-neutral text-2xl font-bold w-full rounded-md bg-neutral-content p-4">
+                                                        There is no files
+                                                        registered
+                                                    </div>
+                                                )}
+                                            {files &&
+                                                files.length > 0 &&
+                                                !loadingFiles &&
                                                 files.map((f) => {
                                                     return (
                                                         <div
-                                                            className="flex items-center w-full shadow-md  bg-neutral-content"
+                                                            className="flex items-center w-full shadow-lg border-[1px] border-gray-300 rounded-lg bg-neutral-content"
                                                             key={
                                                                 f.description +
                                                                 f.id
@@ -814,12 +845,7 @@ const AddVisitModal = ({
                                                             </div>
                                                         </div>
                                                     );
-                                                })
-                                            ) : (
-                                                <div className="text-center text-neutral text-2xl font-bold w-full rounded-md bg-neutral-content p-4">
-                                                    There is no files registered
-                                                </div>
-                                            )}
+                                                })}
                                         </div>
                                     </div>
                                 </div>

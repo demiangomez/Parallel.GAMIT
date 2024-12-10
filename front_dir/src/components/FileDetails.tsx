@@ -7,13 +7,7 @@ interface FileDetailsProps {
     files: { file: File; description: string; id: number; name?: string }[];
     fileType: string;
     pageRecord: Record<string, string | number>;
-    msg?:
-        | {
-              status: number;
-              msg: string;
-              errors?: FileErrors;
-          }
-        | undefined;
+    fileResults?: { id: number; errors: FileErrors | undefined }[];
     setFiles: React.Dispatch<
         React.SetStateAction<
             { file: File; description: string; id: number; name?: string }[]
@@ -26,7 +20,7 @@ const FileDetails = ({
     files,
     fileType,
     pageRecord,
-    msg,
+    fileResults,
     setFiles,
 }: FileDetailsProps) => {
     const { id, pageType } = pageRecord;
@@ -115,25 +109,37 @@ const FileDetails = ({
 
     const nameInputsToDisable = ["gnss", "other"];
 
-    const errorMessages =
-        msg?.errors && "error_message" in msg.errors
-            ? msg.errors.error_message
-            : undefined;
+    const errorMessages = fileResults?.reduce(
+        (acc, curr) => {
+            acc[curr.id] = curr.errors;
+            return acc;
+        },
+        {} as Record<number, FileErrors | undefined>,
+    );
 
-    const errorMessageKey = Object.keys(
-        errorMessages?.[(file?.name as any) ?? Number(file.id)] ?? {},
-    )[0]; // [0] bcs it return just the first file who returned an error
+    const errorMessageKey = errorMessages
+        ? Object.keys(errorMessages?.[Number(file.id)] ?? {})[0]
+        : undefined; // [0] bcs it return just the first file who returned an error
+
+    const typeError =
+        errorMessages && errorMessageKey
+            ? Object.keys(
+                  errorMessages?.[Number(file.id)]?.[
+                      errorMessageKey as keyof FileErrors
+                  ] as any,
+              )[0]
+            : undefined;
 
     return (
         <div
-            className="flex flex-col items-center space-y-3 border-neutral-200 border-2</div> rounded-lg p-2 shadow-md"
+            className="flex flex-col items-center border-neutral-200 border-2 rounded-lg py-2 shadow-md"
             key={file.id}
         >
-            <div className="w-2/4">
+            <div className="w-10/12">
                 <label className="label font-bold">FILE NAME</label>
                 <label
                     className={`w-full input input-bordered flex items-center gap-2 
-                        ${errorMessages?.[(file?.name as any) ?? Number(file.id)]?.[errorMessageKey] ? "input-error" : ""}
+                        ${typeError ? (typeError !== "success" ? "input-error" : "input-success") : ""}
                     `}
                     title={formState["filename"] as string}
                 >
@@ -148,10 +154,10 @@ const FileDetails = ({
                     />
                 </label>
             </div>
-            <div className="w-2/4">
+            <div className="w-10/12">
                 <label className="label font-bold">DESCRIPTION</label>
                 <label
-                    className={`w-full input input-bordered flex items-center gap-2  ${errorMessages?.[Number(file.id)]?.["description"] ? "input-error" : ""}`}
+                    className={`w-full input input-bordered flex items-center gap-2  ${errorMessages?.[Number(file.id)]?.["description" as keyof FileErrors] ? "input-error" : ""}`}
                     title={formState["description"] as string}
                 >
                     <input

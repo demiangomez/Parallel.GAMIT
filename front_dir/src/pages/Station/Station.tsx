@@ -90,6 +90,9 @@ const Station = () => {
 
     const [loadPdf, setLoadPdf] = useState<boolean>(false);
     const [loadedMap, setLoadedMap] = useState<boolean | undefined>(undefined);
+    const [loadedPdfData, setLoadedPdfData] = useState<boolean | undefined>(
+        undefined,
+    );
 
     const getStation = async () => {
         try {
@@ -103,6 +106,8 @@ const Station = () => {
             setStation(res.data[0]);
         } catch (e) {
             console.error(e);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -140,7 +145,7 @@ const Station = () => {
         try {
             const res = await getStationMetaService<StationMetadataServiceData>(
                 api,
-                Number(station?.api_id),
+                Number(station?.api_id ?? locationState.api_id),
             );
             if (res) {
                 setStationMeta(res);
@@ -157,7 +162,10 @@ const Station = () => {
                 await getStationImagesService<StationImagesServiceData>(api, {
                     offset: 0,
                     limit: 0,
-                    station_api_id: String(station?.api_id),
+                    station_api_id: String(
+                        station?.api_id ?? locationState.api_id,
+                    ),
+                    thumbnail: true,
                 });
 
             if (result) {
@@ -177,7 +185,9 @@ const Station = () => {
                 {
                     limit: 0,
                     offset: 0,
-                    station_api_id: String(station?.api_id),
+                    station_api_id: String(
+                        station?.api_id ?? locationState.api_id,
+                    ),
                 },
             );
 
@@ -213,6 +223,10 @@ const Station = () => {
 
     const locationState = location.state as StationData;
 
+    const isMainLocation =
+        location.pathname === `/${nc}/${sc}` ||
+        location.pathname === `/${nc}/${sc}/`;
+
     const getButtonClasses = () => {
         const baseClasses = "hover:scale-110 btn-ghost rounded-lg p-1";
         let additionalClasses = "";
@@ -240,20 +254,22 @@ const Station = () => {
     };
 
     useEffect(() => {
-        if (locationState && !loading) {
+        if (locationState && !loading && !station) {
             setStation(locationState);
-        } else {
+        } else if (!station) {
             getStation();
         }
-    }, [locationState]); //eslint-disable-line
+    }, [locationState, station]); //eslint-disable-line
 
     useEffect(() => {
         if (station) {
-            getVisits();
+            if (isMainLocation) {
+                getStationImages();
+                getVisits();
+            }
             getStationMeta();
-            getStationImages();
         }
-    }, [station]); //eslint-disable-line
+    }, [station, locationState]); //eslint-disable-line
 
     const navigate = useNavigate();
 
@@ -284,10 +300,11 @@ const Station = () => {
 
     useEffect(() => {
         if (station) {
-            if (location.pathname === `/${nc}/${sc}`) {
-                getVisits();
-            }
+            // if (location.pathname === `/${nc}/${sc}`) {
+            //     getVisits();
+            // }
             setLoadPdf(false);
+            setLoadedPdfData(undefined);
             setLoadedMap(undefined);
         }
     }, [location, station]);
@@ -381,7 +398,6 @@ const Station = () => {
                                                 : station
                                         }
                                         stationMeta={stationMeta}
-                                        images={images}
                                         visits={visits}
                                         loadPdf={loadPdf}
                                         stationLocationScreen={
@@ -391,7 +407,9 @@ const Station = () => {
                                             stationLocationDetailScreen
                                         }
                                         loadedMap={loadedMap}
+                                        // loadPdfdata={loadPdfData}
                                         setLoadPdf={setLoadPdf}
+                                        setLoadedPdfData={setLoadedPdfData}
                                     />
                                 )}
 
@@ -424,6 +442,8 @@ const Station = () => {
                                 images,
                                 photoLoading,
                                 loadPdf,
+                                loadedMap,
+                                loadedPdfData,
                                 visitForKml,
                                 getStationImages,
                                 getReStation,

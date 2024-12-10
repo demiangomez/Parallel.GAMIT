@@ -30,6 +30,8 @@ export { default as FileAlert } from "./FileAlert";
 
 export { default as FormControlSelect } from "./FormControlSelect";
 
+export { default as FileResultCard } from "./FileResultCard";
+
 // TABLE
 
 export { default as Table } from "./table/Table";

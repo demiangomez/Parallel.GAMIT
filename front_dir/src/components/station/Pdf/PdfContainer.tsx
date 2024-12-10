@@ -11,6 +11,7 @@ import {
     getPeopleService,
     getRinexService,
     getRolePersonStationService,
+    getStationImagesService,
     getStationInfoService,
     getStationRolesService,
     getStationVisitFilesService,
@@ -27,6 +28,7 @@ import {
     RolePersonStationServiceData,
     StationData,
     StationImagesData,
+    StationImagesServiceData,
     StationInfoData,
     StationInfoServiceData,
     StationMetadataServiceData,
@@ -40,13 +42,13 @@ import {
 interface Props {
     station: StationData | undefined;
     stationMeta: StationMetadataServiceData | undefined;
-    images: StationImagesData[] | undefined;
     visits: StationVisitsData[] | undefined;
     loadPdf: boolean;
     stationLocationScreen: string;
     stationLocationDetailScreen: string;
     loadedMap: boolean | undefined;
     setLoadPdf: React.Dispatch<React.SetStateAction<boolean>>;
+    setLoadedPdfData: React.Dispatch<React.SetStateAction<boolean | undefined>>;
 }
 
 type PeopleWithRole = People & { role: string };
@@ -54,13 +56,13 @@ type PeopleWithRole = People & { role: string };
 const PdfContainer = ({
     station,
     stationMeta,
-    images,
     visits,
     loadPdf,
     stationLocationScreen,
     stationLocationDetailScreen,
     loadedMap,
     setLoadPdf,
+    setLoadedPdfData,
 }: Props) => {
     const { token, logout } = useAuth();
     const api = useApi(token, logout);
@@ -93,6 +95,10 @@ const PdfContainer = ({
     const [gnssFiles, setGnssFiles] = useState<
         StationVisitsFilesData[] | undefined
     >(undefined);
+
+    const [images, setImages] = useState<StationImagesData[] | undefined>(
+        undefined,
+    );
 
     const [visitImages, setVisitImages] = useState<
         StationVisitsFilesData[] | undefined
@@ -183,11 +189,28 @@ const PdfContainer = ({
                     limit: 0,
                     offset: 0,
                     station_api_id: String(station?.api_id),
+                    thumbnail: false,
                 },
             );
 
         if (res.statusCode === 200) {
             setVisitImages(res.data);
+        }
+    };
+
+    const getStationImages = async () => {
+        try {
+            const result =
+                await getStationImagesService<StationImagesServiceData>(api, {
+                    offset: 0,
+                    limit: 0,
+                    station_api_id: String(station?.api_id),
+                });
+            if (result.statusCode === 200) {
+                setImages(result.data);
+            }
+        } catch (err) {
+            console.error(err);
         }
     };
 
@@ -230,6 +253,7 @@ const PdfContainer = ({
                 getVisitsGnssFiles(),
                 getVisitsAttachedFiles(),
                 getVisitsImages(),
+                getStationImages(),
                 getRinex(),
             ]);
         } catch (err) {
@@ -276,12 +300,14 @@ const PdfContainer = ({
         const resizedImagesPromises = images.map(async (img) => {
             const imgElement = new Image();
             imgElement.src = `data:image/*;base64,${img.actual_image}`;
-
-            await new Promise((resolve) => {
+            await new Promise((resolve, reject) => {
                 imgElement.onload = resolve;
+                imgElement.onerror = (err) => {
+                    reject(err);
+                };
             });
 
-            return resizeImage(imgElement, maxWidth, maxHeight);
+            return await resizeImage(imgElement, maxWidth, maxHeight);
         });
 
         const resizedImages = await Promise.all(resizedImagesPromises);
@@ -290,12 +316,6 @@ const PdfContainer = ({
             actual_image: resizedImages[idx],
         }));
     };
-
-    useEffect(() => {
-        if (station && stationMeta) {
-            fetchAllData();
-        }
-    }, [station, stationMeta]);
 
     const people = useMemo(() => {
         if (rolePersonStations && allPeople) {
@@ -318,10 +338,12 @@ const PdfContainer = ({
 
     useEffect(() => {
         const preparePdfData = async () => {
-            if ((loadPdf && !loadedMap) || (!loadPdf && !loadedMap)) return;
+            if ((loadPdf && !loadedMap) || (!loadPdf && !loadedMap) || loading)
+                return;
 
             let processedImages = visitImages;
             let stationProcessedImages = images;
+
             if (visitImages && visitImages?.length > 0) {
                 processedImages = (await processImages(
                     visitImages,
@@ -354,34 +376,37 @@ const PdfContainer = ({
             );
         };
 
-        if (!loadPdf && loadedMap) {
+        if (!loadPdf && loadedMap && !loading) {
             preparePdfData(); // Llamar a la función de preparación
         }
-    }, [loadPdf, loadedMap, visitImages]); // Agregar visitImages a las dependencias
+    }, [loadPdf, loadedMap, loading, visitImages]);
 
     useEffect(() => {
-        if (!blobUrl && !loadPdf) {
+        if (!blobUrl && !loadPdf && !loading) {
             if (instance.loading === false && instance.url) {
                 setBlobUrl(instance.url);
             }
         }
-    }, [instance, blobUrl, loadPdf]);
+    }, [instance, blobUrl, loadPdf, loading]);
 
     useEffect(() => {
         if (blobUrl) {
             const link = document.createElement("a");
+
             link.href = blobUrl;
             link.download = `${station?.network_code?.toUpperCase() ?? "none"}.${station?.station_code?.toUpperCase() ?? "none"}-INFO.pdf`;
             link.click();
+            setLoadedPdfData(true);
         }
     }, [blobUrl]);
 
     return (
         <button
             className={`hover:scale-110 btn-ghost rounded-lg p-1 mb-6 transition-all align-top`}
-            disabled={loading}
             onClick={() => {
+                fetchAllData();
                 setBlobUrl(undefined);
+                setLoadedPdfData(false);
                 setLoadPdf(true);
             }}
         >

@@ -1,13 +1,12 @@
 import { useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
-import { Modal, FileDetails, FileAlert } from "@componentsReact";
+import { Modal, FileDetails, FileResultCard } from "@componentsReact";
 
 import ExifReader from "exifreader";
 
 import { useAuth } from "@hooks/useAuth";
 import useApi from "@hooks/useApi";
 
-import { apiOkStatuses } from "@utils";
 import { FileErrors, FilesErrorResponse, StationData } from "@types";
 import { postStationsImagesService } from "@services";
 import Pako from "pako";
@@ -34,14 +33,14 @@ const StationPhotoModal = ({ modalType, reFetch, setStateModal }: Props) => {
     const { station } = useOutletContext<OutletContext>();
 
     const [loading, setLoading] = useState<boolean>(false);
-    const [msg, setMsg] = useState<
-        { status: number; msg: string; errors?: FileErrors } | undefined
-    >(undefined);
-
     const [globalDescription, setGlobalDescription] = useState<string>("");
 
     const [files, setFiles] = useState<
         { file: File; description: string; id: number; name?: string }[]
+    >([]);
+
+    const [fileResults, setFileResults] = useState<
+        { id: number; errors: FileErrors | undefined }[]
     >([]);
 
     const [progressBar, setProgressBar] = useState<boolean>(false);
@@ -106,18 +105,20 @@ const StationPhotoModal = ({ modalType, reFetch, setStateModal }: Props) => {
         try {
             setProgressBar(true);
 
-            const formData = new FormData();
-
             const CHUNK_SIZE = 1024 * 1024 * 3; // 3MB por fragmento
             const totalChunks = Object.values(files).reduce((total, value) => {
                 const file = value.file;
                 return total + Math.ceil(file.size / CHUNK_SIZE);
             }, 0);
 
+            let res: any | FilesErrorResponse | undefined = undefined;
+
             let uploadedChunks = 0; // Fragmentos subidos globalmente
 
             await Promise.all(
                 Object.values(files).map(async (value) => {
+                    const formData = new FormData();
+
                     const file = value.file;
                     const totalChunksByFile = Math.ceil(file.size / CHUNK_SIZE);
 
@@ -137,7 +138,7 @@ const StationPhotoModal = ({ modalType, reFetch, setStateModal }: Props) => {
                         formData.append(
                             "image",
                             new Blob([compressedChunk]),
-                            `${value.file.name}.part${i + 1}`,
+                            `${value.name}.part${i + 1}`,
                         );
                         formData.append("name", value.name ?? value.file.name);
                         formData.append("description", value.description);
@@ -157,24 +158,45 @@ const StationPhotoModal = ({ modalType, reFetch, setStateModal }: Props) => {
 
                         progress === 100 && setLoading(true);
                     }
+                    res = await postStationsImagesService<
+                        any | FilesErrorResponse
+                    >(api, formData);
+                    if (res) {
+                        if ("status" in res) {
+                            setFileResults((prev: any[]) => {
+                                if (res && "status" in res && res.response) {
+                                    const errorWithId = {
+                                        id: value.id,
+                                        errors: res.response.error_message,
+                                    };
+
+                                    return [...prev, errorWithId];
+                                }
+                                return prev;
+                            });
+                        } else {
+                            const fileName = value.name ?? value.file.name;
+                            setFileResults((prev: any[]) => {
+                                if (res) {
+                                    const errorWithId = {
+                                        id: value.id,
+                                        errors: {
+                                            [fileName]: {
+                                                success: [
+                                                    "File added successfully",
+                                                ],
+                                            },
+                                        },
+                                    };
+
+                                    return [...prev, errorWithId];
+                                }
+                                return prev;
+                            });
+                        }
+                    }
                 }),
             );
-
-            const res = await postStationsImagesService<
-                any | FilesErrorResponse
-            >(api, formData);
-            if ("status" in res) {
-                setMsg({
-                    status: res.statusCode,
-                    msg: "",
-                    errors: res.response,
-                });
-            } else {
-                setMsg({
-                    status: res.statusCode,
-                    msg: "Image added successfully",
-                });
-            }
         } catch (err) {
             console.error(err);
         } finally {
@@ -202,6 +224,18 @@ const StationPhotoModal = ({ modalType, reFetch, setStateModal }: Props) => {
         }
     }, [globalDescription]);
 
+    const hasErrorMessage = fileResults.some(
+        (result) =>
+            result.errors &&
+            Object.values(result.errors).some((error) => !error.success),
+    );
+
+    const hasSuccessMessage = fileResults.some(
+        (result) =>
+            result.errors &&
+            Object.values(result.errors).some((error) => error.success),
+    );
+
     return (
         <Modal
             close={false}
@@ -225,7 +259,7 @@ const StationPhotoModal = ({ modalType, reFetch, setStateModal }: Props) => {
                             className={` file-input file-input-bordered w-full `}
                             accept="image/*"
                             onChange={(e) => {
-                                setMsg(undefined);
+                                setFileResults([]);
                                 setProgressBar(false);
 
                                 const files = e.target.files;
@@ -235,7 +269,6 @@ const StationPhotoModal = ({ modalType, reFetch, setStateModal }: Props) => {
                                     });
                                 } else if (files && files.length === 0) {
                                     setFiles([]);
-                                    setMsg(undefined);
                                     setGlobalDescription("");
                                 }
                             }}
@@ -285,8 +318,7 @@ const StationPhotoModal = ({ modalType, reFetch, setStateModal }: Props) => {
                                                 pageType: "station",
                                                 id: station.api_id ?? 0,
                                             }}
-                                            // errorBadge={errorBadge}
-                                            msg={msg}
+                                            fileResults={fileResults}
                                             setFiles={setFiles}
                                         />
                                     ))}
@@ -295,11 +327,14 @@ const StationPhotoModal = ({ modalType, reFetch, setStateModal }: Props) => {
                         )}
                     </div>
                 </div>
+
+                <FileResultCard fileResults={fileResults} />
+
                 {progressBar && (
-                    <div className="w-[500px] self-center text-center">
+                    <div className="w-8/12 self-center text-center">
                         File upload progress
                         <progress
-                            className="progress progress-success"
+                            className={`progress ${fileResults.length > 0 ? (hasErrorMessage && !hasSuccessMessage ? "progress-error" : hasErrorMessage && hasSuccessMessage ? "progress-warning" : "progress-success") : "progress-success"}`}
                             value={0}
                             max="100"
                         ></progress>
@@ -309,7 +344,6 @@ const StationPhotoModal = ({ modalType, reFetch, setStateModal }: Props) => {
                         ></span>
                     </div>
                 )}
-                {msg && <FileAlert msg={msg} />}
                 {loading && (
                     <div className="w-full text-center">
                         <span className="loading loading-spinner loading-lg self-center"></span>
@@ -319,11 +353,7 @@ const StationPhotoModal = ({ modalType, reFetch, setStateModal }: Props) => {
                     <button
                         type="submit"
                         className="btn btn-success w-5/12"
-                        disabled={
-                            apiOkStatuses.includes(Number(msg?.status)) ||
-                            loading ||
-                            progressBar
-                        }
+                        disabled={files.length === 0 || loading || progressBar}
                     >
                         Submit
                     </button>

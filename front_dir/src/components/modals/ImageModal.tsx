@@ -1,5 +1,13 @@
-import { Modal } from "@componentsReact";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Modal, Spinner } from "@componentsReact";
+
+import { useAuth, useApi } from "@hooks";
+import {
+    getStationImageByIdService,
+    getStationVisitsImagesByIdService,
+} from "@services";
+
+import { StationImagesData } from "@types";
 
 type Photo = {
     id: number;
@@ -10,6 +18,7 @@ type Photo = {
 
 interface Props {
     photo: Photo | undefined;
+    visit?: boolean;
     closeModal: () => void;
     setStateModal: React.Dispatch<
         React.SetStateAction<
@@ -19,13 +28,45 @@ interface Props {
     >;
 }
 
-const ImageModal = ({ photo, closeModal, setStateModal }: Props) => {
+const ImageModal = ({ photo, visit, closeModal, setStateModal }: Props) => {
+    const { token, logout } = useAuth();
+    const api = useApi(token, logout);
+
+    const [loading, setLoading] = useState<boolean>(false);
+
+    const [originalPhoto, setOriginalPhoto] = useState<
+        StationImagesData | undefined
+    >(undefined);
+
     const handleCloseModal = () => {
         closeModal();
     };
 
+    const getOriginalPhoto = async () => {
+        try {
+            setLoading(true);
+
+            const service = visit
+                ? getStationVisitsImagesByIdService
+                : getStationImageByIdService;
+
+            const res = await service<StationImagesData>(api, photo?.id ?? 0);
+
+            if (res.actual_image) {
+                setOriginalPhoto(res);
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        getOriginalPhoto();
+    }, [photo]);
+
     const image = useMemo(() => {
-        if (!photo) return null;
         return (
             <Modal
                 close={false}
@@ -34,21 +75,34 @@ const ImageModal = ({ photo, closeModal, setStateModal }: Props) => {
                 handleCloseModal={() => handleCloseModal()}
                 setModalState={setStateModal}
             >
-                <div className="space-y-4">
-                    <img
-                        className="w-full h-fit object-contain"
-                        src={"data:image/png;base64," + photo?.actual_image}
-                        alt={"photo"}
-                    />
-                    {photo.description && (
-                        <p className="break-words border-t-2 border-neutral-300 pt-3 leading-6 tracking-tight text-xl font-semibold">
-                            {photo.description}
-                        </p>
-                    )}
-                </div>
+                {loading && (
+                    <div className="flex flex-col items-center justify-center space-y-4 w-full">
+                        <span className="font-bold text-lg">
+                            Loading image, please wait ...
+                        </span>
+                        <Spinner size="lg" />
+                    </div>
+                )}
+                {originalPhoto?.name && (
+                    <div className="space-y-4">
+                        <img
+                            className="w-full h-fit object-contain"
+                            src={
+                                "data:image/png;base64," +
+                                originalPhoto?.actual_image
+                            }
+                            alt={"photo" + originalPhoto?.name}
+                        />
+                        {originalPhoto?.description && (
+                            <p className="break-words border-t-2 border-neutral-300 pt-3 leading-6 tracking-tight text-xl font-semibold">
+                                {originalPhoto?.description}
+                            </p>
+                        )}
+                    </div>
+                )}
             </Modal>
         );
-    }, [photo]);
+    }, [originalPhoto, loading]);
     return image;
 };
 

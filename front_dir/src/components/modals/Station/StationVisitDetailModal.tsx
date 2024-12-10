@@ -213,6 +213,7 @@ const StationVisitDetailModal = ({
                         limit: 0,
                         offset: 0,
                         visit_api_id: String(visitId),
+                        thumbnail: true,
                     },
                 );
             if (res.statusCode === 200) {
@@ -1151,7 +1152,7 @@ const StationVisitDetailModal = ({
                                 alt={"defphoto"}
                             />
                         ) : images && images.length === 1 ? (
-                            <div className="w-full break-words text-ellipsis">
+                            <div className="w-full break-words text-ellipsis flex justify-center">
                                 <div className="absolute z-10">
                                     <button
                                         className="btn "
@@ -1633,6 +1634,7 @@ const StationVisitDetailModal = ({
             {modals && modals?.title === "ViewStationPhoto" && (
                 <ImageModal
                     photo={photo ?? undefined}
+                    visit={true}
                     closeModal={() => {
                         setPhoto(undefined);
                     }}

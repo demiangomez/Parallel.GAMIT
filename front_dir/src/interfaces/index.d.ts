@@ -2,6 +2,7 @@ declare module "@heroicons/*";
 
 export interface GetParams {
     network_code?: string;
+    thumbnail?: boolean;
     country_code?: string;
     station_code?: string;
     antenna_code?: string;
