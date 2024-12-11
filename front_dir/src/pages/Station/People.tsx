@@ -16,8 +16,8 @@ import {
     getStationRolesService,
 } from "@services";
 
-import useApi from "@hooks/useApi";
-import { useAuth } from "@hooks/useAuth";
+import { useAuth, useApi } from "@hooks";
+
 import { showModal } from "@utils";
 
 import {

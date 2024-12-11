@@ -17,7 +17,7 @@ from io import BytesIO
 import re
 import base64
 from io import BytesIO
-from PIL import Image
+from PIL import Image, ImageOps
 
 logger = logging.getLogger('django')
 
@@ -35,6 +35,7 @@ def get_actual_image(obj, request):
                 image_data = photo_file.read()
                 if thumbnail:
                     image = Image.open(BytesIO(image_data))
+                    image = ImageOps.exif_transpose(image)
                     image.thumbnail((400, 400))
                     buffer = BytesIO()
                     if image.mode in ("RGBA", "P"):
@@ -43,6 +44,7 @@ def get_actual_image(obj, request):
                     image_data = buffer.getvalue()
                 elif not original_quality:
                     image = Image.open(BytesIO(image_data))
+                    image = ImageOps.exif_transpose(image)
                     image.thumbnail((1000, 1000))
                     buffer = BytesIO()
                     if image.mode in ("RGBA", "P"):
@@ -345,11 +347,13 @@ class UploadMultipleFilesUtils:
             for image, main_object, description, name in zip(images, main_objects, description, names):
                 # check if image ends with regex .part followed by a number
                 if not bool(re.search(r'part\d+$', image.name)):
+                    image_name = image.name
                     raise exceptions.CustomValidationErrorExceptionHandler(
                         f"Image {image.name} does not end with 'part' and a number")
 
                 # check that image name has just one .part string on it
                 if len(image.name.split('.part')) > 2:
+                    image_name = image.name
                     raise exceptions.CustomValidationErrorExceptionHandler(
                         f"Image {image.name} has more than one '.part' string on it")
 

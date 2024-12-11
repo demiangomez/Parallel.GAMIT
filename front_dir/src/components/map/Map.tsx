@@ -11,6 +11,8 @@ import {
 import { useEffect, useState } from "react";
 import { PopupChildren } from "@componentsReact";
 
+import { useLocalStorage } from "@hooks";
+
 import { GetParams, StationData } from "@types";
 
 interface MyMapContainerProps {
@@ -45,6 +47,11 @@ const ChangeView = ({
 const MapMarkers = ({ stations, initialCenter, mainParams }: MapProps) => {
     const map = useMap();
 
+    const [lastZoomLevel, setLastZoomLevel] = useLocalStorage(
+        "lastZoomLevel",
+        "8",
+    );
+
     const [markersByBounds, setMarkersByBounds] = useState<
         StationData[] | undefined
     >(undefined);
@@ -69,19 +76,10 @@ const MapMarkers = ({ stations, initialCenter, mainParams }: MapProps) => {
     useEffect(() => {
         // Actualizar marcadores cuando cambia initialCenter
         if (initialCenter) {
-            // const hasGeneralParams = (obj: any) =>
-            //     obj?.country_code?.trim() !== "" ||
-            //     obj?.network_code?.trim() !== "";
-            // const hasStationParam = (obj: any) =>
-            //     obj?.station_code?.trim() !== "";
-
-            // const gralParams = hasGeneralParams(mainParams);
-            // const stationParam = hasStationParam(mainParams);
-
-            // const zoomOut = (!gralParams && !stationParam) || gralParams;
-            // const zoomIn = stationParam && gralParams;
-
-            map.setView(initialCenter, 8);
+            map.setView(
+                initialCenter,
+                lastZoomLevel ? parseInt(lastZoomLevel) : 8,
+            );
             updateMarkersByBounds();
         }
     }, [initialCenter, map]);
@@ -95,6 +93,20 @@ const MapMarkers = ({ stations, initialCenter, mainParams }: MapProps) => {
             map.off("move", onMove);
         };
     }, [stations, map]);
+
+    useEffect(() => {
+        const onZoomEnd = () => {
+            const currentZoom = map.getZoom();
+            setLastZoomLevel(currentZoom.toString());
+            localStorage.setItem("lastZoomTime", new Date().toISOString());
+        };
+
+        map.on("zoomend", onZoomEnd);
+
+        return () => {
+            map.off("zoomend", onZoomEnd);
+        };
+    }, [map]);
 
     const southWest = L.latLng(-100.98155760646617, -250);
     const nortEast = L.latLng(100.99346179538875, 250);
@@ -165,6 +177,19 @@ const Map = ({ stations, initialCenter, mainParams }: MapProps) => {
     });
 
     useEffect(() => {
+        const savedZoomTime = localStorage.getItem("lastZoomTime");
+
+        const now = new Date().toISOString();
+
+        const timeDiff =
+            new Date(now).getTime() - new Date(savedZoomTime ?? now).getTime();
+
+        if (timeDiff > 1.44e7) {
+            localStorage.setItem("lastZoomLevel", "8");
+        }
+
+        const savedZoomLevel = localStorage.getItem("lastZoomLevel");
+
         const pos: LatLngExpression = initialCenter
             ? initialCenter
             : stations && stations.length > 0
@@ -176,7 +201,7 @@ const Map = ({ stations, initialCenter, mainParams }: MapProps) => {
 
         setMapProps((prevProps) => ({
             ...prevProps,
-            zoom: 8,
+            zoom: savedZoomLevel ? parseInt(savedZoomLevel) : 8,
             center: pos,
         }));
     }, []);

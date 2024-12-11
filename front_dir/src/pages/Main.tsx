@@ -10,8 +10,7 @@ import {
     StationsModal,
 } from "@componentsReact";
 
-import useApi from "@hooks/useApi";
-import { useAuth } from "@hooks/useAuth";
+import { useAuth, useApi } from "@hooks";
 
 import { getStationsService } from "@services";
 import { ChevronLeftIcon } from "@heroicons/react/24/outline";

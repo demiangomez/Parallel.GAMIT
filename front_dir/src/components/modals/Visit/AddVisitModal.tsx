@@ -241,6 +241,7 @@ const AddVisitModal = ({
                         limit: 0,
                         offset: 0,
                         visit_api_id: String(visitId),
+                        only_metadata: true,
                     },
                 );
 
@@ -265,6 +266,7 @@ const AddVisitModal = ({
                         limit: 0,
                         offset: 0,
                         visit_api_id: String(visitId),
+                        only_metadata: true,
                     },
                 );
             if (res.statusCode === 200) {
@@ -720,54 +722,53 @@ const AddVisitModal = ({
                                         </button>
                                     </h3>
                                     <div className="flex flex-col flex-grow w-full max-h-56 overflow-y-auto p-2">
-                                        {loadingGnss && (
+                                        {loadingGnss ? (
                                             <div className="w-full text-center">
                                                 <Spinner size="lg" />
                                             </div>
-                                        )}
-                                        <div
-                                            className={`grid
+                                        ) : (
+                                            <div
+                                                className={`grid
                                     ${gnssFiles && gnssFiles.length > 1 && !loadingGnss ? "grid-cols-2 md:grid-cols-1" : "grid-cols-1"} 
                                     grid-flow-dense gap-2`}
-                                        >
-                                            {gnssFiles &&
-                                                gnssFiles.length === 0 &&
-                                                !loadingGnss && (
+                                            >
+                                                {(!gnssFiles ||
+                                                    gnssFiles.length === 0) && (
                                                     <div className="text-center text-neutral text-2xl font-bold w-full rounded-md bg-neutral-content p-4">
-                                                        There is no files
+                                                        There is no GNSS Files
                                                         registered
                                                     </div>
                                                 )}
-                                            {gnssFiles &&
-                                                gnssFiles.length > 0 &&
-                                                !loadingGnss &&
-                                                gnssFiles.map((f) => {
-                                                    return (
-                                                        <div
-                                                            className="flex items-center w-full shadow-lg border-[1px] border-gray-300 rounded-lg bg-neutral-content"
-                                                            key={
-                                                                f.description +
-                                                                f.id
-                                                            }
-                                                        >
-                                                            <div className="flex-grow overflow-hidden ">
-                                                                <div className="flex flex-col w-8/12 p-4 text-pretty break-words max-w-full">
-                                                                    <h2 className="card-title">
-                                                                        {
-                                                                            f.filename
-                                                                        }
-                                                                    </h2>
-                                                                    <p>
-                                                                        {
-                                                                            f.description
-                                                                        }
-                                                                    </p>
+                                                {gnssFiles &&
+                                                    gnssFiles.length > 0 &&
+                                                    gnssFiles.map((f) => {
+                                                        return (
+                                                            <div
+                                                                className="flex items-center w-full shadow-lg border-[1px] border-gray-300 rounded-lg bg-neutral-content"
+                                                                key={
+                                                                    f.description +
+                                                                    f.id
+                                                                }
+                                                            >
+                                                                <div className="flex-grow overflow-hidden ">
+                                                                    <div className="flex flex-col w-8/12 p-4 text-pretty break-words max-w-full">
+                                                                        <h2 className="card-title">
+                                                                            {
+                                                                                f.filename
+                                                                            }
+                                                                        </h2>
+                                                                        <p>
+                                                                            {
+                                                                                f.description
+                                                                            }
+                                                                        </p>
+                                                                    </div>
                                                                 </div>
                                                             </div>
-                                                        </div>
-                                                    );
-                                                })}
-                                        </div>
+                                                        );
+                                                    })}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                                 <div className="flex flex-col items-center rounded-md bg-neutral-content">
@@ -796,57 +797,55 @@ const AddVisitModal = ({
                                         </button>
                                     </h3>
                                     <div className="flex flex-col flex-grow w-full max-h-56 overflow-y-auto p-2">
-                                        {loadingFiles && (
+                                        {loadingFiles ? (
                                             <div className="w-full text-center">
                                                 <Spinner size="lg" />
                                             </div>
-                                        )}
-
-                                        <div
-                                            className={`grid
+                                        ) : (
+                                            <div
+                                                className={`grid
                                     ${files && files.length > 1 && !loadingFiles ? "grid-cols-2 md:grid-cols-1" : "grid-cols-1"} 
                                     grid-flow-dense gap-2`}
-                                        >
-                                            {files &&
-                                                files.length === 0 &&
-                                                !loadingFiles && (
+                                            >
+                                                {(!files ||
+                                                    files.length === 0) && (
                                                     <div className="text-center text-neutral text-2xl font-bold w-full rounded-md bg-neutral-content p-4">
-                                                        There is no files
+                                                        There is no Files
                                                         registered
                                                     </div>
                                                 )}
-                                            {files &&
-                                                files.length > 0 &&
-                                                !loadingFiles &&
-                                                files.map((f) => {
-                                                    return (
-                                                        <div
-                                                            className="flex items-center w-full shadow-lg border-[1px] border-gray-300 rounded-lg bg-neutral-content"
-                                                            key={
-                                                                f.description +
-                                                                f.id
-                                                            }
-                                                        >
-                                                            <div className="flex-grow overflow-hidden ">
-                                                                <div className="p-6 flex w-full justify-between items-center">
-                                                                    <div className="flex flex-col w-8/12 text-pretty break-words max-w-full">
-                                                                        <h2 className="card-title">
-                                                                            {
-                                                                                f.filename
-                                                                            }
-                                                                        </h2>
-                                                                        <p>
-                                                                            {
-                                                                                f.description
-                                                                            }
-                                                                        </p>
+                                                {files &&
+                                                    files.length > 0 &&
+                                                    files.map((f) => {
+                                                        return (
+                                                            <div
+                                                                className="flex items-center w-full shadow-lg border-[1px] border-gray-300 rounded-lg bg-neutral-content"
+                                                                key={
+                                                                    f.description +
+                                                                    f.id
+                                                                }
+                                                            >
+                                                                <div className="flex-grow overflow-hidden ">
+                                                                    <div className="p-6 flex w-full justify-between items-center">
+                                                                        <div className="flex flex-col w-8/12 text-pretty break-words max-w-full">
+                                                                            <h2 className="card-title">
+                                                                                {
+                                                                                    f.filename
+                                                                                }
+                                                                            </h2>
+                                                                            <p>
+                                                                                {
+                                                                                    f.description
+                                                                                }
+                                                                            </p>
+                                                                        </div>
                                                                     </div>
                                                                 </div>
                                                             </div>
-                                                        </div>
-                                                    );
-                                                })}
-                                        </div>
+                                                        );
+                                                    })}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </>

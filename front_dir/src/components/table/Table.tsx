@@ -78,7 +78,9 @@ const Table = ({
                             </>
                         ) : (
                             <th className="text-center text-neutral text-2xl">
-                                There is no information for this {table}
+                                {table === "People"
+                                    ? "There are no people associated to this station"
+                                    : `There is no information for this ${table}`}
                             </th>
                         )}
 

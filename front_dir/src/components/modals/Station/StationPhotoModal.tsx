@@ -1,15 +1,15 @@
 import { useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
-import { Modal, FileDetails, FileResultCard } from "@componentsReact";
+import { Modal, FileDetails, FileResultCard, Alert } from "@componentsReact";
 
+import Pako from "pako";
 import ExifReader from "exifreader";
 
-import { useAuth } from "@hooks/useAuth";
-import useApi from "@hooks/useApi";
+import { useEscape, useAuth, useApi } from "@hooks";
 
-import { FileErrors, FilesErrorResponse, StationData } from "@types";
 import { postStationsImagesService } from "@services";
-import Pako from "pako";
+
+import { Errors, FileErrors, FilesErrorResponse, StationData } from "@types";
 
 interface Props {
     modalType: string;
@@ -38,6 +38,12 @@ const StationPhotoModal = ({ modalType, reFetch, setStateModal }: Props) => {
     const [files, setFiles] = useState<
         { file: File; description: string; id: number; name?: string }[]
     >([]);
+
+    const [msg, setMsg] = useState<{
+        status: number;
+        msg: string;
+        errors?: Errors;
+    } | null>(null);
 
     const [fileResults, setFileResults] = useState<
         { id: number; errors: FileErrors | undefined }[]
@@ -236,9 +242,62 @@ const StationPhotoModal = ({ modalType, reFetch, setStateModal }: Props) => {
             Object.values(result.errors).some((error) => error.success),
     );
 
+    const defaultValues = () => {
+        setMsg(null);
+        setGlobalDescription("");
+        setProgressBar(false);
+        setFileResults([]);
+        setFiles([]);
+    };
+
+    const closeModal = () => {
+        defaultValues();
+        handleCloseModal();
+
+        const fileInputElement = document.getElementById(
+            "file-input",
+        ) as HTMLInputElement;
+        if (fileInputElement) {
+            fileInputElement.value = "";
+        }
+    };
+
+    useEscape(closeModal);
+
+    useEffect(() => {
+        if (files.length === fileResults.length && fileResults.length > 0) {
+            if (hasErrorMessage && !hasSuccessMessage) {
+                setMsg({
+                    status: 400,
+                    errors: {
+                        errors: [
+                            {
+                                code: "400",
+                                attr: "files",
+                                detail: "",
+                            },
+                        ],
+                        type: "error",
+                    },
+                    msg: "Files were not uploaded successfully",
+                });
+            } else if (!hasErrorMessage && hasSuccessMessage) {
+                setMsg({
+                    status: 200,
+                    msg: "Files uploaded successfully",
+                });
+            } else if (hasErrorMessage && hasSuccessMessage) {
+                setMsg({
+                    status: 199,
+                    msg: "Some files were uploaded successfully but some failed",
+                });
+            }
+        }
+    }, [files, fileResults, hasErrorMessage, hasSuccessMessage]);
+
     return (
         <Modal
-            close={false}
+            close={true}
             modalId={"AddStationPhoto"}
             size={"lg"}
             handleCloseModal={() => handleCloseModal()}
@@ -254,13 +313,13 @@ const StationPhotoModal = ({ modalType, reFetch, setStateModal }: Props) => {
                     <div className="form-control space-y-2">
                         <input
                             type="file"
+                            id="file-input"
                             multiple={true}
                             title={"File"}
                             className={` file-input file-input-bordered w-full `}
                             accept="image/*"
                             onChange={(e) => {
-                                setFileResults([]);
-                                setProgressBar(false);
+                                defaultValues();
 
                                 const files = e.target.files;
                                 if (files && files.length > 0) {
@@ -293,38 +352,42 @@ const StationPhotoModal = ({ modalType, reFetch, setStateModal }: Props) => {
                                 autoComplete="off"
                             />
                         </label>
-                        {files && files.length > 0 && (
-                            <div className="w-full">
-                                <label className="label font-bold">FILES</label>
-                                <div
-                                    className={`grid gap-4 grid-flow-dense w-full max-h-72 overflow-y-auto mt-6 pr-2 ${
-                                        files.length === 1
-                                            ? "grid-cols-1"
-                                            : files.length === 2
-                                              ? "grid-cols-2"
-                                              : "grid-cols-3"
-                                    }`}
-                                >
-                                    {Array.from(files).map((f) => (
-                                        <FileDetails
-                                            key={f.id}
-                                            file={{
-                                                id: String(f.id),
-                                                name: String(f.file.name),
-                                            }}
-                                            files={files}
-                                            fileType={"stationImages"}
-                                            pageRecord={{
-                                                pageType: "station",
-                                                id: station.api_id ?? 0,
-                                            }}
-                                            fileResults={fileResults}
-                                            setFiles={setFiles}
-                                        />
-                                    ))}
+                        {files &&
+                            files.length > 0 &&
+                            fileResults.length === 0 && (
+                                <div className="w-full">
+                                    <label className="label font-bold">
+                                        FILES
+                                    </label>
+                                    <div
+                                        className={`grid gap-4 grid-flow-dense w-full max-h-72 overflow-y-auto mt-6 pr-2 ${
+                                            files.length === 1
+                                                ? "grid-cols-1"
+                                                : files.length === 2
+                                                  ? "grid-cols-2"
+                                                  : "grid-cols-3"
+                                        }`}
+                                    >
+                                        {Array.from(files).map((f) => (
+                                            <FileDetails
+                                                key={f.id}
+                                                file={{
+                                                    id: String(f.id),
+                                                    name: String(f.file.name),
+                                                }}
+                                                files={files}
+                                                fileType={"stationImages"}
+                                                pageRecord={{
+                                                    pageType: "station",
+                                                    id: station.api_id ?? 0,
+                                                }}
+                                                fileResults={fileResults}
+                                                setFiles={setFiles}
+                                            />
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
                     </div>
                 </div>
 
@@ -344,6 +407,7 @@ const StationPhotoModal = ({ modalType, reFetch, setStateModal }: Props) => {
                         ></span>
                     </div>
                 )}
+                {msg && <Alert msg={msg} />}
                 {loading && (
                     <div className="w-full text-center">
                         <span className="loading loading-spinner loading-lg self-center"></span>

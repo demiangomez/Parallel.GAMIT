@@ -158,6 +158,7 @@ const PdfContainer = ({
                     limit: 0,
                     offset: 0,
                     station_api_id: String(station?.api_id),
+                    only_metadata: true,
                 },
             );
         if (res.statusCode === 200) {
@@ -173,6 +174,7 @@ const PdfContainer = ({
                     limit: 0,
                     offset: 0,
                     station_api_id: String(station?.api_id),
+                    only_metadata: true,
                 },
             );
 

@@ -15,3 +15,5 @@ export { default as useResizeObserver } from "./useResizeObserver";
 export { default as usePopup } from "./usePopup";
 
 export { default as useWaitCursor } from "./useWaitCursor";
+
+export { default as useEscape } from "./useEscape";

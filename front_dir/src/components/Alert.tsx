@@ -31,7 +31,7 @@ const Alert = ({ msg }: AlertProps) => {
             {msg && (
                 <div
                     role="alert"
-                    className={`alert ${msg && "errors" in msg ? "alert-error" : "alert-success"}`}
+                    className={`alert ${msg && "errors" in msg ? "alert-error" : msg.status === 199 ? "alert-warning" : "alert-success"}`}
                 >
                     {"errors" in msg ? (
                         <>

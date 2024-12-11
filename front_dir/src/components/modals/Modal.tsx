@@ -1,5 +1,6 @@
-import { modalSizes } from "@utils/index";
 import { ReactNode } from "react";
+
+import { modalSizes } from "@utils";
 
 interface ModalProps {
     close: boolean;

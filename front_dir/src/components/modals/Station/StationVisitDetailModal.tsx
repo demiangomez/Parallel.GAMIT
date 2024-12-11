@@ -1152,10 +1152,10 @@ const StationVisitDetailModal = ({
                                 alt={"defphoto"}
                             />
                         ) : images && images.length === 1 ? (
-                            <div className="w-full break-words text-ellipsis flex justify-center">
-                                <div className="absolute z-10">
+                            <div className="w-full break-words relative text-ellipsis flex justify-center">
+                                <div className="absolute z-10 w-full left-16">
                                     <button
-                                        className="btn "
+                                        className="btn"
                                         onClick={() => {
                                             setFileType("image");
                                             setModals({

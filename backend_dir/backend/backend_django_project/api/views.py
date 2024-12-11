@@ -230,7 +230,7 @@ class StationList(CustomListCreateAPIView):
         if response.status_code == status.HTTP_200_OK:
 
             station_meta_query = models.StationMeta.objects.values_list(
-                'station', 'has_gaps', 'has_stationinfo', 'id')
+                'station', 'has_gaps', 'has_stationinfo', 'id', 'status__name', 'station_type__name')
 
             station_meta_gaps = models.StationMetaGaps.objects.select_related(
                 'station_meta').all()
@@ -246,7 +246,9 @@ class StationList(CustomListCreateAPIView):
                 station_meta_object[0]: (
                     station_meta_object[1],
                     station_meta_object[2],
-                    station_meta_object[3]
+                    station_meta_object[3],
+                    station_meta_object[4],
+                    station_meta_object[5]
                 )
                 for station_meta_object in station_meta_query
             }
@@ -256,11 +258,13 @@ class StationList(CustomListCreateAPIView):
                 if 'api_id' in station:
 
                     if station['api_id'] in station_meta_dict:
-                        has_gaps, has_stationinfo, station_meta_id = station_meta_dict[
+                        has_gaps, has_stationinfo, station_meta_id, station_status_name, station_type_name = station_meta_dict[
                             station['api_id']]
                         station["has_gaps"] = has_gaps
                         station["has_stationinfo"] = has_stationinfo
                         station["gaps"] = station_meta_gaps_dict[station_meta_id]
+                        station["status"] = station_status_name
+                        station["type"] = station_type_name
 
         return response
 
@@ -284,6 +288,8 @@ class StationDetail(generics.RetrieveUpdateDestroyAPIView):
                 response.data["has_stationinfo"] = stationmeta.has_stationinfo
                 response.data["gaps"] = [model_to_dict(
                     gap) for gap in stationmeta.stationmetagaps_set.all()]
+                response.data["status"] = stationmeta.status.name
+                response.data["type"] = stationmeta.station_type.name
 
         return response
 

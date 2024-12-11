@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Alert, FileDetails, FileResultCard, Modal } from "@componentsReact";
 import Pako from "pako";
 
-import { useFormReducer, useApi, useAuth } from "@hooks";
+import { useFormReducer, useApi, useAuth, useEscape } from "@hooks";
 
 import { apiOkStatuses } from "@utils";
 
@@ -46,11 +46,16 @@ const StationAddFileModal = ({
 
     const [loading, setLoading] = useState<boolean>(false);
 
-    const { formState, dispatch } = useFormReducer({
+    const defaultState = {
         navigation_file: "",
         station: stationMetaId ?? undefined,
-    });
+    };
 
+    const { formState, dispatch } = useFormReducer(defaultState);
+
+    const [msg, setMsg] = useState<
+        { status: number; msg: string; errors?: Errors } | undefined
+    >(undefined);
     const [bMsg, setBMsg] = useState<
         { status: number; msg: string; errors?: Errors } | undefined
     >(undefined);
@@ -283,6 +288,68 @@ const StationAddFileModal = ({
             Object.values(result.errors).some((error) => error.success),
     );
 
+    const defaultValues = () => {
+        setMsg(undefined);
+        setProgressBar(false);
+        setBMsg(undefined);
+        setFileResults([]);
+        setFiles([]);
+        setGlobalDescription("");
+    };
+    const closeModal = () => {
+        defaultValues();
+
+        dispatch({
+            type: "set",
+            payload: defaultState,
+        });
+
+        handleCloseModal();
+        const fileInputElement = document.getElementById(
+            "file-input",
+        ) as HTMLInputElement;
+        if (fileInputElement) {
+            fileInputElement.value = "";
+        }
+    };
+
+    useEscape(closeModal);
+
+    useEffect(() => {
+        if (
+            !meta &&
+            files.length === fileResults.length &&
+            fileResults.length > 0
+        ) {
+            if (hasErrorMessage && !hasSuccessMessage) {
+                setMsg({
+                    status: 400,
+                    errors: {
+                        errors: [
+                            {
+                                code: "400",
+                                attr: "files",
+                                detail: "",
+                            },
+                        ],
+                        type: "error",
+                    },
+                    msg: "Files were not uploaded successfully",
+                });
+            } else if (!hasErrorMessage && hasSuccessMessage) {
+                setMsg({
+                    status: 200,
+                    msg: "Files uploaded successfully",
+                });
+            } else if (hasErrorMessage && hasSuccessMessage) {
+                setMsg({
+                    status: 199,
+                    msg: "Some files were uploaded successfully but some failed",
+                });
+            }
+        }
+    }, [files, fileResults, hasErrorMessage, hasSuccessMessage]);
+
     // if meta is true, it means we are adding a navigation file to metadata,
     // else we are adding a attached file to metadata
 
@@ -290,7 +357,7 @@ const StationAddFileModal = ({
 
     return (
         <Modal
-            close={false}
+            close={true}
             modalId={"AddFile"}
             size={!meta ? "lg" : "sm"}
             handleCloseModal={() => handleCloseModal()}
@@ -305,13 +372,13 @@ const StationAddFileModal = ({
                 <div className="form-control space-y-2">
                     <input
                         type="file"
-                        title={
-                            getInputTitle("navigation_file") ??
-                            "Navigation File"
-                        }
+                        id="file-input"
+                        title={getInputTitle("navigation_file") ?? "File"}
                         multiple={!meta}
                         className={` ${otherErrorBadge?.includes("navigation_file") ? "file-input-error" : ""} file-input file-input-bordered w-full `}
                         onChange={(e) => {
+                            defaultValues();
+
                             if (meta) {
                                 dispatch({
                                     type: "change_value",
@@ -325,9 +392,6 @@ const StationAddFileModal = ({
                                     },
                                 });
                             } else {
-                                setProgressBar(false);
-                                setBMsg(undefined);
-                                setFileResults([]);
                                 const files = e.target.files;
 
                                 if (files && files.length > 0) {
@@ -363,7 +427,7 @@ const StationAddFileModal = ({
                             />
                         </label>
                     )}
-                    {files && files.length > 0 && (
+                    {files && files.length > 0 && fileResults.length === 0 && (
                         <div className="w-full">
                             <label className="label font-bold">FILES</label>
                             <div
@@ -413,8 +477,8 @@ const StationAddFileModal = ({
                         ></span>
                     </div>
                 )}
-
-                {meta && <Alert msg={bMsg} />}
+                {msg && !meta && <Alert msg={msg} />}
+                {bMsg && meta && <Alert msg={bMsg} />}
                 {loading && (
                     <div className="w-full text-center">
                         <span className="loading loading-spinner loading-lg self-center"></span>
@@ -425,7 +489,7 @@ const StationAddFileModal = ({
                     className="btn btn-success self-center w-3/12"
                     type="submit"
                     disabled={
-                        files.length === 0 ||
+                        (!meta && files.length === 0) ||
                         progressBar ||
                         loading ||
                         apiOkStatuses.includes(Number(bMsg?.status))

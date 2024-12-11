@@ -1386,7 +1386,7 @@ const StationMetadataModal = ({
                                                                     )}
                                                                 </label>
                                                             ) : (
-                                                                <p className="break-words">
+                                                                <p className="break-words whitespace-pre-wrap">
                                                                     {formState
                                                                         .rinex[
                                                                         key as keyof typeof formState.rinex

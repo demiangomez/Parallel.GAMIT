@@ -247,8 +247,8 @@ const Visits = () => {
                         ) : (
                             <div
                                 className={`grid 
-                                    ${visits && visits.length === 1 ? "grid-cols-1" : visits && visits.length > 2 && "grid-cols-2"} 
-                                grid-flow-dense gap-4`}
+                                    grid-cols-2
+                                    grid-flow-dense gap-4`}
                             >
                                 {visits?.map((vis) => {
                                     const visitImages = images?.filter(

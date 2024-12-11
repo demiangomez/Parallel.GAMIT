@@ -35,7 +35,7 @@ import {
     putStationInfoService,
 } from "@services";
 
-import { useApi, useAuth, useFormReducer } from "@hooks/index";
+import { useApi, useAuth, useEscape, useFormReducer } from "@hooks";
 import { STATION_INFO_STATE } from "@utils/reducerFormStates";
 import {
     apiOkStatuses,
@@ -382,18 +382,7 @@ const EditStatsModal = ({
         });
     };
 
-    useEffect(() => {
-        const handleEsc = (event: { key: string }) => {
-            if (event.key === "Escape") {
-                closeModal();
-            }
-        };
-        window.addEventListener("keydown", handleEsc);
-
-        return () => {
-            window.removeEventListener("keydown", handleEsc);
-        };
-    }, []); //eslint-disable-line
+    useEscape(closeModal);
 
     useEffect(() => {
         modals?.show && showModal(modals.title);
@@ -480,11 +469,11 @@ const EditStatsModal = ({
                                                                         key as keyof typeof formState
                                                                     ],
                                                                 )?.trim() !== ""
-                                                              ? dayFromDate(
+                                                              ? (dayFromDate(
                                                                     formState?.[
                                                                         key as keyof typeof formState
                                                                     ],
-                                                                ) ?? ""
+                                                                ) ?? "")
                                                               : ""
                                                         : inputsToDatePicker.includes(
                                                                 key,
@@ -503,9 +492,9 @@ const EditStatsModal = ({
                                                                 ),
                                                             )
                                                           : ""
-                                                    : formState[
+                                                    : (formState[
                                                           key as keyof typeof formState
-                                                      ] ?? ""
+                                                      ] ?? "")
                                             }
                                             onChange={(e) => {
                                                 const inputValue =
