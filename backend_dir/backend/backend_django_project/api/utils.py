@@ -273,9 +273,9 @@ class UploadMultipleFilesUtils:
             # Change the file permissions to give all permissions to the group
             os.chmod(file_path, 0o770)
         except KeyError:
-            print(f"Group {target_group_name} not found.")
+            logger.error(f"Group {target_group_name} not found.")
         except Exception as e:
-            print(f"Failed to change group or permissions: {e}")
+            logger.error(f"Failed to change group or permissions: {e}")
 
     @staticmethod
     def upload_multiple_files(view, request, main_object_type):
