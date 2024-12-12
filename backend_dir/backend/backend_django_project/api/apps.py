@@ -23,11 +23,3 @@ class ApiConfig(AppConfig):
         if int(getattr(settings, 'MAX_SIZE_FILE_MB', None)) > 75:
             raise ImproperlyConfigured(
                 "MAX_SIZE_FILE_MB must be equal or less than 75 MB")
-
-        import grp
-
-        try:
-            grp.getgrnam(settings.USER_GROUP_TO_SAVE_FILES)
-        except KeyError:
-            raise ImproperlyConfigured(
-                f"Group {settings.USER_GROUP_TO_SAVE_FILES} does not exist")
