@@ -9,6 +9,9 @@ import os.path
 from django.contrib.postgres.fields import ArrayField
 # ------------------------------MODELS BASED ON EXISTING DB-----------------------------
 from decimal import Decimal
+from django.conf import settings
+import grp
+from . import utils
 
 
 class BaseModel(models.Model):
@@ -1037,6 +1040,12 @@ class StationImages(BaseModel):
         ]
         ordering = ["name"]
 
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+
+        utils.UploadMultipleFilesUtils.change_file_user_group(
+            self.image, settings.USER_GROUP_TO_SAVE_FILES)
+
 
 class StationStatus(BaseModel):
     name = models.CharField(max_length=100, unique=True)
@@ -1070,6 +1079,12 @@ class StationAttachedFiles(BaseModel):
                 fields=['station', 'filename'], name='station_filename_unique')
         ]
         ordering = ["filename"]
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+
+        utils.UploadMultipleFilesUtils.change_file_user_group(
+            self.file, settings.USER_GROUP_TO_SAVE_FILES)
 
 
 class StationMeta(BaseModel):
@@ -1157,6 +1172,12 @@ class VisitImages(BaseModel):
         ]
         ordering = ["name"]
 
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+
+        utils.UploadMultipleFilesUtils.change_file_user_group(
+            self.image, settings.USER_GROUP_TO_SAVE_FILES)
+
 
 class VisitAttachedFiles(BaseModel):
     visit = models.ForeignKey(Visits, models.CASCADE)
@@ -1171,6 +1192,12 @@ class VisitAttachedFiles(BaseModel):
         ]
         ordering = ["filename"]
 
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+
+        utils.UploadMultipleFilesUtils.change_file_user_group(
+            self.file, settings.USER_GROUP_TO_SAVE_FILES)
+
 
 class VisitGNSSDataFiles(BaseModel):
     visit = models.ForeignKey(Visits, models.CASCADE)
@@ -1184,6 +1211,12 @@ class VisitGNSSDataFiles(BaseModel):
                 fields=['visit', 'filename'], name='visit_filename_gnss_unique')
         ]
         ordering = ["filename"]
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+
+        utils.UploadMultipleFilesUtils.change_file_user_group(
+            self.file, settings.USER_GROUP_TO_SAVE_FILES)
 
 
 def enable_automatic_auditlog():

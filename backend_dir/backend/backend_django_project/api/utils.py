@@ -18,6 +18,8 @@ import re
 import base64
 from io import BytesIO
 from PIL import Image, ImageOps
+import grp
+import os
 
 logger = logging.getLogger('django')
 
@@ -250,6 +252,30 @@ class EndpointsClusterUtils:
 
 
 class UploadMultipleFilesUtils:
+
+    @staticmethod
+    def change_file_user_group(file_object, user_group):
+        # Get the path of the uploaded file
+        file_path = file_object.path
+
+        # Specify the target group name (e.g., 'developers')
+        target_group_name = user_group
+
+        # Get the group ID using the group name
+        try:
+            target_group = grp.getgrnam(target_group_name)
+            group_id = target_group.gr_gid
+
+            # Change the group of the file
+            # -1 means do not change the user owner
+            os.chown(file_path, -1, group_id)
+
+            # Change the file permissions to give all permissions to the group
+            os.chmod(file_path, 0o770)
+        except KeyError:
+            print(f"Group {target_group_name} not found.")
+        except Exception as e:
+            print(f"Failed to change group or permissions: {e}")
 
     @staticmethod
     def upload_multiple_files(view, request, main_object_type):
