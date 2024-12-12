@@ -269,13 +269,12 @@ class UploadMultipleFilesUtils:
             # Change the group of the file
             # -1 means do not change the user owner
             os.chown(file_path, -1, group_id)
-
+        except KeyError:
+            # If running in docker container, it throws an error but in host machine the user group is changed
+            pass
+        finally:
             # Change the file permissions to give all permissions to the group
             os.chmod(file_path, 0o770)
-        except KeyError:
-            logger.error(f"Group {target_group_name} not found.")
-        except Exception as e:
-            logger.error(f"Failed to change group or permissions: {e}")
 
     @staticmethod
     def upload_multiple_files(view, request, main_object_type):
