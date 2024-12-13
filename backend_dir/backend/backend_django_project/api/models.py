@@ -125,8 +125,8 @@ class DataSource(BaseModel):
 class Earthquakes(BaseModel):
     # The composite primary key (date, lat, lon) found, that is not supported. The first column is selected.
     date = models.DateTimeField()
-    lat = models.DecimalField(max_digits=65535, decimal_places=65535)
-    lon = models.DecimalField(max_digits=65535, decimal_places=65535)
+    lat = models.DecimalField(max_digits=150, decimal_places=50)
+    lon = models.DecimalField(max_digits=150, decimal_places=50)
     depth = models.DecimalField(
         max_digits=150, decimal_places=50, blank=True, null=True)
     mag = models.DecimalField(

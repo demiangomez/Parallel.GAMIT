@@ -108,7 +108,7 @@ export const SERIES_FILTERS_STATE = {
     date_start: "",
     date_end: "",
     residuals: false,
-    no_missing_data: false,
+    missing_data: false,
     plot_outliers: false,
     plot_auto_jumps: false,
     no_model: false,

@@ -156,15 +156,9 @@ const StationSeriesFiltersModal = ({
                                                     className="input input-bordered flex items-center w-full space-x-4"
                                                 >
                                                     <span className="font-bold">
-                                                        {key ===
-                                                        "no_missing_data"
-                                                            ? "MISSING DATA"
-                                                            : key
-                                                                  .replace(
-                                                                      /_/g,
-                                                                      " ",
-                                                                  )
-                                                                  .toUpperCase()}
+                                                        {key
+                                                            .replace(/_/g, " ")
+                                                            .toUpperCase()}
                                                     </span>
                                                     <input
                                                         type="checkbox"

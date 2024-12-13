@@ -342,13 +342,13 @@ class TimeSeries(CustomListAPIView):
     def _check_params(self, request):
         params = {}
 
-        for param_name in ("solution", "residuals", "no_missing_data", "plot_outliers", "plot_auto_jumps",
+        for param_name in ("solution", "residuals", "missing_data", "plot_outliers", "plot_auto_jumps",
                            "no_model", "remove_jumps", "remove_polynomial"):
             self._get_required_param(request, params, param_name)
 
         self._get_dates_param(request, params)
 
-        for param_name in ("residuals", "no_missing_data", "plot_outliers", "plot_auto_jumps", "no_model", "remove_jumps", "remove_polynomial"):
+        for param_name in ("residuals", "missing_data", "plot_outliers", "plot_auto_jumps", "no_model", "remove_jumps", "remove_polynomial"):
             self._convert_to_bool(params, param_name)
 
         params["solution"] = params["solution"].strip().upper()
@@ -450,7 +450,7 @@ class TimeSeries(CustomListAPIView):
                                    plot_polynomial_removed=params["remove_polynomial"])
             fileio = BytesIO()
             image = etm.plot(pngfile=None, t_win=params["dates"], residuals=params["residuals"],
-                             plot_missing=params["no_missing_data"], plot_outliers=params["plot_outliers"], fileio=fileio)
+                             plot_missing=params["missing_data"], plot_outliers=params["plot_outliers"], fileio=fileio)
         except Exception as e:
             raise exceptions.CustomValidationErrorExceptionHandler(
                 e.detail if hasattr(e, 'detail') else str(e))

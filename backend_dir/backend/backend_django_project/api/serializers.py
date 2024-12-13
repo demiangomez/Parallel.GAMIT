@@ -8,6 +8,8 @@ from . import utils
 import base64
 from django.core.files.images import ImageFile
 from django.conf import settings
+import math
+import decimal
 
 
 def validate_file_size(value):
@@ -730,6 +732,13 @@ class EarthquakesSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Earthquakes
         fields = '__all__'
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        for key, value in representation.items():
+            if isinstance(value, decimal.Decimal) and math.isnan(value):
+                representation[key] = None
+        return representation
 
 
 class EtmParamsSerializer(serializers.ModelSerializer):

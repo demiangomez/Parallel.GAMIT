@@ -24,7 +24,7 @@ export interface GetParams {
     date_start?: string;
     date_end?: string;
     residuals?: boolean;
-    no_missing_data?: boolean;
+    missing_data?: boolean;
     plot_outliers?: boolean;
     plot_auto_jumps?: boolean;
     no_model?: boolean;

@@ -2,6 +2,8 @@ import { Modal } from "@componentsReact";
 import { pdfjs } from "react-pdf";
 import { Document, Page } from "react-pdf";
 
+import pdfJSWorkerURL from "pdfjs-dist/build/pdf.worker?url";
+
 import { ArrowDownTrayIcon } from "@heroicons/react/24/outline";
 
 import { useCallback, useState } from "react";
@@ -11,10 +13,7 @@ import useResizeObserver from "@hooks/useResizeObserver";
 import "react-pdf/dist/Page/TextLayer.css";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-    "pdfjs-dist/build/pdf.worker.min.mjs",
-    import.meta.url,
-).toString();
+pdfjs.GlobalWorkerOptions.workerSrc = pdfJSWorkerURL;
 
 interface Props {
     file: string | undefined;
