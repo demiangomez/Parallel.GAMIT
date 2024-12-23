@@ -30,6 +30,8 @@ urlpatterns = [
     path('earthquakes', views.EarthquakesList.as_view(), name='earthquakes_list'),
     path('earthquakes/<int:pk>', views.EarthquakesDetail.as_view(),
          name='earthquakes_detail'),
+    path('earthquakes/<int:pk>/affected-stations', views.EarthquakesAffectedStations.as_view(),
+         name='earthquakes_affected_stations'),
     path('endpoints', views.EndpointList.as_view(), name='endpoint_list'),
     path('endpoints/<int:pk>', views.EndpointDetail.as_view(),
          name='endpoint_detail'),

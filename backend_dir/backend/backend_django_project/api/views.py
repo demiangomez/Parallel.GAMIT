@@ -778,11 +778,33 @@ class DataSourceDetail(generics.RetrieveUpdateDestroyAPIView):
 class EarthquakesList(CustomListCreateAPIView):
     queryset = models.Earthquakes.objects.all()
     serializer_class = serializers.EarthquakesSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = filters.EarthquakesFilter
 
 
 class EarthquakesDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = models.Earthquakes.objects.all()
     serializer_class = serializers.EarthquakesSerializer
+
+
+class EarthquakesAffectedStations(APIView):
+    serializer_class = serializers.DummySerializer
+
+    def get_queryset(self, pk):
+        try:
+            return models.Earthquakes.objects.get(api_id=pk)
+        except models.Rinex.DoesNotExist:
+            raise Http404
+
+    def get(self, request, pk, format=None):
+        earthquake = self.get_queryset(pk)
+        try:
+            affected_stations, base64_kml = utils.EarthquakeUtils.get_affected_stations(
+                earthquake)
+        except Exception as e:
+            raise exceptions.CustomServerErrorExceptionHandler(e)
+
+        return Response(data={"affected_stations": affected_stations, "kml": base64_kml}, status=status.HTTP_200_OK)
 
 
 class EtmParamsList(CustomListCreateAPIView):

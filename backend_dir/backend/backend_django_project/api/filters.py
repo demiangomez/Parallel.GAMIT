@@ -66,6 +66,7 @@ class StationAttachedFilesFilter(filters.FilterSet):
         model = models.StationAttachedFiles
         fields = ['station_api_id']
 
+
 class VisitFilter(filters.FilterSet):
     station_api_id = filters.CharFilter(
         field_name='station')
@@ -74,10 +75,11 @@ class VisitFilter(filters.FilterSet):
         model = models.Visits
         fields = ['station_api_id']
 
+
 class VisitAttachedFilesFilter(filters.FilterSet):
     visit_api_id = filters.CharFilter(
         field_name='visit')
-    
+
     station_api_id = filters.CharFilter(field_name='visit__station')
 
     class Meta:
@@ -88,7 +90,7 @@ class VisitAttachedFilesFilter(filters.FilterSet):
 class VisitImagesFilter(filters.FilterSet):
     visit_api_id = filters.CharFilter(
         field_name='visit')
-    
+
     station_api_id = filters.CharFilter(field_name='visit__station')
 
     class Meta:
@@ -99,31 +101,38 @@ class VisitImagesFilter(filters.FilterSet):
 class VisitGNSSDataFilesFilter(filters.FilterSet):
     visit_api_id = filters.CharFilter(
         field_name='visit')
-    
+
     station_api_id = filters.CharFilter(field_name='visit__station')
 
     class Meta:
         model = models.VisitGNSSDataFiles
         fields = ['visit_api_id', 'station_api_id']
 
+
 class EndpointsClusterFilter(filters.FilterSet):
-    role_type = filters.CharFilter(field_name='role_type', lookup_expr='icontains')
+    role_type = filters.CharFilter(
+        field_name='role_type', lookup_expr='icontains')
 
     class Meta:
         model = models.EndPointsCluster
         fields = ['role_type']
 
+
 class EventsFilter(filters.FilterSet):
-    event_date_since = filters.DateTimeFilter(field_name='event_date', lookup_expr='gte')
-    event_date_until = filters.DateTimeFilter(field_name='event_date', lookup_expr='lte')
-    event_type = filters.CharFilter(field_name='event_type', lookup_expr='icontains')
+    event_date_since = filters.DateTimeFilter(
+        field_name='event_date', lookup_expr='gte')
+    event_date_until = filters.DateTimeFilter(
+        field_name='event_date', lookup_expr='lte')
+    event_type = filters.CharFilter(
+        field_name='event_type', lookup_expr='icontains')
     network_code = filters.CharFilter(
         field_name='network_code', lookup_expr='exact')
     station_code = filters.CharFilter(
         field_name='station_code', lookup_expr='exact')
     year = filters.NumberFilter(field_name='year', lookup_expr='icontains')
     doy = filters.NumberFilter(field_name='doy', lookup_expr='icontains')
-    description = filters.CharFilter(field_name='description', lookup_expr='icontains')
+    description = filters.CharFilter(
+        field_name='description', lookup_expr='icontains')
     stack = filters.CharFilter(field_name='stack', lookup_expr='icontains')
     module = filters.CharFilter(field_name='module', lookup_expr='icontains')
     node = filters.CharFilter(field_name='node', lookup_expr='icontains')
@@ -131,3 +140,24 @@ class EventsFilter(filters.FilterSet):
     class Meta:
         model = models.Events
         fields = ['event_date_since', 'event_date_until']
+
+
+class EarthquakesFilter(filters.FilterSet):
+    date_start = filters.DateTimeFilter(
+        field_name='date', lookup_expr='gte')
+    date_end = filters.DateTimeFilter(
+        field_name='date', lookup_expr='lte')
+    max_magnitude = filters.NumberFilter(
+        field_name='mag', lookup_expr='lte')
+    min_magnitude = filters.NumberFilter(
+        field_name='mag', lookup_expr='gte')
+    max_depth = filters.NumberFilter(
+        field_name='depth', lookup_expr='lte')
+    min_depth = filters.NumberFilter(
+        field_name='depth', lookup_expr='gte')
+    id = filters.NumberFilter(field_name='api_id', lookup_expr='icontains')
+
+    class Meta:
+        model = models.Earthquakes
+        fields = ['date_start', 'date_end', 'max_magnitude', 'min_magnitude',
+                  'max_depth', 'min_depth', 'id']
