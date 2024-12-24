@@ -15,7 +15,8 @@ FROM nginx:latest
 RUN apt-get update && apt-get install -y tini
 
 COPY --from=build /app/dist /usr/share/nginx/html/
-COPY nginx.conf /etc/nginx/nginx.conf
+COPY srv/nginx.conf /etc/nginx/nginx.conf
+COPY srv/mime.types /etc/nginx/mime.types
 
 # Configure tini as the init system
 ENTRYPOINT ["/usr/bin/tini", "--"]
