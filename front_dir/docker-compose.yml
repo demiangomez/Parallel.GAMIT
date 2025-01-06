@@ -5,7 +5,7 @@ services:
         restart: always
         volumes:
             - .env:/app/.env
-            - ./nginx.conf:/etc/nginx/nginx.conf
+            - ./srv/nginx.conf:/etc/nginx/nginx.conf
         ports:
             - "${APP_PORT}:5100"
         depends_on:
