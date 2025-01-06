@@ -1,5 +1,7 @@
 declare module "@heroicons/*";
 
+declare module "leaflet-omnivore";
+
 export interface GetParams {
     network_code?: string;
     thumbnail?: boolean;
@@ -51,6 +53,13 @@ export interface GetParams {
     limit: number;
 }
 
+export interface MyMapContainerProps {
+    center: LatLngExpression;
+    zoom: number;
+    scrollWheelZoom: boolean;
+    style?: React.CSSProperties;
+}
+
 export interface TokenPayload {
     token_type: string;
     user_id: number;
@@ -60,6 +69,48 @@ export interface TokenPayload {
     jti: string;
     iat: number;
     exp: number;
+}
+
+export interface EarthquakeData {
+    api_id: number;
+    date: string;
+    lat: number;
+    lon: number;
+    depth: number;
+    mag: number;
+    strike1: number;
+    dip1: number;
+    rake1: number;
+    strike2: number;
+    dip2: number;
+    rake2: number;
+    id: string;
+    location: string;
+}
+
+export interface EarthQuakeParams {
+    date_start?: string;
+    date_end?: string;
+    max_magnitude?: number | undefined;
+    min_magnitude?: number | undefined;
+    id?: string | undefined;
+    max_depth?: number | undefined;
+    min_depth?: number | undefined;
+}
+
+export interface EarthQuakeFormState {
+    date_start: string | undefined;
+    date_end: string | undefined;
+    max_magnitude: string;
+    min_magnitude: string;
+    id: string;
+    max_depth: string;
+    min_depth: string;
+    min_latitude: string;
+    max_latitude: string;
+    min_longitude: string;
+    max_longitude: string;
+    polygon_coordinates: [number[]];
 }
 
 export interface ErrorResponse {
@@ -101,6 +152,21 @@ export interface StationServiceData {
     total_count: number;
     data: StationData[];
     statusCode: number;
+}
+
+export interface StationsAffectedServiceData {
+    affected_stations: StationAffectedInfo[];
+    kml: string;
+}
+
+export interface StationAffectedInfo {
+    network_code: string;
+    station_code: string;
+}
+
+export interface FilterState {
+    typeOption: string[];
+    statusOption: string[];
 }
 
 export interface ExtendedStationInfoData extends StationInfoData {
@@ -587,6 +653,8 @@ export interface StationData {
     marker: number;
     gaps: GapData[];
     mainParams?: GetParams;
+    status: string;
+    type: string | null;
 }
 
 export interface StationInfoData {

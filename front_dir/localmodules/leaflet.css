@@ -357,6 +357,11 @@ svg.leaflet-image-layer.leaflet-interactive path {
         Monaco,
         monospace;
     text-indent: 1px;
+    z-index: 9999;
+}
+
+.leaflet-control-zoom-in {
+    z-index: 9999;
 }
 
 .leaflet-touch .leaflet-control-zoom-in,

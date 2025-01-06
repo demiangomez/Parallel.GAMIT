@@ -93,6 +93,7 @@ const Pdf = ({
             fontFamily: "Lora",
             paddingTop: 35,
             paddingHorizontal: 35,
+            paddingBottom: 50,
         },
         section: {
             display: "flex",

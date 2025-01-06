@@ -701,7 +701,7 @@ const AddVisitModal = ({
                                         className="font-bold inline-flex border-b-2 w-full justify-center 
                                                     items-center text-xl my-2"
                                     >
-                                        Visit GNSS Files
+                                        Visit Observation Files
                                         <button
                                             className="btn btn-ghost btn-circle ml-2"
                                             type="button"

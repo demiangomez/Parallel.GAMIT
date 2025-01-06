@@ -1,4 +1,5 @@
-import { GapData, StationData, TokenPayload } from "@types";
+import { FilterState, GapData, StationData, TokenPayload } from "@types";
+import L from 'leaflet';
 
 export const modalSizes = {
     sm: "500px",
@@ -12,6 +13,60 @@ export const modalSizes = {
 export const apiOkStatuses = [200, 201, 204];
 
 export const apiErrorStatuses = [400, 401, 403, 404, 405, 406, 415, 500];
+
+export const chosenIcon = (s: StationData) => {
+    const icon = new L.Icon({
+        iconUrl: iconUrl(s),
+        iconSize: [20, 20],
+        className: iconClass(s),
+    });
+
+    return icon;
+};
+
+const iconUrl = (s: StationData) => {
+        //Problemas
+        if (!s.has_stationinfo || s.has_gaps) {
+            return "https://maps.google.com/mapfiles/kml/shapes/caution.png";
+        }
+        //Campaña
+        else if (s.type == "Campaign") {
+            return "https://maps.google.com/mapfiles/kml/shapes/placemark_square.png";
+        }
+        //Continua
+        else if (s.type == "Continuous") {
+            return "https://maps.google.com/mapfiles/kml/shapes/placemark_circle.png";
+        }
+        // Default icon
+        return "https://maps.google.com/mapfiles/kml/shapes/placemark_circle.png";
+    };
+
+    const iconClass = (s: StationData) => {
+        //Problemas
+        if (!s.has_stationinfo || s.has_gaps) {
+            return "";
+        }
+        //Online
+        if (s.has_stationinfo && s.status == "Active Online") {
+            return "green-icon";
+        }
+        //Offline
+        else if (s.has_stationinfo && s.status == "Active Offline") {
+            return "light-green-icon";
+        }
+        //Destroyed
+        else if (s.has_stationinfo && s.status == "Destroyed") {
+            return "light-gray-icon";
+        }
+        //Unknown
+        else if (s.has_stationinfo && s.status == "Unknown") {
+            return "gray-icon";
+        }
+        //Desactivated
+        else if (s.has_stationinfo && s.status == "Desactivated") {
+            return "light-red-icon";
+        }
+    };
 
 export const datesFormatOpt: Intl.DateTimeFormatOptions = {
     day: "2-digit",
@@ -166,6 +221,159 @@ export const dayFromDate = (date: Date | string) => {
     // }`;
 };
 
+export const isStationFiltered = (
+    station: StationData | undefined,
+    filterState: FilterState | undefined,
+    filters:
+        | {
+              openFilters: boolean;
+              stationType: boolean;
+              stationWithProblems: boolean;
+              stationWithoutProblems: boolean;
+              stationStatus: boolean;
+          }
+        | undefined,
+) => {
+    if (station && filterState) {
+        const hasProblems = station.has_gaps || !station.has_stationinfo;
+        const withoutProblems = !station.has_gaps && station.has_stationinfo;
+
+        // Si se selecciona station with problems y cumple
+        if (filters?.stationWithProblems && hasProblems) {
+            if (
+                filterState.statusOption.length === 0 &&
+                filterState.typeOption.length === 0
+            ) {
+                return true;
+            }
+            if (
+                filterState.statusOption.length > 0 &&
+                filterState.statusOption.includes(station.status)
+            ) {
+                if (filterState.typeOption.length === 0) {
+                    return true;
+                } else if (
+                    filterState.typeOption &&
+                    station.type !== null &&
+                    filterState.typeOption.includes(station.type)
+                ) {
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+            if (
+                filterState.typeOption &&
+                station.type !== null &&
+                filterState.typeOption.includes(station.type)
+            ) {
+                if (filterState.statusOption.length === 0) {
+                    return true;
+                } else if (
+                    filterState.statusOption.length > 0 &&
+                    filterState.statusOption.includes(station.status)
+                ) {
+                    return true;
+                } else {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+
+        // Si se selecciona station without problems y cumple
+        if (filters?.stationWithoutProblems && withoutProblems) {
+            if (
+                filterState.statusOption.length === 0 &&
+                filterState.typeOption.length === 0
+            ) {
+                return true;
+            }
+            if (
+                filterState.statusOption.length > 0 &&
+                filterState.statusOption.includes(station.status)
+            ) {
+                if (filterState.typeOption.length === 0) {
+                    return true;
+                } else if (
+                    filterState.typeOption &&
+                    station.type !== null &&
+                    filterState.typeOption.includes(station.type)
+                ) {
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+            if (
+                filterState.typeOption &&
+                station.type !== null &&
+                filterState.typeOption.includes(station.type)
+            ) {
+                if (filterState.statusOption.length === 0) {
+                    return true;
+                } else if (
+                    filterState.statusOption.length > 0 &&
+                    filterState.statusOption.includes(station.status)
+                ) {
+                    return true;
+                } else {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+
+        // Si no se selecciona station with problems ni station without problems
+        if (!filters?.stationWithProblems && !filters?.stationWithoutProblems) {
+            if (
+                filterState.statusOption.length === 0 &&
+                filterState.typeOption.length === 0
+            ) {
+                return true;
+            }
+            if (
+                filterState.statusOption.length > 0 &&
+                filterState.statusOption.includes(station.status)
+            ) {
+                if (filterState.typeOption.length === 0) {
+                    return true;
+                } else if (
+                    filterState.typeOption &&
+                    station.type !== null &&
+                    filterState.typeOption.includes(station.type)
+                ) {
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+            if (
+                filterState.typeOption &&
+                station.type !== null &&
+                filterState.typeOption.includes(station.type)
+            ) {
+                if (filterState.statusOption.length === 0) {
+                    return true;
+                } else if (
+                    filterState.statusOption.length > 0 &&
+                    filterState.statusOption.includes(station.status)
+                ) {
+                    return true;
+                } else {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+    } else {
+        return false;
+    }
+};
+
 export const generateErrorMessages = (station: StationData) => {
     const errorMessages: string[] = [];
 
@@ -217,6 +425,13 @@ export const hasDifferences = (one: object, second: object) => {
 export const transformParams = (params: any) => {
     return Object.entries(params)
         .map(([key, value]) => `${key}=${value}`)
+        .join("&");
+};
+
+export const transformParamsForFilter = (params: any) => {
+    return Object.entries(params)
+        .map(([key, value]) => (value !== undefined ? `${key}=${value}` : null))
+        .filter((el: any) => el !== null)
         .join("&");
 };
 

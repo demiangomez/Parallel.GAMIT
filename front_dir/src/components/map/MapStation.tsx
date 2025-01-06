@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+//import ReactDOMServer from "react-dom/server";
 import {
     MapContainer,
     MapContainerProps,
@@ -8,7 +9,7 @@ import {
     useMap,
 } from "react-leaflet";
 import { PopupChildren, Spinner } from "@componentsReact";
-
+import { VisitsScroller } from "@componentsReact";
 import domtoimage from "dom-to-image";
 import JSZip from "jszip";
 import { LatLngExpression } from "leaflet";
@@ -16,20 +17,45 @@ import L from "leaflet";
 // @ts-expect-error leaflet omnivore doesnt have any types
 import omnivore from "leaflet-omnivore";
 
-import nogapsIcon from "@assets/images/placemark_square.png";
-import gapsIcon from "@assets/images/caution.png";
+import {
+    StationData,
+    StationMetadataServiceData,
+    StationVisitsData,
+} from "@types";
+import { chosenIcon } from "@utils/index";
 
-import { StationData } from "@types";
+interface VisitsStates {
+    visitId: number;
+    checked: boolean;
+}
+
+interface VisitScrollerProps {
+    visits: StationVisitsData[];
+    changeKml: VisitsStates[];
+    changeMeta: boolean;
+    setChangeKml: React.Dispatch<React.SetStateAction<VisitsStates[]>>;
+    setChangeMeta: React.Dispatch<React.SetStateAction<boolean>>;
+    stationMeta: StationMetadataServiceData;
+}
 
 interface MapProps {
     station: StationData | undefined;
-    base64Data: string; // Base64 data from the database
+    base64Data:
+        | {
+              visits: StationVisitsData[];
+              stationMeta: StationMetadataServiceData;
+              changeKml: VisitsStates[];
+              changeMeta: boolean;
+          }
+        | string
+        | undefined;
     loadPdf: boolean;
     loadedPdfData: boolean;
     setStationLocationScreen?: (url: string) => void;
     setStationLocationDetailScreen?: (url: string) => void;
     setLoadPdf: React.Dispatch<React.SetStateAction<boolean>>;
     setLoadedMap: React.Dispatch<React.SetStateAction<boolean>>;
+    visitScrollerProps: VisitScrollerProps;
 }
 
 const ChangeView = ({
@@ -48,6 +74,27 @@ const ChangeView = ({
 
 const LoadKmzFromBase64 = ({ base64Data }: { base64Data: string }) => {
     const map = useMap();
+
+    //--------------------------------------------------Funciones--------------------------------------------------
+
+    const getRandomColor = () => {
+        const possibleColors = [
+            "blue",
+            "red",
+            "green",
+            "yellow",
+            "purple",
+            "orange",
+            "pink",
+            "brown",
+            "black",
+        ];
+        const chosenColor =
+            possibleColors[Math.floor(Math.random() * possibleColors.length)];
+        return chosenColor;
+    };
+
+    //--------------------------------------------------UseEffect--------------------------------------------------
 
     useEffect(() => {
         const loadKmzOrKmlFile = async () => {
@@ -69,6 +116,8 @@ const LoadKmzFromBase64 = ({ base64Data }: { base64Data: string }) => {
                     if (kmlFile) {
                         const kmlString = await kmlFile.async("string");
                         const overlayLayer = omnivore.kml.parse(kmlString);
+                        const randomColor = getRandomColor();
+                        overlayLayer.setStyle({ color: randomColor });
                         overlayLayer.options = { interactive: false };
                         overlayLayer.addTo(map);
                     } else {
@@ -79,6 +128,8 @@ const LoadKmzFromBase64 = ({ base64Data }: { base64Data: string }) => {
                     try {
                         const kmlString = new TextDecoder().decode(arrayBuffer);
                         const overlayLayer = omnivore.kml.parse(kmlString);
+                        const randomColor = getRandomColor();
+                        overlayLayer.setStyle({ color: randomColor });
                         overlayLayer.options = { interactive: false };
                         overlayLayer.addTo(map);
                     } catch (kmlError) {
@@ -105,15 +156,8 @@ const MapStation = ({
     setStationLocationDetailScreen,
     setLoadPdf,
     setLoadedMap,
+    visitScrollerProps,
 }: MapProps) => {
-    const [mapProps, setMapProps] = useState<MapContainerProps>({
-        center: [0, 0],
-        zoom: 10,
-        scrollWheelZoom: true,
-        id: "leaflet-map",
-        zoomAnimation: true,
-    });
-
     const [isMapReady, setIsMapReady] = useState(false);
     const MapEvents = ({
         setIsMapReady,
@@ -186,20 +230,7 @@ const MapStation = ({
         }
     }, [isMapReady, loadPdf]);
 
-    const mapRef = useRef<L.Map | null>(null);
-
-    useEffect(() => {
-        const map = mapRef.current;
-        if (!map) return;
-
-        map.on("load", () => {
-            setIsMapReady(true);
-        });
-
-        return () => {
-            map.off("load");
-        };
-    }, [mapRef]);
+    //--------------------------------------------------Funciones--------------------------------------------------
 
     const captureImage = (
         timeout: number,
@@ -224,6 +255,27 @@ const MapStation = ({
             }
         }, timeout);
     };
+
+    //--------------------------------------------------UseState--------------------------------------------------
+
+    const [mapProps, setMapProps] = useState<MapContainerProps>({
+        center: [0, 0],
+        zoom: 10,
+        scrollWheelZoom: true,
+        id: "leaflet-map",
+        zoomAnimation: true,
+    });
+
+    const [forceRerender, setForceRerender] = useState(0);
+
+    const [showScroller, setShowScroller] = useState(false);
+
+    //--------------------------------------------------UseRef--------------------------------------------------
+
+    const mapRef = useRef<L.Map | null>(null);
+    const markerRef = useRef<L.Marker | null>(null);
+
+    //--------------------------------------------------UseEffect--------------------------------------------------
 
     useEffect(() => {
         if (mapRef.current && loadPdf) {
@@ -256,17 +308,6 @@ const MapStation = ({
         }
     }, [station, mapRef, loadPdf]);
 
-    const okIcon = new L.Icon({
-        iconUrl: nogapsIcon,
-        iconSize: [20, 20],
-        className: "bg-green-600 border border-black",
-    });
-
-    const alertIcon = new L.Icon({
-        iconUrl: gapsIcon,
-        iconSize: [20, 20],
-    });
-
     useEffect(() => {
         const pos: LatLngExpression = station
             ? [station?.lat ?? 0, station?.lon ?? 0]
@@ -278,14 +319,9 @@ const MapStation = ({
         }));
     }, [station]);
 
-    const [forceRerender, setForceRerender] = useState(0);
-
     useEffect(() => {
         setForceRerender((prev) => prev + 1);
     }, [base64Data]);
-
-    const iconGaps =
-        station?.has_gaps || !station?.has_stationinfo ? alertIcon : okIcon;
 
     return (
         <div className="z-10 pt-6 w-6/12 flex justify-center">
@@ -301,11 +337,21 @@ const MapStation = ({
                     </div>
                 </div>
             )}
+
             <MapContainer
                 {...mapProps}
                 key={forceRerender}
                 className="w-[55vw] h-[55vh] xl:w-[40vw] lg:w-[30vw] md:w-[30vw] sm:w-[20vw]"
                 ref={mapRef}
+                style={{ zIndex: 1000 }}
+                whenReady={() => {
+                    if (forceRerender === 0) {
+                        //forcereRender is 0 when the map is first loaded so we need to open the popup
+                        setTimeout(() => {
+                            markerRef.current?.openPopup();
+                        }, 500);
+                    }
+                }}
             >
                 <MapEvents setIsMapReady={setIsMapReady} />
                 <TileLayer
@@ -313,18 +359,68 @@ const MapStation = ({
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                     minZoom={4}
                 />
+                {!loadPdf && (
+                    <VisitsScroller
+                        map={mapRef.current}
+                        visits={visitScrollerProps.visits}
+                        changeKml={visitScrollerProps.changeKml}
+                        changeMeta={visitScrollerProps.changeMeta}
+                        setChangeKml={visitScrollerProps.setChangeKml}
+                        setChangeMeta={visitScrollerProps.setChangeMeta}
+                        stationMeta={visitScrollerProps.stationMeta}
+                        showScroller={showScroller}
+                        setShowScroller={setShowScroller}
+                    />
+                )}
+
                 <ChangeView
                     center={mapProps.center ?? [0, 0]}
                     zoom={mapProps.zoom ?? 6}
                 />
-                <LoadKmzFromBase64 base64Data={base64Data} />
+                {base64Data &&
+                    (typeof base64Data !== "string" &&
+                    Array.isArray(base64Data.visits) ? (
+                        base64Data.visits
+                            .filter(
+                                (visit) =>
+                                    visit &&
+                                    visit.navigation_actual_file &&
+                                    base64Data.changeKml.some(
+                                        (kml) =>
+                                            kml.visitId === visit.id &&
+                                            kml.checked,
+                                    ),
+                            )
+                            .map((visit) => (
+                                <LoadKmzFromBase64
+                                    key={visit.id}
+                                    base64Data={
+                                        visit.navigation_actual_file ?? ""
+                                    }
+                                />
+                            ))
+                    ) : (
+                        <LoadKmzFromBase64
+                            base64Data={
+                                typeof base64Data === "string" ? base64Data : ""
+                            }
+                        />
+                    ))}
+                {base64Data &&
+                typeof base64Data !== "string" &&
+                base64Data.stationMeta &&
+                base64Data.changeMeta ? (
+                    <LoadKmzFromBase64
+                        base64Data={
+                            base64Data.stationMeta.navigation_actual_file ?? ""
+                        }
+                    />
+                ) : null}
                 <Marker
-                    ref={(ref) => {
-                        setTimeout(() => ref?.openPopup(), 500);
-                    }}
-                    icon={iconGaps}
-                    key={station ? station.lat + station.lon : "key"}
+                    icon={station ? chosenIcon(station) : undefined}
+                    key={station ? station?.lat + station?.lon : "key"}
                     position={mapProps.center ?? [0, 0]}
+                    ref={markerRef}
                 >
                     {!loadPdf && (
                         <Popup maxWidth={600} minWidth={400}>

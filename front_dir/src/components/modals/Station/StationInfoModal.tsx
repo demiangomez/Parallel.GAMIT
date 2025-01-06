@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { StatsModal, Modal, Pagination, Table } from "@componentsReact";
+import { StatsModal, Modal, Pagination, Table, RinexAddModal } from "@componentsReact";
 import { PlusCircleIcon } from "@heroicons/react/24/outline";
 
 import { getStationInfoService } from "@services";
@@ -41,6 +41,8 @@ const StationInfoModal = ({
 }: StationInfoModalProps) => {
     const { token, logout } = useAuth();
     const api = useApi(token, logout);
+
+    const [typeAddition, setTypeAddition] = useState<"last" | "none-clear" | undefined>(undefined);
 
     const [stationInfo, setStationInfo] = useState<StationInfoData | undefined>(
         undefined,
@@ -87,6 +89,7 @@ const StationInfoModal = ({
                                 type: "none",
                             });
                             setStationInfo(lastStationInfo);
+                            setTypeAddition("last");
                         }}
                     >
                         From last record
@@ -101,9 +104,25 @@ const StationInfoModal = ({
                                 type: "add",
                             });
                             setStationInfo(undefined);
+                            setTypeAddition("none-clear");
                         }}
                     >
                         From empty record
+                    </a>
+                </li>
+                <li className="font-semibold">
+                    <a
+                        onClick={() => {
+                            setModals({
+                                show: true,
+                                title: "RinexAdd",
+                                type: "none",
+                            });
+                            setStationInfo(lastStationInfo);
+                            setTypeAddition("none-clear");
+                        }}
+                    >
+                        From file
                     </a>
                 </li>
             </ul>
@@ -282,6 +301,7 @@ const StationInfoModal = ({
         }
     }, [totalCount, stationInfos]); // eslint-disable-line
 
+
     return (
         <Modal
             close={close}
@@ -333,8 +353,20 @@ const StationInfoModal = ({
                     }}
                     setStateModal={setModals}
                     setStationInfo={setStationInfo}
+                    typeAddition={typeAddition}
                 />
             )}
+            {modals?.show && modals?.title === "RinexAdd" && (
+                <RinexAddModal
+                stationApiId={station?.api_id ?? 0}
+                setModalState={setModals}
+                handleCloseModal={() => {
+                    setActivePage(1);
+                    getStationInfo();
+                }}
+                />
+            )}
+
         </Modal>
     );
 };

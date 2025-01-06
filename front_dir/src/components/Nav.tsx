@@ -1,3 +1,6 @@
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+
 import {
     ArrowRightEndOnRectangleIcon,
     MegaphoneIcon,
@@ -6,15 +9,13 @@ import {
     UserCircleIcon,
     UserGroupIcon,
 } from "@heroicons/react/24/outline";
-import useApi from "@hooks/useApi";
 
-import { useAuth } from "@hooks/useAuth";
+import { useApi, useAuth } from "@hooks";
+
 import { getServerHealthService } from "@services";
 import { ErrorResponse } from "@types";
-import { jwtDeserializer } from "@utils";
-import { useEffect, useState } from "react";
 
-import { Link } from "react-router-dom";
+import { jwtDeserializer } from "@utils";
 
 type healthCheck = {
     result: string;
@@ -119,7 +120,7 @@ const Nav = () => {
                     </div>
                     <ul
                         tabIndex={0}
-                        className="menu menu-sm dropdown-content mt-3 z-30 space-y-1 p-2 shadow bg-gray-800 border-[1px] border-gray-600 rounded-box w-52"
+                        className="menu menu-sm dropdown-content mt-3 z-[10000000000000000] space-y-1 p-2 shadow bg-gray-800 border-[1px] border-gray-600 rounded-box w-52"
                     >
                         <div className=" border-b-[1px] border-gray-600 flex justify-center">
                             <span className="mb-2">

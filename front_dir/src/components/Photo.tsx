@@ -182,7 +182,7 @@ const Photo = ({ phArray, loader, reFetch }: Props) => {
                         className="text-center text-neutral content-center text-2xl 
                         font-bold w-full rounded-md bg-neutral-content p-6"
                     >
-                        There is no photos
+                        There are no photos
                     </div>
                 )}
             </CardContainer>

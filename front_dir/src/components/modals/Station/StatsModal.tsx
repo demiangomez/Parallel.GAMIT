@@ -44,7 +44,7 @@ import {
     dayFromDate,
     formattedDates,
     showModal,
-} from "@utils/index";
+} from "@utils";
 
 interface EditStatsModalProps {
     stationInfo: StationInfoData | undefined;
@@ -59,6 +59,7 @@ interface EditStatsModalProps {
         React.SetStateAction<StationInfoData | undefined>
     >;
     reFetch: () => void;
+    typeAddition: "last" | "none-clear" | undefined;
 }
 
 const EditStatsModal = ({
@@ -67,6 +68,7 @@ const EditStatsModal = ({
     setStateModal,
     setStationInfo,
     reFetch,
+    typeAddition,
 }: EditStatsModalProps) => {
     const { nc, sc } = useParams();
 
@@ -379,6 +381,17 @@ const EditStatsModal = ({
         dispatch({
             type: "set",
             payload: STATION_INFO_STATE,
+        });
+    };
+
+    const dispatchAndClearDoys = () => {
+        dispatch({ type: "clear" });
+        setDoyCheck({
+            date_start: {
+                check: true,
+                input: "",
+            },
+            date_end: { check: true, input: "" },
         });
     };
 
@@ -695,6 +708,17 @@ const EditStatsModal = ({
                         )}
                         Submit
                     </button>
+
+                    {typeAddition === "last" && (
+                        <a
+                            className="link-hover cursor-pointer"
+                            style={{ marginTop: "10px", marginLeft: "10px" }}
+                            onClick={dispatchAndClearDoys}
+                        >
+                            Clear
+                        </a>
+                    )}
+
                     {modalType === "edit" && (
                         <button
                             type="button"

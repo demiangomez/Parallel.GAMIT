@@ -20,6 +20,7 @@ import {
 } from "@services";
 
 import {
+    Errors,
     MonumentTypes,
     People,
     RinexData,
@@ -47,6 +48,13 @@ interface Props {
     stationLocationScreen: string;
     stationLocationDetailScreen: string;
     loadedMap: boolean | undefined;
+    setMessage: React.Dispatch<
+        React.SetStateAction<{
+            error: boolean | undefined;
+            msg: string;
+            errors?: Errors;
+        }>
+    >;
     setLoadPdf: React.Dispatch<React.SetStateAction<boolean>>;
     setLoadedPdfData: React.Dispatch<React.SetStateAction<boolean | undefined>>;
 }
@@ -61,6 +69,7 @@ const PdfContainer = ({
     stationLocationScreen,
     stationLocationDetailScreen,
     loadedMap,
+    setMessage,
     setLoadPdf,
     setLoadedPdfData,
 }: Props) => {
@@ -259,7 +268,10 @@ const PdfContainer = ({
                 getRinex(),
             ]);
         } catch (err) {
-            console.error(err);
+            setMessage({ error: true, msg: "Error fetching data" });
+            setLoadedPdfData(true);
+
+            // console.error(err);
         } finally {
             setLoading(false);
         }
@@ -302,10 +314,19 @@ const PdfContainer = ({
         const resizedImagesPromises = images.map(async (img) => {
             const imgElement = new Image();
             imgElement.src = `data:image/*;base64,${img.actual_image}`;
-            await new Promise((resolve, reject) => {
+            await new Promise((resolve) => {
                 imgElement.onload = resolve;
-                imgElement.onerror = (err) => {
-                    reject(err);
+                imgElement.onerror = () => {
+                    const isVisitImage = "visit" in img;
+
+                    setMessage({
+                        error: true,
+                        msg: isVisitImage
+                            ? "Error processing visit images/s"
+                            : "Error processing station images/s",
+                    });
+                    setLoadedPdfData(true);
+                    // reject(err);
                 };
             });
 
@@ -338,44 +359,56 @@ const PdfContainer = ({
         document: undefined,
     });
 
+    // SI LOADEDPDFDATA ES TRUE, SE VA EL MODAL DE LOADING.
+
     useEffect(() => {
         const preparePdfData = async () => {
-            if ((loadPdf && !loadedMap) || (!loadPdf && !loadedMap) || loading)
-                return;
+            try {
+                if (
+                    (loadPdf && !loadedMap) ||
+                    (!loadPdf && !loadedMap) ||
+                    loading
+                )
+                    return;
 
-            let processedImages = visitImages;
-            let stationProcessedImages = images;
+                let processedImages = visitImages;
+                let stationProcessedImages = images;
 
-            if (visitImages && visitImages?.length > 0) {
-                processedImages = (await processImages(
-                    visitImages,
-                )) as StationVisitsFilesData[];
+                if (visitImages && visitImages?.length > 0) {
+                    processedImages = (await processImages(
+                        visitImages,
+                    )) as StationVisitsFilesData[];
+                }
+
+                if (images && images?.length > 0) {
+                    stationProcessedImages = (await processImages(
+                        images,
+                    )) as StationImagesData[];
+                }
+
+                updateInstance(
+                    <Pdf
+                        stationInfo={stationInfo}
+                        monuments={monuments}
+                        station={station}
+                        stationMeta={stationMeta}
+                        people={people}
+                        images={stationProcessedImages}
+                        firstRinex={firstRinex}
+                        lastRinex={lastRinex}
+                        stationLocationScreen={stationLocationScreen}
+                        stationLocationDetailScreen={
+                            stationLocationDetailScreen
+                        }
+                        visits={visits}
+                        visitFiles={files}
+                        visitGnssFiles={gnssFiles}
+                        visitImages={processedImages}
+                    />,
+                );
+            } catch (err) {
+                console.error(err);
             }
-
-            if (images && images?.length > 0) {
-                stationProcessedImages = (await processImages(
-                    images,
-                )) as StationImagesData[];
-            }
-
-            updateInstance(
-                <Pdf
-                    stationInfo={stationInfo}
-                    monuments={monuments}
-                    station={station}
-                    stationMeta={stationMeta}
-                    people={people}
-                    images={stationProcessedImages}
-                    firstRinex={firstRinex}
-                    lastRinex={lastRinex}
-                    stationLocationScreen={stationLocationScreen}
-                    stationLocationDetailScreen={stationLocationDetailScreen}
-                    visits={visits}
-                    visitFiles={files}
-                    visitGnssFiles={gnssFiles}
-                    visitImages={processedImages}
-                />,
-            );
         };
 
         if (!loadPdf && loadedMap && !loading) {
@@ -407,6 +440,7 @@ const PdfContainer = ({
             className={`hover:scale-110 btn-ghost rounded-lg p-1 mb-6 transition-all align-top`}
             onClick={() => {
                 fetchAllData();
+                setMessage({ error: undefined, msg: "" });
                 setBlobUrl(undefined);
                 setLoadedPdfData(false);
                 setLoadPdf(true);

@@ -1,7 +1,7 @@
 import { AxiosInstance } from "axios";
 import { axiosInstanceUnauth } from "./axiosconfig";
-import { GetParams, StationData, User } from "@types";
-import { transformParams } from "@utils";
+import { EarthQuakeParams, GetParams, StationData, User } from "@types";
+import { transformParams, transformParamsForFilter } from "@utils";
 /* <----------------------- UN AUTH -----------------------------> */
 
 export async function loginService<T>(
@@ -402,6 +402,45 @@ export async function delStationInfoService<T>(
     }
 }
 
+export async function getEarthquakeService<T>(
+    api: AxiosInstance,
+    id: number,
+): Promise<T> {
+    try {
+        const response = await api.get(`api/earthquakes/${id}`);
+        return response.data as Promise<T>;
+    } catch (error) {
+        return Promise.reject(error);
+    }
+}
+
+export async function getEarthquakesService<T>(
+    api: AxiosInstance,
+    params?: EarthQuakeParams,
+): Promise<T> {
+    try {
+        const paramsArr = params ? transformParamsForFilter(params) : "";
+        const response = await api.get(
+            `api/earthquakes${paramsArr.length > 0 ? `?${paramsArr}` : ""}`,
+        );
+        return response.data as Promise<T>;
+    } catch (error) {
+        return Promise.reject(error);
+    }
+}
+
+export async function getAffectedStationsService<T>(
+    api: AxiosInstance,
+    id?: number,
+): Promise<T> {
+    try {
+        const response = await api.get(`api/earthquakes/${id}/affected-stations`);
+        return response.data as Promise<T>;
+    } catch (error) {
+        return Promise.reject(error);
+    }
+}
+
 export async function getStationsService<T>(
     api: AxiosInstance,
     params?: GetParams,
@@ -430,6 +469,7 @@ export async function getStationService<T>(
         return Promise.reject(error);
     }
 }
+
 
 export async function postStationService<T>(
     api: AxiosInstance,

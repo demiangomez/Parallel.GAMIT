@@ -38,14 +38,10 @@ const Sidebar = ({
     refetchStationMeta,
     refetch,
     setShow,
+
 }: SidebarProps) => {
-    const navigate = useNavigate();
 
-    const [modals, setModals] = useState<
-        | { show: boolean; title: string; type: "add" | "edit" | "none" }
-        | undefined
-    >(undefined);
-
+    //------------------------------------------------Constantes-----------------------------------------------------
     const icons: Icons = {
         Information: InformationCircleIcon,
         Metadata: CodeBracketIcon,
@@ -72,7 +68,20 @@ const Sidebar = ({
 
     // const admTitles = ["Admin", "Users", "Settings"];
     const sidebarWidth = show ? "w-72" : "w-32";
+    //-----------------------------------------------UseNavigate-----------------------------------------------------
 
+    const navigate = useNavigate();
+
+    
+
+    //-----------------------------------------------UseState------------------------------------------------
+
+    const [modals, setModals] = useState<
+        | { show: boolean; title: string; type: "add" | "edit" | "none" }
+        | undefined
+    >(undefined);
+
+    //-----------------------------------------------UseEffect------------------------------------------------
     useEffect(() => {
         modals?.show && showModal(modals.title);
     }, [modals]);

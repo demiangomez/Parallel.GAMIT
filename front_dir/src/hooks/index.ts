@@ -17,3 +17,5 @@ export { default as usePopup } from "./usePopup";
 export { default as useWaitCursor } from "./useWaitCursor";
 
 export { default as useEscape } from "./useEscape";
+
+export { default as useDebounce} from "./useDebounce";

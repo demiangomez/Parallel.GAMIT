@@ -24,6 +24,7 @@ interface TableProps {
     loading?: boolean;
     titles: string[];
     sameGroup: boolean;
+    fullData: RinexObject[];
     data: RinexObject[];
     setModals: React.Dispatch<
         React.SetStateAction<
@@ -47,6 +48,7 @@ const RinexTable = ({
     loading,
     titles,
     sameGroup,
+    fullData,
     data,
     setModals,
     setRinexStationInfoRelated,
@@ -359,6 +361,10 @@ const RinexTable = ({
                         </tr>
                     ) : (
                         data.map((first, stationIndex) => {
+                            const fullGroup = fullData.find(
+                                (item) => item.groupId === first.groupId,
+                            );
+
                             const rowSpan = first.rinex.reduce(
                                 (acc, rinexItem) =>
                                     acc + rinexItem.rinex.length,
@@ -449,7 +455,7 @@ const RinexTable = ({
                                                                                 <button
                                                                                     onClick={() => {
                                                                                         setRinexGroup(
-                                                                                            first.rinex,
+                                                                                            fullGroup?.rinex,
                                                                                         );
 
                                                                                         setModals(

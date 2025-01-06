@@ -16,7 +16,7 @@ interface OutletContext {
     reStation: StationData;
     stationMeta: StationMetadataServiceData;
     images: StationImagesData[];
-    visitForKml: StationVisitsData;
+    visits: StationVisitsData[] | undefined;
     photoLoading: boolean;
     loadPdf: boolean;
     loadedPdfData: boolean;
@@ -28,13 +28,19 @@ interface OutletContext {
     setLoadedMap: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
+interface VisitsStates
+{
+    visitId: number;
+    checked: boolean;
+}
+
 const StationMain = () => {
     const {
         station,
         reStation,
         stationMeta,
         images,
-        visitForKml,
+        visits,
         photoLoading,
         loadPdf,
         loadedPdfData,
@@ -45,44 +51,44 @@ const StationMain = () => {
         setLoadedMap,
     } = useOutletContext<OutletContext>();
 
-    const [changeKml, setChangeKml] = useState<boolean | undefined>(undefined);
+    const [changeMeta, setChangeMeta] = useState<boolean>(false);
+
+    const [changeKml, setChangeKml] = useState<VisitsStates[]>([]);
 
     const definitiveStation =
         station && reStation && hasDifferences(station, reStation)
             ? reStation
             : station;
 
+    const visitsAndMeta = 
+    {
+        visits: visits ?? [],
+        stationMeta: stationMeta,
+        changeKml: changeKml,
+        changeMeta: changeMeta,
+    }    
+
+    const visitScrollerProps = { 
+    visits: visits ?? [],
+    changeKml: changeKml,
+    changeMeta: changeMeta,
+    setChangeKml: setChangeKml,
+    setChangeMeta: setChangeMeta,
+    stationMeta: stationMeta}
+
     return (
         <div>
             <h1 className="text-2xl font-base text-center">
                 {station?.country_code?.toUpperCase()}
             </h1>
-            {visitForKml && visitForKml.navigation_actual_file ? (
-                <div className="w-fit ml-2 bg-base-200 rounded-md">
-                    <div className=" pt-2 flex p-2 items-center justify-start z-20">
-                        <div className="form-control">
-                            <label className="label cursor-pointer">
-                                <span className="font-bold mr-4">
-                                    Last visit navigation file
-                                </span>
-                                <input
-                                    type="checkbox"
-                                    className="checkbox checkbox-sm"
-                                    onChange={() => setChangeKml(!changeKml)}
-                                />
-                            </label>
-                        </div>
-                    </div>
-                </div>
-            ) : null}
             <div className="flex flex-col items-center justify-center space-y-4 px-2 pb-4">
                 <div className="flex w-full space-x-2 ">
                     <MapStation
                         station={definitiveStation}
                         base64Data={
-                            changeKml
-                                ? (visitForKml.navigation_actual_file ?? "")
-                                : (stationMeta?.navigation_actual_file ?? "")
+                            changeMeta || changeKml?.some(visit => visit.checked)
+                                ? (visitsAndMeta?? "")
+                                : ""
                         }
                         loadPdf={loadPdf}
                         loadedPdfData={loadedPdfData}
@@ -92,6 +98,7 @@ const StationMain = () => {
                         }
                         setLoadPdf={setLoadPdf}
                         setLoadedMap={setLoadedMap}
+                        visitScrollerProps={visitScrollerProps}
                     />
 
                     <Photo

@@ -155,7 +155,7 @@ class EarthquakesFilter(filters.FilterSet):
         field_name='depth', lookup_expr='lte')
     min_depth = filters.NumberFilter(
         field_name='depth', lookup_expr='gte')
-    id = filters.NumberFilter(field_name='api_id', lookup_expr='icontains')
+    id = filters.CharFilter(field_name='id', lookup_expr='icontains')
 
     class Meta:
         model = models.Earthquakes

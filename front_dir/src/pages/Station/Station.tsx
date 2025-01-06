@@ -70,10 +70,6 @@ const Station = () => {
         undefined,
     );
 
-    const [visitForKml, setVisitForKml] = useState<
-        StationVisitsData | undefined
-    >(undefined);
-
     const [visits, setVisits] = useState<StationVisitsData[] | undefined>(
         undefined,
     );
@@ -192,13 +188,6 @@ const Station = () => {
             );
 
             if (res.statusCode === 200) {
-                setVisitForKml(
-                    res.data.sort(
-                        (a, b) =>
-                            new Date(b.date).getTime() -
-                            new Date(a.date).getTime(),
-                    )[0],
-                );
                 setVisits(res.data);
             }
         } catch (error) {
@@ -408,6 +397,7 @@ const Station = () => {
                                         }
                                         loadedMap={loadedMap}
                                         // loadPdfdata={loadPdfData}
+                                        setMessage={setMessage}
                                         setLoadPdf={setLoadPdf}
                                         setLoadedPdfData={setLoadedPdfData}
                                     />
@@ -444,7 +434,7 @@ const Station = () => {
                                 loadPdf,
                                 loadedMap,
                                 loadedPdfData,
-                                visitForKml,
+                                visits,
                                 getStationImages,
                                 getReStation,
                                 setStationLocationScreen,

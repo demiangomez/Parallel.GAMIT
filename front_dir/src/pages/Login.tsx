@@ -5,7 +5,7 @@ import { AxiosError } from "axios";
 import osupng from "@assets/images/logo-osu-01.png";
 
 import { ExclamationCircleIcon } from "@heroicons/react/24/outline";
-import { useAuth } from "@hooks/useAuth";
+import { useAuth } from "@hooks";
 
 import { loginService, refreshTokenService } from "@services";
 
@@ -181,12 +181,12 @@ const Login = () => {
                                         />
                                     </svg>
                                 </span>
-                                {message.errors?.errors.find(
+                                {message.errors?.errors?.find(
                                     (e) => e.attr === "username",
                                 ) && (
                                     <ExclamationCircleIcon
                                         title={
-                                            message.errors?.errors.find(
+                                            message.errors?.errors?.find(
                                                 (e) => e.attr === "username",
                                             )?.detail
                                         }
@@ -238,12 +238,12 @@ const Login = () => {
                                       focus:border-transparent"
                                     placeholder="Your password"
                                 />
-                                {message.errors?.errors.find(
+                                {message.errors?.errors?.find(
                                     (e) => e.attr === "password",
                                 ) && (
                                     <ExclamationCircleIcon
                                         title={
-                                            message.errors?.errors.find(
+                                            message.errors?.errors?.find(
                                                 (e) => e.attr === "password",
                                             )?.detail
                                         }

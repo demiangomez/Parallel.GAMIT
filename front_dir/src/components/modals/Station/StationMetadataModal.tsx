@@ -516,11 +516,12 @@ const StationMetadataModal = ({
                     dome: formState.stationMeta.dome ?? "",
                     station_name: formState.stationMeta.station_name ?? "",
                 });
+                const errorRes = res as ErrorResponse;
                 if (res.statusCode !== 200 && "status" in res) {
                     setStationMsg({
-                        status: res.statusCode,
-                        msg: res.msg,
-                        errors: res.response,
+                        status: errorRes.statusCode,
+                        msg: errorRes.msg,
+                        errors: errorRes.response,
                     });
                 } else if (res.statusCode === 200) {
                     setStationMsg({
@@ -1306,7 +1307,7 @@ const StationMetadataModal = ({
                                                 })
                                         ) : (
                                             <div className="text-center text-neutral text-2xl font-bold w-full rounded-md bg-neutral-content p-6">
-                                                There is no files registered
+                                                There are no files registered
                                             </div>
                                         )}
                                     </div>

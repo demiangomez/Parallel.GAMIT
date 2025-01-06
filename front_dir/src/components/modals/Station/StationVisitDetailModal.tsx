@@ -1152,8 +1152,8 @@ const StationVisitDetailModal = ({
                                 alt={"defphoto"}
                             />
                         ) : images && images.length === 1 ? (
-                            <div className="w-full break-words relative text-ellipsis flex justify-center">
-                                <div className="absolute z-10 w-full left-16">
+                            <div className="w-full break-words relative text-ellipsis flex flex-col justify-center">
+                                <div className="absolute z-10 w-full top-0">
                                     <button
                                         className="btn"
                                         onClick={() => {
@@ -1209,7 +1209,7 @@ const StationVisitDetailModal = ({
                                 ) : null}
                             </div>
                         ) : (
-                            <div className="slider-container w-[400px]">
+                            <div className="w-[400px] ">
                                 <Slider {...settings}>
                                     {images &&
                                         images.map((img) => {
@@ -1296,7 +1296,7 @@ const StationVisitDetailModal = ({
                 <div className="grid grid-cols-1 space-y-4 grid-flow-dense">
                     <div className="card bg-base-200 grow shadow-xl mr-4">
                         <h2 className="card-title border-b-2 border-base-300 p-2 justify-between">
-                            GNSS Files
+                            Observation Files
                             <button
                                 className="btn btn-ghost btn-circle ml-2"
                                 onClick={() => {
@@ -1412,7 +1412,7 @@ const StationVisitDetailModal = ({
                                         })
                                 ) : (
                                     <div className="text-center text-neutral text-2xl font-bold w-full rounded-md bg-neutral-content p-6">
-                                        There is no files registered
+                                        There are no files registered
                                     </div>
                                 )}
                             </div>
@@ -1547,7 +1547,7 @@ const StationVisitDetailModal = ({
                                         })
                                 ) : (
                                     <div className="text-center text-neutral text-2xl font-bold w-full rounded-md bg-neutral-content p-6">
-                                        There is no files registered
+                                        There are no files registered
                                     </div>
                                 )}
                             </div>

@@ -2,7 +2,7 @@ import datetime
 from . import models
 from . import exceptions
 import numpy
-
+import math
 from django.db import connection
 import django.utils.timezone
 import logging
@@ -20,6 +20,8 @@ from io import BytesIO
 from PIL import Image, ImageOps
 import grp
 import os
+
+from pgamit import pyOkada, dbConnection
 
 logger = logging.getLogger('django')
 
@@ -68,14 +70,33 @@ class EarthquakeUtils:
             raise exceptions.CustomServerErrorExceptionHandler(
                 "earthquake must be an instance of models.Earthquake")
 
-        # TODO: IMPLEMENT
-        kml_base_64_encoded = b'PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPGttbCB4bWxucz0iaHR0cDovL3d3dy5vcGVuZ2lzLm5ldC9rbWwvMi4yIiB4bWxuczpneD0iaHR0cDovL3d3dy5nb29nbGUuY29tL2ttbC9leHQvMi4yIiB4bWxuczprbWw9Imh0dHA6Ly93d3cub3Blbmdpcy5uZXQva21sLzIuMiIgeG1sbnM6YXRvbT0iaHR0cDovL3d3dy53My5vcmcvMjAwNS9BdG9tIj4KPERvY3VtZW50PgoJPG5hbWU+VW50aXRsZWQgcHJvamVjdDwvbmFtZT4KCTxneDpDYXNjYWRpbmdTdHlsZSBrbWw6aWQ9Il9fbWFuYWdlZF9zdHlsZV8yRUIwQTBCMUU3MzUwRjkwNEMwMSI+CgkJPFN0eWxlPgoJCQk8SWNvblN0eWxlPgoJCQkJPHNjYWxlPjEuMjwvc2NhbGU+CgkJCQk8SWNvbj4KCQkJCQk8aHJlZj5odHRwczovL2VhcnRoLmdvb2dsZS5jb20vZWFydGgvZG9jdW1lbnQvaWNvbj9jb2xvcj0xOTc2ZDImYW1wO2lkPTIwMDAmYW1wO3NjYWxlPTQ8L2hyZWY+CgkJCQk8L0ljb24+CgkJCQk8aG90U3BvdCB4PSI2NCIgeT0iMTI4IiB4dW5pdHM9InBpeGVscyIgeXVuaXRzPSJpbnNldFBpeGVscyIvPgoJCQk8L0ljb25TdHlsZT4KCQkJPExhYmVsU3R5bGU+CgkJCTwvTGFiZWxTdHlsZT4KCQkJPExpbmVTdHlsZT4KCQkJCTxjb2xvcj5mZjJkYzBmYjwvY29sb3I+CgkJCQk8d2lkdGg+NTwvd2lkdGg+CgkJCTwvTGluZVN0eWxlPgoJCQk8UG9seVN0eWxlPgoJCQkJPGNvbG9yPjQwZmZmZmZmPC9jb2xvcj4KCQkJPC9Qb2x5U3R5bGU+CgkJCTxCYWxsb29uU3R5bGU+CgkJCQk8ZGlzcGxheU1vZGU+aGlkZTwvZGlzcGxheU1vZGU+CgkJCTwvQmFsbG9vblN0eWxlPgoJCTwvU3R5bGU+Cgk8L2d4OkNhc2NhZGluZ1N0eWxlPgoJPGd4OkNhc2NhZGluZ1N0eWxlIGttbDppZD0iX19tYW5hZ2VkX3N0eWxlXzFDMTFFQjUxNjkzNTBGOTA0QzAxIj4KCQk8U3R5bGU+CgkJCTxJY29uU3R5bGU+CgkJCQk8SWNvbj4KCQkJCQk8aHJlZj5odHRwczovL2VhcnRoLmdvb2dsZS5jb20vZWFydGgvZG9jdW1lbnQvaWNvbj9jb2xvcj0xOTc2ZDImYW1wO2lkPTIwMDAmYW1wO3NjYWxlPTQ8L2hyZWY+CgkJCQk8L0ljb24+CgkJCQk8aG90U3BvdCB4PSI2NCIgeT0iMTI4IiB4dW5pdHM9InBpeGVscyIgeXVuaXRzPSJpbnNldFBpeGVscyIvPgoJCQk8L0ljb25TdHlsZT4KCQkJPExhYmVsU3R5bGU+CgkJCTwvTGFiZWxTdHlsZT4KCQkJPExpbmVTdHlsZT4KCQkJCTxjb2xvcj5mZjJkYzBmYjwvY29sb3I+CgkJCQk8d2lkdGg+My4zMzMzMzwvd2lkdGg+CgkJCTwvTGluZVN0eWxlPgoJCQk8UG9seVN0eWxlPgoJCQkJPGNvbG9yPjQwZmZmZmZmPC9jb2xvcj4KCQkJPC9Qb2x5U3R5bGU+CgkJCTxCYWxsb29uU3R5bGU+CgkJCQk8ZGlzcGxheU1vZGU+aGlkZTwvZGlzcGxheU1vZGU+CgkJCTwvQmFsbG9vblN0eWxlPgoJCTwvU3R5bGU+Cgk8L2d4OkNhc2NhZGluZ1N0eWxlPgoJPFN0eWxlTWFwIGlkPSJfX21hbmFnZWRfc3R5bGVfMDQ0QUU1OUFEMzM1MEY5MDRDMDEiPgoJCTxQYWlyPgoJCQk8a2V5Pm5vcm1hbDwva2V5PgoJCQk8c3R5bGVVcmw+I19fbWFuYWdlZF9zdHlsZV8xQzExRUI1MTY5MzUwRjkwNEMwMTwvc3R5bGVVcmw+CgkJPC9QYWlyPgoJCTxQYWlyPgoJCQk8a2V5PmhpZ2hsaWdodDwva2V5PgoJCQk8c3R5bGVVcmw+I19fbWFuYWdlZF9zdHlsZV8yRUIwQTBCMUU3MzUwRjkwNEMwMTwvc3R5bGVVcmw+CgkJPC9QYWlyPgoJPC9TdHlsZU1hcD4KCTxQbGFjZW1hcmsgaWQ9IjA4RkZFN0M1RTczNTBGOTA0QzAxIj4KCQk8bmFtZT5VbnRpdGxlZCBwb2x5Z29uPC9uYW1lPgoJCTxMb29rQXQ+CgkJCTxsb25naXR1ZGU+LTkuODc1Nzc3MzA1NDMzODQzPC9sb25naXR1ZGU+CgkJCTxsYXRpdHVkZT4yNC4zNjQyODU0NjQwNzA3ODwvbGF0aXR1ZGU+CgkJCTxhbHRpdHVkZT4zMDMuMzEwMTg3MTkyMzA0NjwvYWx0aXR1ZGU+CgkJCTxoZWFkaW5nPjA8L2hlYWRpbmc+CgkJCTx0aWx0PjA8L3RpbHQ+CgkJCTxneDpmb3Z5PjM1PC9neDpmb3Z5PgoJCQk8cmFuZ2U+MjA2ODY1OC4wMDk3MDEwNzM8L3JhbmdlPgoJCQk8YWx0aXR1ZGVNb2RlPmFic29sdXRlPC9hbHRpdHVkZU1vZGU+CgkJPC9Mb29rQXQ+CgkJPHN0eWxlVXJsPiNfX21hbmFnZWRfc3R5bGVfMDQ0QUU1OUFEMzM1MEY5MDRDMDE8L3N0eWxlVXJsPgoJCTxQb2x5Z29uPgoJCQk8b3V0ZXJCb3VuZGFyeUlzPgoJCQkJPExpbmVhclJpbmc+CgkJCQkJPGNvb3JkaW5hdGVzPgoJCQkJCQktNy45MzEzMzMzODg3NDI1MjIsMjQuMzExNjE2NzI5ODM4MDgsMCAtOC43MjM0NTU2Mzk3NzEzMzQsMjEuNTI4NTM2MDg3NjUwMjUsMCAtMS42NjEzMDc5MjgzMTI5ODgsMTkuOTM5NDc2MzUzMzE4NTIsMCAxLjIyMjU0MzA3MDMwMTY2LDIzLjI2NjAwODc1NjIyODA0LDAgLTEuMDQxNDE0NTIyMTY0ODI5LDI0LjY2MTE0MzMzNjE5NDksMCAtMy44NjIwMTQxNDAyNTE1OTEsMjQuMjE5NTE3NTE2NjE3MjMsMCAtNy45MzEzMzMzODg3NDI1MjIsMjQuMzExNjE2NzI5ODM4MDgsMCAKCQkJCQk8L2Nvb3JkaW5hdGVzPgoJCQkJPC9MaW5lYXJSaW5nPgoJCQk8L291dGVyQm91bmRhcnlJcz4KCQk8L1BvbHlnb24+Cgk8L1BsYWNlbWFyaz4KCTxQbGFjZW1hcmsgaWQ9IjAxRDEyNUQwMDQzNTBGOTE1NzBGIj4KCQk8bmFtZT5VbnRpdGxlZCBwb2x5Z29uPC9uYW1lPgoJCTxMb29rQXQ+CgkJCTxsb25naXR1ZGU+LTguMzI4ODM0MjY5NDk3MDQ3PC9sb25naXR1ZGU+CgkJCTxsYXRpdHVkZT4xOC40Nzg0MjEzMDI0MTUyMTwvbGF0aXR1ZGU+CgkJCTxhbHRpdHVkZT41NDQuNzY3OTI5ODU1MTY5MzwvYWx0aXR1ZGU+CgkJCTxoZWFkaW5nPjA8L2hlYWRpbmc+CgkJCTx0aWx0PjA8L3RpbHQ+CgkJCTxneDpmb3Z5PjM1PC9neDpmb3Z5PgoJCQk8cmFuZ2U+Njk3NzI0NC45Nzk4OTE3Nzc8L3JhbmdlPgoJCQk8YWx0aXR1ZGVNb2RlPmFic29sdXRlPC9hbHRpdHVkZU1vZGU+CgkJPC9Mb29rQXQ+CgkJPHN0eWxlVXJsPiNfX21hbmFnZWRfc3R5bGVfMDQ0QUU1OUFEMzM1MEY5MDRDMDE8L3N0eWxlVXJsPgoJCTxQb2x5Z29uPgoJCQk8b3V0ZXJCb3VuZGFyeUlzPgoJCQkJPExpbmVhclJpbmc+CgkJCQkJPGNvb3JkaW5hdGVzPgoJCQkJCQktMjguOTgxNjQ5ODM5MTg4MjYsMTkuNzMxNzUyOTkxNjk4MiwwIC0xNy40NDI2NTA1NDI3NjgxMSwxMS45MzE1MjMzODc1MTkzLDAgLTMuMzAzNDk4MTk0NTY1NTk3LDkuMTIwMjg3NDM5ODc5Nzk2LDAgMTEuMjYwNDcwNTQ5NzE4NiwxMi4zMDU0OTMwNTAyMDYyMSwwIDE3LjMyMDUyMjMzNjMwNTYxLDE2LjI5MzI2NzIyMzg5NTc1LDAgNi4wMDM5MDM0NDM2MjY1MDgsMjguNjAxNDUxOTk1MDUyNTYsMCAtMS40MzcxNDkwMjEwNDQwNDYsMjkuMzQxODQ3NTg5MTk1MDUsMCAtMTIuOTk1MzA0OTUzNDk4OCwyOS4yNjI5NTg2ODk4Nzk4MSwwIC0xOC4wMTg5MzIxNDEyNzg3OCwyNi41MzkxMTY3MjAxNTIzNywwIC0yOC45ODE2NDk4MzkxODgyNiwxOS43MzE3NTI5OTE2OTgyLDAgCgkJCQkJPC9jb29yZGluYXRlcz4KCQkJCTwvTGluZWFyUmluZz4KCQkJPC9vdXRlckJvdW5kYXJ5SXM+CgkJPC9Qb2x5Z29uPgoJPC9QbGFjZW1hcms+CjwvRG9jdW1lbnQ+Cjwva21sPgo='
+        cnn = dbConnection.Cnn(settings.CONFIG_FILE_ABSOLUTE_PATH)
 
-        return [{"network_code": "igs", "station_code": "drao"}, {"network_code": "chc", "station_code": "chen"}, {"network_code": "igs", "station_code": "shell"}], kml_base_64_encoded
+        eq_t = pyOkada.EarthquakeTable(cnn, earthquake.id)
+
+        affected_stations = [{"network_code": affected_station["NetworkCode"],
+                              "station_code": affected_station["StationCode"]} for affected_station in eq_t.stations]
+
+        strike = [float(earthquake.strike1), float(earthquake.strike2)
+                  ] if not math.isnan(earthquake.strike1) else []
+        dip = [float(earthquake.dip1), float(earthquake.dip2)
+               ] if not math.isnan(earthquake.strike1) else []
+        rake = [float(earthquake.rake1), float(earthquake.rake2)
+                ] if not math.isnan(earthquake.strike1) else []
+
+        score = pyOkada.Score(earthquake.lat, earthquake.lon, earthquake.depth,
+                              earthquake.mag, strike, dip, rake, earthquake.date)
+
+        kml = score.save_masks(include_postseismic=True)
+
+        kml_base_64_encoded = base64.b64encode(
+            kml.encode('utf-8')).decode('utf-8')
+
+        return affected_stations, kml_base_64_encoded
 
 
 class StationMetaUtils:
-    @staticmethod
+    @ staticmethod
     def update_gaps_status_for_all_station_meta_needed():
 
         records = models.StationMeta.objects.filter(
@@ -90,7 +111,7 @@ class StationMetaUtils:
 
         cache.delete('update_gaps_status_lock')
 
-    @staticmethod
+    @ staticmethod
     def update_gaps_status(station_meta_record):
 
         models.StationMetaGaps.objects.filter(
@@ -111,7 +132,7 @@ class StationMetaUtils:
 
         station_meta_record.save()
 
-    @staticmethod
+    @ staticmethod
     def get_station_gaps(station_meta):
         """
         This function checks if there rinex data that falls outside the station info window and returns info about the gaps
@@ -129,7 +150,7 @@ class StationMetaUtils:
 
             with connection.cursor() as cursor:
                 cursor.execute(
-                    """SELECT count(*) as rcount FROM rinex_proc 
+                    """SELECT count(*) as rcount FROM rinex_proc
                             WHERE "NetworkCode" = %s AND "StationCode" = %s AND
                             "ObservationETime" > %s AND "ObservationSTime" < %s AND
                             "Completion" >= 0.5""", [station_object.network_code.network_code, station_object.station_code, edate, sdate])
@@ -141,7 +162,7 @@ class StationMetaUtils:
 
             with connection.cursor() as cursor:
                 cursor.execute(
-                    """SELECT count(*) as rcount FROM rinex_proc 
+                    """SELECT count(*) as rcount FROM rinex_proc
                             WHERE "NetworkCode" = %s AND "StationCode" = %s AND
                             "ObservationSTime" < %s AND
                             "Completion" >= 0.5""", [station_object.network_code.network_code, station_object.station_code, date])
@@ -153,7 +174,7 @@ class StationMetaUtils:
 
             with connection.cursor() as cursor:
                 cursor.execute(
-                    """SELECT count(*) as rcount FROM rinex_proc 
+                    """SELECT count(*) as rcount FROM rinex_proc
                             WHERE "NetworkCode" = %s AND "StationCode" = %s AND
                             "ObservationSTime" > %s AND
                             "Completion" >= 0.5""", [station_object.network_code.network_code, station_object.station_code, date])
@@ -267,7 +288,7 @@ class EndpointsClusterUtils:
 
 class UploadMultipleFilesUtils:
 
-    @staticmethod
+    @ staticmethod
     def change_file_user_group(file_object, user_group):
         # Get the path of the uploaded file
         file_path = file_object.path
@@ -290,7 +311,7 @@ class UploadMultipleFilesUtils:
             # Change the file permissions to give all permissions to the group
             os.chmod(file_path, 0o770)
 
-    @staticmethod
+    @ staticmethod
     def upload_multiple_files(view, request, main_object_type):
         if not isinstance(main_object_type, str) or main_object_type not in ('visit', 'station'):
             raise exceptions.CustomServerErrorExceptionHandler(
@@ -440,7 +461,7 @@ class UploadMultipleFilesUtils:
 
 
 class StationInfoUtils:
-    @staticmethod
+    @ staticmethod
     def get_same_station_records(serializer, get_queryset, get_object=None):
 
         if get_object != None:
@@ -452,7 +473,7 @@ class StationInfoUtils:
 
         return get_queryset().filter(network_code=network_code, station_code=station_code)
 
-    @staticmethod
+    @ staticmethod
     def get_records_that_overlap(serializer, get_queryset, get_object=None):
         # check if the incoming record is between any existing record
         records_that_overlap = []
@@ -478,7 +499,7 @@ class StationInfoUtils:
 
         return records_that_overlap
 
-    @staticmethod
+    @ staticmethod
     def return_stninfo(serializer=None, record=None):
         """
         return a station information string to write to a file (without header
@@ -493,7 +514,7 @@ class StationInfoUtils:
 
         return '\n'.join([str(value) for value in values])
 
-    @staticmethod
+    @ staticmethod
     def to_dharp(serializer=None, record=None):
         """
         function to convert the current height code to DHARP
@@ -507,7 +528,7 @@ class StationInfoUtils:
             raise exceptions.CustomValidationErrorExceptionHandler(
                 'Serializer or record must be provided to convert height code to DHARP.')
 
-    @staticmethod
+    @ staticmethod
     def to_dharp_from_serializer(serializer):
 
         if serializer.validated_data['height_code'] != 'DHARP':
@@ -536,7 +557,7 @@ class StationInfoUtils:
 
                 serializer.validated_data['height_code'] = 'DHARP'
 
-    @staticmethod
+    @ staticmethod
     def to_dharp_from_record(record):
 
         if record['height_code'] != 'DHARP':
@@ -580,7 +601,7 @@ class StationInfoUtils:
 
 
 class RinexUtils:
-    @staticmethod
+    @ staticmethod
     def get_next_station_info(rinex):
 
         related_station_info = models.Stationinfo.objects.filter(
@@ -600,7 +621,7 @@ class RinexUtils:
         else:
             return None
 
-    @staticmethod
+    @ staticmethod
     def get_previous_station_info(rinex):
 
         related_station_info = models.Stationinfo.objects.filter(
@@ -620,7 +641,7 @@ class RinexUtils:
         else:
             return None
 
-    @staticmethod
+    @ staticmethod
     def get_rinex_with_status(rinex_list, filters):
         if len(rinex_list) > 0:
             station_info_from_station = list(RinexUtils._get_station_info_from_station(
@@ -659,7 +680,7 @@ class RinexUtils:
         else:
             return []
 
-    @staticmethod
+    @ staticmethod
     def _is_filtered(rinex, filters):
         datetime_string_format = "%Y-%m-%d %H:%M"
 
@@ -698,7 +719,7 @@ class RinexUtils:
         else:
             return False
 
-    @staticmethod
+    @ staticmethod
     def _filter_rinex_by_completion(rinex, completion_operator, completion):
         if completion_operator.upper().strip() == "GREATER_THAN":
             return float(rinex["completion"]) <= float(completion)
@@ -709,7 +730,7 @@ class RinexUtils:
         else:
             return False
 
-    @staticmethod
+    @ staticmethod
     def _filter_rinex(rinex_list, filters):
         for first_groups in rinex_list:
             for second_groups in first_groups["rinex"]:
@@ -718,11 +739,11 @@ class RinexUtils:
 
         return rinex_list
 
-    @staticmethod
+    @ staticmethod
     def _get_station_info_from_station(network_code, station_code):
         return models.Stationinfo.objects.filter(network_code=network_code, station_code=station_code).order_by('date_start')
 
-    @staticmethod
+    @ staticmethod
     def _get_has_multiple_station_info_gap(rinex, station_info_list):
         station_info_containing_start_date = None
         station_info_containing_end_date = None
@@ -738,7 +759,7 @@ class RinexUtils:
 
         return station_info_containing_start_date is not None and station_info_containing_end_date is not None and station_info_containing_start_date != station_info_containing_end_date
 
-    @staticmethod
+    @ staticmethod
     def _convert_rinex_to_dict(rinex):
         has_station_info = rinex.has_station_info
         has_multiple_station_info_gap = rinex.has_multiple_station_info_gap
@@ -754,7 +775,7 @@ class RinexUtils:
 
         return rinex
 
-    @staticmethod
+    @ staticmethod
     def _convert_stationinfo_to_dict(stationinfo):
 
         stationinfo = {"api_id": stationinfo.api_id,
@@ -762,7 +783,7 @@ class RinexUtils:
 
         return stationinfo
 
-    @staticmethod
+    @ staticmethod
     def _convert_to_correct_format(rinex_list):
         # Converts to a list of dict and sort all the stationinfo lists
 
@@ -787,7 +808,7 @@ class RinexUtils:
 
         return list_dict
 
-    @staticmethod
+    @ staticmethod
     def _group_by_same_date_range(rinex_list):
 
         rinex_list.sort(key=lambda x: x[0].observation_s_time)
@@ -819,7 +840,7 @@ class RinexUtils:
 
         return rinex_groups_with_station_info
 
-    @staticmethod
+    @ staticmethod
     def _group_by_date_range_distance(rinex_list):
         # iterate over rinex_list with format [([rinex1_1, rinex1_2], set(stationinfo1, stationinfo2)), ([rinex2_1, rinex2_2], set(stationinfo1, stationinfo2))]
         # take the first rinex of each group compare them like if rinex2_1.observation_s_time - rinex1_1.observation_e_time) < settings.RINEX_STATUS_DATE_SPAN_SECONDS
@@ -847,7 +868,7 @@ class RinexUtils:
 
         return rinex_groups
 
-    @staticmethod
+    @ staticmethod
     def _get_gap_type(rinex, station_info_before_rinex, station_info_containing_rinex, station_info_after_rinex):
         if not hasattr(rinex, 'has_multiple_station_info_gap'):
             raise exceptions.CustomServerErrorExceptionHandler(
@@ -867,7 +888,7 @@ class RinexUtils:
             else:
                 return "BETWEEN TWO STATIONINFO"
 
-    @staticmethod
+    @ staticmethod
     def _check_metadata_mismatch(rinex, station_info_containing_rinex):
         if len(station_info_containing_rinex) > 0:
             mismatches = []
@@ -897,7 +918,7 @@ class RinexUtils:
         else:
             return []
 
-    @staticmethod
+    @ staticmethod
     def _clasify_station_info_from_rinex(rinex, station_info_from_station):
         station_info_before_rinex = []
         station_info_containing_rinex = []

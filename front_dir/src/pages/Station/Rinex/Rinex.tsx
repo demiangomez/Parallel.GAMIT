@@ -716,6 +716,7 @@ const Rinex = () => {
                             }
                             loading={loading}
                             sameGroup={sameGroup}
+                            fullData={rinex ?? []}
                             data={paginatedRinexs ?? []}
                             setModals={setModals}
                             setRinexStationInfoRelated={
@@ -808,6 +809,7 @@ const Rinex = () => {
                         setRinexGroup(undefined);
                     }}
                     setStateModal={setModals}
+                    typeAddition= {"none-clear"}
                 />
             )}
         </div>

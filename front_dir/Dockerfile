@@ -21,4 +21,6 @@ COPY srv/mime.types /etc/nginx/mime.types
 # Configure tini as the init system
 ENTRYPOINT ["/usr/bin/tini", "--"]
 
+EXPOSE 80
+
 CMD ["nginx", "-g", "daemon off;"]

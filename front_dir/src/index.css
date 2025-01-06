@@ -14,6 +14,48 @@
     background-color: rgb(202, 202, 202);
 }
 
+@layer utilities {
+    .light-green-icon{
+        filter: invert(86%) sepia(20%) saturate(848%) hue-rotate(62deg) brightness(96%) contrast(96%);
+    }
+}
+
+@layer utilities {
+    .yellow-icon {
+        filter: invert(84%) sepia(100%) saturate(1000%) hue-rotate(0deg) brightness(100%) contrast(100%);
+    }
+}
+
+@layer utilities {
+    .green-icon {
+        filter: invert(18%) sepia(33%) saturate(7316%) hue-rotate(97deg) brightness(97%) contrast(102%);
+    }
+}
+
+@layer utilities {
+    .light-gray-icon {
+        filter: invert(72%) sepia(0%) saturate(0%) hue-rotate(141deg) brightness(88%) contrast(85%);
+    }
+}
+
+@layer utilities {
+    .gray-icon {
+        filter: invert(19%) sepia(0%) saturate(1102%) hue-rotate(257deg) brightness(100%) contrast(84%);
+    }
+}
+
+@layer utilities {
+    .light-red-icon {
+        filter: invert(31%) sepia(75%) saturate(4977%) hue-rotate(2deg) brightness(99%) contrast(103%);
+    }
+}
+
+
+
+.sr-only{
+    display: none;
+}
+
 body {
     margin: 0 !important;
     display: flex;
