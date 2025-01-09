@@ -62,8 +62,8 @@ const iconUrl = (s: StationData) => {
         else if (s.has_stationinfo && s.status == "Unknown") {
             return "gray-icon";
         }
-        //Desactivated
-        else if (s.has_stationinfo && s.status == "Desactivated") {
+        //Deactivated
+        else if (s.has_stationinfo && s.status == "Deactivated") {
             return "light-red-icon";
         }
     };
