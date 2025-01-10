@@ -7,6 +7,7 @@ import sys
 import inspect
 import os.path
 from django.contrib.postgres.fields import ArrayField
+import datetime
 # ------------------------------MODELS BASED ON EXISTING DB-----------------------------
 from decimal import Decimal
 from django.conf import settings
@@ -215,7 +216,8 @@ class Events(BaseModel):
     # The composite primary key (event_id, EventDate) found, that is not supported. The first column is selected.
     event_id = models.BigAutoField(primary_key=True)
     # Field name made lowercase.
-    event_date = models.DateTimeField(auto_now_add=True, db_column='EventDate')
+    event_date = models.DateTimeField(
+        default=lambda: datetime.datetime.now(datetime.timezone.utc), db_column='EventDate')
     # Field name made lowercase.
     event_type = models.CharField(
         db_column='EventType', max_length=6, blank=True, null=True)

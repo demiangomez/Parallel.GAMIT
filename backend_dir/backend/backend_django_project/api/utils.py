@@ -85,7 +85,7 @@ class EarthquakeUtils:
                 ] if not math.isnan(earthquake.strike1) else []
 
         score = pyOkada.Score(earthquake.lat, earthquake.lon, earthquake.depth,
-                              earthquake.mag, strike, dip, rake, earthquake.date)
+                              earthquake.mag, strike, dip, rake, earthquake.date, density=1000)
 
         kml = score.save_masks(include_postseismic=True)
 
