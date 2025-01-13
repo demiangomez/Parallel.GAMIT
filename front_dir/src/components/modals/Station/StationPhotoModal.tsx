@@ -2,10 +2,13 @@ import { useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { Modal, FileDetails, FileResultCard, Alert } from "@componentsReact";
 
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
 import Pako from "pako";
 import ExifReader from "exifreader";
 
-import { useEscape, useAuth, useApi } from "@hooks";
+
+import { useAuth, useApi } from "@hooks";
 
 import { postStationsImagesService } from "@services";
 
@@ -262,8 +265,6 @@ const StationPhotoModal = ({ modalType, reFetch, setStateModal }: Props) => {
         }
     };
 
-    useEscape(closeModal);
-
     useEffect(() => {
         if (files.length === fileResults.length && fileResults.length > 0) {
             if (hasErrorMessage && !hasSuccessMessage) {
@@ -300,7 +301,7 @@ const StationPhotoModal = ({ modalType, reFetch, setStateModal }: Props) => {
             close={true}
             modalId={"AddStationPhoto"}
             size={"lg"}
-            handleCloseModal={() => handleCloseModal()}
+            handleCloseModal={() => closeModal()}
             setModalState={setStateModal}
         >
             <div className="w-full flex grow mb-2">

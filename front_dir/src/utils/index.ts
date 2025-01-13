@@ -15,9 +15,13 @@ export const apiOkStatuses = [200, 201, 204];
 export const apiErrorStatuses = [400, 401, 403, 404, 405, 406, 415, 500];
 
 export const chosenIcon = (s: StationData) => {
+    const url = iconUrl(s);
+
+    const size: [number, number] = url === "https://maps.google.com/mapfiles/kml/shapes/caution.png" ? [22, 22] : [35, 35];
+
     const icon = new L.Icon({
-        iconUrl: iconUrl(s),
-        iconSize: [20, 20],
+        iconUrl: url,
+        iconSize: size,
         className: iconClass(s),
     });
 
@@ -40,6 +44,34 @@ const iconUrl = (s: StationData) => {
         // Default icon
         return "https://maps.google.com/mapfiles/kml/shapes/placemark_circle.png";
     };
+
+export const isCircleShape = (station: StationData) =>{
+        return (station.type === "Continuous" || station.type === null) &&  !(!station.has_stationinfo || station.has_gaps);
+    }
+
+export const shapeColor = (s: StationData) => {
+        if (s.has_stationinfo && s.status === "Active Online") {
+            return "#05b114";
+        }
+        // Offline
+        else if (s.has_stationinfo && s.status === "Active Offline") {
+            return "#05e819";
+        }
+        // Destroyed
+        else if (s.has_stationinfo && s.status === "Destroyed") {
+            return "#a2abaa";
+        }
+        // Unknown
+        else if (s.has_stationinfo && s.status === "Unknown") {
+            return "#5b6161";
+        }
+        // Deactivated
+        else if (s.has_stationinfo && s.status === "Deactivated") {
+            return "#f8640b";
+        }
+        return "blue"; // Default color if none of the conditions match
+}
+    
 
     const iconClass = (s: StationData) => {
         //Problemas
@@ -78,6 +110,23 @@ export const datesFormatOpt: Intl.DateTimeFormatOptions = {
     hour12: false,
     timeZone: "UTC",
 };
+
+export const getRandomColor = (index: number) => {
+    const chosenColor =
+        possibleColors[index];
+    return chosenColor;
+};
+
+export const possibleColors = [
+    "#d81f2a",
+    "#ff9900",
+    "#e0d86e",
+    "#9ea900",
+    "#6ec9e0",
+    "#007ea3",
+    "#9e4770",
+    "#631d76",
+];
 
 export const formattedDates = (date: Date | string | undefined) => {
     if (!date) return;
@@ -495,6 +544,31 @@ export const formatValue = (
         return "-";
     }
 };
+
+export function removeMarkersFromKml(base64Kml: string): string {
+    const decodedXml = atob(base64Kml);
+
+    const parser = new DOMParser();
+
+    const xmlDoc = parser.parseFromString(decodedXml, "application/xml");
+
+    const placemarks = Array.from(xmlDoc.getElementsByTagName("Placemark"));
+
+    placemarks.forEach((placemark) => {
+        if (placemark.getElementsByTagName("Point").length > 0) {
+            placemark.parentNode?.removeChild(placemark);
+        }
+    });
+
+    const serializer = new XMLSerializer();
+
+    const updatedXml = serializer.serializeToString(xmlDoc);
+
+    const base64UpdatedXml = btoa(updatedXml);
+
+    return base64UpdatedXml;
+}
+
 
 export const rinexMockup = {
     data: [

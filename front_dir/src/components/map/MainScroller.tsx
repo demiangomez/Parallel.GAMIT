@@ -1,26 +1,18 @@
 import { useState, useEffect } from "react";
 import { Scroller, Spinner } from "@componentsReact";
-
 import { useAuth, useApi, useLocalStorage } from "@hooks";
-
 import { getStationStatusService, getStationTypesService } from "@services";
-
-import {
-    EarthQuakeFormState,
-    FilterState,
-    StationStatus,
-    StationStatusServiceData,
-} from "@types";
+import { EarthQuakeFormState, FilterState, StationStatus, StationStatusServiceData} from "@types";
 
 interface MainScrollerProps {
-    fromMain: boolean;
+    mapState: boolean;
     topoMapState: boolean;
-    showScroller: boolean;
     altData?: {
         dataFiltered: any[];
         originalDataCount: any;
         hasEarthquakes?: boolean;
     };
+    fromMain: boolean;
     filters: {
         openFilters: boolean;
         stationType: boolean;
@@ -29,6 +21,7 @@ interface MainScrollerProps {
         stationStatus: boolean;
     };
     filterState: FilterState;
+    showScroller: boolean;
     setFilters: React.Dispatch<
         React.SetStateAction<{
             openFilters: boolean;
@@ -48,39 +41,44 @@ interface MainScrollerProps {
             | undefined
         >
     >;
-    mapState: boolean;
 }
 
 const MainScroller = ({
     altData,
+    mapState,
     filters,
     fromMain,
     filterState,
-    showScroller,
     topoMapState,
+    showScroller,
     setFilters,
     setFormState,
     setFilterState,
     setTopoMapState,
     setShowScroller,
     setShowEarthquakeModal,
-    mapState,
 }: MainScrollerProps) => {
+
+    //------------------------------------------------UseAuth----------------------------------------------
     const { token, logout } = useAuth();
 
+    //------------------------------------------------UseApi----------------------------------------------
     const api = useApi(token, logout);
 
+    //------------------------------------------------UseLocalStorage----------------------------------------------
     const [mapFilters, setMapFilters] = useLocalStorage(
         "mapFilters",
         JSON.stringify({}),
     );
 
+    //------------------------------------------------UseState----------------------------------------------
     const [stationType, setStationType] = useState<StationStatus[]>([]);
 
     const [stationStatus, setStationStatus] = useState<StationStatus[]>([]);
 
     const [loading, setLoading] = useState<boolean>(false);
-
+    
+    //------------------------------------------------Functions----------------------------------------------
     const handleLocalStorage = (key: string, value: string) => {
         setMapFilters(
             JSON.stringify({
@@ -120,6 +118,7 @@ const MainScroller = ({
     const hasFilteredData =
         hasFilters() && altData?.dataFiltered && !altData.hasEarthquakes;
 
+    //------------------------------------------------UseEffect----------------------------------------------
     useEffect(() => {
         if (mapFilters) {
             const localStorageFilters = JSON.parse(mapFilters);
@@ -154,11 +153,12 @@ const MainScroller = ({
         getTypes();
     }, []);
 
-
+    //------------------------------------------------Return----------------------------------------------
 
     return (
         <>
             <Scroller
+                fromMain={true}
                 hasFilteredData={hasFilteredData && !mapState ? true : false}
                 buttonCondition={true}
                 scrollerCondition={fromMain && showScroller}
@@ -172,7 +172,6 @@ const MainScroller = ({
                 }
                 showScroller={showScroller}
                 setShowScroller={setShowScroller}
-                fromMain={true}
             >
                 {loading ? (
                     <div className="w-full flex justify-center py-4">
@@ -206,7 +205,7 @@ const MainScroller = ({
                                     
                                 }}
                             >
-                                <label className="label cursor-pointer truncate w-[270px]">
+                                <label className="label cursor-pointer truncate w-[370px]">
                                     <span className="font-bold mr-4">
                                         Find Earthquake
                                     </span>
@@ -229,7 +228,7 @@ const MainScroller = ({
                         </li>
                         <li>
                             <div className="form-control p-0">
-                                <label className="label cursor-pointer truncate w-[270px]">
+                                <label className="label cursor-pointer truncate w-[370px]">
                                     <span className="font-bold mr-4">
                                         Topo Layer
                                     </span>
@@ -553,7 +552,6 @@ const MainScroller = ({
                                                 </ul>
                                             </details>
                                         </li>
-                                        <li></li>
                                     </ul>
                                 </details>
                             </li>

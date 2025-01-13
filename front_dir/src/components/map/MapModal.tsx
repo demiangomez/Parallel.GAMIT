@@ -1,14 +1,10 @@
-import { EditControl } from "react-leaflet-draw";
-import React, { useEffect, useState } from "react";
-import { Modal } from "@componentsReact";
-
-import { MapContainer, TileLayer, FeatureGroup, useMap } from "react-leaflet";
-import { LatLngExpression, latLng } from "leaflet";
-
-import { useLocalStorage } from "@hooks";
-
-import { EarthQuakeFormState, MyMapContainerProps } from "@types";
-
+import React, { useEffect, useState} from "react";
+import { EditControl} from "react-leaflet-draw";
+import { Modal} from "@componentsReact";
+import { MapContainer, TileLayer, FeatureGroup, useMap} from "react-leaflet";
+import { LatLngExpression, latLng} from "leaflet";
+import { useLocalStorage} from "@hooks";
+import { EarthQuakeFormState, MyMapContainerProps} from "@types";
 interface MapModalProps {
     formState: EarthQuakeFormState;
     setShowMapModal: React.Dispatch<
@@ -35,20 +31,6 @@ const ChangeView = ({
 
     return null;
 };
-
-// const SetGeo = ({ polygon }: { polygon: any }) => {
-//     const map = useMap();
-
-//     useEffect(() => {
-//         if (polygon) {
-//             const layer = geoJSON(polygon);
-//             layer.addTo(map);
-//             map.fitBounds(layer.getBounds());
-//         }
-//     }, [polygon]);
-
-//     return null;
-// };
 
 const SetView = () => {
     const map = useMap();

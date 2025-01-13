@@ -1,41 +1,19 @@
-import { LatLngExpression } from "leaflet";
-import L from "leaflet";
-
-import {
-    MapContainer,
-    Marker,
-    Popup,
-    TileLayer,
-    Tooltip,
-    useMap,
-    ZoomControl,
-} from "react-leaflet";
-import JSZip from "jszip";
-// @ts-expect-error leaflet omnivore doesnt have any types
-import omnivore from "leaflet-omnivore";
-
+import L, { LatLngExpression } from "leaflet";
+import { CircleMarker, MapContainer, Marker, Popup, TileLayer, Tooltip, useMap, ZoomControl} from "react-leaflet";
 import { useEffect, useState } from "react";
 import { PopupChildren } from "@componentsReact";
+import { useLocalStorage } from "@hooks";
+import { EarthquakeData, FilterState, GetParams, MyMapContainerProps, StationData, StationsAffectedServiceData, StationAffectedInfo} from "@types";
+import { isStationFiltered, chosenIcon, isCircleShape, shapeColor, removeMarkersFromKml } from "@utils";
+// @ts-expect-error leaflet omnivore doesnt have any types
+import omnivore from "leaflet-omnivore";
+import JSZip from "jszip";
 
-import {useLocalStorage } from "@hooks";
-
-import {
-    GetParams,
-    StationData,
-    FilterState,
-    EarthquakeData,
-    MyMapContainerProps,
-    StationsAffectedServiceData,
-    StationAffectedInfo,
-} from "@types";
-
-import { isStationFiltered, chosenIcon } from "@utils";
 
 interface MapProps {
-    stations: StationData[] | undefined;
+    handleEarthquakeState: (earthquake: EarthquakeData) => void;
     initialCenter: LatLngExpression | undefined;
-    mainParams: GetParams;
-    setMainParams?: React.Dispatch<React.SetStateAction<GetParams>>;
+    posToFly: LatLngExpression | undefined;
     topoMap?: boolean | undefined;
     filters?: {
         openFilters: boolean;
@@ -45,23 +23,20 @@ interface MapProps {
         stationStatus: boolean;
     };
     filterState?: FilterState;
+    forceSyncDropLeftMap: number;
     mapState: boolean;
-    earthquakes: EarthquakeData[];
+    mainParams: GetParams;
     markersByBounds?: StationData[] | EarthquakeData[];
-    setMarkersByBounds: React.Dispatch<
-        React.SetStateAction<StationData[] | EarthquakeData[] | undefined>
-    >;
+    earthquakes: EarthquakeData[];
     earthquakesFiltered: EarthquakeData[];
-    setEarthquakesFiltered: React.Dispatch<
-        React.SetStateAction<EarthquakeData[]>
-    >;
-    handleEarthquakeState: (earthquake: EarthquakeData) => void;
-    posToFly: LatLngExpression | undefined;
     earthquakeAffectedStations: StationsAffectedServiceData | undefined;
     earthQuakeChosen: EarthquakeData | undefined;
-    setForceSyncScrollerMap: React.Dispatch<React.SetStateAction<number>>;
+    stations: StationData[] | undefined;
     showEarthquakeList: boolean;
-    forceSyncDropLeftMap: number;
+    setForceSyncScrollerMap: React.Dispatch<React.SetStateAction<number>>;
+    setEarthquakesFiltered: React.Dispatch<React.SetStateAction<EarthquakeData[]>>;
+    setMarkersByBounds: React.Dispatch<React.SetStateAction<StationData[] | EarthquakeData[] | undefined>>;
+    setMainParams?: React.Dispatch<React.SetStateAction<GetParams>>;
 }
 
 export const ChangeView = ({
@@ -80,35 +55,11 @@ export const ChangeView = ({
     return null;
 };
 
+//Component for adding kml render to leaflet map from kml in base64 format
 const LoadKmzFromBase64 = ({ base64Data }: { base64Data: string }) => {
     const map = useMap();
 
     //--------------------------------------------------Funciones--------------------------------------------------
-
-    function removeMarkersFromKml(base64Kml: string): string {
-        const decodedXml = atob(base64Kml);
-
-        const parser = new DOMParser();
-
-        const xmlDoc = parser.parseFromString(decodedXml, "application/xml");
-
-        const placemarks = Array.from(xmlDoc.getElementsByTagName("Placemark"));
-
-        placemarks.forEach((placemark) => {
-            if (placemark.getElementsByTagName("Point").length > 0) {
-                placemark.parentNode?.removeChild(placemark);
-            }
-        });
-
-        const serializer = new XMLSerializer();
-
-        const updatedXml = serializer.serializeToString(xmlDoc);
-
-        const base64UpdatedXml = btoa(updatedXml);
-
-        return base64UpdatedXml;
-    }
-
     const removeOldKmls = () => {
         map.eachLayer((layer) => {
             // Verifica si es una capa creada por omnivore
@@ -119,7 +70,6 @@ const LoadKmzFromBase64 = ({ base64Data }: { base64Data: string }) => {
     };
 
     //--------------------------------------------------UseEffect--------------------------------------------------
-
     useEffect(() => {
         const loadKmzOrKmlFile = async () => {
             if (!base64Data) return;
@@ -199,7 +149,6 @@ const MapMarkers = ({
 
     const southWest = L.latLng(-100.98155760646617, -250);
     const nortEast = L.latLng(100.99346179538875, 250);
-
     const bounds = L.latLngBounds(southWest, nortEast);
 
     map.setMaxBounds(bounds);
@@ -216,13 +165,11 @@ const MapMarkers = ({
 
     const [, setLastPosition] = useLocalStorage("lastPosition", "[0,0]");
 
-    //-------------------------------------------------------------------------------UseMemo--------------------------------------------------------------------------------------
-
     //-------------------------------------------------------------------------------UseStates--------------------------------------------------------------------------------------
-
     const [forceRenderMarker, setForceRenderMarker] = useState(0);
 
     //-------------------------------------------------------------------------------UseEffects--------------------------------------------------------------------------------------
+    //Modify setview when refreshing the page
     useEffect(() => {
         if (posToFly) {
             map.setView(posToFly, 2);
@@ -236,9 +183,35 @@ const MapMarkers = ({
         }
     }, [filters, filterState, mapState]);
 
-
+    //Used for re rendering well when coming back to station mode from earthquake mode
     useEffect(() => {
-        // Actualizar marcadores cuando el mapa se mueve
+        if(!mapState && markersByBounds && markersByBounds.length > 0){
+            const zoom = map.getZoom();
+            const pos = map.getCenter();
+            
+            map.setZoom(2);
+
+            setTimeout(() => {
+                map.setZoom(6);
+            }, 500)
+
+            setTimeout(() => {
+                map.setZoom(10);
+            }, 1200)
+
+            setTimeout(() => {
+                map.setZoom(4);
+            }, 1800)
+
+            setTimeout(() => {
+                map.setZoom(zoom);
+                map.setView(pos);
+            },  2900);
+        }
+    }, [mapState])
+
+    // Updates markers when map moves
+    useEffect(() => {
         const onMove = () => {
             if (!mapState) updateMarkersByBounds();
             if (mapState && earthQuakeChosen === undefined) updateEarthquakeMarkers();
@@ -250,6 +223,7 @@ const MapMarkers = ({
         };
     }, [stations, earthquakes, map, filters, filterState, mapState, earthQuakeChosen]);
 
+    //Updates storage when you modify zoom and position
     useEffect(() => {
         const onZoomEnd = () => {
             const currentZoom = map.getZoom();
@@ -270,8 +244,8 @@ const MapMarkers = ({
         };
     }, [map]);
 
+    // Update markers when initialcenter changes
     useEffect(() => {
-        // Actualizar marcadores cuando cambia initialCenter
         if (initialCenter) {
             map.setView(
                 initialCenter,
@@ -281,6 +255,11 @@ const MapMarkers = ({
         }
     }, [initialCenter, map]);
 
+    useEffect(() => {
+        updateMarkersByBounds();
+    },[])
+
+    // Forces map and marker renders when you get earthquake affected stations
     useEffect(() => {
         if (earthquakes.length > 0) {
             setForceRenderMarker((prev) => prev + 1);
@@ -300,7 +279,7 @@ const MapMarkers = ({
     }, [showEarthquakeList]);
 
     //-------------------------------------------------------------------------------Funciones--------------------------------------------------------------------------------------
-
+    //Update markers considering map bounds in viewport
     const updateMarkersByBounds = () => {
         const mapBounds = map.getBounds();
         const mapEastCorner = mapBounds.getNorthEast();
@@ -337,27 +316,13 @@ const MapMarkers = ({
     };
 
     const updateEarthquakeMarkers = () => {
-        
-        // const mapBounds = map.getBounds();
-        // const mapEastCorner = mapBounds.getNorthEast();
-        // const mapWestCorner = mapBounds.getSouthWest();
-
-
+    
         const filtered = earthquakes
         
-        // earthquakes?.filter(
-        //     (s) =>
-        //         s?.lat < mapEastCorner?.lat &&
-        //         s?.lon < mapEastCorner?.lng &&
-        //         s?.lat > mapWestCorner?.lat &&
-        //         s?.lon > mapWestCorner?.lng,
-        // );
-
         setEarthquakesFiltered(filtered);
     };
 
-    const earthquakeIcon =
-        "https://maps.google.com/mapfiles/kml/shapes/star.png";
+    const earthquakeIcon = "https://maps.google.com/mapfiles/kml/shapes/star.png";
 
     const stationTooltip = (s: StationData) => {
         return (s.network_code?.toUpperCase() +
@@ -365,6 +330,7 @@ const MapMarkers = ({
             s.station_code?.toUpperCase()) as string;
     };
 
+    //choses what markers show on the map according to the map state
     const chosenToMap = () => {
         if (mapState) {
             return earthquakesFiltered as EarthquakeData[];
@@ -405,37 +371,65 @@ const MapMarkers = ({
                     (s: StationAffectedInfo, index: number) => {
                         const station = findStation(s);
                         const uniqueKey = `affected-${station?.network_code}-${station?.station_code}-${index}-${forceRenderMarker}`;
-                        return station && station.lat && station.lon ? (
-                            <Marker
-                                icon={chosenIcon(station as StationData)}
-                                key={uniqueKey + forceRenderMarker}
-                                position={[station.lat, station.lon]}
-                            >
-                                <Tooltip permanent={false}>
-                                    <strong className="text-lg">
-                                        {stationTooltip(station as StationData)}
-                                    </strong>
-                                </Tooltip>
-                                <Popup maxWidth={600} minWidth={400}>
-                                    <PopupChildren
-                                        station={station as StationData}
-                                        fromMain={true}
-                                        mainParams={mainParams}
-                                    />
-                                </Popup>
-                            </Marker>
-                        ) : null;
+                        if(isCircleShape(station as StationData)){
+                            return (
+                                <CircleMarker
+                                    center={[station?.lat as number, station?.lon as number]}
+                                    color = {shapeColor(station as StationData)}
+                                    fillColor = {station && 'has_stationinfo' in station && station.has_stationinfo && station.status == "Deactivated" ? "#e20800"  : "#205425"}
+                                    fillOpacity = {0.8}
+                                    weight={4}
+                                    radius={4.5}
+                                    key={uniqueKey}
+                                >
+                                    <Tooltip>
+                                        <strong className="text-lg">
+                                            {stationTooltip(station as StationData)}
+                                        </strong>
+                                    </Tooltip>
+                                    <Popup maxWidth={600} minWidth={400}>
+                                        <PopupChildren
+                                            station={station as StationData}
+                                            fromMain={true}
+                                            mainParams={mainParams}
+                                        />
+                                    </Popup>
+                                </CircleMarker>
+                            )
+                        }
+                        else{
+                            return station && station.lat && station.lon ? (
+                                <Marker
+                                    icon={chosenIcon(station as StationData)}
+                                    key={uniqueKey + forceRenderMarker}
+                                    position={[station.lat, station.lon]}
+                                >
+                                    <Tooltip permanent={false}>
+                                        <strong className="text-lg">
+                                            {stationTooltip(station as StationData)}
+                                        </strong>
+                                    </Tooltip>
+                                    <Popup maxWidth={600} minWidth={400}>
+                                        <PopupChildren
+                                            station={station as StationData}
+                                            fromMain={true}
+                                            mainParams={mainParams}
+                                        />
+                                    </Popup>
+                                </Marker>
+                            ) : null;
+                        }
                     },
                 )}
-            {markersByBounds &&
+            {(markersByBounds) &&
                 chosenToMap()
                     .filter((s) => s?.lat != null && s?.lon != null)
                     .map((s: StationData | EarthquakeData, index: number) => {
                         const pos: LatLngExpression = [s.lat, s.lon];
                         const size: [number, number] =
                             s?.api_id === earthQuakeChosen?.api_id
-                                ? [50, 50]
-                                : [20, 20];
+                                ? [40, 40]
+                                : [30, 30];
                         const color =
                             s?.api_id === earthQuakeChosen?.api_id
                                 ? "light-red-icon"
@@ -476,26 +470,58 @@ const MapMarkers = ({
                             }
                         } else {
                             const iconGaps = chosenIcon(s as StationData);
-                            return (
-                                <Marker
-                                    icon={iconGaps}
-                                    key={uniqueKey}
-                                    position={pos}
-                                >
-                                    <Tooltip>
-                                        <strong className="text-lg">
-                                            {stationTooltip(s as StationData)}
-                                        </strong>
-                                    </Tooltip>
-                                    <Popup maxWidth={600} minWidth={400}>
-                                        <PopupChildren
-                                            station={s as StationData}
-                                            fromMain={true}
-                                            mainParams={mainParams}
-                                        />
-                                    </Popup>
-                                </Marker>
-                            );
+                            if(isCircleShape(s as StationData))
+                            {
+                                return (
+                                    <CircleMarker
+                                        center={pos}
+                                        color = {shapeColor(s as StationData)}
+                                        fillColor = {('has_stationinfo' in s && s.has_stationinfo && s.status == "Deactivated") ? "#e20800"  : "#205425"}
+                                        fillOpacity = {0.8}
+                                        weight={4}
+                                        radius={4.5}
+                                        key={uniqueKey}
+                                        
+                                    >
+                                        <Tooltip>
+                                            <strong className="text-lg">
+                                                {stationTooltip(s as StationData)}
+                                            </strong>
+                                        </Tooltip>
+                                        <Popup maxWidth={600} minWidth={400}>
+                                            <PopupChildren
+                                                station={s as StationData}
+                                                fromMain={true}
+                                                mainParams={mainParams}
+                                            />
+                                        </Popup>
+                                    </CircleMarker>
+                                    
+                                )
+                            }
+                            else
+                            {                                
+                                return (
+                                    <Marker
+                                        icon={iconGaps}
+                                        key={uniqueKey}
+                                        position={pos}
+                                    >
+                                        <Tooltip>
+                                            <strong className="text-lg">
+                                                {stationTooltip(s as StationData)}
+                                            </strong>
+                                        </Tooltip>
+                                        <Popup maxWidth={600} minWidth={400}>
+                                            <PopupChildren
+                                                station={s as StationData}
+                                                fromMain={true}
+                                                mainParams={mainParams}
+                                            />
+                                        </Popup>
+                                    </Marker>
+                                );
+                            }
                         }
                     })}
         </>
@@ -503,26 +529,26 @@ const MapMarkers = ({
 };
 
 const Map = ({
-    stations,
     initialCenter,
-    mainParams,
-    setMainParams,
+    posToFly,
+    handleEarthquakeState,
     topoMap,
     filters,
     filterState,
+    forceSyncDropLeftMap,
+    mainParams,
     mapState,
     markersByBounds,
     earthquakes,
-    setMarkersByBounds,
     earthquakesFiltered,
-    setEarthquakesFiltered,
-    handleEarthquakeState,
-    posToFly,
     earthquakeAffectedStations,
     earthQuakeChosen,
-    setForceSyncScrollerMap,
+    stations,
     showEarthquakeList,
-    forceSyncDropLeftMap,
+    setForceSyncScrollerMap,
+    setEarthquakesFiltered,
+    setMarkersByBounds,
+    setMainParams,
 }: MapProps) => {
     //---------------------------------------------------------------------------UseStates--------------------------------------------------------------------------------------
 
@@ -566,6 +592,7 @@ const Map = ({
         }));
     }, [mapState]);
 
+    
     //---------------------------------------------------------------------------UseEscape--------------------------------------------------------------------------------------
 
     return (
@@ -596,25 +623,25 @@ const Map = ({
                 <ChangeView center={mapProps.center} zoom={mapProps.zoom} />
 
                     <MapMarkers
-                        stations={stations}
+                        posToFly={posToFly}
                         initialCenter={initialCenter}
-                        mainParams={mainParams}
-                        setMainParams={setMainParams}
+                        handleEarthquakeState={handleEarthquakeState}
                         filters={filters}
                         filterState={filterState}
+                        forceSyncDropLeftMap={forceSyncDropLeftMap}
                         mapState={mapState}
+                        mainParams={mainParams}
                         markersByBounds={markersByBounds}
-                        setMarkersByBounds={setMarkersByBounds}
-                        earthquakesFiltered={earthquakesFiltered ? earthquakesFiltered : []}
-                        setEarthquakesFiltered={setEarthquakesFiltered}
                         earthquakes={earthquakes}
-                        handleEarthquakeState={handleEarthquakeState}
-                        posToFly={posToFly}
-                        earthquakeAffectedStations={earthquakeAffectedStations}
                         earthQuakeChosen={earthQuakeChosen}
+                        earthquakesFiltered={earthquakesFiltered ? earthquakesFiltered : []}
+                        earthquakeAffectedStations={earthquakeAffectedStations}
+                        stations={stations}
+                        setMainParams={setMainParams}
+                        setMarkersByBounds={setMarkersByBounds}
+                        setEarthquakesFiltered={setEarthquakesFiltered}
                         setForceSyncScrollerMap={setForceSyncScrollerMap}
                         showEarthquakeList={showEarthquakeList}
-                        forceSyncDropLeftMap={forceSyncDropLeftMap}
                     />
             </MapContainer>
         </div>

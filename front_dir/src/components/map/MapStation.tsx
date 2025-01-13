@@ -1,32 +1,22 @@
 import { useEffect, useRef, useState } from "react";
-//import ReactDOMServer from "react-dom/server";
-import {
-    MapContainer,
-    MapContainerProps,
-    Marker,
-    Popup,
-    TileLayer,
-    useMap,
-} from "react-leaflet";
-import { PopupChildren, Spinner } from "@componentsReact";
-import { VisitsScroller } from "@componentsReact";
-import domtoimage from "dom-to-image";
-import JSZip from "jszip";
-import { LatLngExpression } from "leaflet";
-import L from "leaflet";
+import L, { LatLngExpression } from "leaflet";
+import { MapContainer, MapContainerProps, Marker, Popup, TileLayer, useMap} from "react-leaflet";
+import { PopupChildren, Spinner, VisitsScroller} from "@componentsReact";
 // @ts-expect-error leaflet omnivore doesnt have any types
 import omnivore from "leaflet-omnivore";
 
-import {
-    StationData,
-    StationMetadataServiceData,
-    StationVisitsData,
-} from "@types";
-import { chosenIcon } from "@utils/index";
+import domtoimage from "dom-to-image";
+import JSZip from "jszip";
+import { StationData, StationMetadataServiceData, StationVisitsData,} from "@types";
+
+import { chosenIcon} from "@utils";
+
+import  caution from "@assets/images/caution.png";
 
 interface VisitsStates {
     visitId: number;
     checked: boolean;
+    color: string;
 }
 
 interface VisitScrollerProps {
@@ -39,7 +29,7 @@ interface VisitScrollerProps {
 }
 
 interface MapProps {
-    station: StationData | undefined;
+    visitScrollerProps: VisitScrollerProps;
     base64Data:
         | {
               visits: StationVisitsData[];
@@ -51,11 +41,11 @@ interface MapProps {
         | undefined;
     loadPdf: boolean;
     loadedPdfData: boolean;
+    station: StationData | undefined;
     setStationLocationScreen?: (url: string) => void;
     setStationLocationDetailScreen?: (url: string) => void;
     setLoadPdf: React.Dispatch<React.SetStateAction<boolean>>;
     setLoadedMap: React.Dispatch<React.SetStateAction<boolean>>;
-    visitScrollerProps: VisitScrollerProps;
 }
 
 const ChangeView = ({
@@ -72,31 +62,14 @@ const ChangeView = ({
     return null;
 };
 
-const LoadKmzFromBase64 = ({ base64Data }: { base64Data: string }) => {
+const LoadKmzFromBase64 = ({ base64Data, color}: { base64Data: string, color: string }) => {
     const map = useMap();
 
     //--------------------------------------------------Funciones--------------------------------------------------
 
-    const getRandomColor = () => {
-        const possibleColors = [
-            "blue",
-            "red",
-            "green",
-            "yellow",
-            "purple",
-            "orange",
-            "pink",
-            "brown",
-            "black",
-        ];
-        const chosenColor =
-            possibleColors[Math.floor(Math.random() * possibleColors.length)];
-        return chosenColor;
-    };
-
     //--------------------------------------------------UseEffect--------------------------------------------------
-
     useEffect(() => {
+
         const loadKmzOrKmlFile = async () => {
             if (!base64Data) return;
 
@@ -116,8 +89,7 @@ const LoadKmzFromBase64 = ({ base64Data }: { base64Data: string }) => {
                     if (kmlFile) {
                         const kmlString = await kmlFile.async("string");
                         const overlayLayer = omnivore.kml.parse(kmlString);
-                        const randomColor = getRandomColor();
-                        overlayLayer.setStyle({ color: randomColor });
+                        overlayLayer.setStyle({ color: color });
                         overlayLayer.options = { interactive: false };
                         overlayLayer.addTo(map);
                     } else {
@@ -128,8 +100,7 @@ const LoadKmzFromBase64 = ({ base64Data }: { base64Data: string }) => {
                     try {
                         const kmlString = new TextDecoder().decode(arrayBuffer);
                         const overlayLayer = omnivore.kml.parse(kmlString);
-                        const randomColor = getRandomColor();
-                        overlayLayer.setStyle({ color: randomColor });
+                        overlayLayer.setStyle({ color: color });
                         overlayLayer.options = { interactive: false };
                         overlayLayer.addTo(map);
                     } catch (kmlError) {
@@ -148,17 +119,28 @@ const LoadKmzFromBase64 = ({ base64Data }: { base64Data: string }) => {
 };
 
 const MapStation = ({
-    station,
+    visitScrollerProps,
     base64Data,
     loadPdf,
     loadedPdfData,
+    station,
     setStationLocationScreen,
     setStationLocationDetailScreen,
     setLoadPdf,
     setLoadedMap,
-    visitScrollerProps,
 }: MapProps) => {
+    
+    const iconDefault = new L.Icon({
+        iconUrl: caution,
+        iconSize: [25, 25],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41],
+
+    })
+
     const [isMapReady, setIsMapReady] = useState(false);
+
     const MapEvents = ({
         setIsMapReady,
     }: {
@@ -231,6 +213,14 @@ const MapStation = ({
     }, [isMapReady, loadPdf]);
 
     //--------------------------------------------------Funciones--------------------------------------------------
+
+    const getColor = (visit: StationVisitsData) => {
+        const visitColor = visitScrollerProps.changeKml.find((visitBool) => visitBool.visitId === visit.id);
+        if (visitColor) {
+            return visitColor.color;
+        }
+        return "black";
+    }
 
     const captureImage = (
         timeout: number,
@@ -323,6 +313,9 @@ const MapStation = ({
         setForceRerender((prev) => prev + 1);
     }, [base64Data]);
 
+    
+ 
+
     return (
         <div className="z-10 pt-6 w-6/12 flex justify-center">
             {loadedPdfData === false && (
@@ -397,32 +390,37 @@ const MapStation = ({
                                     base64Data={
                                         visit.navigation_actual_file ?? ""
                                     }
+                                    color={getColor(visit)}
                                 />
                             ))
                     ) : (
                         <LoadKmzFromBase64
                             base64Data={
                                 typeof base64Data === "string" ? base64Data : ""
+                                
                             }
+                            color={"black"}
                         />
-                    ))}
+                    ))
+                }
                 {base64Data &&
                 typeof base64Data !== "string" &&
-                base64Data.stationMeta &&
+                base64Data.stationMeta && base64Data.stationMeta.navigation_actual_file &&
                 base64Data.changeMeta ? (
                     <LoadKmzFromBase64
                         base64Data={
                             base64Data.stationMeta.navigation_actual_file ?? ""
                         }
+                        color={"black"}
                     />
                 ) : null}
                 <Marker
-                    icon={station ? chosenIcon(station) : undefined}
+                    icon={station ? chosenIcon(station) : iconDefault}
                     key={station ? station?.lat + station?.lon : "key"}
                     position={mapProps.center ?? [0, 0]}
                     ref={markerRef}
                 >
-                    {!loadPdf && (
+                    {!loadPdf && station &&(
                         <Popup maxWidth={600} minWidth={400}>
                             <PopupChildren station={station} />
                         </Popup>

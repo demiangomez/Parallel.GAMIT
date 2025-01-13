@@ -186,7 +186,7 @@ class StationMetaUtils:
 
             with connection.cursor() as cursor:
                 cursor.execute(
-                    """SELECT min("ObservationSTime") as first_obs, max("ObservationSTime") as last_obs
+                    """SELECT min("ObservationSTime") as first_obs, max("ObservationETime") as last_obs
                             FROM rinex_proc WHERE "NetworkCode" = %s AND "StationCode" = %s
                             AND "Completion" >= 0.5""", [station_object.network_code.network_code, station_object.station_code])
                 rows = dictfetchall(cursor)

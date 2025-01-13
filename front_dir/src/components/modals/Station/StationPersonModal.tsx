@@ -1,33 +1,9 @@
 import { useEffect, useState } from "react";
-import {
-    Alert,
-    ConfirmDeleteModal,
-    Menu,
-    MenuButton,
-    MenuContent,
-    Modal,
-} from "@componentsReact";
-
-import useApi from "@hooks/useApi";
-import { useAuth } from "@hooks/useAuth";
-import { useFormReducer } from "@hooks";
-
-import { apiOkStatuses, showModal } from "@utils";
-
-import {
-    ErrorResponse,
-    Errors,
-    ExtendedRolePersonStationData,
-    People,
-    RolePersonStationData,
-    StationData,
-    StationStatus,
-} from "@types";
-
-import {
-    delRolePersonStationService,
-    postRolePersonStationService,
-} from "@services";
+import { Alert, ConfirmDeleteModal, Menu, MenuButton, MenuContent, Modal} from "@componentsReact";
+import { useApi, useAuth, useFormReducer} from "@hooks";
+import { apiOkStatuses, showModal} from "@utils";
+import { ErrorResponse, Errors, ExtendedRolePersonStationData, People, RolePersonStationData, StationData, StationStatus} from "@types";
+import { delRolePersonStationService, postRolePersonStationService} from "@services";
 
 interface Props {
     people: People[] | undefined;

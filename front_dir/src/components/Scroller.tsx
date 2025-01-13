@@ -56,7 +56,7 @@ const Scroller = ({
                     <div
                         className={
                             fromMain
-                                ? "overflow-y-auto max-h-[200px] h-auto w-[350px] ml-2 bg-white rounded-md scrollbar-thin scrollbar-thumb-rounded px-4 border border-gray-400"
+                                ? "overflow-y-auto max-h-[230px] h-auto w-[450px] ml-2 bg-white rounded-md scrollbar-thin scrollbar-thumb-rounded px-4 border border-gray-400"
                                 : "overflow-y-auto max-h-[200px] h-auto max-w-[280px] min-w-[180px] ml-2 bg-white rounded-md scrollbar-thin px-4 border border-gray-400"
                         }
                     >

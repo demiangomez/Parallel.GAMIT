@@ -1,45 +1,15 @@
 import { useEffect, useState } from "react";
-import {
-    Modal,
-    Alert,
-    ConfirmDeleteModal,
-    MenuButton,
-    Menu,
-    MenuContent,
-} from "@componentsReact";
-
-import {
-    delPeopleService,
-    getUsersService,
-    patchPeopleService,
-    postPeopleService,
-} from "@services";
-
-import useApi from "@hooks/useApi";
-import { useAuth } from "@hooks/useAuth";
-import { useFormReducer } from "@hooks";
-
+import { Alert, ConfirmDeleteModal, MenuButton, Menu, MenuContent, Modal} from "@componentsReact";
+import { delPeopleService, getUsersService, patchPeopleService, postPeopleService} from "@services";
+import { useAuth, useApi, useFormReducer } from "@hooks";
 import { apiOkStatuses, showModal } from "@utils";
-
-import {
-    Errors,
-    ErrorResponse,
-    People,
-    ExtendedPeople,
-    UsersData,
-    UsersServiceData,
-} from "@types";
+import { Errors, ErrorResponse, People, ExtendedPeople, UsersData, UsersServiceData} from "@types";
 
 interface Props {
     Person: People | undefined;
     modalType: string;
     reFetch: () => void;
-    setStateModal: React.Dispatch<
-        React.SetStateAction<
-            | { show: boolean; title: string; type: "add" | "edit" | "none" }
-            | undefined
-        >
-    >;
+    setStateModal: React.Dispatch<React.SetStateAction<| { show: boolean; title: string; type: "add" | "edit" | "none" }| undefined>>;
     setPerson: React.Dispatch<React.SetStateAction<People | undefined>>;
 }
 

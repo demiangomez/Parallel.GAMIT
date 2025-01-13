@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { MapStation, Photo } from "@componentsReact";
 
@@ -32,6 +32,7 @@ interface VisitsStates
 {
     visitId: number;
     checked: boolean;
+    color: string;
 }
 
 const StationMain = () => {
@@ -50,6 +51,7 @@ const StationMain = () => {
         setLoadPdf,
         setLoadedMap,
     } = useOutletContext<OutletContext>();
+
 
     const [changeMeta, setChangeMeta] = useState<boolean>(false);
 
@@ -75,6 +77,11 @@ const StationMain = () => {
     setChangeKml: setChangeKml,
     setChangeMeta: setChangeMeta,
     stationMeta: stationMeta}
+
+    useEffect(() => {setChangeMeta(stationMeta && stationMeta.navigation_actual_file !== null && stationMeta.navigation_actual_file !== "")
+    }, [
+        stationMeta
+    ])
 
     return (
         <div>

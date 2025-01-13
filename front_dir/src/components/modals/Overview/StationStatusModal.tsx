@@ -1,22 +1,9 @@
 import { useEffect, useState } from "react";
-import { Modal, Alert, ConfirmDeleteModal } from "@componentsReact";
-
-import {
-    delStationStatusService,
-    patchStationStatusService,
-    postStationStatusService,
-} from "@services";
-import { useAuth } from "@hooks/useAuth";
-import useApi from "@hooks/useApi";
-import { useFormReducer } from "@hooks";
+import { Alert, ConfirmDeleteModal, Modal } from "@componentsReact";
+import { delStationStatusService, patchStationStatusService, postStationStatusService} from "@services";
+import {useApi, useAuth, useFormReducer } from "@hooks";
 import { apiOkStatuses, showModal } from "@utils";
-
-import {
-    Errors,
-    ErrorResponse,
-    ExtendedStationStatus,
-    StationStatus,
-} from "@types";
+import { Errors, ErrorResponse, ExtendedStationStatus, StationStatus} from "@types";
 
 interface StationStatusModalProps {
     StationStatus: StationStatus | undefined;

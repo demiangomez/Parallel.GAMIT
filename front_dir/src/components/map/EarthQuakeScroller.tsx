@@ -6,25 +6,23 @@ import { formattedDates } from "@utils";
 import { EarthquakeData } from "@types";
 
 interface EarthQuakeScrollerProps {
-    setMapState: React.Dispatch<React.SetStateAction<boolean>>;
-    scrollerCondition: boolean;
-    setScroll: React.Dispatch<React.SetStateAction<boolean>>;
-    earthquakes: EarthquakeData[];
-    spinner: boolean;
-    handleEarthquakeState: (earthquake: EarthquakeData) => void;
     forceSyncMapScroller: number;
+    earthquakes: EarthquakeData[];
     earthquakeChosen: EarthquakeData | undefined;
+    handleEarthquakeState: (earthquake: EarthquakeData) => void;
+    handleEarthquakeClose: () => void;
+    scrollerCondition: boolean;
+    spinner: boolean;
 }
 
 const EarthQuakeScroller: React.FC<EarthQuakeScrollerProps> = ({
-    scrollerCondition,
-    earthquakes,
-    setScroll,
-    setMapState,
-    spinner,
-    handleEarthquakeState,
     forceSyncMapScroller,
+    earthquakes,
     earthquakeChosen,
+    handleEarthquakeState,
+    handleEarthquakeClose,
+    spinner,
+    scrollerCondition,
 }) => {
     //---------------------------------------------------------UseState-------------------------------------------------------------
     const [forceRenderContainer, setForceRenderContainer] = useState(0);
@@ -74,6 +72,8 @@ const EarthQuakeScroller: React.FC<EarthQuakeScrollerProps> = ({
         setSortedEarthquakes(earthquakes);
     }, [earthquakes]);
 
+    //---------------------------------------------------------Return-------------------------------------------------------------
+
     return (
         <>
             {scrollerCondition ? (
@@ -96,8 +96,7 @@ const EarthQuakeScroller: React.FC<EarthQuakeScrollerProps> = ({
                                     stroke="currentColor"
                                     className="size-6 cursor-pointer mt-2 mr-1 hover:bg-gray-200 hover:rounded-full hover:shadow-md"
                                     onClick={() => {
-                                        setScroll(false);
-                                        setMapState(false);
+                                        handleEarthquakeClose()
                                     }}
                                 >
                                     <path
@@ -163,7 +162,7 @@ const EarthQuakeScroller: React.FC<EarthQuakeScrollerProps> = ({
                                     <div
                                         key={
                                             forceRenderContainer +
-                                            earthquake.api_id +
+                                            earthquake.api_id + 
                                             forceSyncMapScroller
                                         }
                                         onClick={() => {

@@ -1,42 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { LatLngExpression } from "leaflet";
-
 import { ChevronLeftIcon } from "@heroicons/react/24/outline";
-
-import {
-    Map,
-    MapSkeleton,
-    SearchInput,
-    Sidebar,
-    Spinner,
-    StationsModal,
-    MainScroller,
-    EarthQuakeFormModal,
-    EarthQuakeScroller,
-    DropLeft,
-} from "@componentsReact";
-
-import { useAuth, useApi, useEscape } from "@hooks";
-
-import {
-    getAffectedStationsService,
-    getEarthquakesService,
-    getStationsService,
-} from "@services";
-
 import { isStationFiltered, showModal } from "@utils";
-
-import {
-    GetParams,
-    StationData,
-    StationServiceData,
-    FilterState,
-    EarthQuakeFormState,
-    EarthquakeData,
-    EarthQuakeParams,
-    StationsAffectedServiceData,
-} from "@types";
+import { useAuth, useApi, useEscape, useLocalStorage } from "@hooks";
+import {getAffectedStationsService, getEarthquakesService, getStationsService,} from "@services";
+import {Map, MapSkeleton, SearchInput, Sidebar, Spinner, StationsModal, MainScroller, EarthQuakeFormModal, EarthQuakeScroller, DropLeft} from "@componentsReact";
+import {GetParams, FilterState, StationData, StationServiceData, StationsAffectedServiceData, EarthQuakeFormState, EarthquakeData, EarthQuakeParams,} from "@types";
 
 const MainPage = () => {
     //---------------------------------------------------------UseAuth-------------------------------------------------------------
@@ -47,6 +17,22 @@ const MainPage = () => {
 
     //---------------------------------------------------------UseLocation-------------------------------------------------------------
     const location = useLocation();
+
+    //---------------------------------------------------------UseLocalStorage-------------------------------------------------------------
+
+    const [, setEarthquakeChosenStorage] = useLocalStorage(
+    "earthquakeChosen",
+    JSON.stringify({}),
+    )
+
+    const [mapStateStorage, setMapStateStorage] = useLocalStorage(
+        "mapState",
+        "false",
+    );
+
+    //---------------------------------------------------------UseRef-------------------------------------------------------------
+
+    const abortControllerRef = useRef<AbortController | null>(null);
 
     //---------------------------------------------------------UseState-------------------------------------------------------------
     const [forceSyncScrollerMap, setForceSyncScrollerMap] = useState(0);
@@ -71,6 +57,8 @@ const MainPage = () => {
     const [earthquakes, setEarthquakes] = useState<
         EarthquakeData[] | undefined
     >(undefined);
+
+    const [loading2, setLoading2] = useState<boolean>(false);
 
     const [station, setStation] = useState<StationData | undefined>(undefined);
 
@@ -105,13 +93,15 @@ const MainPage = () => {
         StationData[] | EarthquakeData[] | undefined
     >(undefined);
 
-    const [mapState, setMapState] = useState<boolean>(false);
+    const [mapState, setMapState] = useState<boolean>(mapStateStorage === "true" ? true : false);
 
     const [list, setList] = useState<boolean>(false);
 
     const [loading, setLoading] = useState<boolean>(true);
 
     const [spinner, setSpinner] = useState<boolean>(false);
+
+    const [earthquakeSpinner, setEarthquakeSpinner] = useState<boolean>(false);
 
     const [stationsUpdated, setStationsUpdated] = useState<boolean>(false);
 
@@ -167,77 +157,7 @@ const MainPage = () => {
             ? windowState
             : (location.state as StationData);
 
-    //---------------------------------------------------------UseRef-------------------------------------------------------------
-
-    const abortControllerRef = useRef<AbortController | null>(null);
-
-    
-
     //---------------------------------------------------------Funciones-------------------------------------------------------------
-
-    const getAffectedStations = async () => {
-        try {
-            setEarthQuakeAffectedStations(undefined);
-            setSpinner(true);
-            const result =
-                await getAffectedStationsService<StationsAffectedServiceData>(
-                    api,
-                    earthQuakeAffectedParams,
-                );
-            if (result) {
-                setEarthQuakeAffectedStations(result);
-            }
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setSpinner(false);
-        }
-    };
-
-    const getInitialStations = async () => {
-        try {
-            setLoading(true);
-            const result = await getStationsService<StationServiceData>(
-                api,
-                params,
-            );
-            if (result) {
-                setInitialStations(result.data);
-            }
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const getEarthquakes = async () => {
-        setSpinner(true);
-        try {
-            const res = await getEarthquakesService<any>(api, earthQuakeParams);
-            
-            const filteredEarthquakes =
-                (Array.isArray(formstate?.polygon_coordinates) &&
-                    formstate.polygon_coordinates[0].length > 0) ||
-                !isEmpty(formstate?.max_latitude) ||
-                !isEmpty(formstate?.min_latitude) ||
-                !isEmpty(formstate?.max_longitude) ||
-                !isEmpty(formstate?.min_longitude)
-                    ? res.data?.filter((s: EarthquakeData) =>
-                          isEarthquakeFiltered(s),
-                      )
-                    : res.data;
-
-            setEarthquakes(filteredEarthquakes);
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setSpinner(false);
-        }
-    };
-
-        
-
 
     const getStations = async () => {
         setSpinner(true);
@@ -283,6 +203,72 @@ const MainPage = () => {
             console.error(err);
         } finally {
             setSpinner(false);
+        }
+    };
+
+    const getInitialStations = async () => {
+        try {
+            setLoading(true);
+            const result = await getStationsService<StationServiceData>(
+                api,
+                params,
+            );
+            if (result) {
+                setInitialStations(result.data);
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const getAffectedStations = async () => {
+        
+        setEarthquakeSpinner(true);
+        
+        try {
+            setEarthQuakeAffectedStations(undefined);
+
+            const result =
+                await getAffectedStationsService<StationsAffectedServiceData>(
+                    api,
+                    earthQuakeAffectedParams,
+                );
+            if (result) {
+                setEarthQuakeAffectedStations(result);
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setEarthquakeSpinner(false);
+        }
+    };
+
+
+    const getEarthquakes = async () => {
+        setEarthquakeSpinner(true);
+
+        try {
+            const res = await getEarthquakesService<any>(api, earthQuakeParams);
+            
+            const filteredEarthquakes =
+                (Array.isArray(formstate?.polygon_coordinates) &&
+                    formstate.polygon_coordinates[0].length > 0) ||
+                !isEmpty(formstate?.max_latitude) ||
+                !isEmpty(formstate?.min_latitude) ||
+                !isEmpty(formstate?.max_longitude) ||
+                !isEmpty(formstate?.min_longitude)
+                    ? res.data?.filter((s: EarthquakeData) =>
+                          isEarthquakeFiltered(s),
+                      )
+                    : res.data;
+
+            setEarthquakes(filteredEarthquakes);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            !chosenEarthquake ? setEarthquakeSpinner(false) : null
         }
     };
 
@@ -417,10 +403,10 @@ const MainPage = () => {
     };
 
     const handleEarthquakes = () => {
-        handleEarthQuakeParams(formstate);
-
         setChosenEarthquake(undefined);
 
+        handleEarthQuakeParams(formstate);
+        
         setEarthQuakeAffectedStations(undefined);
 
         setMapState(true);
@@ -433,11 +419,15 @@ const MainPage = () => {
             chosenEarthquake?.api_id !== earthquake.api_id ||
             chosenEarthquake === undefined
         ) {
+
             setEarthQuakeAffectedParams(earthquake.api_id);
 
             setChosenEarthquake(earthquake);
         } else if (chosenEarthquake?.api_id === earthquake.api_id) {
+
             setChosenEarthquake(undefined);
+
+            localStorage.removeItem("earthquakeChosen");
 
             setEarthQuakeAffectedParams(undefined);
         }
@@ -469,25 +459,77 @@ const MainPage = () => {
         }
     };
 
+    const handleEarthquakeClose = () => {
+        setChosenEarthquake(undefined);
+        setMapState(false);
+        setShowEarthQuakesList(false);
+        setEarthQuakeAffectedParams(undefined);
+    }
+
+  
+
     //---------------------------------------------------------UseEffect-------------------------------------------------------------
     useEffect(() => {
-        if (earthQuakeAffectedParams && chosenEarthquake) {
-            getAffectedStations();
-        } else if (earthQuakeAffectedParams === undefined) {
+        if(chosenEarthquake !== undefined){
+            setEarthQuakeAffectedParams(chosenEarthquake.api_id);
+            setEarthquakeChosenStorage(JSON.stringify(chosenEarthquake));
+            if(mapState){
+                setPosToFly([chosenEarthquake.lat, chosenEarthquake.lon]);
+            }
+        }
+        if(chosenEarthquake === undefined && mapState === false){
+            localStorage.removeItem("earthquakeChosen");
+        }
+        if (earthQuakeAffectedParams === undefined) {
             setEarthQuakeAffectedStations(undefined);
         }
+        
     }, [chosenEarthquake]);
 
     useEffect(() => {
-        if (mapState) {
+        if(earthQuakeAffectedParams)
+        {
+            getAffectedStations();
+        }
+    }, [earthQuakeAffectedParams]);
+
+    useEffect(() => {
+        const storedMapState = localStorage.getItem("mapState");
+        const storedEarthquakeChosen = localStorage.getItem("earthquakeChosen");
+        const storagedFormState = localStorage.getItem("earthQuakeFilters");
+    
+        if (storedMapState) {
+            setMapState(storedMapState === "true");
+        }
+    
+        if (storedEarthquakeChosen) {
+            setChosenEarthquake(JSON.parse(storedEarthquakeChosen));
+        }
+        if(storedMapState === "true"){
+            setShowEarthQuakesList(true);
+            if(storagedFormState){
+                handleEarthQuakeParams(JSON.parse(storagedFormState));
+            }
+        }
+        if (!initialStations) {
+            // FIXME: Corresponder las initialstations al rango de la vista
+            //que el usuario tenga determinada ??¿¿, seguro tenga que hacer un nuevo getStations
+            getInitialStations();
+        }
+        if (storagedFormState) {
+            setFormState(JSON.parse(storagedFormState));
+        }
+        
+    }, []);
+
+    useEffect(() => {
+        if (mapState && earthQuakeParams !== undefined) {
             getEarthquakes();
         }
     }, [earthQuakeParams]);
 
     useEffect(() => {
         if (earthquakes) {
-            setChosenEarthquake(undefined);
-
             setEarthQuakeFiltered(earthquakes);
         }
     }, [earthquakes]);
@@ -549,14 +591,6 @@ const MainPage = () => {
     }, [locationState]);
 
     useEffect(() => {
-        if (!initialStations) {
-            // FIXME: Corresponder las initialstations al rango de la vista
-            //que el usuario tenga determinada ??¿¿, seguro tenga que hacer un nuevo getStations
-            getInitialStations();
-        }
-    }, []);
-
-    useEffect(() => {
         earthquakeModal?.show && showModal(earthquakeModal.title);
     }, [earthquakeModal]);
 
@@ -565,14 +599,29 @@ const MainPage = () => {
             ? earthquakes[0]
             : undefined;
 
-        if (earthquake && chosenEarthquake === undefined) {
+        if (earthquake && earthquakes?.length === 1 && chosenEarthquake === undefined) {
             setPosToFly([earthquake.lat, earthquake.lon]);
         }
     }, [earthquakes]);
 
+    useEffect(()=>{
+        setMapStateStorage(mapState.toString());
+        if(!mapState && markersByBounds && markersByBounds.length > 0){
+            setLoading2(true);
+
+            setTimeout(() => {
+                setLoading2(false);
+            }, 2900);
+        }
+    }, [mapState])
+
+
+
     //---------------------------------------------------------UseEscape-------------------------------------------------------------
 
     useEscape(exitEarthquakes);
+
+    //---------------------------------------------------------Return-------------------------------------------------------------
 
     return (
         <div
@@ -581,59 +630,70 @@ const MainPage = () => {
             }
         >
             {loading ? (
-                <MapSkeleton />
+                <MapSkeleton 
+                    styles={{ backgroundColor: "rgb(202, 202, 202)" }}
+                />
             ) : (
                 <>
+                    {
+                        loading2 && 
+                        <MapSkeleton
+                            styles= {{backgroundColor: "rgb(202, 202, 202)",
+                            zIndex: 1000000000000000,
+                            width: "100vw",
+                            position: "absolute",
+                            height: "92vh"}}
+                        />
+                    }
                     <MainScroller
-                        filters={filters}
-                        fromMain={true}
-                        filterState={filterState}
-                        showScroller={showScroller}
-                        topoMapState={topoMapState}
                         altData={{
                             dataFiltered: stationsByFilters(stations || []),
                             originalDataCount: stations?.length,
                             hasEarthquakes: showEarthQuakesList,
                         }}
+                        mapState={mapState}
+                        topoMapState={topoMapState}
+                        fromMain={true}
+                        filters={filters}
+                        filterState={filterState}
+                        showScroller={showScroller}
                         setFilters={setFilters}
                         setFormState={setFormState}
                         setFilterState={setFilterState}
                         setTopoMapState={setTopoMapState}
                         setShowScroller={setShowScroller}
                         setShowEarthquakeModal={setEarthquakeModal}
-                        mapState={mapState}
                     />
-
                     <EarthQuakeScroller
-                        setScroll={setShowEarthQuakesList}
+                        forceSyncMapScroller={forceSyncScrollerMap}
+                        spinner={earthquakeSpinner}
                         scrollerCondition={showEarthQuakesList}
                         earthquakes={earthquakes || []}
                         earthquakeChosen={chosenEarthquake}
-                        setMapState={setMapState}
-                        spinner={spinner}
                         handleEarthquakeState={handleEarthquakeState}
-                        forceSyncMapScroller={forceSyncScrollerMap}
+                        handleEarthquakeClose={handleEarthquakeClose}
                     />
-
                     {earthquakeModal &&
                         earthquakeModal.title === "earthquake" && (
                             <EarthQuakeFormModal
                                 formstate={formstate}
+                                handleEarthquakes={handleEarthquakes}
                                 setInitialCenter={setInitialCenter}
                                 setShowEarthquakeModal={setEarthquakeModal}
                                 setFormState={setFormState}
-                                handleEarthquakes={handleEarthquakes}
                                 setShowEarthQuakesList={setShowEarthQuakesList}
                                 setPosToFly={setPosToFly}
                             />
-                        )}
+                    )}
                     {!mapState ? (
                         <Sidebar
                             show={showSidebar}
                             setShow={setShowSidebar}
                             station={station}
                         />
-                    ) : null}
+                    ) 
+                    : null
+                    }
                     <div
                         className={"self-center w-full flex flex-col flex-wrap"}
                     >
@@ -643,7 +703,7 @@ const MainPage = () => {
                             {" "}
                             {!mapState && (
                                 <button
-                                    className="btn"
+                                    className="btn top-1/2 right-0 absolute"
                                     style={{
                                         writingMode: "vertical-rl",
                                         width: "50px",
@@ -663,8 +723,8 @@ const MainPage = () => {
                         <div className="flex justify-center flex-wrap items-center absolute z-[12] w-full top-8">
                             {!mapState && (
                                 <SearchInput
-                                    stations={stations}
                                     params={params}
+                                    stations={stations}
                                     setParams={setParams}
                                     setStation={setStation}
                                 />
@@ -686,27 +746,27 @@ const MainPage = () => {
                             />
                         )}
                         <Map
-                            stations={stations ? stations : initialStations}
                             initialCenter={initialCenter}
-                            mainParams={params}
                             topoMap={topoMapState}
+                            posToFly={posToFly}
+                            handleEarthquakeState={handleEarthquakeState}
+                            mapState={mapState}
+                            mainParams={params}
+                            markersByBounds={markersByBounds}
                             filters={filters}
                             filterState={filterState}
-                            mapState={mapState}
-                            markersByBounds={markersByBounds}
-                            setMarkersByBounds={setMarkersByBounds}
-                            earthquakesFiltered={earthQuakeFiltered || []}
-                            setEarthquakesFiltered={setEarthQuakeFiltered}
+                            forceSyncDropLeftMap={forceSyncDropLeftMap}
                             earthquakes={earthquakes ? earthquakes : []}
-                            handleEarthquakeState={handleEarthquakeState}
-                            posToFly={posToFly}
+                            earthQuakeChosen={chosenEarthquake}
+                            earthquakesFiltered={earthQuakeFiltered || []}
                             earthquakeAffectedStations={
                                 earthQuakeAffectedStations
                             }
-                            earthQuakeChosen={chosenEarthquake}
-                            setForceSyncScrollerMap={setForceSyncScrollerMap}
+                            stations={stations ? stations : initialStations}
                             showEarthquakeList={showEarthQuakesList}
-                            forceSyncDropLeftMap={forceSyncDropLeftMap}
+                            setMarkersByBounds={setMarkersByBounds}
+                            setEarthquakesFiltered={setEarthQuakeFiltered}
+                            setForceSyncScrollerMap={setForceSyncScrollerMap}
                         />
 
                         {list && (

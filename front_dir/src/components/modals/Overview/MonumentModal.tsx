@@ -1,37 +1,16 @@
 import { useEffect, useState } from "react";
-import { Modal, Alert, ConfirmDeleteModal } from "@componentsReact";
-
-import {
-    delMonumentTypesService,
-    patchMonumentTypesService,
-    postMonumentTypesService,
-} from "@services";
-
-import { useAuth } from "@hooks/useAuth";
-import useApi from "@hooks/useApi";
-import { useFormReducer } from "@hooks";
+import { Alert, ConfirmDeleteModal, Modal } from "@componentsReact";
+import { delMonumentTypesService, patchMonumentTypesService, postMonumentTypesService} from "@services";
+import { useAuth, useApi, useFormReducer } from "@hooks";
 import { apiOkStatuses, showModal } from "@utils";
-
-import {
-    Errors,
-    ErrorResponse,
-    ExtendedMonumentTypes,
-    MonumentTypes,
-} from "@types";
+import { Errors, ErrorResponse, ExtendedMonumentTypes, MonumentTypes} from "@types";
 
 interface MonumentModalProps {
     Monument: MonumentTypes | undefined;
     modalType: string;
     reFetch: () => void;
-    setStateModal: React.Dispatch<
-        React.SetStateAction<
-            | { show: boolean; title: string; type: "add" | "edit" | "none" }
-            | undefined
-        >
-    >;
-    setMonument: React.Dispatch<
-        React.SetStateAction<MonumentTypes | undefined>
-    >;
+    setStateModal: React.Dispatch<React.SetStateAction<| { show: boolean; title: string; type: "add" | "edit" | "none" }| undefined>>;
+    setMonument: React.Dispatch<React.SetStateAction<MonumentTypes | undefined>>;
 }
 
 const MonumentModal = ({

@@ -27,7 +27,11 @@ const Modal = ({
     children,
 }: ModalProps) => {
     return (
-        <dialog id={modalId + "-modal"} className="modal">
+        <dialog id={modalId + "-modal"} className="modal"
+        onClose={() => {
+            handleCloseModal ? handleCloseModal() : null;
+            setModalState ? setModalState(undefined) : null;
+        }}>
             <div
                 className={`modal-box 
                     ${

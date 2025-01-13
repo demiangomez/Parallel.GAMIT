@@ -1,7 +1,7 @@
 import { Scroller } from "@componentsReact";
-
-import { StationVisitsData, StationMetadataServiceData } from "@types";
-import { useEffect } from "react";
+import { StationVisitsData, StationMetadataServiceData} from "@types";
+import { getRandomColor, possibleColors } from "@utils";
+import { useEffect} from "react";
 
 interface VisitsScrollerProps {
     map?: L.Map | null;
@@ -18,6 +18,7 @@ interface VisitsScrollerProps {
 interface VisitsStates {
     visitId: number;
     checked: boolean;
+    color: string;
 }
 
 const VisitsScroller = ({
@@ -32,37 +33,50 @@ const VisitsScroller = ({
     setShowScroller,
 }: VisitsScrollerProps) => {
 
+    const getColor = (visit: StationVisitsData) => {
+        const visitColor = changeKml.find((visitBool) => visitBool.visitId === visit.id);
+        if (visitColor) {
+            return visitColor.color;
+        }
+        return "black";
+    }
+
+    const adjustIndex = (index: number) => {
+        const exponente = index % 7 === 0? index : Math.floor(index / 7);
+
+        const finalNumber =index > 7? index - (exponente * possibleColors.length) : index ;
+
+        return finalNumber;
+    }
+
+    //--------------------------------------------------------UseEffect--------------------------------------------------------
     useEffect(() => {
         if(changeKml.length === 0)
         {
-            if(visits)
+            if(visits.length > 0)
             {
                 const newChangeKml: VisitsStates[] = [];
 
-                visits?.forEach((visit) => {
-                    const newKml = {visitId: visit.id, checked: false};
+                visits?.forEach((visit, index) => {
+                    const newKml = {visitId: visit.id, checked: false, color: getRandomColor(adjustIndex(index))};
                     
                     newChangeKml.push(newKml);
                 });
             
                 setChangeKml(newChangeKml);
             }
-
             
         }   
 
-        
-
     }, [showScroller]);
 
-   
-
+    //--------------------------------------------------------Return--------------------------------------------------------
     return (
         <>
             <Scroller
                 map={map}
                 buttonCondition={
-                    (Array.isArray(visits) && visits.length > 0) ||
+                    (Array.isArray(visits) && visits.length > 0) && visits.some(visit => visit.navigation_actual_file) ||
                     !!stationMeta?.navigation_actual_file
                 }
                 scrollerCondition={visits && showScroller}
@@ -78,11 +92,11 @@ const VisitsScroller = ({
                             type="checkbox"
                             className="checkbox checkbox-sm"
                             checked={
-                                changeKml.length > 0 &&
+                                (changeKml.length > 0 &&
                                 changeKml.every(
                                     (visitBool) => visitBool.checked,
                                 ) &&
-                                changeMeta
+                                changeMeta) || (changeKml.length === 0 && changeMeta)
                             }
                             onChange={(e) => {
                                 if (changeKml.length !== 0) {
@@ -99,6 +113,7 @@ const VisitsScroller = ({
                                         setChangeKml(
                                             visits.map((visit) => ({
                                                 visitId: visit.id,
+                                                color: getColor(visit),
                                                 checked: true,
                                             })),
                                         );
@@ -106,6 +121,7 @@ const VisitsScroller = ({
                                         setChangeKml(
                                             visits.map((visit) => ({
                                                 visitId: visit.id,
+                                                color: getColor(visit),
                                                 checked: false,
                                             })),
                                         );
@@ -117,7 +133,18 @@ const VisitsScroller = ({
                 </div>
                 {stationMeta?.navigation_actual_file && (
                     <div className="form-control">
-                        <label className="label cursor-pointer">
+                        <label className="cursor-pointer" style={{
+                            display: "flex",
+                            userSelect: "none",
+                            alignItems: "center",
+                            justifyContent: "start",
+                            paddingLeft: "0.25rem",
+                            paddingRight: "0.25rem",
+                            paddingTop: "0.5rem",
+                            paddingBottom: "0.5rem",
+                            
+                        }}>
+                            <div style={{backgroundColor:"black", width: "20px", height: "20px", borderRadius: "10px", marginRight:"5px"}}></div>
                             <span className="font-bold mr-4">Default</span>
                             <input
                                 type="checkbox"
@@ -126,13 +153,16 @@ const VisitsScroller = ({
                                 onChange={(e) => {
                                     setChangeMeta(e.target.checked);
                                 }}
+                                style={{marginLeft: "auto"}}
                             />
                         </label>
                     </div>
                 )}
-                {visits.map((visit) => (
+                {visits.map((visit, index) => (
+                    visit.navigation_actual_file &&
                     <div className="form-control" key={visit.id}>
                         <label className="label cursor-pointer">
+                            <div style={{backgroundColor: getColor(visit) , width: "20px", height: "20px", borderRadius: "10px", marginRight:"5px"}}></div>
                             <span
                                 className="font-bold mr-2 truncate"
                                 title={
@@ -175,6 +205,7 @@ const VisitsScroller = ({
                                                 {
                                                     visitId: visit.id,
                                                     checked: e.target.checked,
+                                                    color: getRandomColor(adjustIndex(index)),
                                                 },
                                             ];
                                         }

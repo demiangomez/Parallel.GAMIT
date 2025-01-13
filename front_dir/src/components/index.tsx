@@ -176,8 +176,6 @@ export { default as MapStation } from "./map/MapStation";
 
 export { default as PopupChildren } from "./map/PopupChildren";
 
-export { default as EarthQuakePopupChildren } from "./map/EarthQuakePopupChildren";
-
 export { default as MapVisit } from "./map/MapVisit";
 
 export { default as VisitsScroller } from "./map/VisitsScroller";

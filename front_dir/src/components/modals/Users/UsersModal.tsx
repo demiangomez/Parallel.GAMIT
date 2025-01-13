@@ -116,7 +116,8 @@ const EditUsersModal = ({
     const getPhoto = async () => {
         try {
             const res = await getUserPhotoService<any>(api, Number(User?.id));
-            const url = URL.createObjectURL(res);
+            //const url = URL.createObjectURL(res);
+            const url = "data:image/*;base64,"+ res.photo;
             setUserPhoto(url);
         } catch (err) {
             console.error(err);
@@ -224,6 +225,7 @@ const EditUsersModal = ({
 
     useEffect(() => {
         getRoles();
+        if(modalType === "edit")
         getPhoto();
     }, []); // eslint-disable-line
 

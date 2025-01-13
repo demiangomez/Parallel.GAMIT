@@ -337,6 +337,7 @@ const EditStatsModal = ({
         } else if (modalType === "edit") {
             putStationInfo();
         }
+        //dispatchAndClearDoys();
     };
 
     useEffect(() => {
@@ -395,12 +396,16 @@ const EditStatsModal = ({
         });
     };
 
-    useEscape(closeModal);
 
     useEffect(() => {
         modals?.show && showModal(modals.title);
     }, [modals]);
-
+    
+    useEscape(() => {
+        closeModal();
+        dispatchAndClearDoys();
+        setMsg(undefined);
+    });
     return (
         <Modal
             close={true}

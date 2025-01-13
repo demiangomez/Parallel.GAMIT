@@ -1,16 +1,7 @@
 import { useEffect, useState } from "react";
-import { Modal, Alert, ConfirmDeleteModal } from "@componentsReact";
-
-import {
-    delStationTypesService,
-    patchStationTypesService,
-    postStationTypesService,
-} from "@services";
-
-import useApi from "@hooks/useApi";
-import { useAuth } from "@hooks/useAuth";
-import { useFormReducer } from "@hooks";
-
+import {Alert, ConfirmDeleteModal, Modal } from "@componentsReact";
+import {delStationTypesService, patchStationTypesService, postStationTypesService,} from "@services";
+import { useFormReducer, useAuth, useApi} from "@hooks";
 import { apiOkStatuses, showModal } from "@utils";
 
 import {

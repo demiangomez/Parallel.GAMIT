@@ -6,35 +6,41 @@ import { LatLngExpression } from "leaflet";
 
 interface EarthQuakeModalProps {
     formstate: EarthQuakeFormState;
-    setInitialCenter?: React.Dispatch<
-        React.SetStateAction<LatLngExpression | undefined>
-    >;
+    handleEarthquakes: () => void;
+    setInitialCenter?: React.Dispatch<React.SetStateAction<LatLngExpression | undefined>>;
     setFormState: React.Dispatch<React.SetStateAction<EarthQuakeFormState>>;
     setShowEarthQuakesList: React.Dispatch<React.SetStateAction<boolean>>;
-    setShowEarthquakeModal: React.Dispatch<
-        React.SetStateAction<
-            | { show: boolean; title: string; type: "add" | "edit" | "none" }
-            | undefined
-        >
-    >;
-    handleEarthquakes: () => void;
-    setPosToFly: React.Dispatch<
-        React.SetStateAction<LatLngExpression | undefined>
-    >;
+    setShowEarthquakeModal: React.Dispatch<React.SetStateAction<| { show: boolean; title: string; type: "add" | "edit" | "none" }| undefined>>;
+    setPosToFly: React.Dispatch<React.SetStateAction<LatLngExpression | undefined>>;
 }
 
 type EarthQuakeFormStateKeys = Omit<EarthQuakeFormState, "polygon_coordinates">;
 
 const EarthQuakeFormModal = ({
     formstate,
-    setInitialCenter,
+    handleEarthquakes,
     setFormState,
+    setPosToFly,
+    setInitialCenter,
     setShowEarthquakeModal,
     setShowEarthQuakesList,
-    handleEarthquakes,
-    setPosToFly,
 }: EarthQuakeModalProps) => {
     //---------------------------------------------------------Constantes-------------------------------------------------------------
+
+    const initialState: EarthQuakeFormState = {
+        id: "",
+        min_magnitude: "",
+        max_magnitude: "",
+        min_depth: "",
+        max_depth: "",
+        min_latitude: "",
+        max_latitude: "",
+        min_longitude: "",
+        max_longitude: "",
+        date_start: undefined,
+        date_end: undefined,
+        polygon_coordinates: [[]],
+    };
 
     const formEntries = [
         "id",
@@ -48,11 +54,10 @@ const EarthQuakeFormModal = ({
         "max_longitude",
     ];
 
+    //---------------------------------------------------------Funciones-------------------------------------------------------------
     const getLocalStorageFilters = () => {
         return JSON.parse(localStorage.getItem("earthQuakeFilters") ?? "{}");
     };
-
-    //---------------------------------------------------------Funciones-------------------------------------------------------------
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -72,33 +77,44 @@ const EarthQuakeFormModal = ({
     };
 
     const handleClenFilters = () => {
-        const initialState: EarthQuakeFormState = {
-            id: "",
-            min_magnitude: "",
-            max_magnitude: "",
-            min_depth: "",
-            max_depth: "",
-            min_latitude: "",
-            max_latitude: "",
-            min_longitude: "",
-            max_longitude: "",
-            date_start: undefined,
-            date_end: undefined,
-            polygon_coordinates: [[]],
-        };
-
         setFormState(initialState);
         localStorage.setItem("earthQuakeFilters", JSON.stringify(initialState));
     };
 
+    const isEmptyForm = (form: EarthQuakeFormState) => {
+        if(
+            form.id === "" &&
+            form.min_magnitude === "" &&
+            form.max_magnitude === "" &&
+            form.min_depth === "" &&
+            form.max_depth === "" &&
+            form.min_latitude === "" &&
+            form.max_latitude === "" &&
+            form.min_longitude === "" &&
+            form.max_longitude === "" &&
+            form.date_start === undefined &&
+            form.date_end === undefined
+        )
+            return true;
+    }
+
     const handleSubmitForm = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setInitialCenter && setInitialCenter(undefined);
+            
         setShowEarthquakeModal(() => ({
             type: "edit",
             title: "",
             show: false,
         }));
+        
+        if(isEmptyForm(formstate)){
+            localStorage.setItem(
+                "earthQuakeFilters",
+                JSON.stringify(initialState),
+            );
+        }
+
         handleEarthquakes();
         setPosToFly(undefined);
         setShowEarthQuakesList(true);
@@ -145,11 +161,13 @@ const EarthQuakeFormModal = ({
         showMapModal?.show && showModal(showMapModal.title);
     }, [showMapModal]);
 
+    //---------------------------------------------------------Return------------------------------------------------
+
     return (
         <Modal
-            close={false}
             modalId="earthquake"
             size="md"
+            close={false}
             handleCloseModal={() => undefined}
             setModalState={setShowEarthquakeModal}
         >

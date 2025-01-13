@@ -1,10 +1,9 @@
-const MapSkeleton = () => {
+const MapSkeleton = (styles: any) => {
+    const style = styles.styles;
     return (
         <div
             className="flex w-full flex-col skeleton justify-center items-center"
-            style={{
-                backgroundColor: "rgb(202, 202, 202)",
-            }}
+            style={style}
         >
             <svg
                 xmlns="http://www.w3.org/2000/svg"

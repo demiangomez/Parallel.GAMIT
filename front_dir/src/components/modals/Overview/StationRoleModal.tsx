@@ -1,35 +1,15 @@
 import { useEffect, useState } from "react";
-import { Modal, Alert, ConfirmDeleteModal } from "@componentsReact";
-
-import {
-    delStationRolesService,
-    patchStationRolesService,
-    postStationRolesService,
-} from "@services";
-
-import useApi from "@hooks/useApi";
-import { useAuth } from "@hooks/useAuth";
-import { useFormReducer } from "@hooks";
-
+import { Alert, ConfirmDeleteModal, Modal } from "@componentsReact";
+import { delStationRolesService, patchStationRolesService, postStationRolesService} from "@services";
+import { useApi, useAuth, useFormReducer } from "@hooks";
 import { apiOkStatuses, showModal } from "@utils";
-
-import {
-    Errors,
-    ErrorResponse,
-    ExtendedStationStatus,
-    StationStatus,
-} from "@types";
+import { Errors, ErrorResponse, ExtendedStationStatus, StationStatus} from "@types";
 
 interface StationRoleModalProps {
     Role: StationStatus | undefined;
     modalType: string;
     reFetch: () => void;
-    setStateModal: React.Dispatch<
-        React.SetStateAction<
-            | { show: boolean; title: string; type: "add" | "edit" | "none" }
-            | undefined
-        >
-    >;
+    setStateModal: React.Dispatch<React.SetStateAction< { show: boolean; title: string; type: "add" | "edit" | "none" } | undefined>>;
     setRole: React.Dispatch<React.SetStateAction<StationStatus | undefined>>;
 }
 
