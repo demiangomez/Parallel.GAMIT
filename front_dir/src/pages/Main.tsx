@@ -48,8 +48,6 @@ const MainPage = () => {
         EarthquakeData | undefined
     >(undefined);
 
-    const [forceSyncDropLeftMap, setForceSyncDropLeftMap] = useState(0);
-
     const [posToFly, setPosToFly] = useState<LatLngExpression | undefined>(
         undefined,
     );
@@ -473,9 +471,9 @@ const MainPage = () => {
         if(chosenEarthquake !== undefined){
             setEarthQuakeAffectedParams(chosenEarthquake.api_id);
             setEarthquakeChosenStorage(JSON.stringify(chosenEarthquake));
-            if(mapState){
-                setPosToFly([chosenEarthquake.lat, chosenEarthquake.lon]);
-            }
+             if(mapState){
+                 setPosToFly([chosenEarthquake.lat, chosenEarthquake.lon]);
+             }
         }
         if(chosenEarthquake === undefined && mapState === false){
             localStorage.removeItem("earthquakeChosen");
@@ -739,10 +737,7 @@ const MainPage = () => {
                         {mapState && (
                             <DropLeft
                                 mapState={showEarthQuakesList}
-                                setMapState={setShowEarthQuakesList}
-                                setForceSyncDropLeftMap={
-                                    setForceSyncDropLeftMap
-                                }
+                                setShowEarthquakeList={setShowEarthQuakesList}
                             />
                         )}
                         <Map
@@ -755,7 +750,7 @@ const MainPage = () => {
                             markersByBounds={markersByBounds}
                             filters={filters}
                             filterState={filterState}
-                            forceSyncDropLeftMap={forceSyncDropLeftMap}
+                            forceSyncScrollerMap={forceSyncScrollerMap}
                             earthquakes={earthquakes ? earthquakes : []}
                             earthQuakeChosen={chosenEarthquake}
                             earthquakesFiltered={earthQuakeFiltered || []}

@@ -38,7 +38,7 @@ const Scroller = ({
             {scrollerCondition ? (
                 <div
                     id="controller"
-                    className="z-[10000] absolute top-12 right-2"
+                    className="z-[1000000000000] absolute top-12 right-2"
                     // Disable map dragging and zooming when hovering over the scroller
                     onMouseEnter={() => {
                         if (!fromMain) {

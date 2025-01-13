@@ -23,7 +23,7 @@ interface MapProps {
         stationStatus: boolean;
     };
     filterState?: FilterState;
-    forceSyncDropLeftMap: number;
+    forceSyncScrollerMap?: number;
     mapState: boolean;
     mainParams: GetParams;
     markersByBounds?: StationData[] | EarthquakeData[];
@@ -142,7 +142,6 @@ const MapMarkers = ({
     setEarthquakesFiltered,
     handleEarthquakeState,
     setForceSyncScrollerMap,
-    showEarthquakeList,
 }: MapProps) => {
     //---------------------------------------------------------------------------Constantes--------------------------------------------------------------------------------------
     const map = useMap();
@@ -247,11 +246,13 @@ const MapMarkers = ({
     // Update markers when initialcenter changes
     useEffect(() => {
         if (initialCenter) {
-            map.setView(
-                initialCenter,
-                lastZoomLevel ? parseInt(lastZoomLevel) : 8,
-            );
-            updateMarkersByBounds();
+            if(!mapState){
+                map.setView(
+                    initialCenter,
+                    lastZoomLevel ? parseInt(lastZoomLevel) : 8,
+                );
+                updateMarkersByBounds();
+            }
         }
     }, [initialCenter, map]);
 
@@ -271,12 +272,6 @@ const MapMarkers = ({
         setForceRenderMarker((prev) => prev + 1);
         removeAllStations();
     }, [earthQuakeChosen]);
-
-    useEffect(() => {
-        if (!showEarthquakeList) {
-            removeOldKmls();
-        }
-    }, [showEarthquakeList]);
 
     //-------------------------------------------------------------------------------Funciones--------------------------------------------------------------------------------------
     //Update markers considering map bounds in viewport
@@ -535,7 +530,6 @@ const Map = ({
     topoMap,
     filters,
     filterState,
-    forceSyncDropLeftMap,
     mainParams,
     mapState,
     markersByBounds,
@@ -549,6 +543,7 @@ const Map = ({
     setEarthquakesFiltered,
     setMarkersByBounds,
     setMainParams,
+
 }: MapProps) => {
     //---------------------------------------------------------------------------UseStates--------------------------------------------------------------------------------------
 
@@ -599,7 +594,7 @@ const Map = ({
         <div className="z-10 w-full flex justify-end">
             <MapContainer
                 {...mapProps}
-                key={forceRender + forceSyncDropLeftMap}
+                key={forceRender}
                 preferCanvas={true}
                 maxBoundsViscosity={1.0}
                 worldCopyJump={true}
@@ -619,7 +614,7 @@ const Map = ({
                     }
                     minZoom={4}
                 />
-                <ZoomControl position="bottomleft" />
+                <ZoomControl position="bottomright" />
                 <ChangeView center={mapProps.center} zoom={mapProps.zoom} />
 
                     <MapMarkers
@@ -628,7 +623,6 @@ const Map = ({
                         handleEarthquakeState={handleEarthquakeState}
                         filters={filters}
                         filterState={filterState}
-                        forceSyncDropLeftMap={forceSyncDropLeftMap}
                         mapState={mapState}
                         mainParams={mainParams}
                         markersByBounds={markersByBounds}
