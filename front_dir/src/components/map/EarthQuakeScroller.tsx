@@ -79,9 +79,9 @@ const EarthQuakeScroller: React.FC<EarthQuakeScrollerProps> = ({
             {scrollerCondition ? (
                 <div
                     id="controller"
-                    className="z-[100000] max-h-[92vh] w-[20vw] overflow-y-auto overflow-x-hidden absolute top-0 left-0"
+                    className="z-[100000] max-h-[92vh] w-[20vw] scrollbar-thin overflow-y-auto overflow-x-hidden absolute top-0 left-0"
                 >
-                    <div className="overflow-y-auto min-h-[92vh] max-h-full h-auto bg-white rounded-md scrollbar-thin scrollbar-thumb-rounded border-t border-l border-b border-gray-400 overflow-x-hidden">
+                    <div className="overflow-y-auto min-h-[92vh] max-h-full h-auto bg-white rounded-md border-t border-l border-b border-gray-400 overflow-x-hidden">
                         {spinner ? (
                             <div className="flex items-center justify-center min-h-[92vh]">
                                 <Spinner size="lg" />

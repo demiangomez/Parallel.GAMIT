@@ -9,7 +9,7 @@ const DropLeft = ({mapState, setShowEarthquakeList }: DropLeftProps
 
     const chosenClass = () => {
         if(mapState)
-            return "z-[1000000] bg-white border-t-2 border-r-2 border-b-2 border-gray-500 h-[70px] w-[40px] absolute rounded-r-full top-1/2  left-[382px] flex items-center justify-center cursor-pointer hover:bg-gray-200"
+            return "z-[1000000] bg-white border-t-2 border-r-2 border-b-2 border-gray-500 h-[70px] w-[40px] absolute rounded-r-full top-1/2  left-[20vw] flex items-center justify-center cursor-pointer hover:bg-gray-200"
         else
             return "z-[1000000] bg-white border-t-2 border-r-2 border-b-2 border-gray-500 h-[70px] w-[40px] absolute rounded-r-full top-1/2 flex items-center justify-center cursor-pointer hover:bg-gray-200"
     }
