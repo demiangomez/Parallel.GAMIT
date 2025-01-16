@@ -97,9 +97,6 @@ INSTALLED_APPS = [
     'django_cleanup.apps.CleanupConfig',
 ]
 
-CORS_ALLOW_HEADERS = [
-    'Content-Encoding',
-]
 
 CORS_ALLOW_ALL_ORIGINS = True
 

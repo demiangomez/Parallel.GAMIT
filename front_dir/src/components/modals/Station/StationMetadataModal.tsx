@@ -107,7 +107,7 @@ const StationMetadataModal = ({
         { type: string; show: boolean } | undefined
     >(undefined);
 
-    const [loading, setLoading] = useState<boolean>(false);
+    const [loading, setLoading] = useState<boolean>(true);
     const [loadFile, setLoadFile] = useState<boolean>(false);
 
     useWaitCursor(loadFile);
@@ -183,9 +183,7 @@ const StationMetadataModal = ({
             }
         } catch (err) {
             console.error(err);
-        } finally {
-            setLoading(false);
-        }
+        } 
     };
 
     const getRinex = async () => {
@@ -208,9 +206,7 @@ const StationMetadataModal = ({
             setLastRinex(lastRes.data[0]);
         } catch (err) {
             console.error(err);
-        } finally {
-            setLoading(false);
-        }
+        } 
     };
 
     const getStationInfo = async () => {
@@ -237,9 +233,7 @@ const StationMetadataModal = ({
             }
         } catch (err) {
             console.error(err);
-        } finally {
-            setLoading(false);
-        }
+        } 
     };
 
     const stationId = stationMeta?.station ?? undefined;
@@ -262,9 +256,7 @@ const StationMetadataModal = ({
             }
         } catch (err) {
             console.error(err);
-        } finally {
-            setLoading(false);
-        }
+        } 
     };
 
     const getFileById = async (id: number) => {
@@ -359,9 +351,11 @@ const StationMetadataModal = ({
     }, [stationId]);
 
     useEffect(() => {
-        getTypes();
-        getRinex();
-        getStationInfo();
+        Promise.all([getTypes(), getRinex(), getStationInfo()])
+            .then(() => {
+                setLoading(false) 
+            });
+        
     }, [stationMeta]);
 
     const formattedData = useMemo(() => {
