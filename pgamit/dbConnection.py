@@ -209,7 +209,8 @@ class Cnn(object):
         if return_fields is None:
             return_fields = list(self.get_columns(table).keys())
 
-        where_clause = ' AND '.join([f'"{key}" = %s' for key in filter_fields.keys()])
+        where_clause = ' AND '.join([f'"{key}" = %s' if val is not None else f'"{key}" IS %s'
+                                     for key, val in zip(filter_fields.keys(), filter_fields.values())])
         fields_clause = ', '.join([f'"{field}"' for field in return_fields])
         query = f'SELECT {fields_clause} FROM {table} WHERE {where_clause}'
         values = list(filter_fields.values())
@@ -222,7 +223,7 @@ class Cnn(object):
             if len(records) > 0:
                 return records[0]
             else:
-                raise DatabaseError
+                raise DatabaseError('query returned no records: ' + query)
 
         except psycopg2.Error as e:
             raise e
@@ -265,7 +266,9 @@ class Cnn(object):
         query = f'INSERT INTO {table} ("{columns}") VALUES ({placeholders})'
         try:
             self.cursor.execute(query, values)
+            self.cnn.commit()
         except psycopg2.errors.UniqueViolation as e:
+            self.cnn.rollback()
             raise dbErrInsert(e)
 
     def update(self, table, set_row, **kwargs):
@@ -283,8 +286,8 @@ class Cnn(object):
         set_clause = ', '.join([f'"{field}" = %s' for field in set_row.keys()])
 
         # Build the WHERE clause based on the row dictionary
-        where_clause = ' AND '.join([f'"{key}" = %s' for key in kwargs.keys()])
-
+        where_clause = ' AND '.join([f'"{key}" = %s' if val is not None else f'"{key}" IS %s'
+                                     for key, val in zip(kwargs.keys(), kwargs.values())])
         # Construct query
         query = f'UPDATE {table} SET {set_clause} WHERE {where_clause}'
 
@@ -313,7 +316,8 @@ class Cnn(object):
         if not kw:
             raise ValueError("No conditions provided for deletion")
 
-        where_clause = ' AND '.join([f'"{key}" = %s' for key in kw.keys()])
+        where_clause = ' AND '.join([f'"{key}" = %s' if val is not None else f'"{key}" IS %s'
+                                     for key, val in zip(kw.keys(), kw.values())])
         query = f'DELETE FROM {table} WHERE {where_clause}'
         values = list(kw.values())
 

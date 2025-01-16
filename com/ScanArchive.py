@@ -494,7 +494,9 @@ def insert_stninfo(NetworkCode, StationCode, stninfofile):
     for stn in stninfo:
         if stn.get('StationCode').lower() == StationCode:
             try:
-                stnInfo.InsertStationInfo(stn)
+                # call station info again in case there was a change from other records
+                stnobj = pyStationInfo.StationInfo(cnn, NetworkCode, StationCode, allow_empty=True)
+                stnobj.InsertStationInfo(stn)
             except pyStationInfo.pyStationInfoException as e:
                 errors.append(str(e))
 
@@ -884,7 +886,7 @@ def hash_check(cnn, master_list, sdate, edate, rehash=False, h_tolerant=0):
                         cnn.delete('ppp_soln', **soln)
                     else:
                         tqdm.write(" -- %s has been rehashed." % obs_id)
-                        cnn.update('ppp_soln', soln, hash = stninfo.currentrecord.hash)
+                        cnn.update('ppp_soln', {'hash': stninfo.currentrecord.hash}, **soln)
 
         except pyStationInfo.pyStationInfoException as e:
             tqdm.write(str(e))
@@ -1394,8 +1396,11 @@ def main():
 
     pyArchive = pyArchiveStruct.RinexStruct(cnn)
 
-    JobServer = pyJobServer.JobServer(Config, run_parallel=not args.noparallel,
-                                      software_sync=[Config.options['ppp_remote_local']])  # type: pyJobServer.JobServer
+    if args.station_info is None:
+        JobServer = pyJobServer.JobServer(Config, run_parallel=not args.noparallel,
+                                          software_sync=[Config.options['ppp_remote_local']])
+    else:
+        JobServer = None
 
     #########################################
 
@@ -1472,7 +1477,8 @@ def main():
     # if os.path.isdir('production'):
     #    rmtree('production')
 
-    JobServer.close_cluster()
+    if JobServer is not None:
+        JobServer.close_cluster()
 
 
 if __name__ == '__main__':

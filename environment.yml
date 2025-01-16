@@ -12,7 +12,7 @@ dependencies:
   - numpy>=1.19.5
   - pandas
   - paramiko
-  - psycopg2
+  - psycopg2-binary
   - scandir>=1.6
   - scikit-learn>=1.1
   - scipy

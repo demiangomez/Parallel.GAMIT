@@ -41,7 +41,7 @@ avoid timeout error
                                 to='ISO3')
             print(' -- Updating %s.%s with ISO3 %s'
                   % (stn['NetworkCode'], stn['StationCode'], ISO3))
-            cnn.update('stations', stn, country_code=ISO3)
+            cnn.update('stations', {'country_code': ISO3}, **stn)
         else:
             print(' -- Could not determine ISO3 for %s.%s'
                   % (stn['NetworkCode'], stn['StationCode']))

@@ -112,8 +112,8 @@ def main():
     parser.add_argument('-nop', '--no_plots', action='store_true',
                         help="Do not produce plots", default=False)
 
-    parser.add_argument('-nom', '--no_missing_data', action='store_true',
-                        help="Do not show missing days", default=False)
+    parser.add_argument('-pm', '--plot_missing_data', action='store_true',
+                        help="Show missing days as magenta lines in the plot", default=False)
 
     parser.add_argument('-nm', '--no_model', action='store_true',
                         help="Plot time series without fitting a model")
@@ -261,9 +261,9 @@ def main():
                     etm.plot(xfile + '.png',
                              t_win          = dates,
                              residuals      = args.residuals,
-                             plot_missing   = not args.no_missing_data,
+                             plot_missing   = args.plot_missing_data,
                              plot_outliers  = args.plot_outliers,
-                             plot_auto_jumps=args.detected_jumps)
+                             plot_auto_jumps= args.detected_jumps)
 
                     if args.histogram:
                         etm.plot_hist(xfile + '_hist.png')

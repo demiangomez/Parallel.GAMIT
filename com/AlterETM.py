@@ -240,7 +240,7 @@ def apply_change(cnn, station, tpar, soln):
 
     cnn.insert('etm_params', **tpar)
     # insert replaces the uid field
-    del tpar.uid
+    # del tpar.uid
     print(' -- Inserting %s for %s' % (tpar.object, station_soln))
 
 
