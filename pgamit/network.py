@@ -187,7 +187,7 @@ class Network(object):
         OC = over_cluster(qmean.labels_, points, metric='euclidean',
                           neighborhood=5, overlap_points=2)
         # set 'method=None' to disable
-        OC, central_points = prune(OC, central_points, method='linear')
+        # OC, central_points = prune(OC, central_points, method='linear')
         # calculate all 'tie' stations
         ties = np.where(np.sum(OC, axis=0) > 1)[0]
 
@@ -223,8 +223,8 @@ class Network(object):
         path = solution_base + end_path + '_cluster.png'
 
         # generate plot of the network segmentation
-        central_points = plot_global_network(central_points, OC, qmean.labels_,
-                                             points, output_path=path)
+        # central_points = plot_global_network(central_points, OC, qmean.labels_,
+        #                                     points, output_path=path)
 
         # put everything in a dictionary
         clusters = {'centroids': points[central_points],

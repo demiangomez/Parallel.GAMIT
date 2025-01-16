@@ -183,12 +183,9 @@ def generate_kml_stninfo(JobServer, cnn, project, data=False,
     kml = simplekml.Kml()
 
     if stnonly:
-        rs = cnn.query_float('''SELECT * FROM stations
-                             WHERE "NetworkCode" NOT LIKE \'?%%\' AND
-                             "NetworkCode" || \'.\' ||
-                             "StationCode" IN (\'%s\')
-                             ORDER BY "NetworkCode", "StationCode"
-                             ' % '\',\' '''.join(stnonly), as_dict=True)
+        rs = cnn.query_float('SELECT * FROM stations WHERE "NetworkCode" NOT LIKE \'?%%\' AND '
+                             '"NetworkCode" || \'.\' || "StationCode" IN (\'%s\')'
+                             'ORDER BY "NetworkCode", "StationCode" ' % '\',\''.join(stnonly), as_dict=True)
     else:
         rs = cnn.query_float('''SELECT * FROM stations
                              WHERE "NetworkCode" NOT LIKE \'?%\'

@@ -287,7 +287,8 @@ def main():
     Config = pyOptions.ReadOptions("gnss_data.cfg")
     # type: pyOptions.ReadOptions
     JobServer = pyJobServer.JobServer(
-        Config, run_parallel=not args.noparallel)
+        Config, check_archive=False, check_atx=False, check_executables=False,
+        run_parallel=not args.noparallel)
     # type: pyJobServer.JobServer
 
     try:

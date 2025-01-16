@@ -55,7 +55,6 @@ version 1.0  (PYTHON) translated by Demian Gomez        15 May 24
 """
 import numpy as np
 import math
-from scipy.interpolate import griddata
 from scipy.spatial     import KDTree
 from datetime          import timedelta
 import matplotlib.pyplot as plt
@@ -106,6 +105,43 @@ def inv_azimuthal(x, y, lon, lat):
     i_lon = lon + atand((x.flatten() * np.sin(c)) / (r * cosd(lat) * np.cos(c) - y.flatten() * sind(lat) * np.sin(c)))
 
     return i_lon, i_lat
+
+
+class EarthquakeTable(object):
+    """
+    Given a connection to the database and an earthquake id, find all stations affected by the given event
+    """
+    def __init__(self, cnn, earthquake_id):
+        self.stations = []
+
+        # get the earthquakes based on Mike's expression
+        # earthquakes before the start data: only magnitude 7+
+        eq   = cnn.get('earthquakes', {'id': earthquake_id})
+        stns = cnn.query_float('SELECT * FROM stations WHERE "NetworkCode" NOT LIKE \'?%\' AND '
+                               'lat IS NOT NULL AND lon IS NOT NULL', as_dict=True)
+
+        strike = [float(eq['strike1']), float(eq['strike2'])] if not math.isnan(eq['strike1']) else []
+        dip    = [float(eq['dip1']), float(eq['dip2'])]       if not math.isnan(eq['strike1']) else []
+        rake   = [float(eq['rake1']), float(eq['rake2'])]     if not math.isnan(eq['strike1']) else []
+
+        score = Score(float(eq['lat']), float(eq['lon']), float(eq['depth']), float(eq['mag']),
+                      strike, dip, rake, eq['date'])
+
+        for stn in stns:
+
+            dist = distance(stn['lon'], stn['lat'], eq['lon'], eq['lat'])
+            # Obtain level-1 s-score to make the process faster: do not use events outside of level-1 s-score
+            # inflate the score to also include postseismic events
+            s = a * eq['mag'] - np.log10(dist) + b + np.log10(POST_SEISMIC_SCALE_FACTOR)
+
+            if s > 0 and rake:
+                # check the actual score if rake, otherwise no need to check
+                sc, sp = score.score(stn['lat'], stn['lon'])
+                if sc > 0 or sp > 0:
+                    self.stations.append(stn)
+            elif s > 0:
+                # append the station because no L2 s-score
+                self.stations.append(stn)
 
 
 class ScoreTable(object):
@@ -221,6 +257,10 @@ class Score(object):
             self.p_mx = self.gx / 1000.
             self.p_my = self.gy / 1000.
 
+        # save the interpolator to make the score response faster
+        self.kd_c = KDTree(np.column_stack((self.c_mx.flatten(), self.c_my.flatten())))
+        self.kd_p = KDTree(np.column_stack((self.p_mx.flatten(), self.p_my.flatten())))
+
     def compute_disp_field(self, scale_factor=1., limit=1e-3):
         # source dimensions L is horizontal, and W is depth
         L1 = -self.along_strike_l / 2
@@ -288,13 +328,11 @@ class Score(object):
 
         if self.c_mask.size > 0:
             # if mask is available, use mask
-            kd = KDTree(np.column_stack((self.c_mx.flatten(), self.c_my.flatten())))
-            _, i = kd.query((x, y))
+            _, i = self.kd_c.query((x, y))
             s_score = self.c_mask.flatten()[i] + 0
 
             # repeat, this time inflating the level-2 mask to get the postseismic
-            kd = KDTree(np.column_stack((self.p_mx.flatten(), self.p_my.flatten())))
-            _, i = kd.query((x, y))
+            _, i = self.kd_p.query((x, y))
             p_score = self.p_mask.flatten()[i] + 0
         else:
             s_score = a * self.mag - np.log10(np.sqrt(np.square(x) + np.square(y))) + b
@@ -501,4 +539,7 @@ if __name__ == '__main__':
     _score = Score(-3.6122000e+01, -7.2898000e+01, 22.9, 8.8, [178, 17], [77, 14],
                    [86, 108], density=1000)
     print(_score.save_masks(kmz_file='test.kmz', include_postseismic=True))
+
+    et = EarthquakeTable(conn, 'us20003k7a')
+    print(et.stations)
 

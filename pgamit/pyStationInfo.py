@@ -278,7 +278,7 @@ class StationInfo:
                         gaps.append({'rinex_count': count, 'record_start': srecord, 'record_end': erecord})
 
         # there should not be RINEX data outside the station info window
-        rs = self.cnn.query('SELECT min("ObservationSTime") as first_obs, max("ObservationSTime") as last_obs '
+        rs = self.cnn.query('SELECT min("ObservationSTime") as first_obs, max("ObservationETime") as last_obs '
                             'FROM rinex_proc WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' '
                             'AND "Completion" >= 0.5'
                             % (self.NetworkCode, self.StationCode))  # only check RINEX with more than 12 hours of data
@@ -530,8 +530,8 @@ class StationInfo:
                             not self.records[-1]['DateEnd'].year:
                         # overlap with the last session
                         # stop the current valid session
-                        self.cnn.update('stationinfo', self.records[-1].database(),
-                                        DateEnd=record['DateStart'].datetime() - datetime.timedelta(seconds=1))
+                        new_end_date = record['DateStart'].datetime() - datetime.timedelta(seconds=1)
+                        self.cnn.update('stationinfo', {'DateEnd': new_end_date}, **self.records[-1].database())
 
                         # create the incoming session
                         self.cnn.insert('stationinfo', **record.database())
@@ -540,12 +540,13 @@ class StationInfo:
                         event = pyEvents.Event(
                                     Description='A new station information record was added:\n' +
                                                 self.return_stninfo(record) +
-                                                '\nThe previous DateEnd value was updated to ' +
-                                                self.records[-1]['DateEnd'].strftime(),
+                                                '\nThe DateEnd value of previous last record was updated to ' +
+                                                str(new_end_date),
                                     StationCode=self.StationCode,
                                     NetworkCode=self.NetworkCode)
-
                         self.cnn.insert_event(event)
+
+                        # TODO: RELOAD THE RECORDS??
 
                     else:
                         stroverlap = []
