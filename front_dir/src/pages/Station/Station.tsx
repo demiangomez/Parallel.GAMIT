@@ -109,6 +109,7 @@ const Station = () => {
 
     const getReStation = async () => {
         try {
+            getStationMeta();
             setReLoading(true);
             closeToast();
             const res = await getStationsService<StationServiceData>(api, {
