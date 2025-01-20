@@ -175,8 +175,8 @@ class StationMetaUtils:
             with connection.cursor() as cursor:
                 cursor.execute(
                     """SELECT count(*) as rcount FROM rinex_proc
-                            WHERE "NetworkCode" = %s AND "StationCode" = %s AND
-                            "ObservationSTime" > %s AND
+                            WHERE "NetworkCode"  = %s AND "StationCode" = %s AND
+                            "ObservationETime" > %s AND
                             "Completion" >= 0.5""", [station_object.network_code.network_code, station_object.station_code, date])
                 rows = dictfetchall(cursor)
 
