@@ -351,7 +351,7 @@ const StationMetadataModal = ({
     }, [stationId]);
 
     useEffect(() => {
-        Promise.all([getTypes(), getRinex(), getStationInfo()])
+        Promise.all([getTypes(), getRinex(), getStationInfo(), ])
             .then(() => {
                 setLoading(false) 
             });
@@ -1750,6 +1750,7 @@ const StationMetadataModal = ({
                     }}
                     reFetch={() => {
                         getFiles();
+                        setLoading(false);
                         setFileType("none");
                     }}
                     setStateModal={setModals}
