@@ -26,16 +26,16 @@ from pgamit import pyOkada, dbConnection
 logger = logging.getLogger('django')
 
 
-def get_actual_image(obj, request):
+def get_actual_image(image_obj, request):
     """Returns the actual image encoded in base64, optionally as a thumbnail"""
     thumbnail = request.query_params.get(
         'thumbnail', 'false').lower() == 'true' if request else False
     original_quality = request.query_params.get(
         'original_quality', 'false').lower() == 'true' if request else False
 
-    if obj.image and obj.image.name:
+    if image_obj and image_obj.name:
         try:
-            with open(obj.image.path, 'rb') as photo_file:
+            with open(image_obj.path, 'rb') as photo_file:
                 image_data = photo_file.read()
                 if thumbnail:
                     image = Image.open(BytesIO(image_data))

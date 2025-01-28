@@ -51,13 +51,9 @@ class MonumentTypeSerializer(serializers.ModelSerializer):
 
     def get_photo_file(self, obj):
         """Returns the actual image encoded in base64"""
-
+        request = self.context.get('request', None)
         if obj.photo_path and obj.photo_path.name:
-            try:
-                with open(obj.photo_path.path, 'rb') as photo_file:
-                    return base64.b64encode(photo_file.read()).decode('utf-8')
-            except FileNotFoundError:
-                return None
+            return utils.get_actual_image(obj.photo_path, request)
         else:
             return None
 
@@ -424,7 +420,7 @@ class StationImagesSerializer(serializers.ModelSerializer):
 
     def get_actual_image(self, obj):
         request = self.context.get('request', None)
-        return utils.get_actual_image(obj, request)
+        return utils.get_actual_image(obj.image, request)
 
     def validate_image(self, value):
         return validate_image_size(value)
@@ -623,7 +619,7 @@ class VisitImagesSerializer(serializers.ModelSerializer):
 
     def get_actual_image(self, obj):
         request = self.context.get('request', None)
-        return utils.get_actual_image(obj, request)
+        return utils.get_actual_image(obj.image, request)
 
     def validate_image(self, value):
         return validate_image_size(value)
