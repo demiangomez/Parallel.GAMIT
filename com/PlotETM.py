@@ -301,7 +301,7 @@ def main():
                           % (etm.NetworkCode, etm.StationCode, xyz[0], xyz[1], xyz[2], q_date.fyear, strp, txt))
 
                 print('Successfully plotted ' + stn['NetworkCode'] + '.' + stn['StationCode'])
-
+                # print(etm.pull_params())
                 # if the stop flag is true, stop processing after the first station
                 if stop:
                     break

@@ -14,12 +14,14 @@ import os
 # deps
 import numpy as np
 
+from com.DownloadSources import source_host_desc
 # app
 from pgamit import dbConnection
 from pgamit import pyDate
 from pgamit.pyBunch import Bunch
 from pgamit import pyEvents
 from pgamit.Utils import struct_unpack, file_readlines, crc32, stationID, determine_frame, parse_atx_antennas
+from pgamit import igslog
 
 
 def _default(self, obj):
@@ -306,8 +308,34 @@ class StationInfo:
             # a list is comming in
             stninfo = stninfo_file_list
         else:
-            # a file is comming in
-            stninfo = file_readlines(stninfo_file_list)
+            # a file is comming in, it is an IGS log file
+            _, ext = os.path.splitext(stninfo_file_list)
+            if ext.lower() == '.log':
+                fs = ' {:4.4}  {:16.16}  {:19.19}{:19.19}{:7.4f}  {:5.5}  {:7.4f}  {:7.4f}  {:20.20}  ' \
+                     '{:20.20}  {:>5.5}  {:20.20}  {:15.15}  {:5.5}  {:20.20}'
+                logfile = igslog.parse_igs_log_file(stninfo_file_list)
+                stninfo = []
+                for row in logfile:
+                    stninfo.append(fs.format(
+                        row[0],  # station code
+                        row[1],  # station name
+                        str(pyDate.Date(datetime=row[2])),  # session start
+                        str(pyDate.Date(datetime=row[3])) if row[3].year < 2100 else '9999 999 00 00 00',  # session end
+                        float(row[4]),  # antenna height
+                        row[5],  # height code
+                        float(row[6]),  # antenna north offset
+                        float(row[7]),  # antenna east offset
+                        row[8],  # receiver type
+                        row[9],  # receiver firmware version
+                        row[10],  # software version
+                        row[11],  # receiver serial number
+                        row[12],  # antenna type
+                        row[13],  # radome
+                        row[14],  # antenna serial number
+                        row[15],  # comment
+                    ))
+            else:
+                stninfo = file_readlines(stninfo_file_list)
 
         records = []
         for line in stninfo:

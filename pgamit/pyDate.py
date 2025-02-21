@@ -29,7 +29,7 @@ class pyDateException(Exception):
         return str(self.value)
 
 
-def yeardoy2fyear(year,doy,hour=12,minute=0,second=0):
+def yeardoy2fyear(year, doy, hour=12, minute=0, second=0):
 
     # parse to integers (defensive)
     year = int(year)
@@ -306,7 +306,7 @@ class Date(object):
             self.month, self.day = doy2date(self.year, self.doy)
 
             # compute the fractional year
-            self.fyear = yeardoy2fyear(self.year, self.doy,self.hour, self.minute, self.second)
+            self.fyear = yeardoy2fyear(self.year, self.doy, self.hour, self.minute, self.second)
 
             # compute the gps date
             self.gpsWeek, self.gpsWeekDay = date2gpsDate(self.year, self.month, self.day)
@@ -320,7 +320,7 @@ class Date(object):
             self.mjd = gpsDate2mjd(self.gpsWeek, self.gpsWeekDay)
 
             # compute year, month, and day of month from modified julian day
-            self.year, self.month,self.day = mjd2date(self.mjd)
+            self.year, self.month, self.day = mjd2date(self.mjd)
 
             # compute day of year from month and day of month
             self.doy, self.fyear = date2doy(self.year, self.month, self.day, self.hour, self.minute, self.second)
