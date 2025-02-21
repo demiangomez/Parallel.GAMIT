@@ -57,4 +57,7 @@ dependencies = [
 "Homepage" = "https://github.com/demiangomez/Parallel.GAMIT"
 "Bug Tracker" = "https://github.com/demiangomez/Parallel.GAMIT/issues"
 
+[tool.setuptools]
+packages = ["pgamit"]
+
 [tool.setuptools_scm]
