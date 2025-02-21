@@ -1,6 +1,6 @@
 # Parallel.GAMIT
 ## A Python wrapper to manage GNSS data and metadata and parallelize GAMIT executions
-### Author: Demián D. Gómez
+#### Author: Demián D. Gómez
 
 Parallel.GAMIT (PGAMIT) is a Python software solution for parallel GNSS processing of large regional or global networks. It incorporates a metadata and RINEX data management tool that guarantees a consistent archive. It relies on Postgres SQL (https://www.postgresql.org/) to store station metadata and the GPSPACE Precise-Point-Positioning (PPP) software (see installation instructions) to obtain reliable daily a-priori coordinates for GAMIT.
 
