@@ -2,7 +2,7 @@ name: Publish
 on:
   push:
     tags:
-      - "0.*"
+      - "1.*"
 jobs:
   build:
     name: Build distribution 📦
@@ -33,7 +33,7 @@ jobs:
 
     environment:
       name: testpypi
-      url: https://test.pypi.org/p/mortie
+      url: https://test.pypi.org/p/pgamit
 
     permissions:
       id-token: write
@@ -58,7 +58,7 @@ jobs:
     
     environment:
       name: pypi
-      url: https://pypi.org/p/mortie
+      url: https://pypi.org/p/pgamit
       
     permissions:
       id-token: write
