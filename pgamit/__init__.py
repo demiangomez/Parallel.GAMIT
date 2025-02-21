@@ -1,4 +1,11 @@
-__version__ = "1.2.3"
+from importlib.metadata import version, PackageNotFoundError
+
+try:
+    __version__ = version("pgamit")
+except PackageNotFoundError:
+    # package is not installed
+    pass
+
 __all__ = [
     'cluster',
     'network',
