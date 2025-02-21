@@ -23,8 +23,8 @@
     converted via Bunch.to/fromDict().
 """
 
-__version__ = '1.0.1'
-VERSION = tuple(map(int, __version__.split('.')))
+#__version__ = '1.0.1'
+#VERSION = tuple(map(int, __version__.split('.')))
 
 __all__ = ('Bunch', 'bunchify', 'unbunchify',)
 
