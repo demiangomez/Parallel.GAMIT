@@ -166,7 +166,7 @@ def callback_handle(job):
                     'ON ' + datetime.datetime.now().strftime(
                         '%Y-%m-%d %H:%M:%S') +
                     ' an unhandled error occurred:\n' +
-                    msg + '\n' +
+                    str(msg) + '\n' +
                     'END OF ERROR =================== \n\n')
 
     if job.result is not None:

@@ -16,6 +16,13 @@ from io import BytesIO
 import base64
 import logging
 from logging import INFO, ERROR, WARNING, DEBUG, StreamHandler, Formatter
+import copy
+
+# add to supper WARNING message: Warning: Ignoring XDG_SESSION_TYPE=wayland on Gnome.
+# Use QT_QPA_PLATFORM=wayland to run on Wayland anyway.
+# see https://stackoverflow.com/questions/69828508/warning-ignoring-xdg-session-type-wayland-on-gnome-use-qt-qpa-
+# platform-wayland
+os.environ["XDG_SESSION_TYPE"] = "xcb"
 
 # deps
 import numpy as np
@@ -50,7 +57,7 @@ language = {
         "velocity": "Velocity",
         "from_model": "from model",
         "acceleration": "Acceleration",
-        "position": "Ref. Position",
+        "position": "Conventional Epoch Pos.",
         "completion": "Completion",
         "other": "other polynomial terms",
         "not_enough": "Not enough solutions to fit an ETM.",
@@ -74,7 +81,7 @@ language = {
         "velocity": "Velocidad",
         "from_model": "de modelo",
         "acceleration": "Aceleración",
-        "position": "Posición de ref.",
+        "position": "Posición Época Conv.",
         "completion": "Completitud",
         "other": "otros términos polinómicos",
         "not_enough": "No hay suficientes soluciones para ajustar trayectorias.",
@@ -121,7 +128,9 @@ def prYellow(skk):
     else:
         return skk
 
+
 LIMIT = 2.5
+
 
 type_dict = {-1: 'UNDETERMINED',
               1: 'GENERIC_JUMP',
@@ -130,6 +139,15 @@ type_dict = {-1: 'UNDETERMINED',
              10: 'CO_SEISMIC_JUMP_DECAY',
              15: 'CO_SEISMIC_JUMP',
              20: 'CO_SEISMIC_DECAY'}
+
+type_dict_user = {0: 'MECHANICAL',
+                  1: 'CO+POSTSEISMIC',
+                  2: 'POSTSEISMIC'}
+
+periodic_status_dict = {'A': 'AUTOMATICALLY ADDED',
+                        'R': 'ADDED BY USER',
+                        'D': 'ADDED BY USER, UNABLE TO FIT'}
+
 # unknown jump
 UNDETERMINED = -1
 # no effect: display purposes
@@ -306,7 +324,12 @@ def to_list(dictionary):
             dictionary[key] = val.tolist()
 
         elif isinstance(val, pyDate.datetime):
-            dictionary[key] = val.strftime('%Y-%m-%d %H:%M:%S')
+            date = pyDate.Date(datetime=val)
+            dictionary[key] = {'date': val.strftime('%Y-%m-%d %H:%M:%S'),
+                               'year': val.year,
+                               'doy': date.doy,
+                               'mjd': date.mjd,
+                               'fyear': date.fyear}
 
     return dictionary
 
@@ -912,6 +935,7 @@ class Jump(EtmFunction):
         self.p.jump_date = date.datetime()
         self.p.metadata = metadata
         self.p.jump_type = dtype
+        self.p.relaxation = []
 
         # new property to identify manually added (or removed) jumps
         self.action = action
@@ -1226,7 +1250,7 @@ class Earthquakes:
         s_events = pyOkada.ScoreTable(cnn, lat, lon, sdate, edate)
 
         # check if data range returned any jumps
-        if s_events.table and FitEarthquakes:
+        if FitEarthquakes:
 
             eq_jumps = s_events.table
 
@@ -1241,7 +1265,7 @@ class Earthquakes:
             f_jumps = []
             next_date = None
 
-            for mag, date, epi_lon, epi_lat, j_type in eq_jumps:
+            for mag, date, epi_lon, epi_lat, j_type, metadata in eq_jumps:
 
                 # jumps are analyzed in windows that are EQ_MIN_DAYS long
                 # a date should not be analyzed if it's < next_date
@@ -1250,15 +1274,15 @@ class Earthquakes:
                         continue
 
                 # obtain jumps in a EQ_MIN_DAYS window
-                jumps = [(m, d, elon, elat, j_type) for m, d, elon, elat, j_type in eq_jumps
+                jumps = [(m, d, elon, elat, j_type, meta) for m, d, elon, elat, j_type, meta in eq_jumps
                          if date <= d < date + EQ_MIN_DAYS]
 
                 if len(jumps) > 1:
                     # if more than one jump, get the max magnitude
-                    mmag = max(m for m, _, _ , _, _ in jumps)
+                    mmag = max(m for m, _, _ , _, _, _ in jumps)
 
                     # only keep the earthquake with the largest magnitude
-                    for m, d, epi_lon, epi_lat, j_type in jumps:
+                    for m, d, epi_lon, epi_lat, j_type, meta in jumps:
 
                         epi_dist = float(distance(lon, lat, epi_lon, epi_lat))
 
@@ -1274,7 +1298,7 @@ class Earthquakes:
                         # if present in jump table, with either + of -, don't use default decay
                         if m == mmag and '-' not in table:
                             f_jumps.append(CoSeisJump(NetworkCode, StationCode, soln, t, d, relaxation,
-                                                      'mag=%.1f' % m, magnitude=m, action='+' if '+' in table else 'A',
+                                                      meta, magnitude=m, action='+' if '+' in table else 'A',
                                                       models=models, epi_distance=epi_dist, dtype=j_type))
                             # once the jump was added, exit for loop
                             break
@@ -1282,13 +1306,13 @@ class Earthquakes:
                             # add only if in jump list with a '+'
 
                             f_jumps.append(CoSeisJump(NetworkCode, StationCode, soln, t, d,
-                                                      relaxation, 'mag=%.1f' % m, magnitude=m, action='+',
+                                                      relaxation, meta, magnitude=m, action='+',
                                                       models=models, epi_distance=epi_dist, dtype=j_type))
                             # once the jump was added, exit for loop
                             break
                         else:
                             f_jumps.append(CoSeisJump(NetworkCode, StationCode, soln, t, d,
-                                                      relaxation, 'mag=%.1f' % m, action='-', fit=False,
+                                                      relaxation, meta, action='-', fit=False,
                                                       models=models, epi_distance=epi_dist, dtype=j_type))
                 else:
                     epi_dist = float(distance(lon, lat, epi_lon, epi_lat))
@@ -1305,17 +1329,34 @@ class Earthquakes:
 
                     if '-' not in table:
                         f_jumps.append(CoSeisJump(NetworkCode, StationCode, soln, t, date,
-                                                  relaxation, 'mag=%.1f' % mag, magnitude=mag,
+                                                  relaxation, metadata, magnitude=mag,
                                                   action='+' if '+' in table else 'A',
                                                   models=models, epi_distance=epi_dist, dtype=j_type))
                     else:
                         # add it with NO_EFFECT for display purposes
                         f_jumps.append(CoSeisJump(NetworkCode, StationCode, soln, t, date,
-                                                  relaxation, 'mag=%.1f' % mag, magnitude=mag, action='-', fit=False,
+                                                  relaxation, metadata, magnitude=mag, action='-', fit=False,
                                                   models=models, epi_distance=epi_dist, dtype=j_type))
 
                 next_date = date + EQ_MIN_DAYS
 
+            # now consider events outside of the event table that might be M<6
+            notin = ["(%i, %i)" % (j.date.year, j.date.doy) for j in f_jumps]
+            notin = ' AND ("Year", "DOY") NOT IN (' + ','.join(notin) + ')' if notin else ''
+            # open the jumps table but only consider event with action=+, and dates > last data point of station
+            jp = cnn.query_float('SELECT * FROM etm_params WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\' '
+                                 'AND soln = \'%s\' AND jump_type <> 0 AND object = \'jump\' AND action = \'+\' '
+                                 'AND ("Year", "DOY") < (%i, %i)'
+                                 % (NetworkCode, StationCode, 'gamit' if soln.type == 'file' else soln.type,
+                                    edate.year, edate.doy)
+                                 + notin,
+                                 as_dict=True)
+            for j in jp:
+                f_jumps.append(CoSeisJump(NetworkCode, StationCode, soln, t,
+                                          pyDate.Date(year=int(j['Year']), doy=int(j['DOY'])),
+                                          np.array(j['relaxation']), 'manual geophysical jump', magnitude=0.0,
+                                          action='+', models=models, epi_distance=0.0,
+                                          dtype=CO_SEISMIC_JUMP_DECAY if j['jump_type'] == 1 else CO_SEISMIC_DECAY))
             # final jump table
             self.table = f_jumps
         else:
@@ -1380,7 +1421,12 @@ class GenericJumps:
                 # 2) add_meta = False AND there is a '+'
 
                 self.table.append(Jump(NetworkCode, StationCode, soln, t, date,
-                                       'Ant-Rec: %s-%s' % (stninfo['AntennaCode'], stninfo['ReceiverCode']),
+                                       'Antenna: %s->%s' % (prev_red['AntennaCode'] + ' ' +
+                                                            prev_red['RadomeCode'] if prev_red['RadomeCode'] else
+                                                            prev_red['AntennaCode'] + ' NONE',
+                                                            stninfo['AntennaCode']  + ' ' +
+                                                            stninfo['RadomeCode'] if stninfo['RadomeCode'] else
+                                                            stninfo['RadomeCode'] + ' NONE'),
                                        dtype=ANTENNA_CHANGE,
                                        action=action,
                                        fit=('+' in table or (self.add_metadata_jumps and '-' not in table))
@@ -1439,15 +1485,16 @@ class Periodic(EtmFunction):
             etm_param = cnn.get('etm_params',
                                 {'NetworkCode': NetworkCode,
                                  'StationCode': StationCode,
-                                 'soln': 'gamit' if soln.type else soln.type,
+                                 'soln': 'gamit' if soln.type == 'file' else soln.type,
                                  'object': 'periodic'
                                  },
-                                ['NetworkCode', 'StationCode', 'soln', 'object'])
+                                ['NetworkCode', 'StationCode', 'soln', 'object', 'frequencies'])
 
             self.p.frequencies = np.array([float(p) for p in etm_param['frequencies']])
-
+            self.requested_frequencies = self.p.frequencies
         except dbConnection.DatabaseError:
             self.p.frequencies = DEFAULT_FREQUENCIES
+            self.requested_frequencies = np.array([])
 
         self.p.object = 'periodic'
 
@@ -1572,6 +1619,8 @@ class Polynomial(EtmFunction):
         if t_ref == 0:
             t_ref = np.min(t)
 
+        self.ce_pos = np.array([])
+
         self.p.object = 'polynomial'
         self.p.t_ref = t_ref
 
@@ -1599,14 +1648,18 @@ class Polynomial(EtmFunction):
                                      'StationCode': StationCode,
                                      'soln': 'gamit' if soln.type == 'file' else soln.type,
                                      'object': 'polynomial'},
-                                    ['NetworkCode', 'StationCode', 'soln', 'object', 'terms'])
+                                    ['NetworkCode', 'StationCode', 'soln', 'object', 'terms', 'Year', 'DOY'])
 
                 self.terms = int(etm_param['terms'])
+                # check if Year and DOY not null
+                if etm_param['Year'] and etm_param['DOY']:
+                    self.p.t_ref = pyDate.Date(year=etm_param['Year'], doy=etm_param['DOY']).fyear
+                    t_ref = self.p.t_ref
 
             except dbConnection.DatabaseError:
                 self.terms = DEFAULT_POL_TERMS
 
-            logger.info('Polynomial -> Fitting %i term(s)' % self.terms)
+            logger.info('Polynomial -> Fitting %i term(s), conventional epoch %.3f' % (self.terms, self.p.t_ref))
 
             if self.terms == 1:
                 self.format_str = LABEL('position') + ' (%.3f' % t_ref + \
@@ -1648,7 +1701,7 @@ class Polynomial(EtmFunction):
         # param count is the same as terms
         self.param_count = self.terms
         # save the hash of the object
-        self.p.hash = crc32(str(self.terms) + VERSION)
+        self.p.hash = crc32(str(self.terms) + str(self.p.t_ref) + VERSION)
 
     def load_parameters(self, params, sigmas, t_ref):
 
@@ -1814,6 +1867,7 @@ class ETM:
         self.StationCode = soln.StationCode
 
         self.models = models
+        self.ce_pos = np.array([0.0, 0.0, 0.0])
 
         stn_id = stationID(self)
 
@@ -2049,9 +2103,9 @@ class ETM:
                             # unrealistic, remove
                             jump.remove_from_fit()
                             do_again = True
-                            logger.info('ETM -> Unrealistic jump detected (%s : %s), removing and redoing fit'
+                            logger.info('ETM -> Unrealistic jump detected (%s : %s) on %s, removing and redoing fit'
                                         % (np.array_str(jump.p.params[:, -jump.nr:].flatten(), precision=1),
-                                           type_dict[jump.p.jump_type]))
+                                           type_dict[jump.p.jump_type], jump.date.yyyyddd()))
 
                     if not do_again:
                         break
@@ -2069,6 +2123,12 @@ class ETM:
                 self.Linear.p.sigmas[:, 1] = entropy_sigmas
             # load the covariances using the correlations
             self.process_covariance()
+            # get conventional epoch coordinates
+            # calculate the conventional epoch position
+            date = pyDate.Date(fyear=self.Linear.p.t_ref)
+            # save the CE postion
+            self.ce_pos, _, _, _ = self.get_xyz_s(date.year, date.doy, force_model=True)
+
         else:
             logger.info('ETM -> Empty design matrix')
 
@@ -2302,8 +2362,7 @@ class ETM:
                         self.soln.completion,
                         self.soln.lat,
                         self.soln.lon,
-                        self.Linear.print_parameters(np.array([self.soln.auto_x, self.soln.auto_y, self.soln.auto_z]),
-                                                     self.soln.lat, self.soln.lon),
+                        self.Linear.print_parameters(self.ce_pos, self.soln.lat, self.soln.lon),
                         self.Periodic.print_parameters(),
                         fneu[0],
                         fneu[1],
@@ -2679,6 +2738,10 @@ class ETM:
             'ref_x': self.soln.auto_x[0],
             'ref_y': self.soln.auto_y[0],
             'ref_z': self.soln.auto_z[0],
+            'ce_x' : self.ce_pos[0][0],
+            'ce_y': self.ce_pos[1][0],
+            'ce_z': self.ce_pos[2][0],
+            't_ref': self.Linear.p.t_ref if self.A is not None else 0.0,
             'Jumps': [to_list(jump.p.toDict()) for jump in self.Jumps.table]
         }
 
@@ -3083,6 +3146,126 @@ class ETM:
         filt = self.F[0] * self.F[1] * self.F[2]
         return [(self.NetworkCode, self.StationCode, pyDate.Date(mjd=mjd))
                 for mjd in self.soln.mjd[~filt]]
+
+    def pull_params(self):
+        """
+        method to obtain the current parameters of the station (in json format)
+        periodic returns a dictionary with the periods as keys and a str following the description
+        in periodic_status_dict
+        """
+        date = pyDate.Date(fyear=self.Linear.p.t_ref)
+
+        poly_dict = {'terms': self.Linear.terms,
+                     'Year': date.year,
+                     'DOY' : date.doy}
+
+        jumps = [{'Year': jump.p.jump_date.year,
+                  'DOY': pyDate.Date(datetime=jump.p.jump_date).doy,
+                  'action': jump.action,
+                  'fit': jump.fit,
+                  'type': jump.p.jump_type,
+                  'relaxation': [] if jump.p.jump_type < CO_SEISMIC_JUMP_DECAY else jump.p.relaxation.tolist(),
+                  'metadata': jump.p.metadata} for jump in self.Jumps.table]
+
+        periodic = {}
+        # create a dictionary with keys that equal the 1/f (period) requested or automatically added
+        for f in self.Periodic.p.frequencies.tolist():
+            if f in self.Periodic.requested_frequencies.tolist():
+                status = 'R'
+            else:
+                status = 'A'
+
+            periodic[1 / f] = status
+
+        for f in self.Periodic.requested_frequencies.tolist():
+            if 1/f not in periodic.keys():
+                # this frequency is in the requested list, but was not included, so it is requested but deactivated
+                periodic[1 / f] = 'D'
+
+        # periodic = {'requested_frequencies': self.Periodic.requested_frequencies.tolist(),
+        #             'frequency_count': self.Periodic.frequency_count,
+        #             'fit_frequencies': self.Periodic.p.frequencies.tolist()}
+
+        return {'polynomial': poly_dict, 'periodic': periodic, 'jumps': jumps}
+
+    def push_params(self, cnn, params=None, reset_polynomial=False, reset_periodic=False, reset_jumps=False):
+        """
+        cnn             : database connection object
+        params          : a dictionary containing the following keys, for each of the corresponding objects
+                          {'object': 'polynomial', 'terms': int, 'Year': int, 'DOY': int}
+                            terms: sets the number of terms to use in the polynomial (eg. 2, 3, 4, etc)
+                            Year: sets the reference year part of the date for the site (if passed, then DOY is needed).
+                              It can be = None or not passed
+                            DOY: sets the reference day of year part of the date for the site (if passed,
+                              then year is needed). It can be = None or not passed
+                          {'object': 'periodic', 'frequencies': list[float]}
+                            frequencies: a list of integers of the frequencies to fit. This value must be
+                              passed as 1/days. If no periodic terms are requested, then pass [].
+                          {'object': 'jump', 'Year': int, 'DOY': int, 'action': str, 'jump_type': int, 'relaxation': list}
+                            Year: sets the year part of the discontinuity date. Mandatory.
+                            DOY: sets the day of year part of the discontinuity date. Mandatory
+                            action: two possible values, '-' or '+' to add or remove a jump. Mandatory.
+                            jump_type: jump type, can be 0 for mechanical, 1 for co+postseismic and 2 for postseismic
+                              only, see type_dict_user
+                            relaxation: mandatory when type is > 0, list of floats with the relaxation times in years
+        reset_polynomial: rest
+        reset_periodic  : rest
+        reset_jumps     : rest
+        """
+
+        # for polynomial and periodic, trigger reset anyway since we need to get rid of the old records
+        if params:
+            if params['object'] == 'polynomial':
+                reset_polynomial = True
+                # sanity checks
+                if 'Year' in params.keys() and 'DOY' in params.keys():
+                    if type(params['Year']) is not int:
+                        raise pyETMException('Parameter Year must be of type int')
+                    if type(params['DOY']) is not int:
+                        raise pyETMException('Parameter DOY must be of type int')
+                elif ('Year' in params.keys() and 'DOY' not in params.keys()) or \
+                        ('Year' not in params.keys() and 'DOY' in params.keys()):
+                    raise pyETMException('Both parameters Year and DOY must be specified if either one is set')
+
+            elif params['object'] == 'periodic':
+                reset_periodic = True
+
+            # add the fields for station and network
+            params['NetworkCode'] = self.NetworkCode
+            params['StationCode'] = self.StationCode
+            params['soln'] = 'gamit' if self.soln.type == 'file' else self.soln.type
+
+        if reset_polynomial:
+            # reset to default
+            cnn.delete('etm_params', NetworkCode=self.NetworkCode, StationCode=self.StationCode,
+                       soln='gamit' if self.soln.type == 'file' else self.soln.type, object='polynomial')
+
+        if reset_periodic:
+            # reset to default
+            cnn.delete('etm_params', NetworkCode=self.NetworkCode, StationCode=self.StationCode,
+                       soln='gamit' if self.soln.type == 'file' else self.soln.type, object='periodic')
+
+        if reset_jumps:
+            # reset to default
+            cnn.delete('etm_params', NetworkCode=self.NetworkCode, StationCode=self.StationCode,
+                       soln='gamit' if self.soln.type == 'file' else self.soln.type, object='jump')
+
+        if params:
+            if params['object'] == 'jump':
+
+                if params['jump_type'] > 0 and params['action'] == '+' and 'relaxation' not in params.keys():
+                    raise pyETMException('Relaxation parameter needed when jump_type>0 and action=+')
+                # query params to find the jump
+                qpar = copy.deepcopy(params)
+                qpar = {k: v for k, v in qpar.items() if k not in ('action', 'relaxation', 'jump_type')}
+
+                # remove existing parameters
+                cnn.delete('etm_params', **qpar)
+
+                if type(params['terms']) is not int:
+                    raise pyETMException('Parameter terms must be of type int')
+
+            cnn.insert('etm_params', **params)
 
 
 class PPPETM(ETM):

@@ -42,8 +42,8 @@ def main():
                              "terms = 2 is constant velocity and terms = 3 is velocity + acceleration, etc.\n"
                              "j {action} {type} {date} {relax} where action can be + or -. A + indicates that a jump "
                              "should be added while a - means that an existing jump should be removed; "
-                             "type = 0 is a mechanic jump and 1 is a geophysical jump; "
-                             "date is the date of the event in all the accepted formats "
+                             "type = 0 is a mechanic jump, 1 is a geophysical jump, and 2 is a decay-only "
+                             "discontinuity; date is the date of the event in all the accepted formats "
                              "(yyyy/mm/dd yyyy_doy gpswk-wkday fyear); and relax is a list of relaxation times for the "
                              "logarithmic decays (only used when type = 1, they are ignored when type = 0).\n"
                              "q {periods} where periods is a list expressed in days (1 yr = 365.25).\n"
@@ -128,8 +128,8 @@ def insert_modify_param(parser, cnn, stnlist, args):
             # jump type
             tpar.jump_type = int(args.function_type[2])
 
-            if tpar.jump_type not in (0, 1):
-                parser.error('jump type should be either 0 or 1')
+            if tpar.jump_type not in (0, 1, 2):
+                parser.error('jump type should be either 0, 1, or 2')
 
             try:
                 date, _ = Utils.process_date([args.function_type[3]])
@@ -140,7 +140,7 @@ def insert_modify_param(parser, cnn, stnlist, args):
             except Exception as e:
                 parser.error('while parsing jump date: ' + str(e))
 
-            if tpar.jump_type == 1:
+            if tpar.jump_type >= 1 :
                 tpar.relaxation = [float(f) for f in args.function_type[4:]]
 
                 if not tpar.relaxation:
