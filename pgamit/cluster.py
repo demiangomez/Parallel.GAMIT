@@ -5,6 +5,7 @@
 
 import warnings
 import numpy as np
+import pandas as pd
 import scipy.sparse as sp
 
 from sklearn.neighbors import NearestNeighbors
@@ -43,7 +44,13 @@ def prune(OC, central_points, method='linear'):
             if problems == 0:
                 subset.append(i)
                 OC[i, :] = np.zeros(len(row))
-        return OC[~np.array(subset)], central_points[~np.array(subset)]
+        # Cast subset list to pandas index
+        dfIndex = pd.Index(subset)
+        # Cast OC to pandas dataframe
+        dfOC = pd.DataFrame(OC)
+        # Apply the 'inverse' index; pruned is boolean numpy index array
+        pruned = ~dfOC.index.isin(dfIndex)
+        return OC[pruned], central_points[pruned]
     else:
         return OC, central_points
 
