@@ -50,7 +50,7 @@ def prune(OC, central_points, method='linear'):
         dfOC = pd.DataFrame(OC)
         # Apply the 'inverse' index; pruned is boolean numpy index array
         pruned = ~dfOC.index.isin(dfIndex)
-        return OC[pruned], central_points[~np.array(pruned)]
+        return OC[pruned], central_points[pruned]
     else:
         return OC, central_points
 
