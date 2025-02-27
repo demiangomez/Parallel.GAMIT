@@ -1009,6 +1009,8 @@ class Person(BaseModel):
     address = models.CharField(max_length=100, blank=True)
     photo = models.ImageField(upload_to='person_photos/', blank=True)
     user = models.ForeignKey(User, models.SET_NULL, blank=True, null=True)
+    institution = models.CharField(max_length=100, blank=True)
+    position = models.CharField(max_length=100, blank=True)
 
     def __str__(self):
         return self.first_name + ' ' + self.last_name
@@ -1045,12 +1047,21 @@ class StationImages(BaseModel):
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
 
-        utils.UploadMultipleFilesUtils.change_file_user_group(
-            self.image, settings.USER_GROUP_TO_SAVE_FILES)
+        if self.image and hasattr(self.image, 'path'):
+            utils.FilesUtils.set_file_ownership(
+                self.image.path, settings.USER_ID_TO_SAVE_FILES, settings.GROUP_ID_TO_SAVE_FILES)
+
+
+class StationStatusColor(BaseModel):
+    color = models.CharField(max_length=50, unique=True, default="green-icon")
+
+    def __str__(self):
+        return self.color
 
 
 class StationStatus(BaseModel):
     name = models.CharField(max_length=100, unique=True)
+    color = models.ForeignKey(StationStatusColor, models.PROTECT)
 
     def __str__(self):
         return self.name
@@ -1067,6 +1078,18 @@ class MonumentType(BaseModel):
 
 class StationType(BaseModel):
     name = models.CharField(max_length=100, unique=True)
+    # only true for station types created at the beginning
+    search_icon_on_assets_folder = models.BooleanField(default=False)
+    icon = models.ImageField(
+        upload_to='station_type_icons/')
+
+    def get_icon_url(self):
+        if self.search_icon_on_assets_folder:
+            return os.path.join(settings.ASSETS_FOLDER, self.icon.name)
+        return os.path.join(settings.MEDIA_ROOT, self.icon.name)
+
+    def __str__(self):
+        return self.name
 
 
 class StationAttachedFiles(BaseModel):
@@ -1085,8 +1108,10 @@ class StationAttachedFiles(BaseModel):
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
 
-        utils.UploadMultipleFilesUtils.change_file_user_group(
-            self.file, settings.USER_GROUP_TO_SAVE_FILES)
+        # Then set ownership on the file and directories
+        if self.file and hasattr(self.file, 'path'):
+            utils.FilesUtils.set_file_ownership(
+                self.file.path, settings.USER_ID_TO_SAVE_FILES, settings.GROUP_ID_TO_SAVE_FILES)
 
 
 class StationMeta(BaseModel):
@@ -1177,8 +1202,9 @@ class VisitImages(BaseModel):
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
 
-        utils.UploadMultipleFilesUtils.change_file_user_group(
-            self.image, settings.USER_GROUP_TO_SAVE_FILES)
+        if self.image and hasattr(self.image, 'path'):
+            utils.FilesUtils.set_file_ownership(
+                self.image.path, settings.USER_ID_TO_SAVE_FILES, settings.GROUP_ID_TO_SAVE_FILES)
 
 
 class VisitAttachedFiles(BaseModel):
@@ -1197,8 +1223,9 @@ class VisitAttachedFiles(BaseModel):
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
 
-        utils.UploadMultipleFilesUtils.change_file_user_group(
-            self.file, settings.USER_GROUP_TO_SAVE_FILES)
+        if self.file and hasattr(self.file, 'path'):
+            utils.FilesUtils.set_file_ownership(
+                self.file.path, settings.USER_ID_TO_SAVE_FILES, settings.GROUP_ID_TO_SAVE_FILES)
 
 
 class VisitGNSSDataFiles(BaseModel):
@@ -1217,8 +1244,9 @@ class VisitGNSSDataFiles(BaseModel):
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
 
-        utils.UploadMultipleFilesUtils.change_file_user_group(
-            self.file, settings.USER_GROUP_TO_SAVE_FILES)
+        if self.file and hasattr(self.file, 'path'):
+            utils.FilesUtils.set_file_ownership(
+                self.file.path, settings.USER_ID_TO_SAVE_FILES, settings.GROUP_ID_TO_SAVE_FILES)
 
 
 def enable_automatic_auditlog():

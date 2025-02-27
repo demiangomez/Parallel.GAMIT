@@ -61,6 +61,12 @@ class MonumentTypeSerializer(serializers.ModelSerializer):
         return validate_image_size(value)
 
 
+class MonumentTypeMetadataOnlySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.MonumentType
+        fields = ['id', 'name']
+
+
 class PersonSerializer(serializers.ModelSerializer):
     photo_actual_file = serializers.SerializerMethodField()
     user_name = serializers.SerializerMethodField()
@@ -105,10 +111,24 @@ class PersonSerializer(serializers.ModelSerializer):
         return obj.user.username if obj.user else None
 
 
+class StationStatusColorSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.StationStatusColor
+        fields = '__all__'
+
+
 class StationStatusSerializer(serializers.ModelSerializer):
+    color_name = serializers.SerializerMethodField()
+
     class Meta:
         model = models.StationStatus
         fields = '__all__'
+        extra_kwargs = {'color_name': {'read_only': True}}
+
+    def get_color_name(self, obj):
+        if obj.color:
+            return obj.color.color
+        return None
 
 
 class RoleSerializer(serializers.ModelSerializer):
@@ -277,6 +297,9 @@ class StationMetaSerializer(serializers.ModelSerializer):
     navigation_file_delete = serializers.BooleanField(write_only=True)
     station_status_name = serializers.SerializerMethodField()
     station_gaps = serializers.SerializerMethodField()
+    rinex_count = serializers.SerializerMethodField()
+    distinct_visit_years = serializers.SerializerMethodField()
+    station_name = serializers.SerializerMethodField()
 
     class Meta:
         model = models.StationMeta
@@ -289,7 +312,10 @@ class StationMetaSerializer(serializers.ModelSerializer):
             'station_status_name': {'read_only': True},
             'has_gaps_update_needed': {'read_only': True},
             'has_gaps': {'read_only': True},
-            'has_stationinfo': {'read_only': True}
+            'has_stationinfo': {'read_only': True},
+            'rinex_count': {'read_only': True},
+            'distinct_visit_years': {'read_only': True},
+            'station_name': {'read_only': True}
         }
 
     def get_station_gaps(self, obj):
@@ -330,6 +356,21 @@ class StationMetaSerializer(serializers.ModelSerializer):
 
         return internal_value
 
+    def get_rinex_count(self, obj):
+        return models.Rinex.objects.filter(network_code=obj.station.network_code.network_code, station_code=obj.station.station_code).count()
+
+    def get_distinct_visit_years(self, obj):
+        list_of_distinct_dates = models.Visits.objects.filter(
+            station=obj.station).values_list('date', flat=True).distinct()
+
+        list_of_distinct_years = list(
+            set([date.year for date in list_of_distinct_dates]))
+
+        return list_of_distinct_years
+
+    def get_station_name(self, obj):
+        return obj.station.station_name
+
     def validate_navigation_file(self, value):
         return validate_file_size(value)
 
@@ -357,9 +398,32 @@ class RolePersonStationSerializer(serializers.ModelSerializer):
 
 
 class StationTypeSerializer(serializers.ModelSerializer):
+    actual_image = serializers.SerializerMethodField()
+
     class Meta:
         model = models.StationType
         fields = '__all__'
+        extra_kwargs = {'icon': {'write_only': True}}
+
+    def validate_icon(self, value):
+        return validate_image_size(value)
+
+    def to_internal_value(self, data):
+        # Always set search_icon_on_assets_folder to False because it its true only on default station types (created at start up)
+        internal_value = super().to_internal_value(data)
+        internal_value['search_icon_on_assets_folder'] = False
+        return internal_value
+
+    def get_actual_image(self, obj):
+        # return the image encoded in base 64
+        if obj.icon and obj.icon.name:
+            try:
+                with open(obj.get_icon_url(), 'rb') as icon_file:
+                    return base64.b64encode(icon_file.read()).decode('utf-8')
+            except FileNotFoundError:
+                return None
+        else:
+            return None
 
 
 class StationAttachedFilesSerializer(serializers.ModelSerializer):
@@ -413,7 +477,7 @@ class StationImagesSerializer(serializers.ModelSerializer):
         """Set image name as name when no name is provided"""
         internal_value = super().to_internal_value(data)
 
-        if 'name' not in data or data['name'] == '':
+        if ('name' not in data or data['name'] == '') and 'image' in data:
             internal_value['name'] = data['image'].name
 
         return internal_value
@@ -612,7 +676,7 @@ class VisitImagesSerializer(serializers.ModelSerializer):
         """Set image name as name when no name is provided"""
         internal_value = super().to_internal_value(data)
 
-        if 'name' not in data or data['name'] == '':
+        if ('name' not in data or data['name'] == '') and 'image' in data:
             internal_value['name'] = data['image'].name
 
         return internal_value
@@ -878,7 +942,7 @@ class StationaliasSerializer(serializers.ModelSerializer):
 
 
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
-    @ classmethod
+    @classmethod
     def get_token(cls, user):
         token = super().get_token(user)
 

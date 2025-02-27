@@ -34,6 +34,8 @@ const Photo = ({ phArray, loader, reFetch }: Props) => {
     const { token, logout } = useAuth();
     const api = useApi(token, logout);
 
+    const [edit, setEdit] = useState<boolean>(false);
+
     const [modals, setModals] = useState<
         | { show: boolean; title: string; type: "add" | "edit" | "none" }
         | undefined
@@ -82,19 +84,28 @@ const Photo = ({ phArray, loader, reFetch }: Props) => {
         modals?.show && showModal(modals.title);
     }, [modals]);
 
+    const editFunction = () => {
+        setEdit(!edit);
+    }
+
+    const addFunction = () => {
+        setModals({
+            show: true,
+            title: "AddStationPhoto",
+            type: "add",
+        })
+        setEdit(false);
+    }
+
+
     return (
         <>
             <CardContainer
                 title={"Photos"}
                 height={true}
                 addButton={true}
-                addFunction={() =>
-                    setModals({
-                        show: true,
-                        title: "AddStationPhoto",
-                        type: "add",
-                    })
-                }
+                addFunction={addFunction}
+                editFunction={editFunction}
             >
                 {loader ? (
                     <>
@@ -105,7 +116,8 @@ const Photo = ({ phArray, loader, reFetch }: Props) => {
                     <div className="grid grid-cols-2 w-full gap-6 overflow-auto pr-2">
                         {phArray.map((s: Photo, idx) => {
                             return (
-                                <div
+                                
+                                <div 
                                     key={"photo" + String(idx)}
                                     className="relative flex flex-col justify-between rounded-md card-compact bg-base-100 
                                     h-80 shadow-xl hover:cursor-zoom-in transition-all duration-200 ease-in-out group"
@@ -113,6 +125,7 @@ const Photo = ({ phArray, loader, reFetch }: Props) => {
                                         setBlurPhoto({ blur: true, id: s.id })
                                     }
                                     onMouseLeave={() => setBlurPhoto(undefined)}
+
                                 >
                                     <figure className="my-auto">
                                         <img
@@ -121,24 +134,35 @@ const Photo = ({ phArray, loader, reFetch }: Props) => {
                                                 s.actual_image
                                             }
                                             alt={"photo" + String(idx)}
-                                            className={`${blurPhoto && blurPhoto.id === s.id ? "blur-sm" : ""} 
+                                            className={` 
                                                 object-center object-cover w-full h-full `}
                                             onClick={() => {
-                                                setPhoto(s);
+                                                if(edit){
+                                                    setPhoto(s);
+                                                    setModals({
+                                                        show: true,
+                                                        title: "AddStationPhoto",
+                                                        type: "edit",
+                                                    });
+                                                }
+                                                if(!edit){
+                                                    setPhoto(s);
 
-                                                setModals({
-                                                    show: true,
-                                                    title: "ViewStationPhoto",
-                                                    type: "edit",
-                                                });
+                                                    setModals({
+                                                        show: true,
+                                                        title: "ViewStationPhoto",
+                                                        type: "edit",
+                                                    });
+                                                }
                                             }}
                                         />
+                                        { edit &&
                                         <div
-                                            className="absolute top-0 right-0 opacity-0 text-black 
+                                            className="absolute top-0 right-0 text-black 
                                             group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
-                                        >
+                                        >   
                                             <button
-                                                className="bg-white rounded-sm shadow-xl z-50
+                                                className="bg-white rounded-sm shadow-xl z-[200000] 
                                                 hover:bg-slate-200 transition-all duration-200 "
                                                 onClick={() => {
                                                     setDelPhoto(s);
@@ -151,26 +175,35 @@ const Photo = ({ phArray, loader, reFetch }: Props) => {
                                             >
                                                 <XMarkIcon className="size-12" />
                                             </button>
+                                            
                                         </div>
+                                        }
                                     </figure>
                                     <div
-                                        className={`${blurPhoto && blurPhoto.id === s.id ? "blur-sm " : ""} 
+                                        className={`${blurPhoto && blurPhoto.id === s.id ? "bg-gray-300 " : ""} 
                                             flex flex-col space-y-2 p-4 text-center`}
                                         onClick={() => {
-                                            setPhoto(s);
+                                            if(edit){
+                                                setPhoto(s);
+                                                setModals({
+                                                    show: true,
+                                                    title: "AddStationPhoto",
+                                                    type: "edit",
+                                                });
+                                            }
+                                            if(!edit){
+                                                setPhoto(s);
 
-                                            setModals({
-                                                show: true,
-                                                title: "ViewStationPhoto",
-                                                type: "edit",
-                                            });
+                                                setModals({
+                                                    show: true,
+                                                    title: "ViewStationPhoto",
+                                                    type: "edit",
+                                                });
+                                            }
                                         }}
                                     >
-                                        <h4 className="font-semibold break-words">
-                                            {s.name ?? ""}
-                                        </h4>
                                         <p className="break-words text-md">
-                                            {s.description ?? "NONE"}
+                                            {s.description ? s.description : "NONE"}
                                         </p>
                                     </div>
                                 </div>
@@ -192,6 +225,8 @@ const Photo = ({ phArray, loader, reFetch }: Props) => {
                     modalType={modals.type}
                     setStateModal={setModals}
                     reFetch={reFetch}
+                    photo={photo ?? undefined}
+                    edit = {edit}
                 />
             )}
 

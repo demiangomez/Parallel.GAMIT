@@ -20,6 +20,8 @@ import "@assets/slickCustom.css";
 
 import defPhoto from "@assets/images/placeholder.png";
 
+
+
 import {
     ArrowDownTrayIcon,
     BookOpenIcon,
@@ -44,7 +46,7 @@ import {
 
 import { useFormReducer, useWaitCursor, useApi, useAuth } from "@hooks";
 
-import { apiOkStatuses, showModal } from "@utils";
+import { apiOkStatuses, classHtml, showModal } from "@utils";
 
 import {
     People as PeopleType,
@@ -56,6 +58,7 @@ import {
     ErrorResponse,
     StationCampaignsData,
 } from "@types";
+import QuillText from "@components/map/QuillText";
 
 interface Props {
     campaigns: StationCampaignsData[] | undefined;
@@ -108,7 +111,7 @@ const StationVisitDetailModal = ({
 
     // Visit photo
 
-    const [blurPhoto, setBlurPhoto] = useState<
+    const [, setBlurPhoto] = useState<
         { blur: boolean; id: number } | undefined
     >(undefined);
 
@@ -137,6 +140,7 @@ const StationVisitDetailModal = ({
         undefined,
     );
 
+
     const [people, setPeople] = useState<PeopleType[]>([]);
 
     const [files, setFiles] = useState<StationVisitsFilesData[] | undefined>(
@@ -147,6 +151,8 @@ const StationVisitDetailModal = ({
         StationVisitsFilesData[] | undefined
     >(undefined);
 
+    const [richText, setRichText] = useState<string>('');
+
     const [fileType, setFileType] = useState<string | undefined>(undefined);
 
     const [fileToDel, setFileToDel] = useState<number | undefined>(undefined);
@@ -155,8 +161,16 @@ const StationVisitDetailModal = ({
         undefined,
     );
 
+
+    const [filteredObservationFiles, setFilteredObservationFiles] = useState<StationVisitsFilesData[] | undefined>(undefined);
+
+    const [filteredOtherFiles, setFilteredOtherFiles] = useState<StationVisitsFilesData[] | undefined>(undefined);
+
     const [showGnssFiles, setShowGnssFiles] = useState<boolean>(false);
+    
     const [showFiles, setShowFiles] = useState<boolean>(false);
+
+    const [fileToEdit, setFileToEdit] = useState<StationVisitsFilesData | undefined>(undefined);
 
     const handleShowMore = (key: string) => {
         if (key === "gnss") {
@@ -268,6 +282,28 @@ const StationVisitDetailModal = ({
         }
     };
 
+    const handleClearObservationFilter = (e: React.MouseEvent<HTMLButtonElement>) => {
+        e.preventDefault();
+        
+        const previousSibling = e.currentTarget.previousElementSibling as HTMLInputElement | null;
+        if (previousSibling) {
+            previousSibling.value = "";
+        }
+
+        setFilteredObservationFiles(gnssFiles);
+    }
+
+    const handleClearOtherFilter = (e: React.MouseEvent<HTMLButtonElement>) => {
+        e.preventDefault();
+        
+        const previousSibling = e.currentTarget.previousElementSibling as HTMLInputElement | null;
+        if (previousSibling) {
+            previousSibling.value = "";
+        }
+
+        setFilteredOtherFiles(files);
+    }
+
     const delVisitAttachedFile = async () => {
         try {
             if (!fileToDel) return null;
@@ -295,6 +331,8 @@ const StationVisitDetailModal = ({
             setLoading(false);
         }
     };
+
+
 
     const getVisitsGnssFiles = async () => {
         try {
@@ -381,7 +419,9 @@ const StationVisitDetailModal = ({
 
             const rest = { ...visit };
 
-            rest.comments = formState["comments"];
+            const updatedRichText = classHtml(richText);
+
+            rest.comments = updatedRichText;
             rest.date = formState["date"];
 
             delete rest.log_sheet_actual_file;
@@ -430,6 +470,7 @@ const StationVisitDetailModal = ({
             setTimeout(() => {
                 setCommentsMsg(undefined);
             }, 2500);
+            setEdit(false);
         }
     };
 
@@ -493,6 +534,20 @@ const StationVisitDetailModal = ({
             setLoading(false);
         }
     };
+
+    const filterObservationFiles = (e: string) =>{
+        if(gnssFiles){
+            const filtered = gnssFiles.filter((file) => file.filename.toLowerCase().includes(e.toLowerCase()) || file.description.toLowerCase().includes(e.toLowerCase()))
+            setFilteredObservationFiles(filtered)
+        }
+    }
+
+    const filterOtherFiles = (e: string) =>{
+        if(files){
+            const filtered = files.filter((file) => file.filename.toLowerCase().includes(e.toLowerCase()) || file.description.toLowerCase().includes(e.toLowerCase()))
+            setFilteredOtherFiles(filtered)
+        }
+    }
 
     const delCampaign = async () => {
         try {
@@ -602,6 +657,7 @@ const StationVisitDetailModal = ({
         }
     };
 
+
     const delVisitImage = async () => {
         try {
             if (!delPhoto) return null;
@@ -650,15 +706,6 @@ const StationVisitDetailModal = ({
         dispatch({
             type: "change_value",
             payload: {
-                inputName: "comments",
-                inputValue: formState.comments
-                    ? formState.comments
-                    : (visit?.comments ?? ""),
-            },
-        });
-        dispatch({
-            type: "change_value",
-            payload: {
                 inputName: "date",
                 inputValue: formState.date
                     ? formState.date
@@ -668,8 +715,39 @@ const StationVisitDetailModal = ({
     }, [visit]);
 
     useEffect(() => {
+        if(gnssFiles){
+            setFilteredObservationFiles(gnssFiles)
+        }
+    }, [gnssFiles])
+
+    useEffect(() => {
+        if(files){
+            setFilteredOtherFiles(files)
+        }
+    }, [files])
+
+    useEffect(() => {
         modals?.show && showModal(modals.title);
     }, [modals]);
+
+    useEffect(() => {
+        if(visit){
+            setRichText(visit?.comments ?? "")
+        }
+        
+    },[visit])
+
+    useEffect(() => {
+        dispatch(
+            {
+                type: "change_value",
+                payload: {
+                    inputName: "comments",
+                    inputValue: richText,
+                },
+            },
+        )
+    }, [])
 
     const settings = {
         dots: true,
@@ -677,11 +755,12 @@ const StationVisitDetailModal = ({
         speed: 500,
         slidesToShow: 1,
         slidesToScroll: 1,
+
     };
 
     const errorBadge = commentsMsg?.errors?.errors?.find(
         (error) => error.attr === "comments",
-    );
+    );  
 
     // note .. para que no haya problemas con la campania y el update de la fecha, primero, eliminar la campania
     // luego actualizar la fecha y por ultimo agregar la campania.
@@ -739,6 +818,7 @@ const StationVisitDetailModal = ({
                                             <strong className="text-lg">
                                                 Campaign:{" "}
                                             </strong>
+                                            { edit &&
                                             <button
                                                 className="btn btn-ghost btn-circle ml-2"
                                                 onClick={() => {
@@ -760,6 +840,7 @@ const StationVisitDetailModal = ({
                                                     className="w-8 h-10"
                                                 />
                                             </button>
+                                            }
                                         </span>
                                         <div className="w-full grid grid-cols-1 grid-flow-dense">
                                             <div className="flex flex-col w-full rounded-md bg-neutral-content">
@@ -817,6 +898,7 @@ const StationVisitDetailModal = ({
                                             <strong className="text-lg">
                                                 People:{" "}
                                             </strong>
+                                            { edit &&
                                             <button
                                                 className="btn btn-ghost btn-circle ml-2"
                                                 onClick={() => {
@@ -833,6 +915,7 @@ const StationVisitDetailModal = ({
                                                     className="w-8 h-10"
                                                 />
                                             </button>
+                                            }
                                         </div>
                                         <div className="w-full grid grid-cols-1 grid-flow-dense">
                                             <div className="flex flex-col w-full rounded-md bg-neutral-content">
@@ -897,6 +980,7 @@ const StationVisitDetailModal = ({
                                             <strong className="text-lg">
                                                 Log Sheet:{" "}
                                             </strong>
+                                            { edit &&
                                             <button
                                                 className="btn btn-ghost btn-circle ml-2"
                                                 onClick={() => {
@@ -919,6 +1003,7 @@ const StationVisitDetailModal = ({
                                                     className="w-8 h-10"
                                                 />
                                             </button>
+                                            }
                                         </div>
                                         <div className="w-full grid grid-cols-1 grid-flow-dense">
                                             <div className="flex flex-col w-full rounded-md bg-neutral-content">
@@ -988,6 +1073,7 @@ const StationVisitDetailModal = ({
                                             <strong className="text-lg">
                                                 Navigation File:{" "}
                                             </strong>
+                                            {   edit &&
                                             <button
                                                 className="btn btn-ghost btn-circle ml-2"
                                                 onClick={() => {
@@ -1010,6 +1096,7 @@ const StationVisitDetailModal = ({
                                                     className="w-8 h-10"
                                                 />
                                             </button>
+                                            }
                                         </div>
                                         <div className="w-full grid grid-cols-1 grid-flow-dense">
                                             <div className="flex flex-col w-full rounded-md bg-neutral-content">
@@ -1060,8 +1147,7 @@ const StationVisitDetailModal = ({
                                                     </div>
                                                 ) : (
                                                     <div className="text-center text-neutral text-xl font-bold w-full rounded-md bg-neutral-content p-6">
-                                                        There is no navigation
-                                                        file
+                                                        There is no navigation file
                                                     </div>
                                                 )}
                                             </div>
@@ -1081,28 +1167,22 @@ const StationVisitDetailModal = ({
                                             <strong className="text-lg">
                                                 Comments:{" "}
                                             </strong>
-
-                                            <textarea
-                                                className={`textarea textarea-bordered w-full 
-                                                                                    `}
-                                                disabled={edit ? false : true}
-                                                autoComplete="off"
-                                                value={
-                                                    formState["comments"] ?? ""
-                                                }
-                                                name={"comments"}
-                                                onChange={(e) =>
-                                                    dispatch({
-                                                        type: "change_value",
-                                                        payload: {
-                                                            inputName:
-                                                                "comments",
-                                                            inputValue:
-                                                                e.target.value,
-                                                        },
-                                                    })
-                                                }
-                                            />
+                                            {
+                                                edit ? 
+                                                <QuillText
+                                                    value = {richText}
+                                                    setValue = {setRichText}
+                                                    clase="overflow-y-auto min-h-32 max-h-32"
+                                                />
+                                                :
+                                                <div
+                                                    className="textarea-bordered rounded-md bg-neutral-content text-2xl max-h-32 overflow-auto pl-8 h-auto"
+                                                    dangerouslySetInnerHTML={{ 
+                                                        __html: richText ?? "" 
+                                                    }}
+                                                />                                                 
+                                            }
+                                            
                                             {errorBadge && (
                                                 <span className="badge badge-error self-end">
                                                     {errorBadge.code}
@@ -1118,6 +1198,7 @@ const StationVisitDetailModal = ({
                     <div className="flex flex-col items-center justify-center">
                         <h3 className="font-bold inline-flex items-center text-xl my-2">
                             Visit Images
+                            { edit &&
                             <button
                                 className="btn btn-ghost btn-circle ml-2"
                                 onClick={() => {
@@ -1135,6 +1216,7 @@ const StationVisitDetailModal = ({
                                     className="w-8 h-10"
                                 />
                             </button>
+                            }
                         </h3>
 
                         {imagesLoading ? (
@@ -1173,7 +1255,7 @@ const StationVisitDetailModal = ({
                                     </button>
                                 </div>
                                 <img
-                                    className={`${blurPhoto && blurPhoto.id === images[0].id ? "blur-sm " : ""} cursor-zoom-in size-70 object-contain rounded`}
+                                    className="cursor-zoom-in size-70 object-contain rounded"
                                     src={`data:image/*;base64,${images[0].actual_image ?? ""}`}
                                     alt={"photos"}
                                     onMouseEnter={() =>
@@ -1191,11 +1273,10 @@ const StationVisitDetailModal = ({
                                             description: images[0].description,
                                             name: images[0].name,
                                         });
-
                                         setModals({
                                             show: true,
                                             title: "ViewStationPhoto",
-                                            type: "edit",
+                                            type: edit? "none" : "edit",
                                         });
                                     }}
                                 />
@@ -1241,7 +1322,7 @@ const StationVisitDetailModal = ({
                                                         </button>
                                                     </div>
                                                     <img
-                                                        className={`${blurPhoto && blurPhoto.id === img.id ? "blur-sm " : ""} cursor-zoom-in size-70 object-contain rounded`}
+                                                        className="cursor-zoom-in size-70 object-contain rounded"
                                                         src={`data:image/*;base64,${img.actual_image ?? ""}`}
                                                         alt={"photos"}
                                                         onMouseEnter={() =>
@@ -1265,11 +1346,10 @@ const StationVisitDetailModal = ({
                                                                     img.description,
                                                                 name: img.name,
                                                             });
-
                                                             setModals({
                                                                 show: true,
                                                                 title: "ViewStationPhoto",
-                                                                type: "edit",
+                                                                type: edit? "none" : "edit",
                                                             });
                                                         }}
                                                     />
@@ -1296,7 +1376,29 @@ const StationVisitDetailModal = ({
                 <div className="grid grid-cols-1 space-y-4 grid-flow-dense">
                     <div className="card bg-base-200 grow shadow-xl mr-4">
                         <h2 className="card-title border-b-2 border-base-300 p-2 justify-between">
-                            Observation Files
+                            Observation Files ({filteredObservationFiles?.length ?? 0})
+                            {   gnssFiles && gnssFiles.length > 0 &&
+                                <form action="" className="absolute flex items-center left-1/2 transform -translate-x-1/2">
+                                <input
+                                    type="text"
+                                    className=" rounded-md text-md input input-sm input-bordered"
+                                    onChange={(e) => {
+                                        filterObservationFiles(e.target.value)
+                                    }}
+                                />
+                                <button
+                                    className="btn btn-ghost btn-circle ml-2"
+                                    onClick={(e) => {
+                                        handleClearObservationFilter(e);
+                                    }}
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="size-8">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                                    </svg>
+                                </button>
+                            </form>
+                            }
+                            { edit &&
                             <button
                                 className="btn btn-ghost btn-circle ml-2"
                                 onClick={() => {
@@ -1314,8 +1416,9 @@ const StationVisitDetailModal = ({
                                     className="w-8 h-10"
                                 />
                             </button>
+                            }
                         </h2>
-
+                            
                         <div
                             className={`card-body ${showGnssFiles ? "overflow-y-auto max-h-80 scrollbar-base" : ""}`}
                         >
@@ -1324,8 +1427,8 @@ const StationVisitDetailModal = ({
                                     ${gnssFiles && gnssFiles.length > 1 ? "grid-cols-2 md:grid-cols-1" : "grid-cols-1"} 
                                     grid-flow-dense gap-2`}
                             >
-                                {gnssFiles && gnssFiles.length > 0 ? (
-                                    gnssFiles
+                                {gnssFiles && gnssFiles.length > 0 && filteredObservationFiles ? (
+                                    filteredObservationFiles
                                         .slice(
                                             0,
                                             showGnssFiles
@@ -1386,24 +1489,44 @@ const StationVisitDetailModal = ({
                                                                     f.filename
                                                                 }
                                                                 onClick={async () => {
-                                                                    const res =
-                                                                        await getVisitGnssFileById(
-                                                                            f.id,
-                                                                        );
-                                                                    if (res) {
-                                                                        const link =
-                                                                            document.createElement(
-                                                                                "a",
+                                                                    if(!edit){
+                                                                        const res =
+                                                                            await getVisitGnssFileById(
+                                                                                f.id,
                                                                             );
+                                                                        if (res) {
+                                                                            const link =
+                                                                                document.createElement(
+                                                                                    "a",
+                                                                                );
 
-                                                                        link.href = `data:application/octet-stream;base64,${res.actual_file}`;
-                                                                        link.download =
-                                                                            res.filename;
-                                                                        link.click();
+                                                                            link.href = `data:application/octet-stream;base64,${res.actual_file}`;
+                                                                            link.download =
+                                                                                res.filename;
+                                                                            link.click();
+                                                                        }
+                                                                    }
+                                                                    else if(edit){
+                                                                        setFileType("gnss");
+                                                                        setModals(
+                                                                            {
+                                                                                show: true,
+                                                                                title: "AddFile",
+                                                                                type: "edit",
+                                                                            },
+                                                                        )
+                                                                        setFileToEdit(f)
+                                                                            
                                                                     }
                                                                 }}
                                                             >
+                                                                { edit ? 
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-8 self-center">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+                                                                    </svg>
+                                                                :
                                                                 <ArrowDownTrayIcon className="size-6 self-center" />
+                                                                }
                                                             </a>
                                                         </div>
                                                     </div>
@@ -1417,27 +1540,34 @@ const StationVisitDetailModal = ({
                                 )}
                             </div>
                         </div>
-                        {gnssFiles && gnssFiles.length > 4 && (
-                            <div className="text-center my-4 font-bold">
-                                {!showGnssFiles ? (
-                                    <button
-                                        onClick={() => handleShowMore("gnss")}
-                                    >
-                                        Show More
-                                    </button>
-                                ) : (
-                                    <button
-                                        onClick={() => handleShowLess("gnss")}
-                                    >
-                                        Show Less
-                                    </button>
-                                )}
-                            </div>
-                        )}
                     </div>
                     <div className="card bg-base-200 grow shadow-xl mr-4">
                         <h2 className="card-title border-b-2 border-base-300 p-2 justify-between">
-                            Other Files
+                            Other Files ({filteredOtherFiles?.length ?? 0})
+
+                            {   files && files.length > 0 &&
+                                <form action="" className="absolute flex items-center left-1/2 transform -translate-x-1/2">
+                                <input
+                                    type="text"
+                                    className=" rounded-md text-md input input-sm input-bordered"
+                                    onChange={(e) => {
+                                        filterOtherFiles(e.target.value)
+                                    }}
+                                />
+                                <button
+                                    className="btn btn-ghost btn-circle ml-2"
+                                    onClick={(e) => {
+                                        handleClearOtherFilter(e);
+                                    }}
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="size-8">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                                    </svg>
+                                </button>
+                            </form>
+                            }
+
+                            { edit &&
                             <button
                                 className="btn btn-ghost btn-circle ml-2"
                                 onClick={() => {
@@ -1455,6 +1585,7 @@ const StationVisitDetailModal = ({
                                     className="w-8 h-10"
                                 />
                             </button>
+                            }
                         </h2>
 
                         <div
@@ -1463,8 +1594,8 @@ const StationVisitDetailModal = ({
                             <div
                                 className={`grid ${files && files.length > 1 ? "grid-cols-2 md:grid-cols-1" : "grid-cols-1"} grid-flow-dense gap-2`}
                             >
-                                {files && files.length > 0 ? (
-                                    files
+                                {files && files.length > 0 && filteredOtherFiles ? (
+                                    filteredOtherFiles
                                         .slice(
                                             0,
 
@@ -1521,24 +1652,44 @@ const StationVisitDetailModal = ({
                                                             <a
                                                                 className="btn-circle btn-ghost cursor-pointer flex justify-center w-4/12"
                                                                 onClick={async () => {
-                                                                    const res =
-                                                                        await getVisitAttachedFileById(
-                                                                            f.id,
-                                                                        );
-                                                                    if (res) {
-                                                                        const link =
-                                                                            document.createElement(
-                                                                                "a",
+                                                                    if(!edit){
+                                                                        const res =
+                                                                            await getVisitAttachedFileById(
+                                                                                f.id,
                                                                             );
+                                                                        if (res) {
+                                                                            const link =
+                                                                                document.createElement(
+                                                                                    "a",
+                                                                                );
 
-                                                                        link.href = `data:application/octet-stream;base64,${res.actual_file}`;
-                                                                        link.download =
-                                                                            res.filename;
-                                                                        link.click();
+                                                                            link.href = `data:application/octet-stream;base64,${res.actual_file}`;
+                                                                            link.download =
+                                                                                res.filename;
+                                                                            link.click();
+                                                                        }
+                                                                    }
+                                                                    else if(edit){
+                                                                        setFileType("other");
+                                                                        setModals(
+                                                                            {
+                                                                                show: true,
+                                                                                title: "AddFile",
+                                                                                type: "edit",
+                                                                            },
+                                                                        )
+                                                                        setFileToEdit(f)
+                                                                            
                                                                     }
                                                                 }}
                                                             >
-                                                                <ArrowDownTrayIcon className="size-6  self-center" />
+                                                                { edit ? 
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-8 self-center">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+                                                                    </svg>
+                                                                :
+                                                                <ArrowDownTrayIcon className="size-6 self-center" />
+                                                                }
                                                             </a>
                                                         </div>
                                                     </div>
@@ -1607,6 +1758,9 @@ const StationVisitDetailModal = ({
                         setFileType(undefined);
                         getAll();
                     }}
+                    type={modals.type}
+                    fileToEdit={fileToEdit}
+                    setFileToEdit = {setFileToEdit}
                 />
             )}
 
@@ -1638,7 +1792,11 @@ const StationVisitDetailModal = ({
                     closeModal={() => {
                         setPhoto(undefined);
                     }}
+                    refetch={
+                        getVisitImagesById
+                    }
                     setStateModal={setModals}
+                    type = {modals.type}
                 />
             )}
 

@@ -1,9 +1,13 @@
 services:
   backend:
     container_name: gnss-backend
-    build: ./backend
+    build: 
+      context: ./backend
+      args:
+        USER_ID_TO_SAVE_FILES: ${USER_ID_TO_SAVE_FILES}
+        GROUP_ID_TO_SAVE_FILES: ${GROUP_ID_TO_SAVE_FILES}
     volumes:
-      - ./backend:/code
+      - ./backend/backend_django_project/logs:/code/backend_django_project/logs
       - ${MEDIA_FOLDER_HOST_PATH}:/code/backend_django_project/media
     ports:
       - "8000:8000"

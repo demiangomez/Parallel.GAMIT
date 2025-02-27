@@ -1,6 +1,9 @@
 import { useFormReducer } from "@hooks/index";
-import { FileErrors } from "@types";
-import { useEffect } from "react";
+import { FileErrors, Errors } from "@types";
+import { useEffect, useState } from "react";
+import ConfirmDeleteModal from "./modals/ConfirmDeleteModal";
+import { showModal } from "@utils";
+
 
 interface FileDetailsProps {
     file: { id: string; name?: string };
@@ -12,7 +15,8 @@ interface FileDetailsProps {
         React.SetStateAction<
             { file: File; description: string; id: number; name?: string }[]
         >
-    >;
+    >,
+    image?: string | undefined;
 }
 
 const FileDetails = ({
@@ -22,8 +26,12 @@ const FileDetails = ({
     pageRecord,
     fileResults,
     setFiles,
+    image, 
 }: FileDetailsProps) => {
     const { id, pageType } = pageRecord;
+
+  
+    const [loading, setLoading] = useState<boolean>(false);
 
     const { formState, dispatch } = useFormReducer<
         Record<string, string | number>
@@ -107,6 +115,11 @@ const FileDetails = ({
         }
     }, [files]);
 
+
+    const deleteFile = (id: string) => {
+        setFiles((prev) => prev.filter((f) => String(f.id) !== id));
+    };
+
     const nameInputsToDisable = ["gnss", "other"];
 
     const errorMessages = fileResults?.reduce(
@@ -130,11 +143,47 @@ const FileDetails = ({
               )[0]
             : undefined;
 
+    const confirmDeleteFile = () => {
+        setModals({
+            show: true,
+            title: "ConfirmDelete",
+            type: "edit",
+        });
+    }
+
+    const [modals, setModals] = useState<
+            | { show: boolean; title: string; type: "add" | "edit" | "none" }
+            | undefined
+        >(undefined);
+
+    const [msg, setMsg] = useState<
+            { status: number; msg: string; errors?: Errors } | undefined
+        >(undefined);
+
+    useEffect(() => {
+        setLoading(true);
+        modals?.show && showModal(modals.title);
+        setLoading(false);
+    }, [modals]);
+    
+
     return (
         <div
             className="flex flex-col items-center border-neutral-200 border-2 rounded-lg py-2 shadow-md"
             key={file.id}
         >
+            <div className="ml-auto mr-2 mt-2 mb-2">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-6 w-full cursor-pointer"
+                onClick={() => {confirmDeleteFile()}}
+                >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                </svg>
+            </div>
+            { image?
+            <div className="mr-10 ml-10">
+                <img src={image ? image : ""} alt="" className="w-full max-h-40"/>
+            </div> : null
+            }
             <div className="w-10/12">
                 <label className="label font-bold">FILE NAME</label>
                 <label
@@ -170,6 +219,23 @@ const FileDetails = ({
                     />
                 </label>
             </div>
+            {modals && modals?.title === "ConfirmDelete" && (
+                <ConfirmDeleteModal
+                    msg={msg}
+                    loading={loading}
+                    confirmRemove={() => {
+                        deleteFile(file.id);
+                    }}
+                    closeModal={() => {
+                        setModals({
+                            show: false,
+                            title: "",
+                            type: "edit",
+                        });
+                        setMsg(undefined);
+                    }}
+                />
+            )}
         </div>
     );
 };

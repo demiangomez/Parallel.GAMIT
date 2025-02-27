@@ -20,7 +20,9 @@ from io import BytesIO
 from PIL import Image, ImageOps
 import grp
 import os
-
+from lxml import etree
+import zipfile
+import pwd
 from pgamit import pyOkada, dbConnection
 
 logger = logging.getLogger('django')
@@ -62,6 +64,238 @@ def get_actual_image(image_obj, request):
         return None
 
 
+class FilesUtils:
+    @staticmethod
+    def set_file_ownership(file_path, user_id, group_id):
+        """Set proper ownership on file and ensure directories have correct ownership"""
+        if not os.path.exists(file_path):
+            return
+
+        try:
+            # Set ownership on the file
+            user_id = int(user_id)
+            group_id = int(group_id)
+            os.chown(file_path, user_id, group_id)
+
+            # Set ownership on all parent directories
+            directory = os.path.dirname(file_path)
+            FilesUtils._ensure_directory_ownership(
+                directory, user_id, group_id)
+
+        except Exception as e:
+            # Log the error but don't prevent the save
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to set file ownership: {e}")
+
+    @staticmethod
+    def _ensure_directory_ownership(directory, uid, gid):
+        """Recursively set ownership on directory and its parents"""
+        # Get the app's media root to avoid going above it
+        from django.conf import settings
+        media_root = os.path.abspath(settings.MEDIA_ROOT)
+
+        # Walk up the directory tree until media root
+        current_dir = os.path.abspath(directory)
+        while current_dir and os.path.exists(current_dir):
+            # Don't go above media root for security
+            if not current_dir.startswith(media_root):
+                break
+
+            try:
+                os.chown(current_dir, uid, gid)
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Failed to set directory ownership: {e}")
+                break
+
+            # Move up to parent directory
+            parent = os.path.dirname(current_dir)
+            if parent == current_dir:  # Reached root
+                break
+            current_dir = parent
+
+
+class PersonUtils:
+    @staticmethod
+    def merge_person(person_source, person_target):
+
+        # transfer all visits
+        visits = models.Visits.objects.filter(people__in=[person_source])
+        for visit in visits:
+            if person_target not in visit.people.all():
+                visit.people.add(person_target)
+            visit.people.remove(person_source)
+            visit.save()
+
+        # transfer all roles with stations
+        role_person_stations_from_source = models.RolePersonStation.objects.filter(
+            person=person_source)
+        role_person_stations_from_target = models.RolePersonStation.objects.filter(
+            person=person_target)
+        for role_person_station_source in role_person_stations_from_source:
+            # if same relation exists in target, remove source relation
+            if role_person_stations_from_target.filter(station=role_person_station_source.station, role=role_person_station_source.role).count() == 0:
+                role_person_station_source.person = person_target
+                role_person_station_source.save()
+            else:
+                role_person_station_source.delete()
+
+
+class StationKMZGenerator:
+
+    @staticmethod
+    def get_visit_description(visit):
+        # if visit has campaign
+        if visit.campaign:
+            return f'<li>{visit.date.strftime("%Y-%m-%d")} (CAMPAIGN NAME: {visit.campaign.name})</li>'
+        else:
+            return f'<li>{visit.date.strftime("%Y-%m-%d")} (NO CAMPAIGN)</li>'
+
+    @staticmethod
+    def generate_station_kmz(station):
+        # check if station is of type models.Station
+        if not isinstance(station, models.Stations):
+            raise exceptions.CustomServerErrorExceptionHandler(
+                "station must be an instance of models.Station")
+
+        # get stationmeta from station
+        station_meta = models.StationMeta.objects.filter(
+            station=station).first()
+
+        # Crear la estructura base del KML
+        kml = etree.Element('kml', xmlns="http://www.opengis.net/kml/2.2")
+        document = etree.SubElement(kml, 'Document')
+
+        # Add the station icon style
+        style = etree.SubElement(document, 'Style', id="stationIcon")
+        icon_style = etree.SubElement(style, 'IconStyle')
+        scale = etree.SubElement(icon_style, 'scale')
+        scale.text = "1.0"
+        icon = etree.SubElement(icon_style, 'Icon')
+        icon_href = etree.SubElement(icon, 'href')
+        icon_href.text = "files/icons/station.png"
+
+        # Create a marker for the station with a balloon popup window with metadata (name)
+        placemark_station = etree.SubElement(document, 'Placemark')
+        style_url = etree.SubElement(placemark_station, 'styleUrl')
+        style_url.text = "#stationIcon"
+        name_station = etree.SubElement(placemark_station, 'name')
+        name_station.text = station.network_code.network_code.upper() + "." + \
+            station.station_code.upper()
+        description = etree.SubElement(placemark_station, 'description')
+        visit_dates = ''.join(
+            [StationKMZGenerator.get_visit_description(visit) for visit in models.Visits.objects.filter(station=station)])
+
+        # Display all images from StationImages in the balloon
+        images_html = ""
+        for images in models.StationImages.objects.filter(station=station):
+            if images.image:
+                try:
+                    with open(images.image.path, 'rb') as img_file:
+                        image_data = base64.b64encode(
+                            img_file.read()).decode('utf-8')
+                        images_html += f'<img src="data:image/jpeg;base64,{image_data}" width="400"/>'
+                except FileNotFoundError:
+                    logger.error(
+                        f"Image file not found for image {images.name}")
+
+        description.text = f"""
+        <![CDATA[
+            <html>
+              <head><style>p {{ font-family: Arial, sans-serif; }}</style></head>
+              <body>
+            <h3>Station Name: {"-" if station.station_name is None else station.station_name}</h3>
+            <h3>Monument Type: {"-" if station_meta.monument_type is None else station_meta.monument_type}</h3>
+            <h3>Station Type: {"-" if station_meta.station_type is None else station_meta.station_type}</h3>
+            <h3>Remote Access Link: {"-" if station_meta.remote_access_link is None else station_meta.remote_access_link}</h3>
+            <h4>Visits:</h4>
+            <ul>
+                {visit_dates}
+            </ul>
+            <h3>Comments: {station_meta.comments}</h3>
+            <h3>Station Images:</h3>
+            {images_html}
+              </body>
+            </html>
+            ]]>
+        """
+
+        # Añadir la estación como punto en el KML
+        point = etree.SubElement(placemark_station, 'Point')
+        coordinates = etree.SubElement(point, 'coordinates')
+        coordinates.text = f"{station.lon},{station.lat},0"
+
+        # Agregar el archivo KML de la ruta por defecto
+        if station_meta.navigation_file:
+            # Add the road as a NetworkLink
+            networklink = etree.SubElement(document, 'NetworkLink')
+            networklink.attrib['id'] = 'default_road'
+            networklink_name = etree.SubElement(networklink, 'name')
+            networklink_name.text = 'Default Road'
+            link = etree.SubElement(networklink, 'Link')
+            href = etree.SubElement(link, 'href')
+            href.text = 'files/default_road.kml'
+
+        # Add visits as folders and place the navigation_file as roads within /files/visits
+        for visit in models.Visits.objects.filter(station=station):
+            # Create a folder for the visit
+            folder = etree.SubElement(document, 'Folder')
+            folder_name = etree.SubElement(folder, 'name')
+            folder_name.text = visit.date.strftime("%Y-%m-%d")
+
+            # Add the road as a NetworkLink
+            if visit.navigation_file:
+                networklink = etree.SubElement(folder, 'NetworkLink')
+                networklink.attrib['id'] = visit.date.strftime(
+                    "%Y%m%d") + '_road'
+                networklink_name = etree.SubElement(networklink, 'name')
+                networklink_name.text = 'Available Road'
+                link = etree.SubElement(networklink, 'Link')
+                href = etree.SubElement(link, 'href')
+                href.text = f'files/visits/{visit.date.strftime("%Y-%m-%d")}/available_road.kml'
+
+        # Convert KML tree to string
+        kml_str = etree.tostring(
+            kml, pretty_print=True, xml_declaration=True, encoding="UTF-8")
+
+        # Create KMZ file in memory using BytesIO and zipfile
+        kmz_buffer = BytesIO()
+        with zipfile.ZipFile(kmz_buffer, 'w', zipfile.ZIP_DEFLATED) as kmz_file:
+            # Add the KML doc
+            kmz_file.writestr('doc.kml', kml_str)
+
+            # Add navigation file from station_meta if it exists
+            if station_meta and station_meta.navigation_file:
+                try:
+                    with open(station_meta.navigation_file.path, 'rb') as nav_file:
+                        kmz_file.writestr(
+                            'files/default_road.kml', nav_file.read())
+                except FileNotFoundError:
+                    logger.error(
+                        f"Navigation file not found for station {station.network_code.network_code}.{station.station_code}")
+
+            # add visit navigation files
+            for visit in models.Visits.objects.filter(station=station):
+                if visit.navigation_file:
+                    try:
+                        with open(visit.navigation_file.path, 'rb') as nav_file:
+                            kmz_file.writestr(
+                                f'files/visits/{visit.date.strftime("%Y-%m-%d")}/available_road.kml', nav_file.read())
+                    except FileNotFoundError:
+                        logger.error(
+                            f"Navigation file not found for visit {visit.date.strftime('%Y-%m-%d')}")
+
+            # save station icon file
+            with open(os.path.join(settings.BASE_DIR, 'assets', 'station_icon.png'), 'rb') as icon_file:
+                kmz_file.writestr('files/icons/station.png', icon_file.read())
+
+        kmz_buffer.seek(0)
+
+        return base64.b64encode(kmz_buffer.getvalue()).decode('utf-8')
+
+
 class EarthquakeUtils:
     @staticmethod
     def get_affected_stations(earthquake):
@@ -96,7 +330,7 @@ class EarthquakeUtils:
 
 
 class StationMetaUtils:
-    @ staticmethod
+    @staticmethod
     def update_gaps_status_for_all_station_meta_needed():
 
         records = models.StationMeta.objects.filter(
@@ -111,7 +345,7 @@ class StationMetaUtils:
 
         cache.delete('update_gaps_status_lock')
 
-    @ staticmethod
+    @staticmethod
     def update_gaps_status(station_meta_record):
 
         models.StationMetaGaps.objects.filter(
@@ -132,7 +366,7 @@ class StationMetaUtils:
 
         station_meta_record.save()
 
-    @ staticmethod
+    @staticmethod
     def get_station_gaps(station_meta):
         """
         This function checks if there rinex data that falls outside the station info window and returns info about the gaps
@@ -288,7 +522,7 @@ class EndpointsClusterUtils:
 
 class UploadMultipleFilesUtils:
 
-    @ staticmethod
+    @staticmethod
     def change_file_user_group(file_object, user_group):
         # Get the path of the uploaded file
         file_path = file_object.path
@@ -311,7 +545,7 @@ class UploadMultipleFilesUtils:
             # Change the file permissions to give all permissions to the group
             os.chmod(file_path, 0o770)
 
-    @ staticmethod
+    @staticmethod
     def upload_multiple_files(view, request, main_object_type):
         if not isinstance(main_object_type, str) or main_object_type not in ('visit', 'station'):
             raise exceptions.CustomServerErrorExceptionHandler(
@@ -461,7 +695,7 @@ class UploadMultipleFilesUtils:
 
 
 class StationInfoUtils:
-    @ staticmethod
+    @staticmethod
     def get_same_station_records(serializer, get_queryset, get_object=None):
 
         if get_object != None:
@@ -473,7 +707,7 @@ class StationInfoUtils:
 
         return get_queryset().filter(network_code=network_code, station_code=station_code)
 
-    @ staticmethod
+    @staticmethod
     def get_records_that_overlap(serializer, get_queryset, get_object=None):
         # check if the incoming record is between any existing record
         records_that_overlap = []
@@ -499,7 +733,7 @@ class StationInfoUtils:
 
         return records_that_overlap
 
-    @ staticmethod
+    @staticmethod
     def return_stninfo(serializer=None, record=None):
         """
         return a station information string to write to a file (without header
@@ -514,7 +748,7 @@ class StationInfoUtils:
 
         return '\n'.join([str(value) for value in values])
 
-    @ staticmethod
+    @staticmethod
     def to_dharp(serializer=None, record=None):
         """
         function to convert the current height code to DHARP
@@ -528,7 +762,7 @@ class StationInfoUtils:
             raise exceptions.CustomValidationErrorExceptionHandler(
                 'Serializer or record must be provided to convert height code to DHARP.')
 
-    @ staticmethod
+    @staticmethod
     def to_dharp_from_serializer(serializer):
 
         if serializer.validated_data['height_code'] != 'DHARP':
@@ -557,7 +791,7 @@ class StationInfoUtils:
 
                 serializer.validated_data['height_code'] = 'DHARP'
 
-    @ staticmethod
+    @staticmethod
     def to_dharp_from_record(record):
 
         if record['height_code'] != 'DHARP':
@@ -601,7 +835,7 @@ class StationInfoUtils:
 
 
 class RinexUtils:
-    @ staticmethod
+    @staticmethod
     def get_next_station_info(rinex):
 
         related_station_info = models.Stationinfo.objects.filter(
@@ -621,7 +855,7 @@ class RinexUtils:
         else:
             return None
 
-    @ staticmethod
+    @staticmethod
     def get_previous_station_info(rinex):
 
         related_station_info = models.Stationinfo.objects.filter(
@@ -641,7 +875,7 @@ class RinexUtils:
         else:
             return None
 
-    @ staticmethod
+    @staticmethod
     def get_rinex_with_status(rinex_list, filters):
         if len(rinex_list) > 0:
             station_info_from_station = list(RinexUtils._get_station_info_from_station(
@@ -680,7 +914,7 @@ class RinexUtils:
         else:
             return []
 
-    @ staticmethod
+    @staticmethod
     def _is_filtered(rinex, filters):
         datetime_string_format = "%Y-%m-%d %H:%M"
 
@@ -719,7 +953,7 @@ class RinexUtils:
         else:
             return False
 
-    @ staticmethod
+    @staticmethod
     def _filter_rinex_by_completion(rinex, completion_operator, completion):
         if completion_operator.upper().strip() == "GREATER_THAN":
             return float(rinex["completion"]) <= float(completion)
@@ -730,7 +964,7 @@ class RinexUtils:
         else:
             return False
 
-    @ staticmethod
+    @staticmethod
     def _filter_rinex(rinex_list, filters):
         for first_groups in rinex_list:
             for second_groups in first_groups["rinex"]:
@@ -739,11 +973,11 @@ class RinexUtils:
 
         return rinex_list
 
-    @ staticmethod
+    @staticmethod
     def _get_station_info_from_station(network_code, station_code):
         return models.Stationinfo.objects.filter(network_code=network_code, station_code=station_code).order_by('date_start')
 
-    @ staticmethod
+    @staticmethod
     def _get_has_multiple_station_info_gap(rinex, station_info_list):
         station_info_containing_start_date = None
         station_info_containing_end_date = None
@@ -759,7 +993,7 @@ class RinexUtils:
 
         return station_info_containing_start_date is not None and station_info_containing_end_date is not None and station_info_containing_start_date != station_info_containing_end_date
 
-    @ staticmethod
+    @staticmethod
     def _convert_rinex_to_dict(rinex):
         has_station_info = rinex.has_station_info
         has_multiple_station_info_gap = rinex.has_multiple_station_info_gap
@@ -775,7 +1009,7 @@ class RinexUtils:
 
         return rinex
 
-    @ staticmethod
+    @staticmethod
     def _convert_stationinfo_to_dict(stationinfo):
 
         stationinfo = {"api_id": stationinfo.api_id,
@@ -783,7 +1017,7 @@ class RinexUtils:
 
         return stationinfo
 
-    @ staticmethod
+    @staticmethod
     def _convert_to_correct_format(rinex_list):
         # Converts to a list of dict and sort all the stationinfo lists
 
@@ -808,7 +1042,7 @@ class RinexUtils:
 
         return list_dict
 
-    @ staticmethod
+    @staticmethod
     def _group_by_same_date_range(rinex_list):
 
         rinex_list.sort(key=lambda x: x[0].observation_s_time)
@@ -840,7 +1074,7 @@ class RinexUtils:
 
         return rinex_groups_with_station_info
 
-    @ staticmethod
+    @staticmethod
     def _group_by_date_range_distance(rinex_list):
         # iterate over rinex_list with format [([rinex1_1, rinex1_2], set(stationinfo1, stationinfo2)), ([rinex2_1, rinex2_2], set(stationinfo1, stationinfo2))]
         # take the first rinex of each group compare them like if rinex2_1.observation_s_time - rinex1_1.observation_e_time) < settings.RINEX_STATUS_DATE_SPAN_SECONDS
@@ -868,7 +1102,7 @@ class RinexUtils:
 
         return rinex_groups
 
-    @ staticmethod
+    @staticmethod
     def _get_gap_type(rinex, station_info_before_rinex, station_info_containing_rinex, station_info_after_rinex):
         if not hasattr(rinex, 'has_multiple_station_info_gap'):
             raise exceptions.CustomServerErrorExceptionHandler(
@@ -888,7 +1122,7 @@ class RinexUtils:
             else:
                 return "BETWEEN TWO STATIONINFO"
 
-    @ staticmethod
+    @staticmethod
     def _check_metadata_mismatch(rinex, station_info_containing_rinex):
         if len(station_info_containing_rinex) > 0:
             mismatches = []
@@ -918,7 +1152,7 @@ class RinexUtils:
         else:
             return []
 
-    @ staticmethod
+    @staticmethod
     def _clasify_station_info_from_rinex(rinex, station_info_from_station):
         station_info_before_rinex = []
         station_info_containing_rinex = []

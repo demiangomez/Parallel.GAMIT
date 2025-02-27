@@ -7261,9 +7261,9 @@
                     (t.stroke
                         ? (e.setAttribute("stroke", t.color),
                           e.setAttribute("stroke-opacity", t.opacity),
-                          e.setAttribute("stroke-width", t.weight),
-                          e.setAttribute("stroke-linecap", t.lineCap),
-                          e.setAttribute("stroke-linejoin", t.lineJoin),
+                          e.setAttribute("strokeWidth", t.weight),
+                          e.setAttribute("strokeLinecap", t.lineCap),
+                          e.setAttribute("strokeLinejoin", t.lineJoin),
                           t.dashArray
                               ? e.setAttribute("stroke-dasharray", t.dashArray)
                               : e.removeAttribute("stroke-dasharray"),

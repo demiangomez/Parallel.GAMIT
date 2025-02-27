@@ -133,9 +133,7 @@ const SearchInput = ({ stations, params, setParams }: SearchInputProps) => {
                 );
 
                 // return;
-            } else {
-                console.log(`No station found with name ${value}`);
-            }
+            } 
         }
     };
 

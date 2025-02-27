@@ -14,6 +14,7 @@ import { showModal } from "@utils";
 import { getPeopleService } from "@services";
 
 import { GetParams, People, PeopleServiceData } from "@types";
+import MergePeopleModal from "@components/modals/MergePeopleModal";
 
 const PeopleTable = () => {
     const { token, logout } = useAuth();
@@ -47,6 +48,7 @@ const PeopleTable = () => {
             setLoading(true);
             const res = await getPeopleService<PeopleServiceData>(api, params);
             setPeoples(res.data);
+            if(bParams.limit)
             setPages(Math.ceil(res.total_count / bParams.limit));
         } catch (err) {
             console.error(err);
@@ -106,8 +108,8 @@ const PeopleTable = () => {
         "Email",
         "Phone",
         "Address",
-        "User",
-        "Photo",
+        "Institution",
+        "Position",
     ];
 
     const body = useMemo(() => {
@@ -115,21 +117,22 @@ const PeopleTable = () => {
             ?.sort((a, b) => a.last_name.localeCompare(b.last_name))
             .map((st) =>
                 Object.values({
-                    // id: monument.id,
                     name: st.first_name,
                     lastname: st.last_name,
                     email: st.email,
                     phone: st.phone,
                     address: st.address,
-                    user: st.user_name,
-                    photo: st.photo_actual_file,
+                    institution: st.institution,
+                    position: st.position,
                 }),
             );
+        
     }, [peoples]);
 
     useEffect(() => {
         modals?.show && showModal(modals.title);
     }, [modals]);
+
 
     return (
         <TableCard
@@ -140,6 +143,22 @@ const PeopleTable = () => {
             setModals={setModals}
             addButton={true}
         >
+            <button className="absolute right-36 top-2 flex justify-center items-center gap-1 btn btn-neutral"
+                onClick={
+                    () => 
+                        body.length > 0 ?
+                        setModals({
+                        show: true,
+                        title: "MergePeople",
+                        type: "edit",
+                    }) : alert("There are no people to merge")
+                }
+            >
+                Merge
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+                </svg>
+            </button>
             <Table
                 titles={body && body.length > 0 ? titles : []}
                 body={body}
@@ -173,6 +192,15 @@ const PeopleTable = () => {
                     reFetch={reFetch}
                 />
             )}
+            {
+                modals?.show && modals.title === "MergePeople" && body.length > 0 && (
+                    <MergePeopleModal
+                        setStateModal={setModals}
+                        handleCloseModal={() => setModals(undefined)}
+                        body = {peoples as People[]}
+                    />
+                )
+            }
         </TableCard>
     );
 };

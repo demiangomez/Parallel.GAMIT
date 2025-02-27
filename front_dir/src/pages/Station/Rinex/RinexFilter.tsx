@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Menu, MenuButton, MenuContent, Modal } from "@componentsReact";
 
 import { useApi, useAuth, useFormReducer, useFormValidation } from "@hooks";
@@ -165,6 +165,24 @@ const RinexFilter = ({
         };
         fetchAllData();
     }, []);
+
+    const inputRefAntennaType = useRef<HTMLInputElement>(null);
+
+    const inputRefReceiverType = useRef<HTMLInputElement>(null);
+
+    const selectRef = (key: string) =>{
+        return key === "antenna type" ? inputRefAntennaType : key === "receiver type" ? inputRefReceiverType : null;
+    }
+    
+
+    useEffect(() => {
+        if(showMenu){
+            const ref = selectRef(showMenu.type);
+            if (ref && ref.current) {
+                ref.current.focus();
+            }
+        }
+    },[showMenu])
 
     return (
         <Modal
@@ -340,6 +358,7 @@ const RinexFilter = ({
                                                 type="text"
                                                 name={filter}
                                                 id={filter}
+                                                ref={selectRef(filter)}
                                                 value={
                                                     formState[
                                                         quitSpace(

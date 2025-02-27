@@ -26,7 +26,7 @@ const MenuButton = ({ setShowMenu, showMenu, typeKey }: MenuButtonProps) => {
                     })
                 }
             >
-                <details>
+                <details open>
                     <summary></summary>
                 </details>
             </li>

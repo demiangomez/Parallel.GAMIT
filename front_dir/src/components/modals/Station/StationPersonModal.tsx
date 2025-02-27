@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Alert, ConfirmDeleteModal, Menu, MenuButton, MenuContent, Modal} from "@componentsReact";
 import { useApi, useAuth, useFormReducer} from "@hooks";
 import { apiOkStatuses, showModal} from "@utils";
@@ -139,9 +139,11 @@ const StationPersonModal = ({
             );
 
             setMatchingPeople(match);
+            setShowMenu({ type: name, show: true });
         }
 
         if (name === "role") {
+            setShowMenu({ type: name, show: true });
             const match = roles?.filter((r) =>
                 r.name.toLowerCase().includes(value.toLowerCase().trim()),
             );
@@ -159,6 +161,24 @@ const StationPersonModal = ({
     useEffect(() => {
         modals?.show && showModal(modals.title);
     }, [modals]);
+
+    const inputRefPerson = useRef<HTMLInputElement>(null);
+    
+    const inputRefRole = useRef<HTMLInputElement>(null);
+
+    const selectRef = (key: string) =>{
+        return key === "role" ? inputRefRole : key === "person" ? inputRefPerson : null;
+    }
+    
+
+    useEffect(() => {
+        if(showMenu){
+            const ref = selectRef(showMenu.type);
+            if (ref && ref.current) {
+                ref.current.focus();
+            }
+        }
+    },[showMenu])
 
     return (
         <Modal
@@ -221,6 +241,7 @@ const StationPersonModal = ({
                                             <input
                                                 type="text"
                                                 name={key}
+                                                ref = {selectRef(key)}
                                                 value={
                                                     key === "person" && person
                                                         ? person?.first_name +

@@ -12,4 +12,5 @@ debug = True
 max_size_image_mb = 75
 max_size_file_mb = 75
 https = False
-user_group_to_save_files = root
+user_id_to_save_files=1001
+group_id_to_save_files=1001

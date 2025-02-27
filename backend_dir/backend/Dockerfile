@@ -4,6 +4,13 @@ FROM python:3.11
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
+ARG USER_ID_TO_SAVE_FILES
+
+ARG GROUP_ID_TO_SAVE_FILES
+
+RUN groupadd -g ${GROUP_ID_TO_SAVE_FILES} dummy-user && \
+    useradd -u ${USER_ID_TO_SAVE_FILES} -g dummy-user -m dummy-user
+
 WORKDIR /code
 COPY . /code/
 

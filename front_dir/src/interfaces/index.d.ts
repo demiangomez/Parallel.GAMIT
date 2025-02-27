@@ -49,8 +49,9 @@ export interface GetParams {
     completion_operator?: string;
     completion?: string | number;
     interval?: string | number;
-    offset: number;
-    limit: number;
+    offset?: number;
+    limit?: number;
+    monument_id?: number;
 }
 
 export interface MyMapContainerProps {
@@ -127,6 +128,24 @@ export interface FilesErrorResponse {
     statusCode: number;
 }
 
+export interface PatchDescriptionImageResponse {
+    actual_image: string;
+    description: string;
+    id: number;
+    name: string;
+    station: number;
+    statusCode: number;
+}
+
+export interface PatchDescriptionVisitImageResponse {
+    actual_image: string;
+    description: string;
+    id: number;
+    name: string;
+    statusCode: number;
+    visit: number;
+}
+
 export interface RinexAddFile {
     msg: string;
     response: RinexFileResponse;
@@ -145,6 +164,11 @@ export interface Errors {
 
 export interface FileErrors {
     error_message: [{ [key: string]: string[] }];
+}
+
+export interface KmzFile {
+    kmz: string;
+    statusCode: number;
 }
 
 export interface StationServiceData {
@@ -173,6 +197,7 @@ export interface ExtendedStationInfoData extends StationInfoData {
     statusCode: number;
 }
 
+
 export interface StationMetadataServiceData {
     battery_description: string;
     communications_description: string;
@@ -195,6 +220,10 @@ export interface StationMetadataServiceData {
     station_type_name: string | null;
     station_status_name?: string | null;
     statusCode: string;
+    station_name?: string;
+    rinex_count?: number;
+    distinct_visit_years: string[];
+    
 }
 
 export interface StationInfoServiceData {
@@ -207,7 +236,7 @@ export interface StationInfoServiceData {
 export interface StationStatusServiceData {
     count: number;
     total_count: number;
-    data: StationStatus[];
+    data: StationStatusData[];
     statusCode: number;
 }
 
@@ -435,6 +464,7 @@ export interface ExtendedStationStatus extends StationStatus {
     statusCode: number;
 }
 
+
 export interface StationStatus {
     id: number;
     name: string;
@@ -526,6 +556,46 @@ export interface StationImagesData {
     station: number;
 }
 
+export interface StationTypeServiceData{
+    count: number;
+    total_count: number;
+    data: StationTypeData[];
+    statusCode: number;
+}
+
+export interface StationStatusServiceData{
+    count: number;
+    total_count: number;
+    data: StationStatusData[];
+    statusCode: number;
+}
+
+export interface ColorData{
+    id: number;
+    color: string;
+}
+
+export interface ColorServiceData{
+    count: number;
+    data: colorData[];
+    total_count: number;
+    statusCode: number;
+}
+
+export interface StationTypeData{
+    actual_image: string;
+    id: number;
+    name: string;
+    search_icon_on_assets_folder: boolean;
+}
+
+export interface StationStatusData{
+    id: number;
+    color_name: string;
+    name: string;
+    color: number;
+}
+
 export interface StationImagesServiceData {
     count: number;
     total_count: number;
@@ -552,8 +622,13 @@ export interface People {
     address: string;
     photo_actual_file: string;
     user?: number | string;
+    institution?: string;
+    position?: string;
     user_name: string;
 }
+
+export type PeopleSelectedData =undefined | [number, string, string, string, string, string, number | string, string, string, string];
+
 
 export interface EndpointCluster {
     [key: string]: [
@@ -577,6 +652,8 @@ export interface FrontPagesData {
         },
     ];
 }
+
+
 export interface NetworkData {
     api_id: number;
     network_code: string;

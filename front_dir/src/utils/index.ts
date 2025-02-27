@@ -1,4 +1,5 @@
 import { FilterState, GapData, StationData, TokenPayload } from "@types";
+import  defaultUrl from "@assets/images/placemark_square.png";
 import L from 'leaflet';
 
 export const modalSizes = {
@@ -14,91 +15,75 @@ export const apiOkStatuses = [200, 201, 204];
 
 export const apiErrorStatuses = [400, 401, 403, 404, 405, 406, 415, 500];
 
-export const chosenIcon = (s: StationData) => {
-    const url = iconUrl(s);
+export const classHtml = (s: string) => {
+    
+    const parser = new DOMParser();
+        
+            const doc = parser.parseFromString(s ? s : "" , 'text/html');
 
-    const size: [number, number] = url === "https://maps.google.com/mapfiles/kml/shapes/caution.png" ? [22, 22] : [35, 35];
+            doc.querySelectorAll('ol, ul').forEach((list) => {
+                if (list.tagName.toLowerCase() === 'ol') {
+                list.classList.add('list-decimal');
+                } else if (list.tagName.toLowerCase() === 'ul') {
+                list.classList.add('list-disc');
+                }
+            });
 
-    const icon = new L.Icon({
-        iconUrl: url,
-        iconSize: size,
-        className: iconClass(s),
-    });
+            const updatedRichText = doc.body.innerHTML;
+
+            return updatedRichText;
+} 
+
+const iconUrl = (s: StationData, types: {image: string, name:string}[]) => {
+    if (!s.has_stationinfo || s.has_gaps) {
+        return "https://maps.google.com/mapfiles/kml/shapes/caution.png";
+    }
+    else{
+        let icon = defaultUrl;
+        const type = s.type;
+        const foundUrl = types.find(t => t.name === type)?.image;
+        if(foundUrl){
+            icon = "data:image/png;base64," + foundUrl;
+        }
+        return icon;
+    }
+};
+
+const iconClass = (s: StationData, statuses: {color: string, name: string}[]) => {
+    //Problemas
+    if (!s.has_stationinfo || s.has_gaps) {
+        return "";
+    }
+    else{
+        let color = "green-icon";
+        const status = s.status;
+        const foundColor = statuses.find(t => t.name === status)?.color; 
+        if(foundColor){
+            color = foundColor;
+        }
+        return color; 
+    }
+};
+
+export const chosenIcon = (s: StationData, types: {image: string, name: string}[], statuses:{color: string, name: string}[]) => {
+    const url = iconUrl(s, types);
+
+    const classes = iconClass(s, statuses);
+
+    let icon = undefined;
+
+    const size: [number, number] = url === "https://maps.google.com/mapfiles/kml/shapes/caution.png" ? [20, 20] : [27, 27];
+
+    if(classes !== undefined && url !== undefined){
+        icon = new L.Icon({
+            iconUrl: url,
+            iconSize: size,
+            className: classes,
+        });
+    }
 
     return icon;
 };
-
-const iconUrl = (s: StationData) => {
-        //Problemas
-        if (!s.has_stationinfo || s.has_gaps) {
-            return "https://maps.google.com/mapfiles/kml/shapes/caution.png";
-        }
-        //Campaña
-        else if (s.type == "Campaign") {
-            return "https://maps.google.com/mapfiles/kml/shapes/placemark_square.png";
-        }
-        //Continua
-        else if (s.type == "Continuous") {
-            return "https://maps.google.com/mapfiles/kml/shapes/placemark_circle.png";
-        }
-        // Default icon
-        return "https://maps.google.com/mapfiles/kml/shapes/placemark_circle.png";
-    };
-
-export const isCircleShape = (station: StationData) =>{
-        return (station.type === "Continuous" || station.type === null) &&  !(!station.has_stationinfo || station.has_gaps);
-    }
-
-export const shapeColor = (s: StationData) => {
-        if (s.has_stationinfo && s.status === "Active Online") {
-            return "#05b114";
-        }
-        // Offline
-        else if (s.has_stationinfo && s.status === "Active Offline") {
-            return "#05e819";
-        }
-        // Destroyed
-        else if (s.has_stationinfo && s.status === "Destroyed") {
-            return "#a2abaa";
-        }
-        // Unknown
-        else if (s.has_stationinfo && s.status === "Unknown") {
-            return "#5b6161";
-        }
-        // Deactivated
-        else if (s.has_stationinfo && s.status === "Deactivated") {
-            return "#f8640b";
-        }
-        return "blue"; // Default color if none of the conditions match
-}
-    
-
-    const iconClass = (s: StationData) => {
-        //Problemas
-        if (!s.has_stationinfo || s.has_gaps) {
-            return "";
-        }
-        //Online
-        if (s.has_stationinfo && s.status == "Active Online") {
-            return "green-icon";
-        }
-        //Offline
-        else if (s.has_stationinfo && s.status == "Active Offline") {
-            return "light-green-icon";
-        }
-        //Destroyed
-        else if (s.has_stationinfo && s.status == "Destroyed") {
-            return "light-gray-icon";
-        }
-        //Unknown
-        else if (s.has_stationinfo && s.status == "Unknown") {
-            return "gray-icon";
-        }
-        //Deactivated
-        else if (s.has_stationinfo && s.status == "Deactivated") {
-            return "light-red-icon";
-        }
-    };
 
 export const datesFormatOpt: Intl.DateTimeFormatOptions = {
     day: "2-digit",

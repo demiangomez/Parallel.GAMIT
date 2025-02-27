@@ -1,6 +1,12 @@
 export { default as Nav } from "./Nav";
 
+export { default as ColorPickerModal} from "./modals/ColorPickerModal";
+
+export { default as ColorPicker} from "./ColorPicker";
+
 export { default as DropLeft } from "./DropLeft";
+
+export { default as NativePopup} from "./map/NativePopup";
 
 export { default as Toast } from "./Message";
 
@@ -183,3 +189,5 @@ export { default as VisitsScroller } from "./map/VisitsScroller";
 export { default as MainScroller } from "./map/MainScroller";
 
 export { default as MapModal } from "./map/MapModal";
+
+export { default as MergePeopleModal } from "./modals/MergePeopleModal";

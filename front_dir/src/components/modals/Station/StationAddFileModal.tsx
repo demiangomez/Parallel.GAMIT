@@ -11,6 +11,7 @@ import { apiOkStatuses } from "@utils";
 import {
     patchStationMetaService,
     postStationsFilesAttachedService,
+    patchStationAttachedFileDescription,
 } from "@services";
 
 import {
@@ -33,6 +34,9 @@ interface Props {
             | undefined
         >
     >;
+    type?: string;
+    file?: StationFilesData;
+    setFile?: React.Dispatch<React.SetStateAction<StationFilesData | undefined>>;
 }
 
 const StationAddFileModal = ({
@@ -42,6 +46,9 @@ const StationAddFileModal = ({
     refetchStationMeta,
     reFetch,
     setStateModal,
+    type,
+    file,
+    setFile,
 }: Props) => {
     const { token, logout } = useAuth();
     const api = useApi(token, logout);
@@ -67,6 +74,8 @@ const StationAddFileModal = ({
     >([]);
 
     const [globalDescription, setGlobalDescription] = useState<string>("");
+
+    const [submited, setSubmited] = useState<boolean>(false);
 
     const [files, setFiles] = useState<
         { file: File; description: string; id: number; name?: string }[]
@@ -232,9 +241,119 @@ const StationAddFileModal = ({
         meta ? refetchStationMeta() : reFetch();
     };
 
+    const updateMetadataFile = async () => {
+        //LA CAGUEEE, PONER LO DE LEAN
+        try{
+        setLoading(true);
+            if (stationId) {
+                const formData = new FormData();
+                Object.entries(formState).forEach(([key, value]) => {
+                    if (value !== undefined) {
+                        if (key === "navigation_file") {
+                            formData.append(key, value);
+                        } else {
+                            formData.append(key, value as string);
+                        }
+                    }
+                });
+
+                formData.append("navigation_file_delete", "false");
+
+                const res = await patchStationMetaService<
+                    StationFilesData | ErrorResponse
+                >(api, Number(stationMetaId), formData);
+                if (res.statusCode !== 200 && "status" in res) {
+                    setBMsg({
+                        status: res.statusCode,
+                        msg: res.response.type,
+                        errors: res.response,
+                    });
+                } else if (res.statusCode === 200) {
+                    setBMsg({
+                        status: res.statusCode,
+                        msg: "File added successfully",
+                    });
+                }
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    const updateFileDescription = async () => {
+        try{
+            if(globalDescription !== undefined){
+                const body = {
+                    description: globalDescription,
+                };
+                if(typeof(file?.id) === "number"){
+                    
+                    const res = await patchStationAttachedFileDescription<any | ErrorResponse>(api, body, file?.id);
+                    if (res.statusCode !== 200 ) {
+                        setMsg({
+                            status: 400,
+                            errors: {
+                                errors: [
+                                    {
+                                        code: "400",
+                                        attr: "files",
+                                        detail: "",
+                                    },
+                                ],
+                                type: "error",
+                            },
+                            msg: "Files were not uploaded successfully",
+                        });
+                    } else{
+                        setMsg({
+                            status: 200,
+                            msg: "File description updated successfully",
+                        });
+                    } 
+                    setBMsg({
+                        status: res.statusCode,
+                        msg: "File description updated successfully",
+                    })
+                }
+            }
+        }
+        catch(err){
+            console.error(err);
+            setMsg({
+                status: 400,
+                errors: {
+                    errors: [
+                        {
+                            code: "400",
+                            attr: "files",
+                            detail: "",
+                        },
+                    ],
+                    type: "error",
+                },
+                msg: "Files were not uploaded successfully",
+            });
+            
+        }
+    }
+
     const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-        !meta ? addFile() : addMetaDataFile();
+        if(type === "edit"){
+            
+            if(file){
+                updateFileDescription();
+            }
+            else{
+                updateMetadataFile();
+            }
+        }
+        else{
+            !meta ? addFile() : addMetaDataFile();
+        }
+        setSubmited(true);
     };
 
     const handleChangeFiles = (e: HTMLInputElement) => {
@@ -254,7 +373,15 @@ const StationAddFileModal = ({
     };
 
     useEffect(() => {
+        if(file !== undefined){
+            setGlobalDescription(file.description);
+        }
+    }, [file]);
+
+
+    useEffect(() => {
         if (globalDescription) {
+            if(type !== "edit"){
             setFiles((prev) => {
                 return prev.map((p) => {
                     return {
@@ -265,6 +392,7 @@ const StationAddFileModal = ({
                     };
                 });
             });
+            }
         }
     }, [globalDescription]);
 
@@ -313,7 +441,17 @@ const StationAddFileModal = ({
         if (fileInputElement) {
             fileInputElement.value = "";
         }
+
+        if(file && setFile){
+            setFile(undefined);
+        }
     };
+
+    useEffect(() => {
+        if (file) {
+            setGlobalDescription(file.description);
+        }
+    }, [file]);
 
     useEffect(() => {
         if (
@@ -350,11 +488,6 @@ const StationAddFileModal = ({
         }
     }, [files, fileResults, hasErrorMessage, hasSuccessMessage]);
 
-    // if meta is true, it means we are adding a navigation file to metadata,
-    // else we are adding a attached file to metadata
-
-    // if meta is true multiple input is false, else multiple input is true
-
     return (
         <Modal
             close={true}
@@ -365,17 +498,19 @@ const StationAddFileModal = ({
         >
             <div className="w-full flex grow mb-2">
                 <h3 className="font-bold text-center text-2xl my-2 w-full self-center">
-                    Add
+                    {type === "edit" ? "Edit" : "Add"}
                 </h3>
             </div>
             <form className="form-control space-y-4" onSubmit={handleSubmit}>
                 <div className="form-control space-y-2">
+                    {type !== "edit" && 
                     <input
                         type="file"
                         id="file-input"
                         title={getInputTitle("navigation_file") ?? "File"}
                         multiple={!meta}
                         className={` ${otherErrorBadge?.includes("navigation_file") ? "file-input-error" : ""} file-input file-input-bordered w-full `}
+                        disabled={type === "edit"}
                         onChange={(e) => {
                             defaultValues();
 
@@ -405,6 +540,7 @@ const StationAddFileModal = ({
                             }
                         }}
                     />
+                    }
                     {!meta && (
                         <label
                             className={`w-full input input-bordered flex items-center gap-2 `}
@@ -412,16 +548,16 @@ const StationAddFileModal = ({
                         >
                             <div className="label">
                                 <span className="font-bold">
-                                    GLOBAL DESCRIPTION
+                                    {type === "edit"? "FILE DESCRIPTION" : "GLOBAL DESCRIPTION"}
                                 </span>
                             </div>
                             <input
                                 type="text"
                                 value={globalDescription}
                                 onChange={(e) => {
-                                    setGlobalDescription(e.target.value);
+                                    submited? ()=>{} : setGlobalDescription(e.target.value);
                                 }}
-                                disabled={files.length === 0}
+                                disabled={files.length === 0 && type !== "edit"}
                                 className="grow "
                                 autoComplete="off"
                             />
@@ -454,6 +590,7 @@ const StationAddFileModal = ({
                                         }}
                                         fileResults={fileResults}
                                         setFiles={setFiles}
+                                        
                                     />
                                 ))}
                             </div>
@@ -489,7 +626,7 @@ const StationAddFileModal = ({
                     className="btn btn-success self-center w-3/12"
                     type="submit"
                     disabled={
-                        (!meta && files.length === 0) ||
+                        (!meta && (files.length === 0 && type !== "edit") )||
                         progressBar ||
                         loading ||
                         apiOkStatuses.includes(Number(bMsg?.status))

@@ -12,7 +12,7 @@ import { showModal } from "@utils";
 
 import { getStationTypesService } from "@services";
 
-import { GetParams, StationStatus, StationStatusServiceData } from "@types";
+import { GetParams, StationTypeData, StationTypeServiceData } from "@types";
 
 const StationTypesTable = () => {
     const { token, logout } = useAuth();
@@ -33,8 +33,8 @@ const StationTypesTable = () => {
     const [loading, setLoading] = useState<boolean>(false);
     const [params, setParams] = useState<GetParams>(bParams);
 
-    const [stationTypes, setStationTypes] = useState<StationStatus[]>([]);
-    const [stationType, setStationType] = useState<StationStatus | undefined>(
+    const [stationTypes, setStationTypes] = useState<StationTypeData[]>([]);
+    const [stationType, setStationType] = useState<StationTypeData | undefined>(
         undefined,
     );
 
@@ -46,11 +46,12 @@ const StationTypesTable = () => {
     const getStationTypes = async () => {
         try {
             setLoading(true);
-            const res = await getStationTypesService<StationStatusServiceData>(
+            const res = await getStationTypesService<StationTypeServiceData>(
                 api,
                 params,
             );
             setStationTypes(res.data);
+            if(bParams.limit)
             setPages(Math.ceil(res.total_count / bParams.limit));
         } catch (err) {
             console.error(err);
@@ -62,7 +63,7 @@ const StationTypesTable = () => {
     const paginateStationTypes = async (newParams: GetParams) => {
         try {
             setLoading(true);
-            const res = await getStationTypesService<StationStatusServiceData>(
+            const res = await getStationTypesService<StationTypeServiceData>(
                 api,
                 newParams,
             );
@@ -104,7 +105,7 @@ const StationTypesTable = () => {
         getStationTypes();
     }, []); // eslint-disable-line
 
-    const titles = ["Name"];
+    const titles = ["Name", "Image"];
 
     const body = useMemo(() => {
         return stationTypes
@@ -113,6 +114,7 @@ const StationTypesTable = () => {
                 Object.values({
                     // id: monument.id,
                     name: st.name,
+                    actual_image: st.actual_image,
                 }),
             );
     }, [stationTypes]);
@@ -120,6 +122,7 @@ const StationTypesTable = () => {
     useEffect(() => {
         modals?.show && showModal(modals.title);
     }, [modals]);
+
     return (
         <TableCard
             title={"Station Types"}

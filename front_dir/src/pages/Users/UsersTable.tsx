@@ -40,6 +40,7 @@ const UsersTable = () => {
             setLoading(true);
             const res = await getUsersService<UsersServiceData>(api, params);
             setUsers(res.data);
+            if(bParams.limit)
             setPages(Math.ceil(res.total_count / bParams.limit));
         } catch (err) {
             console.error(err);

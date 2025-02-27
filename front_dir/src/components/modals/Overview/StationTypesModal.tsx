@@ -8,11 +8,11 @@ import {
     Errors,
     ErrorResponse,
     ExtendedStationStatus,
-    StationStatus,
+    StationTypeData,
 } from "@types";
 
 interface Props {
-    StationType: StationStatus | undefined;
+    StationType: StationTypeData | undefined;
     modalType: string;
     reFetch: () => void;
     setStateModal: React.Dispatch<
@@ -22,7 +22,7 @@ interface Props {
         >
     >;
     setStationType: React.Dispatch<
-        React.SetStateAction<StationStatus | undefined>
+        React.SetStateAction<StationTypeData | undefined>
     >;
 }
 
@@ -49,6 +49,8 @@ const StationTypesModal = ({
     const { formState, dispatch } = useFormReducer({
         id: "",
         name: "",
+        search_icon_on_assets_folder: "",
+        actual_image: "",
     });
 
     useEffect(() => {
@@ -64,11 +66,17 @@ const StationTypesModal = ({
         try {
             setLoading(true);
 
-            const { id, ...data } = formState; // eslint-disable-line
+            const formData = new FormData();
+
+            formData.append(
+                "name",
+                formState.name,
+            );
+            formData.append("icon", formState.actual_image);
 
             const res = await postStationTypesService<
                 ExtendedStationStatus | ErrorResponse
-            >(api, data);
+            >(api, formData);
             if ("status" in res) {
                 setMsg({
                     status: res.statusCode,
@@ -92,11 +100,17 @@ const StationTypesModal = ({
         try {
             setLoading(true);
 
-            const { id, ...data } = formState; // eslint-disable-line
+            const formData = new FormData();
+
+            formData.append(
+                "name",
+                formState.name,
+            );
+            formData.append("icon", formState.actual_image);
 
             const res = await patchStationTypesService<
                 ExtendedStationStatus | ErrorResponse
-            >(api, Number(StationType?.id), data);
+            >(api, Number(StationType?.id) ,formData);
             if ("status" in res) {
                 setMsg({
                     status: res.statusCode,
@@ -193,54 +207,85 @@ const StationTypesModal = ({
                             (error) => error.attr === key,
                         );
                         const optionalFields: string[] = [];
-                        return (
-                            <div
-                                className="flex items-center gap-2"
-                                key={key + index}
-                            >
-                                <label
-                                    key={index}
-                                    id={key}
-                                    className={`w-full input input-bordered flex items-center gap-2 ${errorBadge ? "input-error" : ""}`}
-                                    title={errorBadge ? errorBadge.detail : ""}
+                        if(key !== "actual_image" && key !== "search_icon_on_assets_folder"){
+                            return (
+                                <div
+                                    className="flex items-center gap-2"
+                                    key={key + index}
                                 >
-                                    <div className="label">
-                                        <span className="font-bold">
-                                            {key
-                                                .toUpperCase()
-                                                .replace("_", " ")
-                                                .replace("_", " ")}
-                                        </span>
-                                    </div>
-                                    <input
-                                        type="text"
-                                        name={key}
-                                        value={
-                                            formState[
-                                                key as keyof typeof formState
-                                            ] ?? ""
-                                        }
-                                        onChange={(e) => {
-                                            handleChange(e.target);
-                                        }}
-                                        className="grow "
-                                        autoComplete="off"
-                                        disabled={key === "id"}
-                                    />
-                                    {errorBadge && (
-                                        <span className="badge badge-error">
-                                            {errorBadge.code}
-                                        </span>
-                                    )}
-                                    {optionalFields.includes(key) && (
-                                        <span className="badge badge-secondary">
-                                            Optional
-                                        </span>
-                                    )}
-                                </label>
-                            </div>
-                        );
+                                    <label
+                                        key={index}
+                                        id={key}
+                                        className={`w-full input input-bordered flex items-center gap-2 ${errorBadge ? "input-error" : ""}`}
+                                        title={errorBadge ? errorBadge.detail : ""}
+                                    >
+                                        <div className="label">
+                                            <span className="font-bold">
+                                                {key
+                                                    .toUpperCase()
+                                                    .replace("_", " ")
+                                                    .replace("_", " ")}
+                                            </span>
+                                        </div>
+                                        <input
+                                            type="text"
+                                            name={key}
+                                            value={
+                                                formState[
+                                                    key as keyof typeof formState
+                                                ] ?? ""
+                                            }
+                                            onChange={(e) => {
+                                                handleChange(e.target);
+                                            }}
+                                            className="grow "
+                                            autoComplete="off"
+                                            disabled={key === "id"}
+                                        />
+                                        {errorBadge && (
+                                            <span className="badge badge-error">
+                                                {errorBadge.code}
+                                            </span>
+                                        )}
+                                        {optionalFields.includes(key) && (
+                                            <span className="badge badge-secondary">
+                                                Optional
+                                            </span>
+                                        )}
+                                    </label>
+                                </div>
+                            );
+                        }
+                        else if(key === "actual_image"){
+                            const base64Str = "data:image/png;base64,";
+                            return(
+                                <div>
+                                    <img src={base64Str + formState.actual_image} alt="" />
+                                </div>
+                            )
+                        }
                     })}
+                    {
+                        <div className="flex items-center gap-2">
+                                <input
+                                    type="file"
+                                    name="actual_image"
+                                    accept=".png,.jpg,.jpeg"
+                                    onChange={(e) => {
+                                        if (e.target.files && e.target.files.length === 1) {
+                                            dispatch({
+                                                type: "change_value",
+                                                payload: {
+                                                    inputName: "actual_image",
+                                                    inputValue: e.target.files[0],
+                                                },
+                                            });
+                                        }
+                                    }}
+                                    className="file-input file-input-bordered w-full"
+                                />
+                        </div>
+                    }
                 </div>
                 <Alert msg={msg} />
                 {loading && (

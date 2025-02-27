@@ -14,6 +14,7 @@ interface ModalProps {
             | undefined
         >
     >;
+    noPadding?: boolean;
     children: ReactNode;
 }
 
@@ -24,6 +25,7 @@ const Modal = ({
     variant,
     handleCloseModal,
     setModalState,
+    noPadding,
     children,
 }: ModalProps) => {
     return (
@@ -43,7 +45,8 @@ const Modal = ({
                                 ? "border-t-4 border-t-green-500"
                                 : ""
                     }`}
-                style={{ maxWidth: "", minWidth: size ? modalSizes[size] : "" }}
+                style={ noPadding? {maxWidth: "", minWidth: size ? modalSizes[size] : "", padding: "0px"} :
+                    { maxWidth: "", minWidth: size ? modalSizes[size] : "" }}
             >
                 {close && (
                     <form method="dialog">

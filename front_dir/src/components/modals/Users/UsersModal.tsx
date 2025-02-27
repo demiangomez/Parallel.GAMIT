@@ -225,8 +225,9 @@ const EditUsersModal = ({
 
     useEffect(() => {
         getRoles();
-        if(modalType === "edit")
-        getPhoto();
+        if(modalType === "edit"){
+            getPhoto();
+        }
     }, []); // eslint-disable-line
 
     return (

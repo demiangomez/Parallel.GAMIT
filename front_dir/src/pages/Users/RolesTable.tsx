@@ -43,6 +43,7 @@ const RolesTable = () => {
                 roleParams,
             );
             setRoles(res.data);
+            if(bParams.limit)
             setRolesPages(Math.ceil(res.total_count / bParams.limit));
         } catch (err) {
             console.error(err);

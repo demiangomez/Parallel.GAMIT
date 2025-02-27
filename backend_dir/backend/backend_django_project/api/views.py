@@ -190,6 +190,13 @@ class MonumentTypeList(CustomListCreateAPIView):
     queryset = models.MonumentType.objects.all()
     serializer_class = serializers.MonumentTypeSerializer
 
+    def list(self, request, *args, **kwargs):
+        only_metadata = request.query_params.get(
+            'only_metadata', 'false').lower() == 'true'
+        if only_metadata:
+            self.serializer_class = serializers.MonumentTypeMetadataOnlySerializer
+        return super().list(request, *args, **kwargs)
+
 
 class MonumentTypeDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = models.MonumentType.objects.all()
@@ -289,7 +296,7 @@ class StationDetail(generics.RetrieveUpdateDestroyAPIView):
                 response.data["gaps"] = [model_to_dict(
                     gap) for gap in stationmeta.stationmetagaps_set.all()]
                 response.data["status"] = stationmeta.status.name
-                response.data["type"] = stationmeta.station_type.name
+                response.data["type"] = stationmeta.station_type.name if stationmeta.station_type else None
 
         return response
 
@@ -477,6 +484,16 @@ class StationMetaDetail(generics.RetrieveUpdateDestroyAPIView):
         return super().update(request, *args, **kwargs)
 
 
+class StationStatusColorList(CustomListCreateAPIView):
+    queryset = models.StationStatusColor.objects.all()
+    serializer_class = serializers.StationStatusColorSerializer
+
+
+class StationStatusColorDetail(generics.RetrieveUpdateDestroyAPIView):
+    queryset = models.StationStatusColor.objects.all()
+    serializer_class = serializers.StationStatusColorSerializer
+
+
 class StationStatusList(CustomListCreateAPIView):
     queryset = models.StationStatus.objects.all()
     serializer_class = serializers.StationStatusSerializer
@@ -516,9 +533,16 @@ class StationAttachedFilesList(CustomListCreateAPIView):
         return super().list(request, *args, **kwargs)
 
 
-class StationAttachedFilesDetail(generics.RetrieveDestroyAPIView):
+class StationAttachedFilesDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = models.StationAttachedFiles.objects.all()
     serializer_class = serializers.StationAttachedFilesSerializer
+    http_method_names = ['get', 'patch', 'delete']
+
+    def patch(self, request, *args, **kwargs):
+        if list(request.data.keys()) != ['description']:
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                'Only description field can be modified.')
+        return super().patch(request, *args, **kwargs)
 
 
 class StationImagesList(CustomListCreateAPIView):
@@ -541,9 +565,16 @@ class StationImagesList(CustomListCreateAPIView):
         return super().list(request, *args, **kwargs)
 
 
-class StationImagesDetail(generics.RetrieveDestroyAPIView):
+class StationImagesDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = models.StationImages.objects.all()
     serializer_class = serializers.StationImagesSerializer
+    http_method_names = ['get', 'patch', 'delete']
+
+    def patch(self, request, *args, **kwargs):
+        if list(request.data.keys()) != ['description']:
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                'Only description field can be modified.')
+        return super().patch(request, *args, **kwargs)
 
 
 class CampaignList(CustomListCreateAPIView):
@@ -653,9 +684,16 @@ class VisitAttachedFilesList(CustomListCreateAPIView):
         return super().list(request, *args, **kwargs)
 
 
-class VisitAttachedFilesDetail(generics.RetrieveDestroyAPIView):
+class VisitAttachedFilesDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = models.VisitAttachedFiles.objects.all()
     serializer_class = serializers.VisitAttachedFilesSerializer
+    http_method_names = ['get', 'patch', 'delete']
+
+    def patch(self, request, *args, **kwargs):
+        if list(request.data.keys()) != ['description']:
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                'Only description field can be modified.')
+        return super().patch(request, *args, **kwargs)
 
 
 class VisitImagesList(CustomListCreateAPIView):
@@ -679,9 +717,16 @@ class VisitImagesList(CustomListCreateAPIView):
         return super().list(request, *args, **kwargs)
 
 
-class VisitImagesDetail(generics.RetrieveDestroyAPIView):
+class VisitImagesDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = models.VisitImages.objects.all()
     serializer_class = serializers.VisitImagesSerializer
+    http_method_names = ['get', 'patch', 'delete']
+
+    def patch(self, request, *args, **kwargs):
+        if list(request.data.keys()) != ['description']:
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                'Only description field can be modified.')
+        return super().patch(request, *args, **kwargs)
 
 
 class VisitGNSSDataFilesList(CustomListCreateAPIView):
@@ -703,9 +748,16 @@ class VisitGNSSDataFilesList(CustomListCreateAPIView):
         return super().list(request, *args, **kwargs)
 
 
-class VisitGNSSDataFilesDetail(generics.RetrieveDestroyAPIView):
+class VisitGNSSDataFilesDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = models.VisitGNSSDataFiles.objects.all()
     serializer_class = serializers.VisitGNSSDataFilesSerializer
+    http_method_names = ['get', 'patch', 'delete']
+
+    def patch(self, request, *args, **kwargs):
+        if list(request.data.keys()) != ['description']:
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                'Only description field can be modified.')
+        return super().patch(request, *args, **kwargs)
 
 
 class RolePersonStationList(CustomListCreateAPIView):
@@ -963,6 +1015,31 @@ class PersonList(CustomListCreateAPIView):
 class PersonDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = models.Person.objects.all()
     serializer_class = serializers.PersonSerializer
+
+
+class MergePerson(APIView):
+    serializer_class = serializers.DummySerializer
+
+    def get_person(self, pk):
+        try:
+            return models.Person.objects.get(id=pk)
+        except models.Person.DoesNotExist:
+            raise Http404
+
+    def post(self, request, *args, **kwargs):
+
+        person_source_pk = kwargs.get('pk')
+        person_target_pk = kwargs.get('person_target_pk')
+
+        person_source = self.get_person(person_source_pk)
+        person_target = self.get_person(person_target_pk)
+
+        try:
+            utils.PersonUtils.merge_person(person_source, person_target)
+        except Exception as e:
+            raise exceptions.CustomServerErrorExceptionHandler(e)
+
+        return Response(data={"message": "Person merged successfully"}, status=status.HTTP_200_OK)
 
 
 class PppSolnList(CustomListCreateAPIView):
@@ -1506,6 +1583,25 @@ class InsertStationInfoByFile(APIView):
                 return Response({"inserted_station_info": [], "error_message": e.detail if hasattr(e, 'detail') else str(e)}, status=status.HTTP_400_BAD_REQUEST)
             else:
                 return Response({"inserted_station_info": succesfully_inserted, "error_message": e.detail if hasattr(e, 'detail') else str(e)}, status=status.HTTP_201_CREATED)
+
+
+class GetStationKMZ(APIView):
+    serializer_class = serializers.DummySerializer
+
+    def get_queryset(self, station_api_id):
+        try:
+            return models.Stations.objects.get(api_id=station_api_id)
+        except models.Stations.DoesNotExist:
+            raise Http404
+
+    def get(self, request, station_api_id, format=None):
+        station = self.get_queryset(station_api_id)
+        try:
+            kmz = utils.StationKMZGenerator.generate_station_kmz(station)
+        except Exception as e:
+            raise exceptions.CustomServerErrorExceptionHandler(e)
+
+        return Response(data={"kmz": kmz}, status=status.HTTP_200_OK)
 
 
 class StationinfoDetail(generics.RetrieveUpdateDestroyAPIView):

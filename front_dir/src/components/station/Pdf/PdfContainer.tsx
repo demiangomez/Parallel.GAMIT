@@ -33,7 +33,6 @@ import {
     StationInfoData,
     StationInfoServiceData,
     StationMetadataServiceData,
-    StationStatus,
     StationStatusServiceData,
     StationVisitsData,
     StationVisitsFilesData,
@@ -86,7 +85,7 @@ const PdfContainer = ({
         RolePersonStationData[] | undefined
     >(undefined);
 
-    const [roles, setRoles] = useState<StationStatus[] | undefined>(undefined);
+    const [roles, setRoles] = useState<any[] | undefined>(undefined);
 
     const [monuments, setMonuments] = useState<MonumentTypes>();
 
@@ -216,6 +215,7 @@ const PdfContainer = ({
                     offset: 0,
                     limit: 0,
                     station_api_id: String(station?.api_id),
+                    thumbnail: true,
                 });
             if (result.statusCode === 200) {
                 setImages(result.data);
@@ -437,7 +437,7 @@ const PdfContainer = ({
 
     return (
         <button
-            className={`hover:scale-110 btn-ghost rounded-lg p-1 mb-6 transition-all align-top`}
+            className={`hover:scale-110 btn-ghost rounded-lg p-1 transition-all align-top`}
             onClick={() => {
                 fetchAllData();
                 setMessage({ error: undefined, msg: "" });

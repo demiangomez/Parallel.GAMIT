@@ -7,6 +7,21 @@ export default {
         "./src/**/*.{js,ts,jsx,tsx}",
         "./node_modules/react-tailwindcss-datetimepicker/dist/react-tailwindcss-datetimepicker.js",
     ],
+    /** IM A MOTHERFUCKER AND I NEED SAFELIST */
+    safelist: [
+        "green-icon",
+        "light-green-icon",
+        "yellow-icon",
+        "granate-icon",
+        "light-gray-icon",
+        "gray-icon",
+        "light-red-icon",
+        "orange-icon",
+        "light-blue-icon",
+        "purple-icon",
+        "lilac-icon",
+        "blue-icon",
+    ],
     theme: {
         extend: {
             margin: {

@@ -3,7 +3,7 @@ import { Link, useOutletContext } from "react-router-dom";
 
 import useApi from "@hooks/useApi";
 import { useAuth } from "@hooks/useAuth";
-import { getRinexService, getStationMetaService } from "@services";
+import { getRinexService, getStationMetaService} from "@services";
 
 import {
     GetParams,
@@ -53,6 +53,8 @@ const PopupChildren = ({
         Height: height?.toFixed(3),
     };
 
+
+    
     const { token, logout } = useAuth();
     const api = useApi(token, logout);
 
@@ -117,6 +119,8 @@ const PopupChildren = ({
         }
     }, [fromMain]);
 
+    const campsToShow = ["rinex_count", "distinct_visit_years", "station_name"];
+
     return (
         <div
             className={`flex flex-col self-start space-y-2 max-h-82 overflow-y-auto pr-2 md:w-[400px] lg:w-[450px] `}
@@ -135,17 +139,68 @@ const PopupChildren = ({
                     {Object.entries(data).map((d, idx) =>
                         child(String(d[0]), String(d[1]), idx),
                     )}
+                    {
+                        fromMain? campsToShow.map((key, idx) => {
+                            if(key !== "distinct_visit_years") {
+                                return (
+                                    <div key = {idx} className="flex flex-col w-full">
+                                        <span className="text-sm">
+                                            <strong>{key.replace(/_/g, " ").replace(/^\w/, c => c.toUpperCase())}:</strong>{" "}
+                                            {stationMetaByMain?.[key as keyof StationMetadataServiceData] ? stationMetaByMain[key as keyof StationMetadataServiceData] : "-"}
+                                        </span>
+                                    </div>
+                                );
+                            }
+                            else{
+                                return (
+                                    <div key = {idx} className="flex flex-col w-full">
+                                        <span className="text-sm flex flex-row flex-wrap">
+                                            <strong>{key.replace(/_/g, " ").replace(/^\w/, c => c.toUpperCase())}: </strong>
+                                                <div className={Array.isArray(stationMetaByMain?.[key as keyof StationMetadataServiceData]) && (stationMetaByMain?.[key as keyof StationMetadataServiceData] as string[]).length > 1 ? "" : "ml-1"}>
+                                                {
+                                                    stationMetaByMain?.[key as keyof StationMetadataServiceData] && (stationMetaByMain?.[key as keyof StationMetadataServiceData] as string[]).join(", ") !== "" ?
+                                                    (stationMetaByMain?.[key as keyof StationMetadataServiceData] as string[]).join(", ")   : "-"
+                                                }
+                                                </div>
+                                        </span>
+                                    </div>
+                                );
+                            }
+                            }) : !fromMain && stationMeta ? campsToShow.map((key, idx) => {
+                                if(key !== "distinct_visit_years") {
+                                    return (
+                                        <div key = {idx} className="flex flex-col w-full">
+                                            <span className="text-sm">
+                                                <strong>{key.replace(/_/g, " ").replace(/^\w/, c => c.toUpperCase())}:</strong>{" "}
+                                                {stationMeta?.[key as keyof StationMetadataServiceData] ?  stationMeta[key as keyof StationMetadataServiceData]  : "-"} 
+                                            </span>
+                                        </div>
+                                    );
+                                }
+                                else{
+                                    return (
+                                        <div key = {idx} className="flex flex-col w-full">
+                                            <span className="text-sm flex flex-row flex-wrap">
+                                                <strong className="pr-1">{key.replace(/_/g, " ").replace(/^\w/, c => c.toUpperCase())}:</strong>{" "}
+                                                {
+                                                    stationMeta?.[key as keyof StationMetadataServiceData] ?  
+                                                    (stationMeta?.[key as keyof StationMetadataServiceData] as string[]).join(", ")  : "-"
+                                                }
+                                            </span>
+                                        </div>
+                                    );
+                                }
+                        })
+                        :null
+                    }
                 </div>
                 {fromMain && loading ? (
                     <span className="loading loading-dots loading-lg mx-auto"></span>
                 ) : fromMain !== undefined && !loading ? (
-                    <div className="flex text-sm flex-col items-center grow">
+                    <div className="flex text-sm flex-col gap-4 justify-center items-start grow pl-4 mb-4">
                         {firstRinex ? (
-                            <div className="flex flex-col">
-                                <h2
-                                    className="menu-title"
-                                    style={{ paddingTop: "0px" }}
-                                >
+                            <div className="flex flex-col justify-center items-start">
+                                <h2 className="text-md font-semibold pt-2 text-gray-500">
                                     First Rinex
                                 </h2>
                                 <div className="flex">
@@ -160,7 +215,7 @@ const PopupChildren = ({
                                             : firstRinex.filename}
                                     </span>
                                 </div>
-                                <div className="flex">
+                                <div className="flex flex-row">
                                     <strong>Obs day: </strong>
                                     <span className="ml-1">
                                         {" "}
@@ -179,7 +234,7 @@ const PopupChildren = ({
                         )}
                         {lastRinex && (
                             <div className="flex flex-col">
-                                <h2 className="menu-title">Last Rinex</h2>
+                                <h2 className="text-md font-semibold pt-2 text-gray-500">Last Rinex</h2>
                                 <div className="flex">
                                     <strong>Filename: </strong>
                                     <span

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Alert, ConfirmDeleteModal, MenuButton, Menu, MenuContent, Modal} from "@componentsReact";
 import { delPeopleService, getUsersService, patchPeopleService, postPeopleService} from "@services";
 import { useAuth, useApi, useFormReducer } from "@hooks";
@@ -54,6 +54,8 @@ const StationPeopleModal = ({
         phone: "",
         photo_actual_file: "",
         user: "",
+        institution: "",
+        position: "",
     });
 
     const getUsers = async () => {
@@ -218,7 +220,12 @@ const StationPeopleModal = ({
                 u.username.toLowerCase().includes(value.toLowerCase()),
             );
             setMatchingUsers(match);
+            setShowMenu({
+                type: name,
+                show: true,
+            });
         }
+
     };
 
     const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -237,6 +244,14 @@ const StationPeopleModal = ({
     useEffect(() => {
         getUsers();
     }, []);
+
+    const inputRef = useRef<HTMLInputElement>(null);
+    
+    useEffect(() => {
+        if(showMenu){    
+            inputRef.current?.focus();
+        }
+    },[showMenu])
 
     return (
         <Modal
@@ -331,6 +346,7 @@ const StationPeopleModal = ({
                                             </div>
                                             <input
                                                 type="text"
+                                                ref={key === "user" ? inputRef :null}
                                                 name={key}
                                                 value={
                                                     formState[
@@ -383,6 +399,7 @@ const StationPeopleModal = ({
                                                 ))}
                                             </Menu>
                                         ) : null}
+
                                     </>
                                 )}
                             </div>

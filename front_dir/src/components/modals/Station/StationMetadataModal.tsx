@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
     Alert,
@@ -8,6 +8,7 @@ import {
     MenuButton,
     MenuContent,
     Modal,
+    RenderFileModal,
     StationAddFileModal,
 } from "@componentsReact";
 
@@ -20,6 +21,7 @@ import {
 } from "@hooks";
 import {
     ArrowDownTrayIcon,
+    BookOpenIcon,
     ClipboardDocumentIcon,
     PencilSquareIcon,
     PlusCircleIcon,
@@ -31,6 +33,7 @@ import defPhoto from "@assets/images/placeholder.png";
 import {
     delStationsFilesAttachedService,
     getMonumentsTypesService,
+    getMonumentsTypesByIdService,
     getRinexService,
     getStationFileByIdAttachedService,
     getStationInfoService,
@@ -39,9 +42,10 @@ import {
     getStationTypesService,
     patchStationMetaService,
     patchStationService,
+    
 } from "@services";
 
-import { decimalToDMS, formattedDates, showModal } from "@utils";
+import { classHtml, decimalToDMS, formattedDates, showModal } from "@utils";
 
 import {
     ErrorResponse,
@@ -60,6 +64,7 @@ import {
     StationStatus,
     StationStatusServiceData,
 } from "@types";
+import QuillText from "@components/map/QuillText";
 
 interface StationMetadataProps {
     close: boolean;
@@ -120,6 +125,12 @@ const StationMetadataModal = ({
         [],
     );
 
+    const [chosenMonumentPhoto, setChosenMonumentPhoto] = useState<string | null>(null)
+
+    const [fileToEdit, setFileToEdit] = useState<StationFilesData | undefined>()
+
+    const [richText, setRichText] = useState<string>(stationMeta?.comments ?? "");
+
     const [stationStatus, setStationStatus] = useState<StationStatus[]>([]);
     const [matchingStatus, setMatchingStatus] = useState<StationStatus[]>([]);
 
@@ -172,13 +183,22 @@ const StationMetadataModal = ({
                 const types =
                     await getStationTypesService<StationStatusServiceData>(api);
 
+                const params = {only_metadata: true};
                 const monuments =
                     await getMonumentsTypesService<MonumentTypesServiceData>(
-                        api,
+                        api, params
                     );
 
+                if (monuments.data.length > 0) {
+                    const auxMonumentType = monuments.data;
+                    if(auxMonumentType){
+                        const monumentId = auxMonumentType.find((mt) => mt.id === Number(stationMeta?.monument_type))?.id
+                        await getMonumentPhotoById(monumentId);
+                    }
+                }
                 setStationType(types.data ?? []);
                 setMonumentType(monuments.data ?? []);
+
                 setStationStatus(status.data ?? []);
             }
         } catch (err) {
@@ -350,13 +370,17 @@ const StationMetadataModal = ({
         getFiles();
     }, [stationId]);
 
+
     useEffect(() => {
-        Promise.all([getTypes(), getRinex(), getStationInfo(), ])
+        Promise.all([getTypes(), getRinex(), getStationInfo()])
             .then(() => {
-                setLoading(false) 
+                setLoading(false);
             });
-        
     }, [stationMeta]);
+
+        
+
+
 
     const formattedData = useMemo(() => {
         return {
@@ -419,7 +443,8 @@ const StationMetadataModal = ({
             type: "set",
             payload: formattedData,
         });
-    }, [formattedData]);
+
+    }, [formattedData]);    
 
     const handleChange = (
         e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -457,10 +482,12 @@ const StationMetadataModal = ({
             if (station && stationMeta) {
                 setUpdateLoading(true);
 
+                const updatedRichText = classHtml(richText);
+
                 const meta = {
                     has_battery: formState.booleans.has_battery,
                     has_communications: formState.booleans.has_communications,
-                    comments: formState.rinex.comments,
+                    comments: updatedRichText,
                     remote_access_link:
                         formState.stationMeta.remote_access_link,
                     battery_description:
@@ -490,7 +517,7 @@ const StationMetadataModal = ({
 
                 const resMeta = await patchStationMetaService<
                     StationMetadataServiceData | ErrorResponse
-                >(api, Number(stationMeta?.station), meta);
+                >(api, Number(stationMeta?.id), meta);
                 if ("msg" in resMeta) {
                     setMetaMsg({
                         status: resMeta.statusCode,
@@ -533,6 +560,7 @@ const StationMetadataModal = ({
         } catch (err) {
             console.error(err);
         } finally {
+            refetchStationMeta && refetchStationMeta();
             setUpdateLoading(false);
         }
     };
@@ -566,6 +594,97 @@ const StationMetadataModal = ({
         modals?.show && showModal(modals.title);
     }, [modals]);
 
+    useEffect(() => {
+        const updatedRichText = classHtml(richText);
+
+        dispatch({
+            type: "change_value",
+            payload: {
+                inputName: "rinex.comments",
+                inputValue: updatedRichText,
+            },
+        });
+
+        
+    }, [richText])
+
+    const inputRefType = useRef<HTMLInputElement>(null);
+    
+        const inputRefMonument = useRef<HTMLInputElement>(null);
+    
+        const inputRefStatus = useRef<HTMLInputElement>(null);
+    
+        const selectRef = (key: string) =>{
+            return key === "station_type" ? inputRefType : key === "monument_type" ? inputRefMonument : key === "status" ? inputRefStatus : null;
+        }
+        
+    
+        useEffect(() => {
+            if(showMenu){
+                const ref = selectRef(showMenu.type);
+                if (ref && ref.current) {
+                    ref.current.focus();
+                }
+            }
+        },[showMenu])
+    
+    const handleGetFile = async (file: StationFilesData) =>{
+        const res =
+            await getFileById(
+                file.id,
+            );
+        if (
+            res
+        ) {
+            const link =
+                document.createElement(
+                    "a",
+                );
+
+            link.href = `data:application/octet-stream;base64,${res.actual_file}`;
+            link.download =
+                res.filename;
+            link.click();
+        }
+    }
+
+    const isPdf = (file: string) => {
+        return file.includes(".pdf");
+    }
+
+    const [fileToShow, setFileToShow] = useState<StationFilesData | undefined>(undefined);
+
+    useEffect(() => {
+        if(fileToShow !== undefined){
+            setModals({
+                show: true,
+                title: "FileRender",
+                type: "edit"
+            })
+        }
+    }, [fileToShow]);
+
+    const setEditFile = (file : StationFilesData) =>{
+        setModals({show: true, title: "AddFile", type: "edit"});
+        setFileToEdit(file);
+    }
+
+    const getMonumentPhotoById = async (id: number | undefined) => {
+        try {
+            if (id) {
+                const res = await getMonumentsTypesByIdService<MonumentTypes>(
+                    api,
+                    id
+                );
+                setChosenMonumentPhoto(res.photo_file);
+            }
+        }
+        catch (err) {
+            console.error(err);
+            
+        }
+    }
+
     return (
         <Modal
             close={close}
@@ -582,7 +701,8 @@ const StationMetadataModal = ({
                 </h3>
                 <button
                     className="flex items-center btn btn-ghost btn-circle"
-                    onClick={() => setEdit(!edit)}
+                    onClick={() => {
+                        setEdit(!edit);}}
                 >
                     <PencilSquareIcon title="edit" className="size-8" />
                 </button>
@@ -642,6 +762,7 @@ const StationMetadataModal = ({
                                                                         className="w-full"
                                                                         autoComplete="off"
                                                                         type="text"
+                                                                        ref={selectRef(key)}
                                                                         value={
                                                                             formState
                                                                                 .stationMeta[
@@ -1029,6 +1150,7 @@ const StationMetadataModal = ({
                                                         <div>
                                                             <div className="text-sm font-bold flex items-center justify-between">
                                                                 Navigation File
+                                                                { edit &&
                                                                 <button
                                                                     className="btn btn-ghost btn-circle ml-2 -mt-2"
                                                                     onClick={() => {
@@ -1058,6 +1180,7 @@ const StationMetadataModal = ({
                                                                         className="size-6"
                                                                     />
                                                                 </button>
+                                                                }
                                                             </div>
 
                                                             {edit ? (
@@ -1156,22 +1279,11 @@ const StationMetadataModal = ({
                                 Monument Photo
                             </h3>
                             <img
-                                className="size-60 object-contain"
+                                className="size-96 object-contain"
                                 src={
-                                    monumentType.find(
-                                        (mt) =>
-                                            mt.id ===
-                                            Number(stationMeta?.monument_type),
-                                    )?.photo_file
-                                        ? "data:image/png;base64," +
-                                          monumentType.find(
-                                              (mt) =>
-                                                  mt.id ===
-                                                  Number(
-                                                      stationMeta?.monument_type,
-                                                  ),
-                                          )?.photo_file
-                                        : defPhoto
+                                    chosenMonumentPhoto? 
+                                    "data:image/png;base64," + chosenMonumentPhoto
+                                    : defPhoto
                                 }
                                 alt={
                                     monumentType.find(
@@ -1187,6 +1299,7 @@ const StationMetadataModal = ({
                             <div className="card bg-base-200 grow shadow-xl">
                                 <h2 className="card-title border-b-2 border-base-300 p-2 justify-between">
                                     Attached Files
+                                    { edit &&
                                     <button
                                         className="btn btn-ghost btn-circle ml-2"
                                         onClick={() => {
@@ -1203,6 +1316,7 @@ const StationMetadataModal = ({
                                             className="w-8 h-10"
                                         />
                                     </button>
+                                    }
                                 </h2>
                                 <div
                                     className={`card-body ${showAllFiles ? "overflow-y-auto max-h-44 scrollbar-base" : ""}`}
@@ -1272,27 +1386,22 @@ const StationMetadataModal = ({
                                                                     </div>
                                                                     <a
                                                                         className="btn-circle btn-ghost cursor-pointer flex justify-center w-4/12"
-                                                                        onClick={async () => {
-                                                                            const res =
-                                                                                await getFileById(
-                                                                                    file.id,
-                                                                                );
-                                                                            if (
-                                                                                res
-                                                                            ) {
-                                                                                const link =
-                                                                                    document.createElement(
-                                                                                        "a",
-                                                                                    );
-
-                                                                                link.href = `data:application/octet-stream;base64,${res.actual_file}`;
-                                                                                link.download =
-                                                                                    res.filename;
-                                                                                link.click();
-                                                                            }
+                                                                        onClick={ async () => {
+                                                                            edit ? setEditFile(file) 
+                                                                            : isPdf(file.filename) ?
+                                                                            setFileToShow(await getFileById(file.id))
+                                                                            : handleGetFile(file);                                                                            
                                                                         }}
                                                                     >
-                                                                        <ArrowDownTrayIcon className="size-6 self-center" />
+                                                                        {edit?
+                                                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-6 self-center">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+                                                                        </svg>
+                                                                        :
+                                                                            isPdf(file.filename) ?
+                                                                            <BookOpenIcon className="size-6 self-center" /> :
+                                                                            <ArrowDownTrayIcon className="size-6 self-center" /> 
+                                                                        }
                                                                     </a>
                                                                 </div>
                                                             </div>
@@ -1327,87 +1436,22 @@ const StationMetadataModal = ({
                                 <h2 className="card-title border-b-2 border-base-300 p-2 justify-between h-16">
                                     Comments
                                 </h2>
-                                <div className="card-body overflow-y-auto max-h-64">
-                                    <div>
-                                        {Object.entries(formState.rinex).map(
-                                            ([key], idx) => {
-                                                if (key === "comments") {
-                                                    const errorBadge =
-                                                        metaMsg?.errors?.errors?.find(
-                                                            (error) =>
-                                                                error.attr ===
-                                                                key,
-                                                        );
-
-                                                    return (
-                                                        <div key={idx}>
-                                                            {edit ? (
-                                                                <label
-                                                                    className={`form-control`}
-                                                                    title={
-                                                                        errorBadge
-                                                                            ? errorBadge.detail
-                                                                            : ""
-                                                                    }
-                                                                >
-                                                                    <textarea
-                                                                        className={`textarea textarea-bordered w-full ${errorBadge ? "textarea-error" : ""}`}
-                                                                        autoComplete="off"
-                                                                        value={
-                                                                            formState
-                                                                                .rinex[
-                                                                                key as keyof typeof formState.rinex
-                                                                            ] ??
-                                                                            ""
-                                                                        }
-                                                                        name={
-                                                                            "rinex." +
-                                                                            key
-                                                                        }
-                                                                        onChange={(
-                                                                            e,
-                                                                        ) =>
-                                                                            handleChange(
-                                                                                e,
-                                                                            )
-                                                                        }
-                                                                    />
-                                                                    {errorBadge && (
-                                                                        <span className="badge badge-error self-end">
-                                                                            {
-                                                                                errorBadge.code
-                                                                            }
-                                                                        </span>
-                                                                    )}
-                                                                </label>
-                                                            ) : (
-                                                                <p className="break-words whitespace-pre-wrap">
-                                                                    {formState
-                                                                        .rinex[
-                                                                        key as keyof typeof formState.rinex
-                                                                    ] &&
-                                                                    formState
-                                                                        .rinex[
-                                                                        key as keyof typeof formState.rinex
-                                                                    ] !== "" ? (
-                                                                        formState
-                                                                            .rinex[
-                                                                            key as keyof typeof formState.rinex
-                                                                        ]
-                                                                    ) : (
-                                                                        <span className="text-gray-400">
-                                                                            No
-                                                                            info
-                                                                        </span>
-                                                                    )}
-                                                                </p>
-                                                            )}
-                                                        </div>
-                                                    );
-                                                }
-                                            },
-                                        )}
-                                    </div>
+                                <div className="overflow-y-hidden max-h-48 h-auto">
+                                            {
+                                                edit ? 
+                                                <QuillText
+                                                    value = {richText}
+                                                    setValue = {setRichText}
+                                                    clase="h-48 pb-8"
+                                                />
+                                                :
+                                                <div
+                                                    className="textarea-bordered rounded-md text-lg overflow-auto pl-8 pb-8 h-48 max-h-48"
+                                                    dangerouslySetInnerHTML={{ 
+                                                        __html: formState.rinex.comments ?? "" 
+                                                    }}
+                                                />                                                 
+                                            }
                                 </div>
                             </div>
                         </div>
@@ -1753,6 +1797,18 @@ const StationMetadataModal = ({
                         setLoading(false);
                         setFileType("none");
                     }}
+                    setStateModal={setModals}
+                    type= {modals.type}
+                    file = {edit ? fileToEdit: undefined}
+                    setFile={setFileToEdit}
+                />
+            )}
+
+            {modals && modals.title === "FileRender" && (
+                <RenderFileModal
+                    file={`data:application/pdf;base64,${fileToShow?.actual_file}`}
+                    filename={fileToShow?.filename}
+                    closeModal={() => undefined}
                     setStateModal={setModals}
                 />
             )}

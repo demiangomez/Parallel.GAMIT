@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+import { useApi, useAuth} from "@hooks";
 import L, { LatLngExpression } from "leaflet";
 import { MapContainer, MapContainerProps, Marker, Popup, TileLayer, useMap} from "react-leaflet";
 import { PopupChildren, Spinner, VisitsScroller} from "@componentsReact";
@@ -7,11 +8,9 @@ import omnivore from "leaflet-omnivore";
 
 import domtoimage from "dom-to-image";
 import JSZip from "jszip";
-import { StationData, StationMetadataServiceData, StationVisitsData,} from "@types";
-
+import { StationData, StationMetadataServiceData, StationVisitsData, StationTypeServiceData, StationStatusServiceData, StationTypeData, StationStatusData} from "@types";
 import { chosenIcon} from "@utils";
-
-import  caution from "@assets/images/caution.png";
+import { getStationTypesService, getStationStatusService} from "@services";
 
 interface VisitsStates {
     visitId: number;
@@ -129,15 +128,12 @@ const MapStation = ({
     setLoadPdf,
     setLoadedMap,
 }: MapProps) => {
-    
-    const iconDefault = new L.Icon({
-        iconUrl: caution,
-        iconSize: [25, 25],
-        iconAnchor: [12, 41],
-        popupAnchor: [1, -34],
-        shadowSize: [41, 41],
 
-    })
+    //---------------------------------------------------------UseAuth-------------------------------------------------------------
+    const { token, logout } = useAuth();
+    
+    //---------------------------------------------------------UseApi-------------------------------------------------------------
+    const api = useApi(token, logout);
 
     const [isMapReady, setIsMapReady] = useState(false);
 
@@ -205,8 +201,7 @@ const MapStation = ({
             }
             if (zoom && zoom === 16) {
                 captureImage(4000, (dataUrl) => {
-                    setStationLocationDetailScreen &&
-                        setStationLocationDetailScreen(dataUrl);
+                    setStationLocationDetailScreen && setStationLocationDetailScreen(dataUrl);
                 });
             }
         }
@@ -314,7 +309,47 @@ const MapStation = ({
     }, [base64Data]);
 
     
- 
+    const [types, setTypes] = useState<{image:string, name: string}[]>([]);
+    const [statuses, setStatuses] = useState<{name: string, color: string}[]>([]);
+
+    const getStationStatuses = async () =>{
+        try {
+            const res = await getStationStatusService<StationStatusServiceData>(api);
+            if(res){
+                const statuses = res.data.map((status: StationStatusData) => {
+                    return {
+                        color: status.color_name,
+                        name: status.name,
+                    }
+                })
+                setStatuses(statuses)
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    const getStationTypes = async () =>{
+        try {
+            const res = await  getStationTypesService<StationTypeServiceData>(api);
+            if(res){
+                const types = res.data.map((type: StationTypeData) => {
+                    return {
+                        image: type.actual_image,
+                        name: type.name
+                    }
+                })
+                setTypes(types)
+        }
+        } catch (err) {
+            console.error(err);
+        }
+    }
+    useEffect(() => {
+        getStationStatuses();
+        getStationTypes();
+    },[])
+
 
     return (
         <div className="z-10 pt-6 w-6/12 flex justify-center">
@@ -339,7 +374,6 @@ const MapStation = ({
                 style={{ zIndex: 1000 }}
                 whenReady={() => {
                     if (forceRerender === 0) {
-                        //forcereRender is 0 when the map is first loaded so we need to open the popup
                         setTimeout(() => {
                             markerRef.current?.openPopup();
                         }, 500);
@@ -415,7 +449,7 @@ const MapStation = ({
                     />
                 ) : null}
                 <Marker
-                    icon={station ? chosenIcon(station) : iconDefault}
+                    icon={chosenIcon(station as StationData, types, statuses) && chosenIcon(station as StationData, types, statuses)}
                     key={station ? station?.lat + station?.lon : "key"}
                     position={mapProps.center ?? [0, 0]}
                     ref={markerRef}

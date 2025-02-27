@@ -10,8 +10,8 @@ import useApi from "@hooks/useApi";
 import { useAuth } from "@hooks/useAuth";
 import { showModal } from "@utils";
 
-import { getStationStatusService } from "@services";
-import { GetParams, StationStatus, StationStatusServiceData } from "@types";
+import { getStationStatusService, getStationStatusColorsService } from "@services";
+import { GetParams, StationStatusData, StationStatusServiceData, ColorServiceData, ColorData } from "@types";
 
 const StationStatusTable = () => {
     const { token, logout } = useAuth();
@@ -30,12 +30,13 @@ const StationStatusTable = () => {
     >(undefined);
 
     const [stationStatus, setStationStatus] = useState<
-        StationStatus[] | undefined
+        StationStatusData[] | undefined
     >(undefined);
-    const [status, setStatus] = useState<StationStatus | undefined>(undefined);
+    const [status, setStatus] = useState<StationStatusData | undefined>(undefined);
 
     const [loading, setLoading] = useState<boolean>(false);
     const [params, setParams] = useState<GetParams>(bParams);
+    const [colores, setColores] = useState<ColorData[]>([{id: 1, color: "green-icon"}]);
 
     const [activePage, setActivePage] = useState<number>(1);
     const [pages, setPages] = useState<number>(0);
@@ -48,9 +49,27 @@ const StationStatusTable = () => {
             const res = await getStationStatusService<StationStatusServiceData>(
                 api,
                 params,
-            );
+            );  
             setStationStatus(res.data);
+            if(bParams.limit)
             setPages(Math.ceil(res.total_count / bParams.limit));
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+
+    const getStationsStatusColors = async () => {
+        try {
+            setLoading(true);
+            const res = await getStationStatusColorsService<ColorServiceData>(
+                api
+            );
+            if(res.data){
+                setColores(res.data);
+            }
         } catch (err) {
             console.error(err);
         } finally {
@@ -101,9 +120,10 @@ const StationStatusTable = () => {
 
     useEffect(() => {
         getStationStatus();
+        getStationsStatusColors();
     }, []); // eslint-disable-line
 
-    const titles = ["Name"];
+    const titles = ["Name", "Color"];
 
     const body = useMemo(() => {
         return stationStatus
@@ -112,6 +132,7 @@ const StationStatusTable = () => {
                 Object.values({
                     // id: monument.id,
                     name: st.name,
+                    color_name: st.color_name,
                 }),
             );
     }, [stationStatus]);
@@ -160,6 +181,7 @@ const StationStatusTable = () => {
                     setStateModal={setModals}
                     setStationStatus={setStatus}
                     reFetch={reFetch}
+                    colores = {colores}
                 />
             )}
         </TableCard>

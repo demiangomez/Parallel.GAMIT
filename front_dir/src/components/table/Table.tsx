@@ -183,10 +183,9 @@ const Table = ({
                                                 isoDateRegex.test(val)
                                             );
                                         };
-
                                         const isDate =
                                             isDateFunc(val) && val !== "";
-
+                                        
                                         const flag =
                                             titles[idx] === "country_code" &&
                                             val &&
@@ -244,34 +243,64 @@ const Table = ({
                                                         );
                                                 }}
                                             >
-                                                {titles[idx] ===
-                                                    "country_code" &&
-                                                    val && (
-                                                        <img
-                                                            width={30}
-                                                            height={30}
-                                                            className="mr-2"
-                                                            src={`${flag}`}
-                                                        />
-                                                    )}
+                                                {titles[idx] === "Color" && val && (
+                                                    <div className="flex justify-center">
+                                                        <div className={val as string} style={{width: '40px', height: '40px', backgroundColor: '#000', borderRadius: '50%'}}></div>
+                                                    </div>
+                                                )}
+                                                {titles[idx] === "comments" && val && (
+                                                    <div className="overflow-y-auto overflow-x-auto pl-8 max-h-32"
+                                                        dangerouslySetInnerHTML={{
+                                                            __html: val ?? "",
+                                                        }}
+                                                    />
+                                                )}
+                                                {titles[idx] === "country_code" && val && (
+                                                    <img
+                                                        width={30}
+                                                        height={30}
+                                                        className="mr-2"
+                                                        src={`${flag}`}
+                                                    />
+                                                )}
+                                                {titles[idx] === "Image" && val && (
+                                                    <div className="avatar">
+                                                        <div className="w-14 mask mask-squircle ">
+                                                            <img
+                                                                src={
+                                                                    base64Str +
+                                                                    val
+                                                                }
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                )
+                                                }
+                                                
 
                                                 {val !== "" &&
                                                 titles[idx] !== "Photo" &&
-                                                titles[idx] !== "Visit" ? (
-                                                    typeof val === "string" ? (
-                                                        val?.length > 15 &&
-                                                        !isDate ? (
-                                                            val?.substring(
-                                                                0,
-                                                                15,
-                                                            ) + "..."
-                                                        ) : isDate ? (
-                                                            formattedDates(
-                                                                new Date(val),
-                                                            )
-                                                        ) : (
-                                                            val
-                                                        )
+                                                titles[idx] !== "Visit" &&
+                                                titles[idx] !== "comments" && 
+                                                titles[idx] !== "Image" &&
+                                                titles[idx] !== "Color"
+                                                ? (
+                                                    typeof val === "string" && titles[idx] !== "Image"  && titles[idx] !== "Color" ?  (
+                                                        <div className="overflow-hidden text-ellipsis">
+                                                            {val?.length > 15 &&
+                                                            !isDate ? (
+                                                                val?.substring(
+                                                                    0,
+                                                                    15,
+                                                                ) + "..."
+                                                            ) : isDate ? (
+                                                                formattedDates(
+                                                                    new Date(val),
+                                                                )
+                                                            ) : (
+                                                                val
+                                                            )}
+                                                        </div>
                                                     ) : typeof val ===
                                                       "boolean" ? (
                                                         val ? (
@@ -282,12 +311,13 @@ const Table = ({
                                                     ) : typeof val ===
                                                       "number" ? (
                                                         val
-                                                    ) : (
+                                                    ) : 
+                                                    (
                                                         "-"
                                                     )
                                                 ) : val !== "" &&
                                                   val !== null &&
-                                                  titles[idx] === "Photo" ? (
+                                                   titles[idx] === "Photo" ?(
                                                     <div className="avatar">
                                                         <div className="w-14 mask mask-squircle ">
                                                             <img
@@ -300,7 +330,7 @@ const Table = ({
                                                     </div>
                                                 ) : val !== "" &&
                                                   val !== null &&
-                                                  typeof val === "string" &&
+                                                  typeof val === "string"  &&
                                                   titles[idx] === "Visit" ? (
                                                     <div
                                                         className="relative group"
@@ -314,7 +344,7 @@ const Table = ({
                                                                 null,
                                                             )
                                                         }
-                                                    >
+                                                    >   
                                                         <div>
                                                             {val?.length > 15 &&
                                                             !isDate
@@ -324,7 +354,7 @@ const Table = ({
                                                                   ) + "..."
                                                                 : val}
                                                         </div>
-                                                        {alterInfo &&
+                                                        {alterInfo && 
                                                             table !==
                                                                 "Stations" && (
                                                                 <div
@@ -391,9 +421,9 @@ const Table = ({
                                                                 </div>
                                                             )}
                                                     </div>
-                                                ) : (
+                                                ) : (titles[idx] !== "comments" && titles[idx] !== "Image" && titles[idx] !== "Color") ? (
                                                     "-"
-                                                )}
+                                                ) : null}
                                             </td>
                                         );
                                     },

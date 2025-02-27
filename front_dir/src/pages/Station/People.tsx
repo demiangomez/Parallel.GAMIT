@@ -141,7 +141,7 @@ const People = () => {
         getRoles();
     }, []); // eslint-disable-line
 
-    const titles = ["Role", "Name", "Last Name", "Email", "Address", "Phone"];
+    const titles = ["Role", "Name", "Last Name", "Email", "Address", "Phone", "Institution", "Position"];
 
     const body = useMemo(() => {
         const b = rolePersonStations?.map((rp) =>
@@ -153,6 +153,8 @@ const People = () => {
                 email: people.find((p) => p.id === rp.person)?.email,
                 address: people.find((p) => p.id === rp.person)?.address,
                 phone: people.find((p) => p.id === rp.person)?.phone,
+                institution: people.find((p) => p.id === rp.person)?.institution,
+                position: people.find((p) => p.id === rp.person)?.position,
             }),
         );
 

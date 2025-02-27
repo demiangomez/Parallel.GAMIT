@@ -5,6 +5,8 @@ import {
     createRoutesFromElements,
 } from "react-router-dom";
 
+import 'global';
+
 import {
     Error,
     Login,
@@ -158,6 +160,7 @@ const router = createBrowserRouter(
 function App() {
     return (
         <AuthProvider>
+            
             <RouterProvider
                 router={router}
                 future={{ v7_startTransition: true }}

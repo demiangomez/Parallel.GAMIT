@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
     AddFileModal,
     Alert,
@@ -22,7 +22,7 @@ import {
     StationVisitsFilesServiceData,
 } from "@types";
 
-import { apiOkStatuses, showModal } from "@utils";
+import { apiOkStatuses, classHtml, showModal } from "@utils";
 
 import { VISIT_STATE } from "@utils/reducerFormStates";
 import {
@@ -34,6 +34,7 @@ import {
 } from "@services";
 
 import { PlusCircleIcon } from "@heroicons/react/24/outline";
+import QuillText from "@components/map/QuillText";
 
 interface Props {
     station: StationData;
@@ -145,7 +146,7 @@ const AddVisitModal = ({
             const formData = new FormData();
 
             Object.entries(formState).forEach(([key, value]) => {
-                if (key === "campaign" || key === "people") {
+                if (key === "campaign" || key === "people" || key === "comments") {
                     if (key === "campaign") {
                         if (!value) return formData.append(key, "");
                         const splittedValue = value
@@ -171,9 +172,16 @@ const AddVisitModal = ({
                             formData.append(key, String(personToAdd?.id));
                         });
                     }
-                } else {
-                    formData.append(key, value);
+                    if(key === "comments")
+                    {
+                        formData.append("comments", classHtml(value));
+                    }
                 }
+                else {
+                    formData.append(key, value);
+                } 
+                
+                
             });
 
             const res = await postStationVisitService<
@@ -373,6 +381,24 @@ const AddVisitModal = ({
         modals?.show && showModal(modals.title);
     }, [modals]);
 
+    const inputRefCampaign = useRef<HTMLInputElement>(null);
+    
+    const inputRefPeople = useRef<HTMLInputElement>(null);
+
+    const selectRef = (key: string) =>{
+        return key === "campaign" ? inputRefCampaign : key === "people" ? inputRefPeople : null;
+    }
+    
+
+    useEffect(() => {
+        if(showMenu){
+            const ref = selectRef(showMenu.type);
+            if (ref && ref.current) {
+                ref.current.focus();
+            }
+        }
+        },[showMenu])
+
     return (
         <Modal
             close={true}
@@ -478,28 +504,18 @@ const AddVisitModal = ({
                                                         .replace("_", " ")}
                                                 </span>
                                             </div>
-                                            <textarea
-                                                name={key}
-                                                value={
-                                                    formState[
-                                                        key as keyof typeof formState
-                                                    ] ?? ""
-                                                }
-                                                onChange={(e) => {
-                                                    handleChange(e.target);
+                                            <QuillText
+                                                clase="h-[120px] max-h-[120px] mb-8"
+                                                value={formState.comments ?? ""}
+                                                setValue={(value: string) => {
+                                                    dispatch({
+                                                        type: "change_value",
+                                                        payload: {
+                                                            inputName: "comments",
+                                                            inputValue: value,
+                                                        },
+                                                    });
                                                 }}
-                                                className="grow textarea textarea-bordered"
-                                                autoComplete="off"
-                                                disabled={inputsToDisable.includes(
-                                                    key,
-                                                )}
-                                                placeholder={
-                                                    inputsToDatePicker.includes(
-                                                        key,
-                                                    )
-                                                        ? "YYYY-MM-DD"
-                                                        : ""
-                                                }
                                             />
                                         </div>
                                     ) : (
@@ -535,6 +551,7 @@ const AddVisitModal = ({
                                                               ? "file"
                                                               : "text"
                                                     }
+                                                    ref={selectRef(key)}
                                                     name={key}
                                                     value={
                                                         key === "station"
@@ -671,24 +688,24 @@ const AddVisitModal = ({
                             >
                                 {images
                                     ? images?.map((img) => (
-                                          <div
+                                        <div
                                               key={img.id}
                                               className="flex flex-col items-center break-words pb-2 rounded-md"
                                           >
-                                              <img
-                                                  src={`data:image/*;base64,${img.actual_image ?? ""}`}
-                                                  alt={img.name}
-                                                  className="size-60 object-cover rounded-md"
-                                              />
-                                              <span className="text-md font-medium mt-2 mx-auto w-auto">
-                                                  {img.name}
-                                              </span>
-                                              {img.description && (
-                                                  <span className="text-sm mt-2 mx-auto w-full">
-                                                      {img.description}
-                                                  </span>
-                                              )}
-                                          </div>
+                                            <img
+                                                src={`data:image/*;base64,${img.actual_image ?? ""}`}
+                                                alt={img.name}
+                                                className="size-60 object-cover rounded-md"
+                                            />
+                                            <span className="text-md font-medium mt-2 mx-auto w-auto">
+                                                {img.name}
+                                            </span>
+                                            {img.description && (
+                                                <span className="text-sm mt-2 mx-auto w-full">
+                                                    {img.description}
+                                                </span>
+                                            )}
+                                        </div>
                                       ))
                                     : null}
                             </div>
@@ -735,7 +752,7 @@ const AddVisitModal = ({
                                                 {(!gnssFiles ||
                                                     gnssFiles.length === 0) && (
                                                     <div className="text-center text-neutral text-2xl font-bold w-full rounded-md bg-neutral-content p-4">
-                                                        There is no GNSS Files
+                                                        There is no Observation Files
                                                         registered
                                                     </div>
                                                 )}

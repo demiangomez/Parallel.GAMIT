@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
     Menu,
     MenuButton,
@@ -117,6 +117,14 @@ const StationSelectModal = ({ campaign, setStateModal }: Props) => {
         getStation();
     }, []);
 
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        if(showMenu){
+            inputRef.current?.focus();
+        }
+    },[showMenu])
+
     return (
         <Modal
             close={false}
@@ -185,6 +193,7 @@ const StationSelectModal = ({ campaign, setStateModal }: Props) => {
 
                                     setMatchStation(match);
                                 }}
+                                ref={inputRef}
                                 className="grow"
                                 autoComplete="off"
                             />

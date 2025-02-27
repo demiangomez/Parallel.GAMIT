@@ -1,10 +1,13 @@
 import L, { LatLngExpression } from "leaflet";
-import { CircleMarker, MapContainer, Marker, Popup, TileLayer, Tooltip, useMap, ZoomControl} from "react-leaflet";
+import { MapContainer, Marker, Popup, TileLayer, Tooltip, useMap, ZoomControl} from "react-leaflet";
 import { useEffect, useState } from "react";
 import { PopupChildren } from "@componentsReact";
-import { useLocalStorage } from "@hooks";
-import { EarthquakeData, FilterState, GetParams, MyMapContainerProps, StationData, StationsAffectedServiceData, StationAffectedInfo} from "@types";
-import { isStationFiltered, chosenIcon, isCircleShape, shapeColor, removeMarkersFromKml } from "@utils";
+import { useLocalStorage, useAuth, useApi } from "@hooks";
+import { EarthquakeData, FilterState, GetParams, MyMapContainerProps, StationData, StationsAffectedServiceData, StationAffectedInfo, StationTypeServiceData,
+StationStatusServiceData, StationStatusData , StationTypeData} from "@types";
+import { isStationFiltered, chosenIcon, removeMarkersFromKml } from "@utils";
+import { getStationTypesService, getStationStatusService} from "@services";
+
 // @ts-expect-error leaflet omnivore doesnt have any types
 import omnivore from "leaflet-omnivore";
 import JSZip from "jszip";
@@ -143,6 +146,13 @@ const MapMarkers = ({
     handleEarthquakeState,
     setForceSyncScrollerMap,
 }: MapProps) => {
+
+    //---------------------------------------------------------UseAuth-------------------------------------------------------------
+        const { token, logout } = useAuth();
+    
+        //---------------------------------------------------------UseApi-------------------------------------------------------------
+        const api = useApi(token, logout);
+
     //---------------------------------------------------------------------------Constantes--------------------------------------------------------------------------------------
     const map = useMap();
 
@@ -325,6 +335,10 @@ const MapMarkers = ({
             s.station_code?.toUpperCase()) as string;
     };
 
+    const earthquakeToolTip = (s: EarthquakeData) => {
+        return (s.location?.toUpperCase() + " (M " + s.mag?.toString().toUpperCase() + ")") as string;
+    }
+
     //choses what markers show on the map according to the map state
     const chosenToMap = () => {
         if (mapState) {
@@ -343,6 +357,48 @@ const MapMarkers = ({
         });
     };
 
+    const [types, setTypes] = useState<{image:string, name: string}[]>([]);
+    const [statuses, setStatuses] = useState<{name: string, color: string}[]>([]);
+
+    const getStationStatuses = async () =>{
+        try {
+            const res = await getStationStatusService<StationStatusServiceData>(api);
+            if(res){
+                const statuses = res.data.map((status: StationStatusData) => {
+                    return {
+                        color: status.color_name,
+                        name: status.name,
+                    }
+                })
+                setStatuses(statuses)
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    const getStationTypes = async () =>{
+        try {
+            const res = await  getStationTypesService<StationTypeServiceData>(api);
+            if(res){
+                const types = res.data.map((type: StationTypeData) => {
+                    return {
+                        image: type.actual_image,
+                        name: type.name
+                    }
+                })
+                setTypes(types)
+        }
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    useEffect(() => {
+        getStationStatuses();
+        getStationTypes();
+    },[])
+
     const removeAllStations = () => {
         map.eachLayer((layer) => {
             if (layer instanceof L.Marker) {
@@ -350,6 +406,25 @@ const MapMarkers = ({
             }
         });
     };
+
+    const [isDangerousPopup, setIsDaangerousPopup] = useState<boolean>(false)
+
+    const isNearTop = (station: StationData) => {
+        const result = (station.lat)
+        if(85.0511 - 3.8 < result){
+            map.setView([station.lat, station.lon], 10);
+            setIsDaangerousPopup(true);
+        }
+    };
+
+    useEffect(() => {
+        if(isDangerousPopup){
+            map.setMinZoom(10);             
+        }
+        else if(!isDangerousPopup){
+            map.setMinZoom(4);
+        }
+    }, [isDangerousPopup])
 
     return (
         <>
@@ -366,54 +441,35 @@ const MapMarkers = ({
                     (s: StationAffectedInfo, index: number) => {
                         const station = findStation(s);
                         const uniqueKey = `affected-${station?.network_code}-${station?.station_code}-${index}-${forceRenderMarker}`;
-                        if(isCircleShape(station as StationData)){
-                            return (
-                                <CircleMarker
-                                    center={[station?.lat as number, station?.lon as number]}
-                                    color = {shapeColor(station as StationData)}
-                                    fillColor = {station && 'has_stationinfo' in station && station.has_stationinfo && station.status == "Deactivated" ? "#e20800"  : "#205425"}
-                                    fillOpacity = {0.8}
-                                    weight={4}
-                                    radius={4.5}
-                                    key={uniqueKey}
+                        return station && station.lat && station.lon ? (
+                            <Marker
+                                icon={chosenIcon(station as StationData, types, statuses)}
+                                key={uniqueKey + forceRenderMarker}
+                                position={[station.lat, station.lon]}
+                                eventHandlers={{
+                                    click: () => {
+                                        isNearTop(station as StationData);
+                                    },
+                                    popupclose: () => {
+                                        setIsDaangerousPopup(false);
+                                    }
+                                }}
+                            >
+                                <Tooltip permanent={false}>
+                                    <strong className="text-lg">
+                                        {stationTooltip(station as StationData)}
+                                    </strong>
+                                </Tooltip>
+                                <Popup maxWidth={600} minWidth={400}
                                 >
-                                    <Tooltip>
-                                        <strong className="text-lg">
-                                            {stationTooltip(station as StationData)}
-                                        </strong>
-                                    </Tooltip>
-                                    <Popup maxWidth={600} minWidth={400}>
-                                        <PopupChildren
-                                            station={station as StationData}
-                                            fromMain={true}
-                                            mainParams={mainParams}
-                                        />
-                                    </Popup>
-                                </CircleMarker>
-                            )
-                        }
-                        else{
-                            return station && station.lat && station.lon ? (
-                                <Marker
-                                    icon={chosenIcon(station as StationData)}
-                                    key={uniqueKey + forceRenderMarker}
-                                    position={[station.lat, station.lon]}
-                                >
-                                    <Tooltip permanent={false}>
-                                        <strong className="text-lg">
-                                            {stationTooltip(station as StationData)}
-                                        </strong>
-                                    </Tooltip>
-                                    <Popup maxWidth={600} minWidth={400}>
-                                        <PopupChildren
-                                            station={station as StationData}
-                                            fromMain={true}
-                                            mainParams={mainParams}
-                                        />
-                                    </Popup>
-                                </Marker>
-                            ) : null;
-                        }
+                                    <PopupChildren
+                                        station={station as StationData}
+                                        fromMain={true}
+                                        mainParams={mainParams}
+                                    />
+                                </Popup>
+                            </Marker>
+                        ) : null;
                     },
                 )}
             {(markersByBounds) &&
@@ -430,7 +486,8 @@ const MapMarkers = ({
                                 ? "light-red-icon"
                                 : "yellow-icon";
                         const uniqueKey = `${s?.lat}-${s?.lon}-${s?.api_id ?? index}`;
-                        if (mapState) {
+                        if (mapState) 
+                        {
                             if (
                                 earthQuakeChosen === undefined ||
                                 (earthQuakeChosen &&
@@ -456,58 +513,51 @@ const MapMarkers = ({
                                                 setForceRenderMarker(
                                                     (prev) => prev + 1,
                                                 );
+                                                isNearTop(s as StationData);
                                             },
+                                            popupclose: () => {
+                                                setIsDaangerousPopup(false);
+                                            }
                                         }}
                                         key={uniqueKey + forceRenderMarker}
                                         position={pos}
-                                    />
-                                );
-                            }
-                        } else {
-                            const iconGaps = chosenIcon(s as StationData);
-                            if(isCircleShape(s as StationData))
-                            {
-                                return (
-                                    <CircleMarker
-                                        center={pos}
-                                        color = {shapeColor(s as StationData)}
-                                        fillColor = {('has_stationinfo' in s && s.has_stationinfo && s.status == "Deactivated") ? "#e20800"  : "#205425"}
-                                        fillOpacity = {0.8}
-                                        weight={4}
-                                        radius={4.5}
-                                        key={uniqueKey}
-                                        
                                     >
                                         <Tooltip>
-                                            <strong className="text-lg">
-                                                {stationTooltip(s as StationData)}
-                                            </strong>
+                                                <strong className="text-lg">
+                                                    {earthquakeToolTip(s as EarthquakeData)}
+                                                </strong>
                                         </Tooltip>
-                                        <Popup maxWidth={600} minWidth={400}>
-                                            <PopupChildren
-                                                station={s as StationData}
-                                                fromMain={true}
-                                                mainParams={mainParams}
-                                            />
-                                        </Popup>
-                                    </CircleMarker>
-                                    
-                                )
+                                    </Marker>
+                                );
                             }
-                            else
-                            {                                
+                        } 
+                        else 
+                        {
+                            const iconGaps = chosenIcon(s as StationData, types, statuses);
                                 return (
                                     <Marker
                                         icon={iconGaps}
                                         key={uniqueKey}
                                         position={pos}
+                                        eventHandlers={{
+                                            click: () => {
+                                                isNearTop(s as StationData);
+                                            },
+                                            popupclose: () => {
+                                                setIsDaangerousPopup(false);
+                                            }
+                                        }}
                                     >
                                         <Tooltip>
                                             <strong className="text-lg">
                                                 {stationTooltip(s as StationData)}
                                             </strong>
                                         </Tooltip>
-                                        <Popup maxWidth={600} minWidth={400}>
+                                        <Popup maxWidth={600} minWidth={400}
+                                        eventHandlers={{
+                                            
+                                        }}
+                                        >
                                             <PopupChildren
                                                 station={s as StationData}
                                                 fromMain={true}
@@ -517,7 +567,6 @@ const MapMarkers = ({
                                     </Marker>
                                 );
                             }
-                        }
                     })}
         </>
     );

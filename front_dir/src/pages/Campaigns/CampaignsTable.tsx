@@ -77,7 +77,9 @@ const CampaignsTable = () => {
             );
             setCampaigns(res.data);
 
-            setPages(Math.ceil(res.total_count / bParams.limit));
+            if(bParams.limit){
+                setPages(Math.ceil(res.total_count / bParams.limit));
+            }
         } catch (err) {
             console.error(err);
         } finally {

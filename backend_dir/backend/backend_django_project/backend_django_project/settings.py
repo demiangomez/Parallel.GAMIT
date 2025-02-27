@@ -49,7 +49,8 @@ MAX_SIZE_FILE_MB = config['django']['max_size_file_mb']
 
 RINEX_STATUS_DATE_SPAN_SECONDS = config['django']['rinex_status_date_span_seconds']
 
-USER_GROUP_TO_SAVE_FILES = config['django']['user_group_to_save_files']
+USER_ID_TO_SAVE_FILES = config['django']['user_id_to_save_files']
+GROUP_ID_TO_SAVE_FILES = config['django']['group_id_to_save_files']
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -75,6 +76,8 @@ ALLOWED_HOSTS = ["*"]
 
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 MEDIA_URL = '/media/'
+
+ASSETS_FOLDER = os.path.join(BASE_DIR, "assets")
 
 # Application definition
 

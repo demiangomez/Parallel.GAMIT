@@ -20,6 +20,17 @@ interface Props {
 const EventsDetail = ({ event, setStateModal }: Props) => {
     const { showPopup, show } = usePopup(2000);
 
+    const handleDescription = (value: string) => {
+        if (value.includes("comments")) {
+            const comments = value.match(/"comments":"(.*?)"/);
+            if (comments && comments[1]) {
+                return comments[1].replace(/\\n/g, "<br />");
+            }
+        }
+        return value;
+    }
+
+
     return (
         <Modal
             close={false}
@@ -38,6 +49,24 @@ const EventsDetail = ({ event, setStateModal }: Props) => {
                         ];
 
                         if (keysToIgnore.includes(key)) return null;
+                        if(key === "description"){
+                            const newValue = handleDescription(value);
+                            return (
+                                <div
+                                    key={key}
+                                    className={`card bg-base-200 shadow-xl col-span-3 m-2 p-3`}
+                                >
+                                    <h2 className="card-title justify-between border-b-2 border-base-300 p-2">
+                                        {key.replace(/_/g, " ").toUpperCase()}
+                                    </h2>
+                                    <div className="card-body font-medium">
+                                        <span className="whitespace-pre-wrap">
+                                            {newValue}
+                                        </span>
+                                    </div>
+                                </div>
+                            );
+                        }
 
                         return (
                             <div

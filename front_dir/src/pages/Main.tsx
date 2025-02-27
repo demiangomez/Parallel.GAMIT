@@ -411,7 +411,6 @@ const MainPage = () => {
     };
 
     const handleEarthquakeState = (earthquake: EarthquakeData) => {
-        setPosToFly([earthquake.lat, earthquake.lon]);
 
         if (
             chosenEarthquake?.api_id !== earthquake.api_id ||
