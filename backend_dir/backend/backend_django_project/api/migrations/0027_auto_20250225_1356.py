@@ -23,8 +23,13 @@ def add_status_color(apps, schema_editor):
         StationStatusColor.objects.create(color=color)
 
 
-def add_station_status(apps, schema_editor):
+def set_default_station_status(apps, schema_editor):
     StationStatus = apps.get_model('api', 'StationStatus')
+
+    # delete all records from StationStatus table
+    StationStatus.objects.all().delete()
+
+    # set default station status
     StationStatusColor = apps.get_model('api', 'StationStatusColor')
     statuses = [
         "Active Online",
@@ -48,5 +53,5 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.RunPython(add_status_color),
-        migrations.RunPython(add_station_status)
+        migrations.RunPython(set_default_station_status)
     ]
