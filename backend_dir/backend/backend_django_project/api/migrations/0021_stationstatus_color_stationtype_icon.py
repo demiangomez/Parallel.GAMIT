@@ -13,7 +13,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='stationstatus',
             name='color',
-            field=models.CharField(default='#05d858', max_length=7),
+            field=models.CharField(default='1', max_length=7),
         ),
         migrations.AddField(
             model_name='stationtype',
