@@ -35,6 +35,7 @@ const PeopleTable = () => {
     const [loading, setLoading] = useState<boolean>(false);
     const [params, setParams] = useState<GetParams>(bParams);
 
+    const [allPeople, setAllPeople] = useState<People[]>([]);
     const [peoples, setPeoples] = useState<People[]>([]);
     const [people, setPeople] = useState<People | undefined>(undefined);
 
@@ -56,6 +57,18 @@ const PeopleTable = () => {
             setLoading(false);
         }
     };
+
+    const getAllPeople = async () => {
+        try {
+            setLoading(true);
+            const res = await getPeopleService<PeopleServiceData>(api);
+            setAllPeople(res.data);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    }; 
 
     const paginatePeople = async (newParams: GetParams) => {
         try {
@@ -145,13 +158,14 @@ const PeopleTable = () => {
         >
             <button className="absolute right-36 top-2 flex justify-center items-center gap-1 btn btn-neutral"
                 onClick={
-                    () => 
+                    () => { 
+                        getAllPeople();
                         body.length > 0 ?
                         setModals({
                         show: true,
                         title: "MergePeople",
                         type: "edit",
-                    }) : alert("There are no people to merge")
+                    }) : alert("There are no people to merge")}
                 }
             >
                 Merge
@@ -197,7 +211,7 @@ const PeopleTable = () => {
                     <MergePeopleModal
                         setStateModal={setModals}
                         handleCloseModal={() => setModals(undefined)}
-                        body = {peoples as People[]}
+                        body = {allPeople as People[]}
                     />
                 )
             }
