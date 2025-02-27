@@ -5,8 +5,8 @@ from django.db import migrations
 
 def add_status_color(apps, schema_editor):
     StationStatusColor = apps.get_model('api', 'StationStatusColor')
+    # "green-icon" color is already created in the previous migration
     colors = [
-        "green-icon",
         "light-green-icon",
         "yellow-icon",
         "light-gray-icon",

@@ -4,6 +4,21 @@ import django.db.models.deletion
 from django.db import migrations, models
 
 
+def change_station_status_color(apps, schema_editor):
+    # this is to avoid migration error
+    StationStatus = apps.get_model('api', 'StationStatus')
+    statuses = StationStatus.objects.all()
+
+    for status in statuses:
+        status.color = '1'
+        status.save()
+
+
+def create_dummy_station_status_color(apps, schema_editor):
+    StationStatusColor = apps.get_model('api', 'StationStatusColor')
+    StationStatusColor.objects.create(color='green-icon')
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -11,19 +26,24 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        migrations.RunPython(change_station_status_color),
         migrations.CreateModel(
             name='StationStatusColor',
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('color', models.CharField(default='green-icon', max_length=50, unique=True)),
+                ('id', models.BigAutoField(auto_created=True,
+                 primary_key=True, serialize=False, verbose_name='ID')),
+                ('color', models.CharField(
+                    default='green-icon', max_length=50, unique=True)),
             ],
             options={
                 'abstract': False,
             },
         ),
+        migrations.RunPython(create_dummy_station_status_color),
         migrations.AlterField(
             model_name='stationstatus',
             name='color',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, to='api.stationstatuscolor'),
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.PROTECT, to='api.stationstatuscolor'),
         ),
     ]
