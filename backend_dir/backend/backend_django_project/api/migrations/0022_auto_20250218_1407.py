@@ -3,26 +3,6 @@
 from django.db import migrations, models
 
 
-def define_colors_for_station_status(apps, schema_editor):
-    StationStatus = apps.get_model('api', 'StationStatus')
-
-    status_colors = {
-        'Destroyed': '#b5b3b3',
-        'Active Online': '#013003',
-        'Active Offline': '#33db04',
-        'Deactivated': '#f23d3d',
-        'Unknown': '#707070'
-    }
-
-    for status_name, color in status_colors.items():
-        try:
-            station_status = StationStatus.objects.get(name=status_name)
-            station_status.color = color
-            station_status.save()
-        except StationStatus.DoesNotExist:
-            pass
-
-
 def define_icons_for_station_type(apps, schema_editor):
     # set icon to "station_type_icons/placemark_circle.png" for type with name 'Continuous'
     try:
@@ -41,6 +21,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(define_colors_for_station_status),
         migrations.RunPython(define_icons_for_station_type)
     ]
