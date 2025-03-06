@@ -73,6 +73,8 @@ export const chosenIcon = (s: StationData, types: {image: string, name: string}[
     let icon = undefined;
 
     const size: [number, number] = url === "https://maps.google.com/mapfiles/kml/shapes/caution.png" ? [20, 20] : [27, 27];
+    console.log(url, "url");
+    console.log(classes, "classes");
 
     if(classes !== undefined && url !== undefined){
         icon = new L.Icon({
