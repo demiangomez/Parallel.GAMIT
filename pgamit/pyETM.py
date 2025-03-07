@@ -133,12 +133,12 @@ LIMIT = 2.5
 
 
 type_dict = {-1: 'UNDETERMINED',
-              1: 'GENERIC_JUMP',
-              2: 'ANTENNA_CHANGE',
-              5: 'REFERENCE_FRAME_JUMP',
-             10: 'CO_SEISMIC_JUMP_DECAY',
-             15: 'CO_SEISMIC_JUMP',
-             20: 'CO_SEISMIC_DECAY'}
+              1: 'MECHANICAL (MANUAL)',
+              2: 'MECHANICAL (ANTENNA CHANGE)',
+              5: 'REFERENCE FRAME CHANGE',
+             10: 'CO+POSTSEISMIC',
+             15: 'COSEISMIC ONLY',
+             20: 'POSTSEISMIC ONLY'}
 
 type_dict_user = {0: 'MECHANICAL',
                   1: 'CO+POSTSEISMIC',
