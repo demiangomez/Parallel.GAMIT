@@ -18,6 +18,14 @@ import logging
 from logging import INFO, ERROR, WARNING, DEBUG, StreamHandler, Formatter
 import copy
 
+from importlib.metadata import version, PackageNotFoundError
+
+try:
+    VERSION = str(version("pgamit"))
+except PackageNotFoundError:
+    # package is not installed
+    pass
+
 # add to supper WARNING message: Warning: Ignoring XDG_SESSION_TYPE=wayland on Gnome.
 # Use QT_QPA_PLATFORM=wayland to run on Wayland anyway.
 # see https://stackoverflow.com/questions/69828508/warning-ignoring-xdg-session-type-wayland-on-gnome-use-qt-qpa-
@@ -176,10 +184,6 @@ SIGMA_FLOOR_V = 0.15
 
 ESTIMATION = 0
 DATABASE = 1
-
-# last changed May, 10 2024
-VERSION = "1.2.2" # str(pgamit.__version__)
-
 
 class Model(object):
     VEL = 1

@@ -1,10 +1,8 @@
-name: Publish Python 🐍 distribution 📦 to PyPI and TestPyPI
-
+name: Publish
 on:
   push:
     tags:
-      - 'v*.*.*'
-
+      - "1.*"
 jobs:
   build:
     name: Build distribution 📦
@@ -17,11 +15,7 @@ jobs:
       with:
         python-version: "3.x"
     - name: Install pypa/build
-      run: >-
-        python3 -m
-        pip install
-        build
-        --user
+      run: python3 -m pip install build --user
     - name: Build a binary wheel and a source tarball
       run: python3 -m build
     - name: Store the distribution packages
@@ -31,9 +25,10 @@ jobs:
         path: dist/
 
   publish-to-testpypi:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags')
     name: Publish Python 🐍 distribution 📦 to TestPyPI
     needs:
-    - build
+      - build
     runs-on: ubuntu-latest
 
     environment:
@@ -41,7 +36,7 @@ jobs:
       url: https://test.pypi.org/p/pgamit
 
     permissions:
-      id-token: write  # IMPORTANT: mandatory for trusted publishing
+      id-token: write
 
     steps:
     - name: Download all the dists
@@ -55,16 +50,18 @@ jobs:
         repository-url: https://test.pypi.org/legacy/
 
   publish-to-pypi:
-    name: >-
-      Publish Python 🐍 distribution 📦 to PyPI
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags')
+    name: Publish Python 🐍 distribution 📦 to PyPI
     needs:
-    - publish-to-testpypi
+      - publish-to-testpypi
     runs-on: ubuntu-latest
+    
     environment:
       name: pypi
       url: https://pypi.org/p/pgamit
+      
     permissions:
-      id-token: write  # IMPORTANT: mandatory for trusted publishing
+      id-token: write
 
     steps:
     - name: Download all the dists
@@ -76,24 +73,18 @@ jobs:
       uses: pypa/gh-action-pypi-publish@release/v1
 
   github-release:
-    name: >-
-      Create GitHub Release with source code
+    name: Create GitHub Release with source code
     needs:
-    - publish-to-pypi
+      - publish-to-pypi
     runs-on: ubuntu-latest
-  
+
     permissions:
-      contents: write  # IMPORTANT: mandatory for making GitHub Releases
-  
+      contents: write
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-  
     - name: Create GitHub Release
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: >-
-        gh release create
-        '${{ github.ref_name }}'
-        --repo '${{ github.repository }}'
-        --notes "Release for version ${{ github.ref_name }}"
+      run: gh release create '${{ github.ref_name }}' --repo '${{ github.repository }}' --notes "Release for version ${{ github.ref_name }}"

@@ -6,8 +6,6 @@ except PackageNotFoundError:
     # package is not installed
     pass
 
-#__version__ = "1.2.3"
-
 __all__ = [
     'cluster',
     'network',
