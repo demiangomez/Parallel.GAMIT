@@ -178,7 +178,7 @@ ESTIMATION = 0
 DATABASE = 1
 
 # last changed May, 10 2024
-VERSION = str(pgamit.__version__)
+VERSION = "1.2.2" # str(pgamit.__version__)
 
 
 class Model(object):
