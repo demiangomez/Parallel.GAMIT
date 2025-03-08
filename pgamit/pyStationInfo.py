@@ -14,7 +14,6 @@ import os
 # deps
 import numpy as np
 
-from com.DownloadSources import source_host_desc
 # app
 from pgamit import dbConnection
 from pgamit import pyDate
