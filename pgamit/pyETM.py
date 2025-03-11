@@ -2837,7 +2837,6 @@ class ETM:
 
                 for i in range(3):
                     neu[i] = np.dot(self.As[idt, :], self.C[i])
-
                 xyz = self.rotate_2xyz(neu) + ref_pos
                 # Use the deviation from the ETM multiplied by 2.5 to estimate the error
                 sig = 2.5 * self.R[:, index]
@@ -3370,9 +3369,9 @@ class DailyRep(ETM):
         self.soln.type = 'dra'
         # replace auto_[xyz] with zeros so that in ETM.__init__ the self.l vector is realized properly
         # DRA requires coordinates differences, not coordinates relative to reference
-        self.soln.auto_x = 0
-        self.soln.auto_y = 0
-        self.soln.auto_z = 0
+        self.soln.auto_x = [0]
+        self.soln.auto_y = [0]
+        self.soln.auto_z = [0]
 
         ETM.__init__(self, cnn, self.soln, no_model, FitEarthquakes=False, FitGenericJumps=False,
                      FitPeriodic=False, plotit=plotit)
