@@ -1623,7 +1623,7 @@ class Polynomial(EtmFunction):
         if t_ref == 0:
             t_ref = np.min(t)
 
-        self.ce_pos = np.array([])
+        self.ce_pos = np.array([[0.0], [0.0], [0.0]])
 
         self.p.object = 'polynomial'
         self.p.t_ref = t_ref
@@ -1871,7 +1871,7 @@ class ETM:
         self.StationCode = soln.StationCode
 
         self.models = models
-        self.ce_pos = np.array([0.0, 0.0, 0.0])
+        self.ce_pos = np.array([[0.0], [0.0], [0.0]])
 
         stn_id = stationID(self)
 
@@ -3223,9 +3223,9 @@ class ETM:
                 reset_polynomial = True
                 # sanity checks
                 if 'Year' in params.keys() and 'DOY' in params.keys():
-                    if type(params['Year']) is not int:
+                    if params['Year'] is not None and type(params['Year']) is not int:
                         raise pyETMException('Parameter Year must be of type int')
-                    if type(params['DOY']) is not int:
+                    if params['Year'] is not None and type(params['DOY']) is not int:
                         raise pyETMException('Parameter DOY must be of type int')
                 elif ('Year' in params.keys() and 'DOY' not in params.keys()) or \
                         ('Year' not in params.keys() and 'DOY' in params.keys()):
