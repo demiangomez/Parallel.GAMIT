@@ -3230,8 +3230,21 @@ class ETM:
                         ('Year' not in params.keys() and 'DOY' in params.keys()):
                     raise pyETMException('Both parameters Year and DOY must be specified if either one is set')
 
+                # check that terms is an integer > 0
+                if type(params['terms']) is not int or params['terms'] <= 0:
+                    raise pyETMException('Parameter terms must be of type int > 0')
+
+                # check that the date is valid
+                if 'Year' in params.keys() and 'DOY' in params.keys():
+                    _ = pyDate.Date(year=params['Year'], doy=params['DOY'])
+
             elif params['object'] == 'periodic':
                 reset_periodic = True
+
+                # check that frequencies are not negative
+                for f in params['frequencies']:
+                    if f <= 0:
+                        raise pyETMException('Cannot insert negative frequencies for periodic components')
 
             # add the fields for station and network
             params['NetworkCode'] = self.NetworkCode
@@ -3256,8 +3269,14 @@ class ETM:
         if params:
             if params['object'] == 'jump':
 
-                if params['jump_type'] > 0 and params['action'] == '+' and 'relaxation' not in params.keys():
-                    raise pyETMException('Relaxation parameter needed when jump_type>0 and action=+')
+                if params['action'] == '+' and params['jump_type'] > 0 and 'relaxation' not in params.keys():
+                    raise pyETMException('Relaxation parameters needed when jump_type > 0 and action = +')
+
+                if 'relaxation' in params.keys():
+                    for r in params['relaxation']:
+                        if r <= 0:
+                            raise pyETMException('Relaxation parameters must be > 0')
+
                 # query params to find the jump
                 qpar = copy.deepcopy(params)
                 qpar = {k: v for k, v in qpar.items() if k not in ('action', 'relaxation', 'jump_type')}
@@ -3265,9 +3284,7 @@ class ETM:
                 # remove existing parameters
                 cnn.delete('etm_params', **qpar)
 
-                if type(params['terms']) is not int:
-                    raise pyETMException('Parameter terms must be of type int')
-
+            # insert the parameters passed to the database
             cnn.insert('etm_params', **params)
 
 

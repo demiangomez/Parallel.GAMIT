@@ -15,6 +15,7 @@ _REGEX_ID_V1 appears to be missing the parenthesis between OR aka | operator:
     to: ((?:Nine\sCharacter\sID)|(?:Four\sCharacter\sID)|(?:Site\sID))
     (ps. probably same issue in the regex for igs format v2)
     It also needs to allow 'Nine Character ID' in v1
+DDG: no, changed back to (?:Nine\sCharacter\sID|Four\sCharacter\sID|Site\sID)\s+\:\s*(\w{4}).*\W+
     
 extract_id_block() inside:
     id_block = [id_block[1].decode().upper(), id_block[2].decode().upper()] = 
@@ -66,7 +67,7 @@ _REGEX_LOG_VERSION_2 = _re.compile(rb"""(site log v2.0)""")
 
 _REGEX_ID_V1 = _re.compile(
     rb"""
-    ((?:Nine\sCharacter\sID)|(?:Four\sCharacter\sID)|(?:Site\sID))\s+\:\s*(\w{4}).*\W+
+    (?:Nine\sCharacter\sID|Four\sCharacter\sID|Site\sID)\s+\:\s*(\w{4}).*\W+
     .*\W+
     (?:\s{25}.+\W+|)
     IERS.+\:\s*(\w{9}|)
