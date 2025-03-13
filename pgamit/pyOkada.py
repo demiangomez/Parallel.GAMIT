@@ -185,12 +185,12 @@ class ScoreTable(object):
                     # seismic score came back > 0, add jump
                     self.table.append([j['mag'], Date(datetime=j['date']), j['lon'], j['lat'],
                                        etm.CO_SEISMIC_JUMP_DECAY,
-                                       j['id'] + ': M%.1f' % j['mag'] + ' ' + j['location']])
+                                       j['id'] + ': M%.1f' % j['mag'] + ' ' + j['location'] + ' -> %.0f km' % dist])
                 elif p_score > 0:
                     # seismic score came back == 0, but post-seismic score > 0 add jump
                     self.table.append([j['mag'], Date(datetime=j['date']), j['lon'], j['lat'],
                                        etm.CO_SEISMIC_DECAY,
-                                       j['id'] + ': M%.1f' % j['mag'] + ' ' + j['location']])
+                                       j['id'] + ': M%.1f' % j['mag'] + ' ' + j['location'] + ' -> %.0f km' % dist])
 
 
 class Score(object):

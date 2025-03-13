@@ -10,7 +10,7 @@ Description goes here
 
 import argparse
 import os
-
+import json
 import numpy as np
 from pgamit.pyOkada import cosd, sind
 from tqdm import tqdm
@@ -18,7 +18,7 @@ from tqdm import tqdm
 from pgamit import dbConnection, pyETM
 from pgamit.pyLeastSquares import adjust_lsq
 from pgamit.Utils import (cart2euler, get_stack_stations, process_stnlist,
-                          stationID)
+                          stationID, file_write)
 
 
 def build_design(hdata, vdata):
@@ -96,7 +96,9 @@ def main():
                         metavar='{stack name}',
                         help='''Stack name to work with. The Euler pole
                              will be calculated so as to fix the velocities
-                             of the selected sites in this stack.''')
+                             of the selected sites in this stack. To use PPP 
+                             solutions, provide any name for this argument and 
+                             pass the -ppp switch.''')
 
     parser.add_argument('-include', '--include_stations', nargs='+', type=str,
                         metavar='{net.stnm}',
@@ -119,6 +121,16 @@ def main():
                         help='''Directory to save the resulting PNG files.
                              If not specified, assumed to be the
                              production directory.''')
+
+    parser.add_argument('-ppp', '--ppp_solutions', action='store_true',
+                        default=False,
+                        help='''Use PPP solutions instead of GAMIT. The 
+                        input stack name will be ignored.''')
+
+    parser.add_argument('-json', '--save_json', action='store_true',
+                        default=False,
+                        help='''Save json files for the plotted ETMs. 
+                        Needs -plot to work.''')
 
     parser.add_argument('-save', '--save_stack', type=str,
                         metavar='{new stack name}',
@@ -168,13 +180,24 @@ def main():
         station = stn['StationCode']
         network = stn['NetworkCode']
 
-        rs = cnn.query_float(f'''SELECT etms.*, stations.lat, stations.lon
-                             FROM etms INNER JOIN stations
-                             USING ("NetworkCode", "StationCode")
-                             WHERE ("NetworkCode", "StationCode", "stack",
-                             "object") =
-                             (\'{network}\', \'{station}\', \'{stack}\',
-                             \'polynomial\')''', as_dict=True)
+        if not args.ppp_solutions:
+            # use a GAMIT stack
+            rs = cnn.query_float(f'''SELECT etms.*, stations.lat, stations.lon
+                                 FROM etms INNER JOIN stations
+                                 USING ("NetworkCode", "StationCode")
+                                 WHERE ("NetworkCode", "StationCode", "stack",
+                                 "object") =
+                                 (\'{network}\', \'{station}\', \'{stack}\',
+                                 \'polynomial\')''', as_dict=True)
+        else:
+            # use PPP solutions
+            rs = cnn.query_float(f'''SELECT etms.*, stations.lat, stations.lon
+                                             FROM etms INNER JOIN stations
+                                             USING ("NetworkCode", "StationCode")
+                                             WHERE ("NetworkCode", "StationCode", "soln",
+                                             "object") =
+                                             (\'{network}\', \'{station}\', \'ppp\',
+                                             \'polynomial\')''', as_dict=True)
 
         if len(rs):
             params = np.array(rs[0]['params'])
@@ -193,13 +216,24 @@ def main():
             station = stn['StationCode']
             network = stn['NetworkCode']
 
-            rs = cnn.query_float(f'''SELECT etms.*, stations.lat, stations.lon
-                                 FROM etms INNER JOIN stations
-                                 USING ("NetworkCode", "StationCode")
-                                 WHERE ("NetworkCode", "StationCode",
-                                 "stack", "object") =
-                                 (\'{network}\', \'{station}\', \'{stack}\',
-                                 \'polynomial\')''', as_dict=True)
+            if not args.ppp_solutions:
+                # use a GAMIT stack
+                rs = cnn.query_float(f'''SELECT etms.*, stations.lat, stations.lon
+                                     FROM etms INNER JOIN stations
+                                     USING ("NetworkCode", "StationCode")
+                                     WHERE ("NetworkCode", "StationCode",
+                                     "stack", "object") =
+                                     (\'{network}\', \'{station}\', \'{stack}\',
+                                     \'polynomial\')''', as_dict=True)
+            else:
+                # use PPP solutions
+                rs = cnn.query_float(f'''SELECT etms.*, stations.lat, stations.lon
+                                                 FROM etms INNER JOIN stations
+                                                 USING ("NetworkCode", "StationCode")
+                                                 WHERE ("NetworkCode", "StationCode",
+                                                 "soln", "object") =
+                                                 (\'{network}\', \'{station}\', \'ppp\',
+                                                 \'polynomial\')''', as_dict=True)
 
             if len(rs):
                 params = np.array(rs[0]['params'])
@@ -270,13 +304,11 @@ def main():
     tqdm.write(' -- Obs. nok  : %i' % index[~index].shape[0])
     tqdm.write(' -- wrms      : %.3f mm/yr' % (factor[0, 0] * 1000.))
     tqdm.write(' ==== EULER POLE SUMMARY ====')
-    tqdm.write(''' -- XYZ (mas/yr mas/yr mas/yr) : %8.4f \xB1 %.3f %9.4f
-               \xB1 %.3f %7.4f \xB1 %.3f'''
+    tqdm.write(''' -- XYZ (mas/yr mas/yr mas/yr) : %8.4f \xB1 %.3f %9.4f \xB1 %.3f %7.4f \xB1 %.3f'''
                % (C[0, 0]*k, sigma[0, 0]*k,
                   C[1, 0]*k, sigma[0, 1]*k,
                   C[2, 0]*k, sigma[0, 2]*k))
-    tqdm.write(''' -- llr (deg deg deg/Myr)      : %8.4f \xB1 %.3f %9.4f
-               \xB1 %.3f %7.4f \xB1 %.3f'''
+    tqdm.write(''' -- llr (deg deg deg/Myr)      : %8.4f \xB1 %.3f %9.4f \xB1 %.3f %7.4f \xB1 %.3f'''
                % (lat, np.rad2deg(np.sqrt(cov_lla[1, 1])),
                   lon, np.rad2deg(np.sqrt(cov_lla[2, 2])),
                   rot, np.rad2deg(np.sqrt(cov_lla[0, 0])) * 1e-9 * 1e6))
@@ -287,14 +319,23 @@ def main():
             v = np.zeros((3, 1))
             v[0:3 if len(vref) > 0 else 2] = A @ C
             model = pyETM.Model(pyETM.Model.VEL, velocity=v, fit=True)
-            etm = pyETM.GamitETM(cnn, stn['NetworkCode'], stn['StationCode'],
-                                 stack_name=stack, models=[model],
-                                 plot_remove_jumps=True)
+
+            if not args.ppp_solutions:
+                etm = pyETM.GamitETM(cnn, stn['NetworkCode'], stn['StationCode'],
+                                     stack_name=stack, models=[model],
+                                     plot_remove_jumps=True)
+            else:
+                etm = pyETM.PPPETM(cnn, stn['NetworkCode'], stn['StationCode'],
+                                   models=[model], plot_remove_jumps=True)
 
             xfile = os.path.join(args.directory, '%s.%s_%s'
                                  % (etm.NetworkCode,
                                     etm.StationCode, 'plate-fixed'))
             etm.plot(xfile + '.png', plot_missing=False)
+
+            if args.save_json:
+                obj = etm.todictionary(time_series=True, model=True)
+                file_write(xfile + '.json', json.dumps(obj, indent=4, sort_keys=False))
 
     if save_stack:
         stations = get_stack_stations(cnn, args.stack_name[0])
@@ -313,12 +354,19 @@ def main():
             v[0:3 if len(vref) > 0 else 2] = A @ C
             model = pyETM.Model(pyETM.Model.VEL, velocity=v, fit=True)
             try:
-                etm = pyETM.GamitETM(cnn,
-                                     stn['NetworkCode'],
-                                     stn['StationCode'],
-                                     stack_name=stack,
-                                     models=[model],
-                                     plot_remove_jumps=True)
+                if not args.ppp_solutions:
+                    etm = pyETM.GamitETM(cnn,
+                                         stn['NetworkCode'],
+                                         stn['StationCode'],
+                                         stack_name=stack,
+                                         models=[model],
+                                         plot_remove_jumps=True)
+                else:
+                    etm = pyETM.PPPETM(cnn,
+                                       stn['NetworkCode'],
+                                       stn['StationCode'],
+                                       models=[model],
+                                       plot_remove_jumps=True)
 
                 tqdm.write(' -- Saving station %s to stack %s (%i/%i)'
                            % (stationID(stn), save_stack,

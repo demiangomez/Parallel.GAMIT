@@ -285,8 +285,10 @@ class pyETMException(Exception):
 class pyETMException_NoDesignMatrix(pyETMException):
     pass
 
+
 class pyETMException_Model(pyETMException):
     pass
+
 
 def distance(lon1, lat1, lon2, lat2):
     """
@@ -376,6 +378,7 @@ class PppSoln:
 
         self.type = 'ppp'
         self.stack_name = 'ppp'
+        self.project = 'from_ppp'
 
         # get the station from the stations table
         stn = cnn.query('SELECT * FROM stations WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\''
@@ -3203,7 +3206,7 @@ class ETM:
                               then year is needed). It can be = None or not passed
                           {'object': 'periodic', 'frequencies': list[float]}
                             frequencies: a list of integers of the frequencies to fit. This value must be
-                              passed as 1/days. If no periodic terms are requested, then pass [].
+                              passed as days. If no periodic terms are requested, then pass [].
                           {'object': 'jump', 'Year': int, 'DOY': int, 'action': str, 'jump_type': int, 'relaxation': list}
                             Year: sets the year part of the discontinuity date. Mandatory.
                             DOY: sets the day of year part of the discontinuity date. Mandatory
@@ -3242,9 +3245,11 @@ class ETM:
                 reset_periodic = True
 
                 # check that frequencies are not negative
-                for f in params['frequencies']:
+                for i, f in enumerate(params['frequencies']):
                     if f <= 0:
                         raise pyETMException('Cannot insert negative frequencies for periodic components')
+                    else:
+                        params['frequencies'][i] = 1/f
 
             # add the fields for station and network
             params['NetworkCode'] = self.NetworkCode
