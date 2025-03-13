@@ -24,7 +24,10 @@ from lxml import etree
 import zipfile
 import pwd
 from pgamit import pyOkada, dbConnection
-
+from pgamit import pyStationInfo, dbConnection, pyDate, pyETM
+from pgamit import Utils as pyUtils
+import dateutil.parser
+from django.http import Http404
 logger = logging.getLogger('django')
 
 
@@ -62,6 +65,162 @@ def get_actual_image(image_obj, request):
             return None
     else:
         return None
+
+
+class TimeSeriesConfigUtils:
+    def _get_required_param(self, request, params, param_name):
+        param_value = request.query_params.get(param_name)
+
+        # param_value can't be None or an empty string
+        if param_value is not None and (isinstance(param_value, str) and param_value != ""):
+            params[param_name] = param_value
+        else:
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "'" + param_name + "'" + " parameter is required.")
+
+    def _convert_to_bool(self, params, param_name):
+        param_value = params[param_name].strip().lower()
+
+        if param_value in ("true", "false"):
+            params[param_name] = param_value == "true"
+        else:
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "'" + param_name + "'" + " parameter is not a valid boolean.")
+
+    def _check_params(self, request):
+        params = {}
+
+        for param_name in ("solution", "residuals", "missing_data", "plot_outliers", "plot_auto_jumps",
+                           "no_model", "remove_jumps", "remove_polynomial"):
+            self._get_required_param(request, params, param_name)
+
+        self._get_dates_param(request, params)
+
+        for param_name in ("residuals", "missing_data", "plot_outliers", "plot_auto_jumps", "no_model", "remove_jumps", "remove_polynomial"):
+            self._convert_to_bool(params, param_name)
+
+        params["solution"] = params["solution"].strip().upper()
+
+        if params["solution"] not in ("PPP", "GAMIT"):
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "'solution' parameter must be either 'PPP' or 'GAMIT'")
+
+        if params["solution"] == "GAMIT":
+            self._get_required_param(request, params, "stack")
+
+        return params
+
+    def _deprecated_check_params(self, request, params):
+
+        date_start = request.query_params.get("date_start")
+        date_end = request.query_params.get("date_end")
+
+        for param_name, param_value in (("date_start", date_start), ("date_end", date_end)):
+
+            if param_value is not None:
+                try:
+                    date = dateutil.parser.parse(param_value)
+                except (dateutil.parser.ParserError, ValueError):
+                    raise exceptions.CustomValidationErrorExceptionHandler(
+                        "'" + param_name + "'" + " parameter has a wrong format.")
+                else:
+                    params[param_name] = date
+                    print(f"{type(date)=}")
+
+        if isinstance(params["date_start"], datetime.datetime) and isinstance(params["date_end"], datetime.datetime):
+            if params["date_start"] > params["date_end"]:
+                raise exceptions.CustomValidationErrorExceptionHandler(
+                    "'date_start' parameter can't be greater than 'date_end' parameter.")
+
+    def _get_dates_param(self, request, params):
+        date_start = request.query_params.get("date_start")
+        date_end = request.query_params.get("date_end")
+
+        time_window = []
+
+        if date_start is not None:
+            time_window.append(date_start)
+        if date_end is not None:
+            time_window.append(date_end)
+
+        dates = None
+        try:
+            if len(time_window) > 0:
+                if len(time_window) == 1:
+                    try:
+                        dates = pyUtils.process_date(
+                            time_window, missing_input=None, allow_days=False)
+                        dates = (dates[0].fyear, )
+                    except ValueError:
+                        # an integer value
+                        dates = float(time_window[0])
+                else:
+                    dates = pyUtils.process_date(time_window)
+                    dates = (dates[0].fyear, dates[1].fyear)
+        except Exception as e:
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                e.detail if hasattr(e, 'detail') else str(e))
+
+        params["dates"] = dates
+
+    def _get_station(self, station_api_id):
+        try:
+            station = models.Stations.objects.get(api_id=station_api_id)
+        except models.Stations.DoesNotExist:
+            raise Http404
+        else:
+            return station.network_code.network_code, station.station_code
+
+    def _set_default_params(self):
+        params = {}
+
+        params["solution"] = "PPP"
+
+        for param_name in ("residuals", "missing_data", "plot_outliers", "plot_auto_jumps",
+                           "no_model", "remove_jumps", "remove_polynomial"):
+            params[param_name] = "false"
+
+        return params
+
+    def initialize_etm(self, request, *args, **kwargs):
+        network_code, station_code = self._get_station(
+            kwargs.get("station_api_id"))
+
+        params = self._set_default_params()
+
+        # params = self._check_params(request)
+
+        self.cnn = dbConnection.Cnn(settings.CONFIG_FILE_ABSOLUTE_PATH)
+
+        try:
+
+            if params["solution"] == "GAMIT":
+                polyhedrons = self.cnn.query_float('SELECT "X", "Y", "Z", "Year", "DOY" FROM stacks '
+                                                   'WHERE "name" = \'%s\' AND "NetworkCode" = \'%s\' AND '
+                                                   '"StationCode" = \'%s\' '
+                                                   'ORDER BY "Year", "DOY", "NetworkCode", "StationCode"'
+                                                   % (params["stack"], network_code, station_code))
+
+                soln = pyETM.GamitSoln(
+                    self.cnn, polyhedrons, network_code, station_code, params["stack"])
+
+                etm = pyETM.GamitETM(self.cnn, network_code, station_code, False,
+                                     params["no_model"], gamit_soln=soln, plot_remove_jumps=params["remove_jumps"],
+                                     plot_polynomial_removed=params["remove_polynomial"])
+            else:
+
+                etm = pyETM.PPPETM(self.cnn, network_code, station_code, False, params["no_model"],
+                                   plot_remove_jumps=params["remove_jumps"],
+                                   plot_polynomial_removed=params["remove_polynomial"])
+
+        except Exception as e:
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                e.detail if hasattr(e, 'detail') else str(e))
+
+        return etm
+
+    def get_cnn(self):
+        return self.cnn
 
 
 class FilesUtils:

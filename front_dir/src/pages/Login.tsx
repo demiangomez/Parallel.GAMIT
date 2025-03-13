@@ -113,9 +113,9 @@ const Login = () => {
                         msg={
                             !message.errors
                                 ? message.msg
-                                : message.errors.errors[0].code === "blank"
+                                : message.errors.errors?.[0].code === "blank"
                                   ? "Fields may not be blank."
-                                  : message.errors.errors[0].detail
+                                  : message.errors.errors?.[0].detail?? message.msg
                         }
                     />
                 )}

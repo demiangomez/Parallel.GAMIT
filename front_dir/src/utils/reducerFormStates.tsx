@@ -115,3 +115,21 @@ export const SERIES_FILTERS_STATE = {
     remove_jumps: false,
     remove_polynomial: false,
 };
+
+export const SERIES_JUMP_DATA = {
+    Year: "",
+    DOY: "",
+    action: "",
+    jump_type: "",
+    relaxation: [],
+}
+
+export const SERIES_POLYNOMIAL_DATA = {
+    DOY: "",
+    Year: "",
+    terms: "",
+}
+
+export const SERIES_PERIODIC_DATA = {
+    frequence: []
+}

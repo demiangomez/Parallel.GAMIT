@@ -832,6 +832,19 @@ export async function getStationVisitsByIdService<T>(
     }
 }
 
+export async function getTimeSeriesConfigService<T>(
+    api: AxiosInstance,
+    id: number,
+): Promise<T> {
+    try {
+        const response = await api.get(`api/time-series-config/${id}`);
+        return response.data as Promise<T>;
+    } catch (error) {
+        return Promise.reject(error);
+    }
+}
+
+
 export async function postStationVisitService<T>(
     api: AxiosInstance,
     data: FormData,
@@ -1088,6 +1101,136 @@ export async function delStationVisitFilesService<T>(
 }
 
 // Station Time Series
+
+export async function resetTimeSeriesPolynomialService<T>(
+    api: AxiosInstance,
+    id: number,
+): Promise <T> {
+    try{
+        const response = await api.post(
+            `api/time-series-config/${id}/reset-polynomial`,
+        );
+        return response.data as Promise<T>
+    }
+    catch(error){
+        return Promise.reject(error);
+    }
+}
+
+export async function resetTimeSeriesPeriodicService<T>(
+    api: AxiosInstance,
+    id: number,
+): Promise <T> {
+    try{
+        const response = await api.post(
+            `api/time-series-config/${id}/reset-periodic`,
+        );
+        return response.data as Promise<T>
+    }
+    catch(error){
+        return Promise.reject(error);
+    }
+}
+
+export async function resetTimeSeriesJumpsService<T>(
+    api: AxiosInstance,
+    id: number,
+): Promise <T> {
+    try{
+        const response = await api.post(
+            `api/time-series-config/${id}/reset-jumps`,
+        );
+        return response.data as Promise<T>
+    }
+    catch(error){
+        return Promise.reject(error);
+    }
+}
+
+export async function postTimeSeriesPolynomialService<T>(
+    api: AxiosInstance,
+    id: number,
+    params: any,
+): Promise <T> {
+    try{
+        const response = await api.post(
+            `api/time-series-config/${id}/set-polynomial`,
+            {
+            terms: Number(params.terms),
+            Year: Number(params.Year),
+            DOY: Number(params.DOY)
+            }
+        );
+        return response.data as Promise<T>
+    }
+    catch(error){
+        return Promise.reject(error);
+    }
+}
+
+export async function postTimeSeriesPeriodicService<T>(
+    api: AxiosInstance,
+    id: number,
+    params: any,
+): Promise <T> {
+    try{
+        const response = await api.post(
+            `api/time-series-config/${id}/set-periodic`,
+            params
+        );
+        return response.data as Promise<T>
+
+    }
+    catch(error){
+        return Promise.reject(error);
+    }
+}
+
+export async function postTimeSeriesJumpService<T>(
+    api: AxiosInstance,
+    id: number,
+    params: any,
+): Promise <T> {
+    try{
+        const response = await api.post(
+            `api/time-series-config/${id}/set-jumps`,
+            params
+        );
+        return response.data as Promise<T>
+    }
+    catch(error){
+        return Promise.reject(error);
+    }
+}
+
+export async function getJumpTypesService<T>(
+    api: AxiosInstance,
+): Promise<T> {
+    try {
+        const response = await api.get(`api/time-series-config/available-jump-types`);
+        return response.data as Promise<T>;
+    } catch (error) {
+        return Promise.reject(error);
+    }
+}
+
+export async function deleteTimeSeriesJumpService<T>(
+    api: AxiosInstance,
+    id: number,
+    params: any,
+): Promise <T> {
+    try{
+        const response = await api.post(
+            `api/time-series-config/${id}/delete-jump`,
+            params
+        );
+        return response.data as Promise<T>
+    }
+    catch(error){
+        return Promise.reject(error);
+    }
+}
+
 
 export async function getStationTimeSeriesService<T>(
     api: AxiosInstance,

@@ -752,8 +752,7 @@ const AddVisitModal = ({
                                                 {(!gnssFiles ||
                                                     gnssFiles.length === 0) && (
                                                     <div className="text-center text-neutral text-2xl font-bold w-full rounded-md bg-neutral-content p-4">
-                                                        There is no Observation Files
-                                                        registered
+                                                        There are no Observation Files
                                                     </div>
                                                 )}
                                                 {gnssFiles &&
@@ -827,8 +826,7 @@ const AddVisitModal = ({
                                                 {(!files ||
                                                     files.length === 0) && (
                                                     <div className="text-center text-neutral text-2xl font-bold w-full rounded-md bg-neutral-content p-4">
-                                                        There is no Files
-                                                        registered
+                                                        There are no other files
                                                     </div>
                                                 )}
                                                 {files &&

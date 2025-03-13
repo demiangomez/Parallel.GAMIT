@@ -1,6 +1,6 @@
 import { FilterState, GapData, StationData, TokenPayload } from "@types";
-import  defaultUrl from "@assets/images/placemark_square.png";
-import L from 'leaflet';
+import defaultUrl from "@assets/images/placemark_square.png";
+import L from "leaflet";
 
 export const modalSizes = {
     sm: "500px",
@@ -16,67 +16,72 @@ export const apiOkStatuses = [200, 201, 204];
 export const apiErrorStatuses = [400, 401, 403, 404, 405, 406, 415, 500];
 
 export const classHtml = (s: string) => {
-    
     const parser = new DOMParser();
-        
-            const doc = parser.parseFromString(s ? s : "" , 'text/html');
 
-            doc.querySelectorAll('ol, ul').forEach((list) => {
-                if (list.tagName.toLowerCase() === 'ol') {
-                list.classList.add('list-decimal');
-                } else if (list.tagName.toLowerCase() === 'ul') {
-                list.classList.add('list-disc');
-                }
-            });
+    const doc = parser.parseFromString(s ? s : "", "text/html");
 
-            const updatedRichText = doc.body.innerHTML;
+    doc.querySelectorAll("ol, ul").forEach((list) => {
+        if (list.tagName.toLowerCase() === "ol") {
+            list.classList.add("list-decimal");
+        } else if (list.tagName.toLowerCase() === "ul") {
+            list.classList.add("list-disc");
+        }
+    });
 
-            return updatedRichText;
-} 
+    const updatedRichText = doc.body.innerHTML;
 
-const iconUrl = (s: StationData, types: {image: string, name:string}[]) => {
+    return updatedRichText;
+};
+
+const iconUrl = (s: StationData, types: { image: string; name: string }[]) => {
     if (!s.has_stationinfo || s.has_gaps) {
         return "https://maps.google.com/mapfiles/kml/shapes/caution.png";
-    }
-    else{
+    } else {
         let icon = defaultUrl;
         const type = s.type;
-        const foundUrl = types.find(t => t.name === type)?.image;
-        if(foundUrl){
+        const foundUrl = types.find((t) => t.name === type)?.image;
+        if (foundUrl) {
             icon = "data:image/png;base64," + foundUrl;
         }
         return icon;
     }
 };
 
-const iconClass = (s: StationData, statuses: {color: string, name: string}[]) => {
+const iconClass = (
+    s: StationData,
+    statuses: { color: string; name: string }[],
+) => {
     //Problemas
     if (!s.has_stationinfo || s.has_gaps) {
         return "";
-    }
-    else{
+    } else {
         let color = "green-icon";
         const status = s.status;
-        const foundColor = statuses.find(t => t.name === status)?.color; 
-        if(foundColor){
+        const foundColor = statuses.find((t) => t.name === status)?.color;
+        if (foundColor) {
             color = foundColor;
         }
-        return color; 
+        return color;
     }
 };
 
-export const chosenIcon = (s: StationData, types: {image: string, name: string}[], statuses:{color: string, name: string}[]) => {
+export const chosenIcon = (
+    s: StationData,
+    types: { image: string; name: string }[],
+    statuses: { color: string; name: string }[],
+) => {
     const url = iconUrl(s, types);
 
     const classes = iconClass(s, statuses);
 
     let icon = undefined;
 
-    const size: [number, number] = url === "https://maps.google.com/mapfiles/kml/shapes/caution.png" ? [20, 20] : [27, 27];
-    console.log(url, "url");
-    console.log(classes, "classes");
+    const size: [number, number] =
+        url === "https://maps.google.com/mapfiles/kml/shapes/caution.png"
+            ? [20, 20]
+            : [27, 27];
 
-    if(classes !== undefined && url !== undefined){
+    if (classes !== undefined && url !== undefined) {
         icon = new L.Icon({
             iconUrl: url,
             iconSize: size,
@@ -99,8 +104,7 @@ export const datesFormatOpt: Intl.DateTimeFormatOptions = {
 };
 
 export const getRandomColor = (index: number) => {
-    const chosenColor =
-        possibleColors[index];
+    const chosenColor = possibleColors[index];
     return chosenColor;
 };
 
@@ -555,7 +559,6 @@ export function removeMarkersFromKml(base64Kml: string): string {
 
     return base64UpdatedXml;
 }
-
 
 export const rinexMockup = {
     data: [

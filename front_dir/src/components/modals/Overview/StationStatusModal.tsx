@@ -306,7 +306,7 @@ const StationStatusModal = ({
                 </div>
                 <div className="px-4">
                     <Alert msg={msg} />
-                </div>
+                </div> 
                 {loading && (
                     <div className="w-full text-center">
                         <span className="loading loading-spinner loading-lg self-center"></span>

@@ -242,7 +242,7 @@ const Visits = () => {
                             </div>
                         ) : visits && visits.length === 0 ? (
                             <div className="text-center text-neutral text-2xl font-bold w-full rounded-md bg-neutral-content p-6">
-                                There is no visits
+                                There are no visits
                             </div>
                         ) : (
                             <div

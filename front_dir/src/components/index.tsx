@@ -1,12 +1,16 @@
 export { default as Nav } from "./Nav";
 
-export { default as ColorPickerModal} from "./modals/ColorPickerModal";
+export { default as TimeSeriesConfigModal } from "./TimeSeriesConfigModal";
 
-export { default as ColorPicker} from "./ColorPicker";
+export { default as TimeSeriesParams} from "./TimeSeriesParams";
+
+export { default as ColorPickerModal } from "./modals/ColorPickerModal";
+
+export { default as ColorPicker } from "./ColorPicker";
 
 export { default as DropLeft } from "./DropLeft";
 
-export { default as NativePopup} from "./map/NativePopup";
+export { default as NativePopup } from "./map/NativePopup";
 
 export { default as Toast } from "./Message";
 
@@ -189,5 +193,7 @@ export { default as VisitsScroller } from "./map/VisitsScroller";
 export { default as MainScroller } from "./map/MainScroller";
 
 export { default as MapModal } from "./map/MapModal";
+
+export { default as QuillText } from "./map/QuillText";
 
 export { default as MergePeopleModal } from "./modals/MergePeopleModal";

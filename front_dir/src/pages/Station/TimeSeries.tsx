@@ -5,6 +5,7 @@ import {
     FormControlSelect,
     Spinner,
     StationSeriesFiltersModal,
+    TimeSeriesParams,
 } from "@componentsReact";
 
 import { FunnelIcon } from "@heroicons/react/24/outline";
@@ -180,84 +181,97 @@ const TimeSeries = () => {
             <h1 className="text-2xl font-base text-center">TIME SERIES</h1>
 
             <div className="flex flex-grow w-full justify-center pr-2 space-x-2 px-2 pb-4">
-                <CardContainer title={""} height={false} addButton={false}>
-                    <div className="flex flex-col space-y-2 items-center">
-                        <div className="w-full flex space-x-4 justify-center">
-                            <FormControlSelect
-                                title={"Solution"}
-                                options={solutions}
-                                optionSelected={solutionSelected}
-                                optionDisabled={
-                                    stacks?.length === 0 ? "GAMIT" : ""
-                                }
-                                selectFunction={(option: string) => {
-                                    setSolutionSelected(option);
-                                    setParams({
-                                        solution: solutionSelected,
-                                        stack: stackSelected,
-                                        date_start: "",
-                                        date_end: "",
-                                        residuals: false,
-                                        missing_data: false,
-                                        plot_outliers: false,
-                                        plot_auto_jumps: false,
-                                        no_model: false,
-                                        remove_jumps: false,
-                                        remove_polynomial: false,
-                                    });
-                                }}
-                            />
-                            {solutionSelected === "GAMIT" &&
-                                stacks &&
-                                stacks.length > 0 && (
-                                    <FormControlSelect
-                                        title={"Stack"}
-                                        options={stacks ?? []}
-                                        optionSelected={stackSelected}
-                                        selectFunction={(option: string) => {
-                                            setStackSelected(option);
-                                        }}
-                                    />
-                                )}
+                {
+                <CardContainer title={""} height={false} addButton={false} >
+                    <div className="flex flex-col space-y-4 items-center">
+                        <div className="flex flex-col space-y-2 items-center">
+                            <div className="w-full flex space-x-4 justify-center">
+                                <FormControlSelect
+                                    title={"Solution"}
+                                    options={solutions}
+                                    optionSelected={solutionSelected}
+                                    optionDisabled={
+                                        stacks?.length === 0 ? "GAMIT" : ""
+                                    }
+                                    selectFunction={(option: string) => {
+                                        setSolutionSelected(option);
+                                        setParams({
+                                            solution: solutionSelected,
+                                            stack: stackSelected,
+                                            date_start: "",
+                                            date_end: "",
+                                            residuals: false,
+                                            missing_data: false,
+                                            plot_outliers: false,
+                                            plot_auto_jumps: false,
+                                            no_model: false,
+                                            remove_jumps: false,
+                                            remove_polynomial: false,
+                                        });
+                                    }}
+                                />
+                                {solutionSelected === "GAMIT" &&
+                                    stacks &&
+                                    stacks.length > 0 && (
+                                        <FormControlSelect
+                                            title={"Stack"}
+                                            options={stacks ?? []}
+                                            optionSelected={stackSelected}
+                                            selectFunction={(option: string) => {
+                                                setStackSelected(option);
+                                            }}
+                                        />
+                                    )}
 
-                            <button
-                                className="btn self-end"
-                                onClick={() =>
-                                    setModals({
-                                        show: true,
-                                        title: "SeriesFilters",
-                                        type: "none",
-                                    })
-                                }
-                            >
-                                Parameters
-                                <FunnelIcon className="size-6" />
-                            </button>
+                                <button
+                                    className="btn self-end"
+                                    onClick={() =>
+                                        setModals({
+                                            show: true,
+                                            title: "SeriesFilters",
+                                            type: "none",
+                                        })
+                                    }
+                                >
+                                    Parameters
+                                    <FunnelIcon className="size-6" />
+                                </button>
+                            </div>
+                            {loading && (
+                                <div className="py-24">
+                                    <Spinner size="lg" />
+                                </div>
+                            )}
+                            {msg && (
+                                <div className="font-bold text-xl p-4 flex relative items-center justify-center h-32">
+                                    <span className="text-gray-300 text-base absolute right-3 self-end">
+                                        {msg.errors?.errors[0].code.toUpperCase()}
+                                    </span>
+                                    <span className="text-neutral text-2xl">
+                                        {msg.msg.toUpperCase()}
+                                    </span>
+                                </div>
+                            )}
+                            {timeSeries && !loading &&(
+                                <img
+                                    src={`data:image/png;base64,${timeSeries}`}
+                                    alt="Time Series"
+                                    className="w-[80%] pt-6"
+                                />
+                            )}
                         </div>
-                        {loading && (
-                            <div className="py-24">
-                                <Spinner size="lg" />
-                            </div>
-                        )}
-                        {msg && (
-                            <div className="font-bold text-xl p-4 flex relative items-center justify-center h-32">
-                                <span className="text-gray-300 text-base absolute right-3 self-end">
-                                    {msg.errors?.errors[0].code.toUpperCase()}
-                                </span>
-                                <span className="text-neutral text-2xl">
-                                    {msg.msg.toUpperCase()}
-                                </span>
-                            </div>
-                        )}
-                        {timeSeries && (
-                            <img
-                                src={`data:image/png;base64,${timeSeries}`}
-                                alt="Time Series"
-                                className="w-[80%] pt-6"
+                        { !loading &&
+                        <div className="w-[80%]">
+                            <TimeSeriesParams
+                                stationId={station.api_id? station.api_id : 0}
+                                refetch = {getTimeSeries}
+                                setLoading={setLoading}
                             />
-                        )}
+                        </div>
+                        }
                     </div>
                 </CardContainer>
+                }
 
                 {modals?.show && modals?.title === "SeriesFilters" && (
                     <StationSeriesFiltersModal

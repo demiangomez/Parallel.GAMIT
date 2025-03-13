@@ -774,6 +774,8 @@ export interface GamitHTCData {
     v_offset: number;
 }
 
+
+
 export interface RolePersonStationData {
     id: number;
     role: number;
@@ -782,5 +784,41 @@ export interface RolePersonStationData {
 }
 
 export interface ExtendedRolePersonStationData extends RolePersonStationData {
+    statusCode: number;
+}
+
+export interface ConfigJumpData {
+    Year: number,
+    DOY: number,
+    action: string,
+    fit: boolean,
+    type: number,
+    type_name: string,
+    metadata: string,
+    relaxation: number[],
+    type: string,
+}
+
+export interface JumpType{
+    id: number,
+    type: string,
+}
+
+
+export interface ConfigPolynomialData{
+    DOY: number,
+    Year: number,
+    terms: number,
+}
+
+
+export interface TimeSeriesParamsData{
+    jumps: ConfigJumpData[];
+    periodic: any;
+    polynomial: ConfigPolynomialData;
+}
+
+export interface TimeSeriesParamsServiceData{
+    current_config: TimeSeriesParamsData,
     statusCode: number;
 }

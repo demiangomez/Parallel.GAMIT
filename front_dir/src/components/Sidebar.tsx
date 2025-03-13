@@ -35,12 +35,9 @@ const Sidebar = ({
     station,
     mainParams,
     stationMeta,
-    refetchStationMeta,
     refetch,
     setShow,
-
 }: SidebarProps) => {
-
     //------------------------------------------------Constantes-----------------------------------------------------
     const icons: Icons = {
         Information: InformationCircleIcon,
@@ -71,8 +68,6 @@ const Sidebar = ({
     //-----------------------------------------------UseNavigate-----------------------------------------------------
 
     const navigate = useNavigate();
-
-    
 
     //-----------------------------------------------UseState------------------------------------------------
 
@@ -112,8 +107,11 @@ const Sidebar = ({
                                             <div className="flex items-center justify-center w-4/12 ">
                                                 {icons[title] &&
                                                     React.createElement(
-                                                        title === "Time Series" ? icons["Time Series"] :
-                                                        icons[title],
+                                                        title === "Time Series"
+                                                            ? icons[
+                                                                  "Time Series"
+                                                              ]
+                                                            : icons[title],
                                                         {
                                                             className: `h-8 w-full hover:scale-110 transition-all
                                                              cursor-pointer ${show ? "ml-16" : ""} text-white mt-2 `,
@@ -198,11 +196,8 @@ const Sidebar = ({
                 <StationMetadataModal
                     close={false}
                     station={station}
-                    stationMeta={stationMeta}
+                    stationMetaMain={stationMeta}
                     size={"xl"}
-                    refetchStationMeta={
-                        refetchStationMeta ? refetchStationMeta : () => {}
-                    }
                     refetch={refetch ? refetch : () => {}}
                     setModalState={setModals}
                 />

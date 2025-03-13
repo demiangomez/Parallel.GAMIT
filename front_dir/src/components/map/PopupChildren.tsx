@@ -110,6 +110,18 @@ const PopupChildren = ({
         }
     };
 
+    const getDistinctVisitYears = (key: string) => {
+        if(stationMetaByMain?.[key as keyof StationMetadataServiceData] && (stationMetaByMain?.[key as keyof StationMetadataServiceData] as string[]).join(", ") !== ""){
+            const valores = stationMetaByMain?.[key as keyof StationMetadataServiceData] as string[];
+            valores.sort((a, b) => Number(a) - Number(b));
+            return valores.join(", ");
+        }
+        else{
+            return "-";
+        }
+
+    };
+
     const errorMessages = station ? generateErrorMessages(station) : [];
 
     useEffect(() => {
@@ -118,6 +130,8 @@ const PopupChildren = ({
             getStationMeta();
         }
     }, [fromMain]);
+
+    
 
     const campsToShow = ["rinex_count", "distinct_visit_years", "station_name"];
 
@@ -157,10 +171,7 @@ const PopupChildren = ({
                                         <span className="text-sm flex flex-row flex-wrap">
                                             <strong>{key.replace(/_/g, " ").replace(/^\w/, c => c.toUpperCase())}: </strong>
                                                 <div className={Array.isArray(stationMetaByMain?.[key as keyof StationMetadataServiceData]) && (stationMetaByMain?.[key as keyof StationMetadataServiceData] as string[]).length > 1 ? "" : "ml-1"}>
-                                                {
-                                                    stationMetaByMain?.[key as keyof StationMetadataServiceData] && (stationMetaByMain?.[key as keyof StationMetadataServiceData] as string[]).join(", ") !== "" ?
-                                                    (stationMetaByMain?.[key as keyof StationMetadataServiceData] as string[]).join(", ")   : "-"
-                                                }
+                                                {getDistinctVisitYears(key)}
                                                 </div>
                                         </span>
                                     </div>

@@ -291,7 +291,7 @@ const RinexTable = ({
     };
 
     const rinexBackground = (rinex: any) => {
-        if (!rinex.has_station_info && !rinex.has_multiple_station_info_gap) {
+        if (!rinex.has_station_info || rinex.has_multiple_station_info_gap) {
             if (rinex.completion && rinex.completion < 0.5) {
                 return "bg-red-300";
             } else {

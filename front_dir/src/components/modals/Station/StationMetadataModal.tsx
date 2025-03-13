@@ -10,6 +10,7 @@ import {
     Modal,
     RenderFileModal,
     StationAddFileModal,
+    QuillText,
 } from "@componentsReact";
 
 import {
@@ -42,7 +43,8 @@ import {
     getStationTypesService,
     patchStationMetaService,
     patchStationService,
-    
+    getStationsService,
+    getStationMetaService,
 } from "@services";
 
 import { classHtml, decimalToDMS, formattedDates, showModal } from "@utils";
@@ -61,32 +63,30 @@ import {
     StationInfoData,
     StationInfoServiceData,
     StationMetadataServiceData,
+    StationServiceData,
     StationStatus,
     StationStatusServiceData,
 } from "@types";
-import QuillText from "@components/map/QuillText";
 
 interface StationMetadataProps {
     close: boolean;
     size?: "sm" | "md" | "lg" | "xl" | "fit";
     station?: StationData | undefined;
-    stationMeta: StationMetadataServiceData | undefined;
-    refetchStationMeta?: () => void;
-    refetch: () => void;
+    stationMetaMain?: StationMetadataServiceData | undefined;
     setModalState: React.Dispatch<
         React.SetStateAction<
             | { show: boolean; title: string; type: "add" | "edit" | "none" }
             | undefined
         >
     >;
+    refetch: () => void;
 }
 
 const StationMetadataModal = ({
     close,
     station,
-    stationMeta,
+    stationMetaMain,
     size,
-    refetchStationMeta,
     refetch,
     setModalState,
 }: StationMetadataProps) => {
@@ -125,11 +125,13 @@ const StationMetadataModal = ({
         [],
     );
 
-    const [chosenMonumentPhoto, setChosenMonumentPhoto] = useState<string | null>(null)
+    const [chosenMonumentPhoto, setChosenMonumentPhoto] = useState<
+        string | null
+    >(null);
 
-    const [fileToEdit, setFileToEdit] = useState<StationFilesData | undefined>()
-
-    const [richText, setRichText] = useState<string>(stationMeta?.comments ?? "");
+    const [fileToEdit, setFileToEdit] = useState<
+        StationFilesData | undefined
+    >();
 
     const [stationStatus, setStationStatus] = useState<StationStatus[]>([]);
     const [matchingStatus, setMatchingStatus] = useState<StationStatus[]>([]);
@@ -144,8 +146,20 @@ const StationMetadataModal = ({
         undefined,
     );
 
+    const [stationData, setStationData] = useState<StationData | undefined>(
+        undefined,
+    );
+
+    const [stationMeta, setStationMeta] = useState<
+        StationMetadataServiceData | undefined
+    >(undefined);
+
     const [stationInfo, setStationInfo] = useState<StationInfoData | undefined>(
         undefined,
+    );
+
+    const [richText, setRichText] = useState<string>(
+        stationMetaMain?.comments ?? "",
     );
 
     const [fileType, setFileType] = useState<"meta" | "none">("none");
@@ -155,6 +169,10 @@ const StationMetadataModal = ({
     );
 
     const [fileToDel, setFileToDel] = useState<number | undefined>(undefined);
+
+    const [fileToShow, setFileToShow] = useState<StationFilesData | undefined>(
+        undefined,
+    );
 
     const [modals, setModals] = useState<
         | { show: boolean; title: string; type: "add" | "edit" | "none" }
@@ -171,10 +189,40 @@ const StationMetadataModal = ({
         setShowAllFiles(false);
     };
 
+    const getStation = async () => {
+        try {
+            setLoading(true);
+            const res = await getStationsService<StationServiceData>(api, {
+                network_code: station?.network_code,
+                station_code: station?.station_code,
+                limit: 1,
+                offset: 0,
+            });
+            setStationData(res.data[0]);
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    const getStationMeta = async () => {
+        try {
+            setLoading(true);
+            const res = await getStationMetaService<StationMetadataServiceData>(
+                api,
+                Number(station?.api_id ?? undefined),
+            );
+            if (res) {
+                setStationMeta(res);
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
     const getTypes = async () => {
         try {
             setLoading(true);
-            if (stationMeta) {
+            if (stationMetaMain) {
                 const status =
                     await getStationStatusService<StationStatusServiceData>(
                         api,
@@ -183,19 +231,24 @@ const StationMetadataModal = ({
                 const types =
                     await getStationTypesService<StationStatusServiceData>(api);
 
-                const params = {only_metadata: true};
+                const params = { only_metadata: true };
                 const monuments =
                     await getMonumentsTypesService<MonumentTypesServiceData>(
-                        api, params
+                        api,
+                        params,
                     );
-
                 if (monuments.data.length > 0) {
                     const auxMonumentType = monuments.data;
-                    if(auxMonumentType){
-                        const monumentId = auxMonumentType.find((mt) => mt.id === Number(stationMeta?.monument_type))?.id
+                    if (auxMonumentType) {
+                        const monumentId = auxMonumentType.find(
+                            (mt) =>
+                                mt.id ===
+                                Number(stationMetaMain?.monument_type),
+                        )?.id;
                         await getMonumentPhotoById(monumentId);
                     }
                 }
+
                 setStationType(types.data ?? []);
                 setMonumentType(monuments.data ?? []);
 
@@ -203,7 +256,7 @@ const StationMetadataModal = ({
             }
         } catch (err) {
             console.error(err);
-        } 
+        }
     };
 
     const getRinex = async () => {
@@ -226,7 +279,7 @@ const StationMetadataModal = ({
             setLastRinex(lastRes.data[0]);
         } catch (err) {
             console.error(err);
-        } 
+        }
     };
 
     const getStationInfo = async () => {
@@ -253,7 +306,7 @@ const StationMetadataModal = ({
             }
         } catch (err) {
             console.error(err);
-        } 
+        }
     };
 
     const stationId = stationMeta?.station ?? undefined;
@@ -276,7 +329,7 @@ const StationMetadataModal = ({
             }
         } catch (err) {
             console.error(err);
-        } 
+        }
     };
 
     const getFileById = async (id: number) => {
@@ -294,6 +347,20 @@ const StationMetadataModal = ({
             console.error(err);
         } finally {
             setLoadFile(false);
+        }
+    };
+
+    const getMonumentPhotoById = async (id: number | undefined) => {
+        try {
+            if (id) {
+                const res = await getMonumentsTypesByIdService<MonumentTypes>(
+                    api,
+                    id,
+                );
+                setChosenMonumentPhoto(res.photo_file);
+            }
+        } catch (err) {
+            console.error(err);
         }
     };
 
@@ -344,7 +411,7 @@ const StationMetadataModal = ({
 
                 const res = await patchStationMetaService<
                     StationFilesData | ErrorResponse
-                >(api, Number(stationMeta?.station), formData);
+                >(api, Number(stationMetaMain?.station), formData);
                 if (res.statusCode !== 200 && "status" in res) {
                     setFileMsg({
                         status: res.statusCode,
@@ -356,7 +423,8 @@ const StationMetadataModal = ({
                         status: res.statusCode,
                         msg: "File deleted successfully",
                     });
-                    refetchStationMeta && refetchStationMeta();
+                    getStationMeta();
+                    // refetchStationMeta && refetchStationMeta();
                 }
             }
         } catch (err) {
@@ -370,17 +438,17 @@ const StationMetadataModal = ({
         getFiles();
     }, [stationId]);
 
-
     useEffect(() => {
-        Promise.all([getTypes(), getRinex(), getStationInfo()])
-            .then(() => {
-                setLoading(false);
-            });
-    }, [stationMeta]);
-
-        
-
-
+        Promise.all([
+            getTypes(),
+            getRinex(),
+            getStationInfo(),
+            getStationMeta(),
+            getStation(),
+        ]).then(() => {
+            setLoading(false);
+        });
+    }, []);
 
     const formattedData = useMemo(() => {
         return {
@@ -422,19 +490,29 @@ const StationMetadataModal = ({
                         (st) => st.id === Number(stationMeta?.status),
                     )?.name ?? "",
                 remote_access_link: stationMeta?.remote_access_link ?? "",
-                station_name: station?.station_name ?? "",
-                dome: station?.dome ?? "",
+                station_name: stationData?.station_name ?? "",
+                dome: stationData?.dome ?? "",
             },
+
             station: {
-                lat: String(station?.lat) ?? "",
-                lon: String(station?.lon) ?? "",
-                height: String(station?.height) ?? "",
-                auto_x: String(station?.auto_x) ?? "",
-                auto_y: String(station?.auto_y) ?? "",
-                auto_z: String(station?.auto_z) ?? "",
+                lat: String(stationData?.lat) ?? "",
+                lon: String(stationData?.lon) ?? "",
+                height: String(stationData?.height) ?? "",
+                auto_x: String(stationData?.auto_x) ?? "",
+                auto_y: String(stationData?.auto_y) ?? "",
+                auto_z: String(stationData?.auto_z) ?? "",
             },
         };
-    }, [stationType, monumentType, stationStatus]);
+    }, [stationType, monumentType, stationStatus, stationData, stationMeta]);
+
+    useEffect(() => {
+        if (monumentType.length > 0) {
+            const monumentId = monumentType.find(
+                (mt) => mt.id === Number(stationMeta?.monument_type),
+            )?.id;
+            getMonumentPhotoById(monumentId);
+        }
+    }, [stationMeta, monumentType]);
 
     const { formState, dispatch } = useFormReducer(formattedData);
 
@@ -443,8 +521,7 @@ const StationMetadataModal = ({
             type: "set",
             payload: formattedData,
         });
-
-    }, [formattedData]);    
+    }, [formattedData]);
 
     const handleChange = (
         e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -552,6 +629,10 @@ const StationMetadataModal = ({
                 }
 
                 if (resMeta.statusCode === 200 && res.statusCode === 200) {
+                    Promise.all([getStationMeta(), getStation()]).then(() => {
+                        setLoading(false);
+                        setUpdateLoading(false);
+                    });
                     setTimeout(() => {
                         setEdit(false);
                     }, 1000);
@@ -560,7 +641,6 @@ const StationMetadataModal = ({
         } catch (err) {
             console.error(err);
         } finally {
-            refetchStationMeta && refetchStationMeta();
             setUpdateLoading(false);
         }
     };
@@ -604,86 +684,62 @@ const StationMetadataModal = ({
                 inputValue: updatedRichText,
             },
         });
-
-        
-    }, [richText])
+    }, [richText]);
 
     const inputRefType = useRef<HTMLInputElement>(null);
-    
-        const inputRefMonument = useRef<HTMLInputElement>(null);
-    
-        const inputRefStatus = useRef<HTMLInputElement>(null);
-    
-        const selectRef = (key: string) =>{
-            return key === "station_type" ? inputRefType : key === "monument_type" ? inputRefMonument : key === "status" ? inputRefStatus : null;
-        }
-        
-    
-        useEffect(() => {
-            if(showMenu){
-                const ref = selectRef(showMenu.type);
-                if (ref && ref.current) {
-                    ref.current.focus();
-                }
+
+    const inputRefMonument = useRef<HTMLInputElement>(null);
+
+    const inputRefStatus = useRef<HTMLInputElement>(null);
+
+    const selectRef = (key: string) => {
+        return key === "station_type"
+            ? inputRefType
+            : key === "monument_type"
+              ? inputRefMonument
+              : key === "status"
+                ? inputRefStatus
+                : null;
+    };
+
+    useEffect(() => {
+        if (showMenu) {
+            const ref = selectRef(showMenu.type);
+            if (ref && ref.current) {
+                ref.current.focus();
             }
-        },[showMenu])
-    
-    const handleGetFile = async (file: StationFilesData) =>{
-        const res =
-            await getFileById(
-                file.id,
-            );
-        if (
-            res
-        ) {
-            const link =
-                document.createElement(
-                    "a",
-                );
+        }
+    }, [showMenu]);
+
+    const handleGetFile = async (file: StationFilesData) => {
+        const res = await getFileById(file.id);
+        if (res) {
+            const link = document.createElement("a");
 
             link.href = `data:application/octet-stream;base64,${res.actual_file}`;
-            link.download =
-                res.filename;
+            link.download = res.filename;
             link.click();
         }
-    }
+    };
 
     const isPdf = (file: string) => {
         return file.includes(".pdf");
-    }
-
-    const [fileToShow, setFileToShow] = useState<StationFilesData | undefined>(undefined);
+    };
 
     useEffect(() => {
-        if(fileToShow !== undefined){
+        if (fileToShow !== undefined) {
             setModals({
                 show: true,
                 title: "FileRender",
-                type: "edit"
-            })
+                type: "edit",
+            });
         }
     }, [fileToShow]);
 
-    const setEditFile = (file : StationFilesData) =>{
-        setModals({show: true, title: "AddFile", type: "edit"});
+    const setEditFile = (file: StationFilesData) => {
+        setModals({ show: true, title: "AddFile", type: "edit" });
         setFileToEdit(file);
-    }
-
-    const getMonumentPhotoById = async (id: number | undefined) => {
-        try {
-            if (id) {
-                const res = await getMonumentsTypesByIdService<MonumentTypes>(
-                    api,
-                    id
-                );
-                setChosenMonumentPhoto(res.photo_file);
-            }
-        }
-        catch (err) {
-            console.error(err);
-            
-        }
-    }
+    };
 
     return (
         <Modal
@@ -702,7 +758,8 @@ const StationMetadataModal = ({
                 <button
                     className="flex items-center btn btn-ghost btn-circle"
                     onClick={() => {
-                        setEdit(!edit);}}
+                        setEdit(!edit);
+                    }}
                 >
                     <PencilSquareIcon title="edit" className="size-8" />
                 </button>
@@ -762,7 +819,9 @@ const StationMetadataModal = ({
                                                                         className="w-full"
                                                                         autoComplete="off"
                                                                         type="text"
-                                                                        ref={selectRef(key)}
+                                                                        ref={selectRef(
+                                                                            key,
+                                                                        )}
                                                                         value={
                                                                             formState
                                                                                 .stationMeta[
@@ -1150,37 +1209,37 @@ const StationMetadataModal = ({
                                                         <div>
                                                             <div className="text-sm font-bold flex items-center justify-between">
                                                                 Navigation File
-                                                                { edit &&
-                                                                <button
-                                                                    className="btn btn-ghost btn-circle ml-2 -mt-2"
-                                                                    onClick={() => {
-                                                                        setModals(
-                                                                            {
-                                                                                show: true,
-                                                                                title: "AddFile",
-                                                                                type: "add",
-                                                                            },
-                                                                        );
-                                                                        setFileType(
-                                                                            "meta",
-                                                                        );
-                                                                    }}
-                                                                    disabled={
-                                                                        formState
-                                                                            .rinex
-                                                                            .navigation_file !==
-                                                                        ""
-                                                                    }
-                                                                >
-                                                                    <PlusCircleIcon
-                                                                        strokeWidth={
-                                                                            1.5
+                                                                {edit && (
+                                                                    <button
+                                                                        className="btn btn-ghost btn-circle ml-2 -mt-2"
+                                                                        onClick={() => {
+                                                                            setModals(
+                                                                                {
+                                                                                    show: true,
+                                                                                    title: "AddFile",
+                                                                                    type: "add",
+                                                                                },
+                                                                            );
+                                                                            setFileType(
+                                                                                "meta",
+                                                                            );
+                                                                        }}
+                                                                        disabled={
+                                                                            formState
+                                                                                .rinex
+                                                                                .navigation_file !==
+                                                                            ""
                                                                         }
-                                                                        stroke="currentColor"
-                                                                        className="size-6"
-                                                                    />
-                                                                </button>
-                                                                }
+                                                                    >
+                                                                        <PlusCircleIcon
+                                                                            strokeWidth={
+                                                                                1.5
+                                                                            }
+                                                                            stroke="currentColor"
+                                                                            className="size-6"
+                                                                        />
+                                                                    </button>
+                                                                )}
                                                             </div>
 
                                                             {edit ? (
@@ -1281,9 +1340,10 @@ const StationMetadataModal = ({
                             <img
                                 className="size-96 object-contain"
                                 src={
-                                    chosenMonumentPhoto? 
-                                    "data:image/png;base64," + chosenMonumentPhoto
-                                    : defPhoto
+                                    chosenMonumentPhoto
+                                        ? "data:image/png;base64," +
+                                          chosenMonumentPhoto
+                                        : defPhoto
                                 }
                                 alt={
                                     monumentType.find(
@@ -1299,24 +1359,24 @@ const StationMetadataModal = ({
                             <div className="card bg-base-200 grow shadow-xl">
                                 <h2 className="card-title border-b-2 border-base-300 p-2 justify-between">
                                     Attached Files
-                                    { edit &&
-                                    <button
-                                        className="btn btn-ghost btn-circle ml-2"
-                                        onClick={() => {
-                                            setModals({
-                                                show: true,
-                                                title: "AddFile",
-                                                type: "add",
-                                            });
-                                        }}
-                                    >
-                                        <PlusCircleIcon
-                                            strokeWidth={1.5}
-                                            stroke="currentColor"
-                                            className="w-8 h-10"
-                                        />
-                                    </button>
-                                    }
+                                    {edit && (
+                                        <button
+                                            className="btn btn-ghost btn-circle ml-2"
+                                            onClick={() => {
+                                                setModals({
+                                                    show: true,
+                                                    title: "AddFile",
+                                                    type: "add",
+                                                });
+                                            }}
+                                        >
+                                            <PlusCircleIcon
+                                                strokeWidth={1.5}
+                                                stroke="currentColor"
+                                                className="w-8 h-10"
+                                            />
+                                        </button>
+                                    )}
                                 </h2>
                                 <div
                                     className={`card-body ${showAllFiles ? "overflow-y-auto max-h-44 scrollbar-base" : ""}`}
@@ -1386,22 +1446,48 @@ const StationMetadataModal = ({
                                                                     </div>
                                                                     <a
                                                                         className="btn-circle btn-ghost cursor-pointer flex justify-center w-4/12"
-                                                                        onClick={ async () => {
-                                                                            edit ? setEditFile(file) 
-                                                                            : isPdf(file.filename) ?
-                                                                            setFileToShow(await getFileById(file.id))
-                                                                            : handleGetFile(file);                                                                            
+                                                                        onClick={async () => {
+                                                                            edit
+                                                                                ? setEditFile(
+                                                                                      file,
+                                                                                  )
+                                                                                : isPdf(
+                                                                                        file.filename,
+                                                                                    )
+                                                                                  ? setFileToShow(
+                                                                                        await getFileById(
+                                                                                            file.id,
+                                                                                        ),
+                                                                                    )
+                                                                                  : handleGetFile(
+                                                                                        file,
+                                                                                    );
                                                                         }}
                                                                     >
-                                                                        {edit?
-                                                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-6 self-center">
-                                                                            <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
-                                                                        </svg>
-                                                                        :
-                                                                            isPdf(file.filename) ?
-                                                                            <BookOpenIcon className="size-6 self-center" /> :
-                                                                            <ArrowDownTrayIcon className="size-6 self-center" /> 
-                                                                        }
+                                                                        {edit ? (
+                                                                            <svg
+                                                                                xmlns="http://www.w3.org/2000/svg"
+                                                                                fill="none"
+                                                                                viewBox="0 0 24 24"
+                                                                                strokeWidth={
+                                                                                    1.5
+                                                                                }
+                                                                                stroke="currentColor"
+                                                                                className="size-6 self-center"
+                                                                            >
+                                                                                <path
+                                                                                    strokeLinecap="round"
+                                                                                    strokeLinejoin="round"
+                                                                                    d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"
+                                                                                />
+                                                                            </svg>
+                                                                        ) : isPdf(
+                                                                              file.filename,
+                                                                          ) ? (
+                                                                            <BookOpenIcon className="size-6 self-center" />
+                                                                        ) : (
+                                                                            <ArrowDownTrayIcon className="size-6 self-center" />
+                                                                        )}
                                                                     </a>
                                                                 </div>
                                                             </div>
@@ -1437,21 +1523,27 @@ const StationMetadataModal = ({
                                     Comments
                                 </h2>
                                 <div className="overflow-y-hidden max-h-48 h-auto">
-                                            {
-                                                edit ? 
-                                                <QuillText
-                                                    value = {richText}
-                                                    setValue = {setRichText}
-                                                    clase="h-48 pb-8"
-                                                />
-                                                :
-                                                <div
-                                                    className="textarea-bordered rounded-md text-lg overflow-auto pl-8 pb-8 h-48 max-h-48"
-                                                    dangerouslySetInnerHTML={{ 
-                                                        __html: formState.rinex.comments ?? "" 
-                                                    }}
-                                                />                                                 
+                                    {edit ? (
+                                        <QuillText
+                                            value={
+                                                metaMsg?.errors
+                                                    ? formattedData.rinex
+                                                          .comments
+                                                    : richText
                                             }
+                                            setValue={setRichText}
+                                            clase="h-48 pb-8"
+                                        />
+                                    ) : (
+                                        <div
+                                            className="textarea-bordered rounded-md text-lg overflow-auto pl-8 pb-8 h-48 max-h-48"
+                                            dangerouslySetInnerHTML={{
+                                                __html:
+                                                    formattedData.rinex
+                                                        .comments ?? "",
+                                            }}
+                                        />
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -1789,7 +1881,13 @@ const StationMetadataModal = ({
                     stationMetaId={stationMeta?.station}
                     meta={fileType === "meta"}
                     refetchStationMeta={() => {
-                        refetchStationMeta && refetchStationMeta();
+                        Promise.all([getStationMeta(), getStation()]).then(
+                            () => {
+                                setLoading(false);
+                                setUpdateLoading(false);
+                            },
+                        );
+                        // refetchStationMeta && refetchStationMeta();
                         setFileType("none");
                     }}
                     reFetch={() => {
@@ -1798,8 +1896,8 @@ const StationMetadataModal = ({
                         setFileType("none");
                     }}
                     setStateModal={setModals}
-                    type= {modals.type}
-                    file = {edit ? fileToEdit: undefined}
+                    type={modals.type}
+                    file={edit ? fileToEdit : undefined}
                     setFile={setFileToEdit}
                 />
             )}

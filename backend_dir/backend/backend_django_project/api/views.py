@@ -465,6 +465,308 @@ class TimeSeries(CustomListAPIView):
         return Response(data={"time_series": image}, status=status.HTTP_200_OK)
 
 
+class TimeSeriesConfigPull(CustomListCreateAPIView):
+    serializer_class = serializers.DummySerializer
+
+    def get_queryset(self, pk):
+        return None
+
+    def list(self, request, *args, **kwargs):
+        timeSeriesConfigUtils = utils.TimeSeriesConfigUtils()
+        etm = timeSeriesConfigUtils.initialize_etm(
+            request, *args, **kwargs)
+
+        try:
+            current_config = etm.pull_params()
+
+            if "jumps" in current_config:
+                for jump in current_config["jumps"]:
+                    jump["type_name"] = pyETM.type_dict[jump["type"]]
+
+        except Exception as e:
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                e.detail if hasattr(e, 'detail') else str(e))
+
+        return Response(data={"current_config": current_config}, status=status.HTTP_200_OK)
+
+
+class AvailableJumpTypes(APIView):
+    serializer_class = serializers.DummySerializer
+
+    def get_queryset(self, pk):
+        return None
+
+    @extend_schema(
+        description="Returns available jump types for ETM configuration",
+        responses={200: OpenApiResponse(
+            description="Array of jump types with id and type properties")}
+    )
+    def get(self, request, *args, **kwargs):
+        try:
+            jump_types_dict = pyETM.type_dict_user
+            jump_types = [{"id": int(key), "type": value}
+                          for key, value in jump_types_dict.items()]
+
+            return Response(data={"jump_types": jump_types}, status=status.HTTP_200_OK)
+        except Exception as e:
+            raise exceptions.CustomServerErrorExceptionHandler(
+                e.detail if hasattr(e, 'detail') else str(e))
+
+
+class TimeSeriesConfigResetPolynomial(CustomListCreateAPIView):
+    serializer_class = serializers.DummySerializer
+
+    def get_queryset(self, pk):
+        return None
+
+    def post(self, request, *args, **kwargs):
+        timeSeriesConfigUtils = utils.TimeSeriesConfigUtils()
+        etm = timeSeriesConfigUtils.initialize_etm(request, *args, **kwargs)
+        cnn = timeSeriesConfigUtils.get_cnn()
+        try:
+            etm.push_params(cnn=cnn, reset_polynomial=True)
+        except Exception as e:
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                e.detail if hasattr(e, 'detail') else str(e))
+
+        return Response(data={"message": "Polynomial reset successfully."}, status=status.HTTP_200_OK)
+
+
+class TimeSeriesConfigResetPeriodic(CustomListCreateAPIView):
+    serializer_class = serializers.DummySerializer
+
+    def get_queryset(self, pk):
+        return None
+
+    def post(self, request, *args, **kwargs):
+        timeSeriesConfigUtils = utils.TimeSeriesConfigUtils()
+        etm = timeSeriesConfigUtils.initialize_etm(request, *args, **kwargs)
+        cnn = timeSeriesConfigUtils.get_cnn()
+        try:
+            etm.push_params(cnn=cnn, reset_periodic=True)
+        except Exception as e:
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                e.detail if hasattr(e, 'detail') else str(e))
+
+        return Response(data={"message": "Periodic reset successfully."}, status=status.HTTP_200_OK)
+
+
+class TimeSeriesConfigResetJumps(CustomListCreateAPIView):
+    serializer_class = serializers.DummySerializer
+
+    def get_queryset(self, pk):
+        return None
+
+    def post(self, request, *args, **kwargs):
+        timeSeriesConfigUtils = utils.TimeSeriesConfigUtils()
+        etm = timeSeriesConfigUtils.initialize_etm(request, *args, **kwargs)
+        cnn = timeSeriesConfigUtils.get_cnn()
+        try:
+            etm.push_params(cnn=cnn, reset_jumps=True)
+        except Exception as e:
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                e.detail if hasattr(e, 'detail') else str(e))
+
+        return Response(data={"message": "Jumps reset successfully."}, status=status.HTTP_200_OK)
+
+
+class TimeSeriesConfigSetPolynomial(CustomListCreateAPIView):
+    serializer_class = serializers.DummySerializer
+
+    def get_queryset(self, pk):
+        return None
+
+    def post(self, request, *args, **kwargs):
+        timeSeriesConfigUtils = utils.TimeSeriesConfigUtils()
+        etm = timeSeriesConfigUtils.initialize_etm(request, *args, **kwargs)
+        cnn = timeSeriesConfigUtils.get_cnn()
+        # check if terms, year and doy is in body
+        if 'terms' not in request.data:
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "terms parameter is required.")
+        if 'Year' not in request.data:
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "Year parameter is required.")
+        if 'DOY' not in request.data:
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "DOY parameter is required.")
+
+        terms = request.data['terms']
+        year = request.data['Year']
+        doy = request.data['DOY']
+
+        # check that all of them are integers
+        if not isinstance(year, int) and not isinstance(year, type(None)):
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "Year parameter must be an integer or null.")
+
+        if not isinstance(doy, int) and not isinstance(doy, type(None)):
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "DOY parameter must be an integer or null.")
+
+        if not isinstance(terms, int):
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "terms parameter must be a integer.")
+        try:
+            etm.push_params(cnn=cnn, params={
+                            'object': 'polynomial', 'terms': terms, 'Year': year, 'DOY': doy})
+        except Exception as e:
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                e.detail if hasattr(e, 'detail') else str(e))
+
+        return Response(data={"message": "Polynomial set successfully."}, status=status.HTTP_200_OK)
+
+
+class TimeSeriesConfigSetPeriodic(CustomListCreateAPIView):
+    serializer_class = serializers.DummySerializer
+
+    def get_queryset(self, pk):
+        return None
+
+    def post(self, request, *args, **kwargs):
+        timeSeriesConfigUtils = utils.TimeSeriesConfigUtils()
+        etm = timeSeriesConfigUtils.initialize_etm(request, *args, **kwargs)
+        cnn = timeSeriesConfigUtils.get_cnn()
+
+        if 'frequencies' not in request.data:
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "frequencies parameter is required.")
+
+        # check that frequencies are a list of integers
+
+        if not isinstance(request.data['frequencies'], list):
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "frequencies parameter must be a list of numbers.")
+
+        for frequency in request.data['frequencies']:
+            if not isinstance(frequency, int) and not isinstance(frequency, float):
+                raise exceptions.CustomValidationErrorExceptionHandler(
+                    "frequencies parameter must be a list of numbers.")
+
+        try:
+            etm.push_params(cnn=cnn, params={
+                            'object': 'periodic', 'frequencies': request.data['frequencies']})
+        except Exception as e:
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                e.detail if hasattr(e, 'detail') else str(e))
+
+        return Response(data={"message": "Periodic set successfully."}, status=status.HTTP_200_OK)
+
+
+class TimeSeriesConfigSetJumps(CustomListCreateAPIView):
+    serializer_class = serializers.DummySerializer
+
+    def get_queryset(self, pk):
+        return None
+
+    def post(self, request, *args, **kwargs):
+
+        timeSeriesConfigUtils = utils.TimeSeriesConfigUtils()
+
+        etm = timeSeriesConfigUtils.initialize_etm(request, *args, **kwargs)
+
+        cnn = timeSeriesConfigUtils.get_cnn()
+
+        if 'Year' not in request.data:
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "Year parameter is required.")
+
+        if 'DOY' not in request.data:
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "DOY parameter is required.")
+
+        if 'action' not in request.data:
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "action parameter is required.")
+
+        params = {'object': 'jump', 'Year': request.data['Year'],
+                  'DOY': request.data['DOY'], 'action': request.data['action']}
+
+        # jump_type parameter is optional
+        if 'jump_type' in request.data:
+            params["jump_type"] = request.data['jump_type']
+
+        # relaxation parameter is optional
+        if 'relaxation' in request.data:
+            if not isinstance(request.data['relaxation'], list):
+                raise exceptions.CustomValidationErrorExceptionHandler(
+                    "relaxation parameter must be a list of numbers.")
+
+            for number in request.data['relaxation']:
+                if not isinstance(number, int) and not isinstance(number, float):
+                    raise exceptions.CustomValidationErrorExceptionHandler(
+                        "relaxation parameter must be a list of numbers.")
+
+            params["relaxation"] = request.data['relaxation']
+
+        try:
+
+            etm.push_params(cnn=cnn, params=params)
+        except Exception as e:
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                e.detail if hasattr(e, 'detail') else str(e))
+
+        return Response(data={"message": "Jump set successfully."}, status=status.HTTP_200_OK)
+
+
+class TimeSeriesConfigDeleteJump(CustomListCreateAPIView):
+    serializer_class = serializers.DummySerializer
+
+    def get_queryset(self):
+        return None
+
+    def post(self, request, **kwargs):
+
+        # check that required parameters exist
+
+        if 'Year' not in request.data:
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "Year parameter is required.")
+
+        if 'DOY' not in request.data:
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "DOY parameter is required.")
+
+        # check parameter types
+
+        if not isinstance(request.data['Year'], int):
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "Year parameter must be a number.")
+
+        if not isinstance(request.data['DOY'], int) and not isinstance(request.data['DOY'], float):
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "DOY parameter must be a number.")
+
+        # get station
+
+        try:
+            station = models.Stations.objects.get(
+                api_id=kwargs['station_api_id'])
+        except models.Stations.DoesNotExist:
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "Station does not exist.")
+        except models.Stations.MultipleObjectsReturned:
+            raise exceptions.CustomServerErrorExceptionHandler(
+                "Multiple stations with the same API ID exist.")
+
+        # delete etm params
+
+        try:
+            models.EtmParams.objects.get(
+                network_code=station.network_code.network_code, station_code=station.station_code, object='jump', year=request.data['Year'], doy=request.data['DOY']).delete()
+        except models.EtmParams.DoesNotExist:
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "Jump does not exist.")
+        except models.EtmParams.MultipleObjectsReturned:
+            raise exceptions.CustomServerErrorExceptionHandler(
+                "Multiple jumps with the same data.")
+        except Exception as e:
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                e.detail if hasattr(e, 'detail') else str(e))
+
+        return Response(data={"message": "Jump deleted successfully."}, status=status.HTTP_200_OK)
+
+
 class StationMetaList(CustomListCreateAPIView):
     queryset = models.StationMeta.objects.all()
     serializer_class = serializers.StationMetaSerializer

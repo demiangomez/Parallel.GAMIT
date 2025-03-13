@@ -884,8 +884,7 @@ const StationVisitDetailModal = ({
                                                     </div>
                                                 ) : (
                                                     <div className="text-center text-neutral text-xl font-bold w-full rounded-md bg-neutral-content p-6">
-                                                        There is no campaign
-                                                        registered
+                                                        No campaign assigned
                                                     </div>
                                                 )}
                                             </div>
@@ -966,8 +965,7 @@ const StationVisitDetailModal = ({
                                                     )
                                                 ) : (
                                                     <div className="text-center text-neutral text-xl font-bold w-full rounded-md bg-neutral-content p-6">
-                                                        There is no people
-                                                        registered
+                                                        No people assigned
                                                     </div>
                                                 )}
                                             </div>
@@ -1059,8 +1057,7 @@ const StationVisitDetailModal = ({
                                                     </div>
                                                 ) : (
                                                     <div className="text-center text-neutral text-xl font-bold w-full rounded-md bg-neutral-content p-6">
-                                                        There is no log sheet
-                                                        file
+                                                        There are no log sheet files
                                                     </div>
                                                 )}
                                             </div>
@@ -1147,7 +1144,7 @@ const StationVisitDetailModal = ({
                                                     </div>
                                                 ) : (
                                                     <div className="text-center text-neutral text-xl font-bold w-full rounded-md bg-neutral-content p-6">
-                                                        There is no navigation file
+                                                        There are no navigation file
                                                     </div>
                                                 )}
                                             </div>

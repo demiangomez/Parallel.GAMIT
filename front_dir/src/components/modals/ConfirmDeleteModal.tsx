@@ -18,6 +18,7 @@ interface ConfirmDeleteModalProps {
     loading?: boolean;
     confirmRemove: () => void;
     closeModal: () => void;
+    type?: string;
 }
 
 const ConfirmDeleteModal = ({
@@ -28,6 +29,7 @@ const ConfirmDeleteModal = ({
     loading,
     confirmRemove,
     closeModal,
+    type,
 }: ConfirmDeleteModalProps) => {
     const statusMsg = msg?.status;
 
@@ -37,7 +39,7 @@ const ConfirmDeleteModal = ({
             size="sm"
             modalId="ConfirmDelete"
             variant={variant ? variant : "danger"}
-            handleCloseModal={() => closeModal()}
+            handleCloseModal={() => {closeModal()}}
         >
             <div className="flex items-center justify-center">
                 <div className="w-3/12">
@@ -55,7 +57,13 @@ const ConfirmDeleteModal = ({
                     <span className="text-xl font-bold">Are you sure?</span>
                     <span className="">
                         {mainMsg ??
-                            "Are you sure you want to delete this register ?"}
+                            type === "reset" ? 
+                            "Are you sure you want to reset this table?"
+                            : type === "deactivate" ?
+                            "Are you sure you want to deactivate this register?" 
+                            : type === "activate" ?
+                            "Are you sure you want to activate this register?"
+                            :"Are you sure you want to delete this register ?"}
 
                         {alterMsg}
                     </span>
@@ -66,14 +74,14 @@ const ConfirmDeleteModal = ({
             </div>
             <div className="flex justify-center mt-6 space-x-4">
                 <button
-                    className="btn btn-error w-4/12"
+                    className={`btn w-4/12 ${type === "activate" ? "btn-success" : "btn-error"}`}
                     type="button"
                     onClick={() => confirmRemove()}
                     disabled={
                         loading || apiOkStatuses.includes(Number(statusMsg))
                     }
                 >
-                    Remove{" "}
+                    {type === "reset" ? "Reset" : type === "deactivate" ? "Deactivate"  : type === "activate" ? "Activate" : "Remove  "}
                     {loading && (
                         <span className="loading loading-spinner loading-sm self-center"></span>
                     )}
