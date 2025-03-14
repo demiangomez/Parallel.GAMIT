@@ -1,21 +1,25 @@
 import { TimeSeriesConfigModal, ConfirmDeleteModal} from "components"
-import { getTimeSeriesConfigService, resetTimeSeriesPeriodicService, resetTimeSeriesJumpsService, resetTimeSeriesPolynomialService
+import { resetTimeSeriesPeriodicService, resetTimeSeriesJumpsService, resetTimeSeriesPolynomialService
     , postTimeSeriesPeriodicService, postTimeSeriesJumpService, deleteTimeSeriesJumpService, getJumpTypesService
  } from "@services";
 import { useAuth, useApi } from "@hooks";
 import  { useEffect, useState } from 'react';
-import { TimeSeriesParamsServiceData, ConfigJumpData, ConfigPolynomialData, Errors, JumpType} from "@types";
+import {  ConfigJumpData, ConfigPolynomialData, Errors, JumpType} from "@types";
 import { PencilSquareIcon, XMarkIcon, ArrowPathIcon, PlusIcon, MinusIcon } from "@heroicons/react/24/outline";
 import { showModal, apiOkStatuses } from "@utils";
 
 
 interface TimeSeriesParamsProps {
     stationId: number;
+    solution: string;
     refetch: () => void;
-    setLoading: (value: boolean) => void;
+    jumpsData: ConfigJumpData[] | undefined;
+    periodicData: any | undefined;
+    polynomialData: ConfigPolynomialData | undefined;
+    stack : string
 }
 
-const TimeSeriesParams = ({stationId, refetch, setLoading}: TimeSeriesParamsProps) => {
+const TimeSeriesParams = ({stationId, refetch, solution, jumpsData, periodicData, polynomialData, stack}: TimeSeriesParamsProps) => {
     const { token, logout } = useAuth();
     const api = useApi(token, logout);
 
@@ -37,48 +41,8 @@ const TimeSeriesParams = ({stationId, refetch, setLoading}: TimeSeriesParamsProp
     const [data, setData] = useState<any>(undefined);
 
     const [jumpTypes, setJumpTypes] = useState<JumpType[]>([]);
-    const [polynomialData, setPolynomialData] = useState<ConfigPolynomialData | undefined>(undefined);
-    const [periodicData, setPeriodicData] = useState<any | undefined>(undefined);
-    const [jumpsData, setJumpsData] = useState<ConfigJumpData[] | undefined>(undefined);
     const [modalType, setModalType] = useState<{table: string, type: string} | undefined>(undefined);
     const [valueToModify, setValueToModify] = useState<any | undefined>(undefined);
-
-    const fullRefetch = async () => {
-        try{
-            setLoading(true);
-            await Promise.all([
-                getTimeSeriesConfig(),
-                refetch()
-            ]);
-        }
-        catch(e){
-            console.error(e);
-        }
-        finally{
-            setLoading(false);
-        }
-    }
-
-    const getTimeSeriesConfig = async () => {
-        try{
-            const res = await getTimeSeriesConfigService<TimeSeriesParamsServiceData>(api, stationId);
-            if(res && res.current_config){
-                if(res.current_config.polynomial){
-                    setPolynomialData(res.current_config.polynomial);
-                }
-                if(res.current_config.jumps){
-                    setJumpsData(res.current_config.jumps);
-                }
-                if(res.current_config.periodic){
-                    setPeriodicData(res.current_config.periodic);
-                }
-            }
-        }
-        catch(e){
-            console.error(e)
-        }
-    }
-    
 
     const formatDate = (year: number, doy: number) => {
         const date = new Date(year, 0, doy).toISOString().split('T')[0];
@@ -96,7 +60,7 @@ const TimeSeriesParams = ({stationId, refetch, setLoading}: TimeSeriesParamsProp
         try{
             setLoadingConfirmModal(true);
             const service = modalType?.table === "polynomial" ? resetTimeSeriesPolynomialService : modalType?.table === "periodic" ? resetTimeSeriesPeriodicService : resetTimeSeriesJumpsService;
-            const res = await service<any>(api, stationId)
+            const res = await service<any>(api, stationId, solution, stack);
             if ("status" in res) {
                 setMsg({
                     status: res.statusCode,
@@ -131,7 +95,7 @@ const TimeSeriesParams = ({stationId, refetch, setLoading}: TimeSeriesParamsProp
                 }
                 try{
                     setLoadingConfirmModal(true);
-                    const res = await postTimeSeriesJumpService<any>(api, stationId, params);
+                    const res = await postTimeSeriesJumpService<any>(api, stationId, solution, stack, params);
                     if ("status" in res) {
                         setMsg({
                             status: res.statusCode,
@@ -188,7 +152,7 @@ const TimeSeriesParams = ({stationId, refetch, setLoading}: TimeSeriesParamsProp
                 }
                 try{
                     setLoadingConfirmModal(true);        
-                    const res = await deleteTimeSeriesJumpService<any>(api, stationId, params);
+                    const res = await deleteTimeSeriesJumpService<any>(api, stationId, solution ,params);
                     if ("status" in res) {
                         setMsg({
                             status: res.statusCode,
@@ -215,7 +179,7 @@ const TimeSeriesParams = ({stationId, refetch, setLoading}: TimeSeriesParamsProp
                 const params = {frequencies: newPeriodicData.map(key => Number(key))};
                 try{
                     setLoadingConfirmModal(true);
-                    const res = await postTimeSeriesPeriodicService<any>(api, stationId, params);
+                    const res = await postTimeSeriesPeriodicService<any>(api, stationId, solution , stack, params);
                     if ("status" in res) {
                         setMsg({
                             status: res.statusCode,
@@ -240,7 +204,6 @@ const TimeSeriesParams = ({stationId, refetch, setLoading}: TimeSeriesParamsProp
     }
     
     useEffect(() => {
-        getTimeSeriesConfig();
         getJumpTypes();
     },[])
 
@@ -300,7 +263,7 @@ const TimeSeriesParams = ({stationId, refetch, setLoading}: TimeSeriesParamsProp
             </div>
             </div>
             <div className="flex flex-col justify-center items-center w-[40%] pb-2 pt-2 bg-gray-100">
-            <div className=" text-center pb-2 flex flex-row justify-center items-center">
+            <div className=" text-center pb-2 flex flex-row justify-center items-center gap-3">
                 <PencilSquareIcon className="size-6 hover:text-black cursor-pointer"
                     onClick={() => {
                         setModalType({table: "polynomial", type: "edit"})
@@ -334,7 +297,7 @@ const TimeSeriesParams = ({stationId, refetch, setLoading}: TimeSeriesParamsProp
             <tr className="bg-gray-200">
                 <th className="p-3 text-center border border-gray-300" colSpan={2}>Periodic components</th>
                 <th className="p-3 text-center border border-gray-300">
-                <div className="flex flex-row justify-center items-center">
+                <div className="flex flex-row justify-center items-center gap-4">
                     <PlusIcon 
                         className="size-6 hover:text-green-600 cursor-pointer" 
                         onClick={() => {setModalType({table: "periodic", type: "add"})
@@ -389,7 +352,7 @@ const TimeSeriesParams = ({stationId, refetch, setLoading}: TimeSeriesParamsProp
             <tr className="bg-gray-200">
             <th className="p-3 text-center border border-gray-300" colSpan={6}>Mechanical and geophysical offsets</th>
             <th className="p-3 text-center border border-gray-300">
-                <div className="flex flex-row justify-center items-center">
+                <div className="flex flex-row justify-center items-center gap-4">
                 <PlusIcon className="size-6 hover:text-green-600 cursor-pointer"
                     onClick={() => {setModalType({table: "jumps", type: "add"})
                     setData(jumpsData);
@@ -416,7 +379,7 @@ const TimeSeriesParams = ({stationId, refetch, setLoading}: TimeSeriesParamsProp
             <tr key={idx} className={chosenRowColor(jumpData.action)}>
 
                 <td className="p-3 text-center border border-gray-300 align-middle">
-                    <div className="flex justify-center">
+                    <div className="flex justify-center gap-2">
                         {   jumpData.action === "-"  &&
                             <XMarkIcon className="size-6 hover:text-red-500 cursor-pointer"
                             onClick={() => {
@@ -474,7 +437,7 @@ const TimeSeriesParams = ({stationId, refetch, setLoading}: TimeSeriesParamsProp
         {
          modals && modals?.title === "TimeSeriesConfigModal" &&
             <TimeSeriesConfigModal type= {modalType} valueToModify={valueToModify} data= {data} stationId = {stationId} refetch = {refetch}
-            success = {success} setSuccess = {setSuccess} jumpTypes = {jumpTypes}
+            success = {success} setSuccess = {setSuccess} jumpTypes = {jumpTypes} solution = {solution} stack = {stack}
             />
         }
         { 
@@ -484,7 +447,7 @@ const TimeSeriesParams = ({stationId, refetch, setLoading}: TimeSeriesParamsProp
                 deactivateRow : deleteRow}
                 closeModal={() => {
                     if(msg && apiOkStatuses.includes(msg.status)){
-                        fullRefetch();
+                        refetch();
                     }
                     setModals(undefined)
                     setModalType(undefined)

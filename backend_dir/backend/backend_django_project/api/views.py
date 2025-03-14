@@ -458,36 +458,18 @@ class TimeSeries(CustomListAPIView):
             fileio = BytesIO()
             image = etm.plot(pngfile=None, t_win=params["dates"], residuals=params["residuals"],
                              plot_missing=params["missing_data"], plot_outliers=params["plot_outliers"], fileio=fileio)
-        except Exception as e:
-            raise exceptions.CustomValidationErrorExceptionHandler(
-                e.detail if hasattr(e, 'detail') else str(e))
 
-        return Response(data={"time_series": image}, status=status.HTTP_200_OK)
+            etm_config = etm.pull_params()
 
-
-class TimeSeriesConfigPull(CustomListCreateAPIView):
-    serializer_class = serializers.DummySerializer
-
-    def get_queryset(self, pk):
-        return None
-
-    def list(self, request, *args, **kwargs):
-        timeSeriesConfigUtils = utils.TimeSeriesConfigUtils()
-        etm = timeSeriesConfigUtils.initialize_etm(
-            request, *args, **kwargs)
-
-        try:
-            current_config = etm.pull_params()
-
-            if "jumps" in current_config:
-                for jump in current_config["jumps"]:
+            if "jumps" in etm_config:
+                for jump in etm_config["jumps"]:
                     jump["type_name"] = pyETM.type_dict[jump["type"]]
 
         except Exception as e:
             raise exceptions.CustomValidationErrorExceptionHandler(
                 e.detail if hasattr(e, 'detail') else str(e))
 
-        return Response(data={"current_config": current_config}, status=status.HTTP_200_OK)
+        return Response(data={"time_series": image, "etm_params": etm_config}, status=status.HTTP_200_OK)
 
 
 class AvailableJumpTypes(APIView):
@@ -521,7 +503,21 @@ class TimeSeriesConfigResetPolynomial(CustomListCreateAPIView):
 
     def post(self, request, *args, **kwargs):
         timeSeriesConfigUtils = utils.TimeSeriesConfigUtils()
-        etm = timeSeriesConfigUtils.initialize_etm(request, *args, **kwargs)
+
+        solution = kwargs.get('solution')
+        if not solution or solution.strip().upper() not in ('PPP', 'GAMIT'):
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "'solution' parameter must be either 'PPP' or 'GAMIT'")
+
+        solution = solution.strip().upper()
+
+        if solution == "GAMIT":
+            if 'stack' not in request.query_params:
+                raise exceptions.CustomValidationErrorExceptionHandler(
+                    "stack parameter is required.")
+
+        etm = timeSeriesConfigUtils.initialize_etm(
+            request, solution, False, kwargs.get('station_api_id'))
         cnn = timeSeriesConfigUtils.get_cnn()
         try:
             etm.push_params(cnn=cnn, reset_polynomial=True)
@@ -540,7 +536,20 @@ class TimeSeriesConfigResetPeriodic(CustomListCreateAPIView):
 
     def post(self, request, *args, **kwargs):
         timeSeriesConfigUtils = utils.TimeSeriesConfigUtils()
-        etm = timeSeriesConfigUtils.initialize_etm(request, *args, **kwargs)
+        solution = kwargs.get('solution')
+        if not solution or solution.strip().upper() not in ('PPP', 'GAMIT'):
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "'solution' parameter must be either 'PPP' or 'GAMIT'")
+
+        solution = solution.strip().upper()
+
+        if solution == "GAMIT":
+            if 'stack' not in request.query_params:
+                raise exceptions.CustomValidationErrorExceptionHandler(
+                    "stack parameter is required.")
+
+        etm = timeSeriesConfigUtils.initialize_etm(
+            request, solution, False, kwargs.get('station_api_id'))
         cnn = timeSeriesConfigUtils.get_cnn()
         try:
             etm.push_params(cnn=cnn, reset_periodic=True)
@@ -559,7 +568,20 @@ class TimeSeriesConfigResetJumps(CustomListCreateAPIView):
 
     def post(self, request, *args, **kwargs):
         timeSeriesConfigUtils = utils.TimeSeriesConfigUtils()
-        etm = timeSeriesConfigUtils.initialize_etm(request, *args, **kwargs)
+        solution = kwargs.get('solution')
+        if not solution or solution.strip().upper() not in ('PPP', 'GAMIT'):
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "'solution' parameter must be either 'PPP' or 'GAMIT'")
+
+        solution = solution.strip().upper()
+
+        if solution == "GAMIT":
+            if 'stack' not in request.query_params:
+                raise exceptions.CustomValidationErrorExceptionHandler(
+                    "stack parameter is required.")
+
+        etm = timeSeriesConfigUtils.initialize_etm(
+            request, solution, False, kwargs.get('station_api_id'))
         cnn = timeSeriesConfigUtils.get_cnn()
         try:
             etm.push_params(cnn=cnn, reset_jumps=True)
@@ -578,7 +600,20 @@ class TimeSeriesConfigSetPolynomial(CustomListCreateAPIView):
 
     def post(self, request, *args, **kwargs):
         timeSeriesConfigUtils = utils.TimeSeriesConfigUtils()
-        etm = timeSeriesConfigUtils.initialize_etm(request, *args, **kwargs)
+        solution = kwargs.get('solution')
+        if not solution or solution.strip().upper() not in ('PPP', 'GAMIT'):
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "'solution' parameter must be either 'PPP' or 'GAMIT'")
+
+        solution = solution.strip().upper()
+
+        if solution == "GAMIT":
+            if 'stack' not in request.query_params:
+                raise exceptions.CustomValidationErrorExceptionHandler(
+                    "stack parameter is required.")
+
+        etm = timeSeriesConfigUtils.initialize_etm(
+            request, solution, False, kwargs.get('station_api_id'))
         cnn = timeSeriesConfigUtils.get_cnn()
         # check if terms, year and doy is in body
         if 'terms' not in request.data:
@@ -625,7 +660,20 @@ class TimeSeriesConfigSetPeriodic(CustomListCreateAPIView):
 
     def post(self, request, *args, **kwargs):
         timeSeriesConfigUtils = utils.TimeSeriesConfigUtils()
-        etm = timeSeriesConfigUtils.initialize_etm(request, *args, **kwargs)
+        solution = kwargs.get('solution')
+        if not solution or solution.strip().upper() not in ('PPP', 'GAMIT'):
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "'solution' parameter must be either 'PPP' or 'GAMIT'")
+
+        solution = solution.strip().upper()
+
+        if solution == "GAMIT":
+            if 'stack' not in request.query_params:
+                raise exceptions.CustomValidationErrorExceptionHandler(
+                    "stack parameter is required.")
+
+        etm = timeSeriesConfigUtils.initialize_etm(
+            request, solution, False, kwargs.get('station_api_id'))
         cnn = timeSeriesConfigUtils.get_cnn()
 
         if 'frequencies' not in request.data:
@@ -663,7 +711,20 @@ class TimeSeriesConfigSetJumps(CustomListCreateAPIView):
 
         timeSeriesConfigUtils = utils.TimeSeriesConfigUtils()
 
-        etm = timeSeriesConfigUtils.initialize_etm(request, *args, **kwargs)
+        solution = kwargs.get('solution')
+        if not solution or solution.strip().upper() not in ('PPP', 'GAMIT'):
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "'solution' parameter must be either 'PPP' or 'GAMIT'")
+
+        solution = solution.strip().upper()
+
+        if solution == "GAMIT":
+            if 'stack' not in request.query_params:
+                raise exceptions.CustomValidationErrorExceptionHandler(
+                    "stack parameter is required.")
+
+        etm = timeSeriesConfigUtils.initialize_etm(
+            request, solution, False, kwargs.get('station_api_id'))
 
         cnn = timeSeriesConfigUtils.get_cnn()
 
@@ -727,7 +788,21 @@ class TimeSeriesConfigDeleteJump(CustomListCreateAPIView):
             raise exceptions.CustomValidationErrorExceptionHandler(
                 "DOY parameter is required.")
 
+        # get url param named 'solution'
+
+        solution = kwargs.get('solution')
+
         # check parameter types
+
+        if not isinstance(solution, str):
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "solution parameter must be a string.")
+
+        solution = solution.strip().lower()
+
+        if solution not in ("gamit", "ppp"):
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "solution parameter must be either 'gamit' or 'ppp'.")
 
         if not isinstance(request.data['Year'], int):
             raise exceptions.CustomValidationErrorExceptionHandler(
@@ -753,7 +828,7 @@ class TimeSeriesConfigDeleteJump(CustomListCreateAPIView):
 
         try:
             models.EtmParams.objects.get(
-                network_code=station.network_code.network_code, station_code=station.station_code, object='jump', year=request.data['Year'], doy=request.data['DOY']).delete()
+                network_code=station.network_code.network_code, station_code=station.station_code, object='jump', soln=solution, year=request.data['Year'], doy=request.data['DOY']).delete()
         except models.EtmParams.DoesNotExist:
             raise exceptions.CustomValidationErrorExceptionHandler(
                 "Jump does not exist.")

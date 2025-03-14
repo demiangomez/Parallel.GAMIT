@@ -15,9 +15,11 @@ interface TimeSeriesConfigModalProps{
     success: boolean
     setSuccess: (value: boolean) => void
     jumpTypes?: JumpType[]
+    solution: string
+    stack: string
 }
 
-const TimeSeriesConfigModal = ({type, valueToModify, data, stationId, refetch, success, setSuccess, jumpTypes}:TimeSeriesConfigModalProps) => {
+const TimeSeriesConfigModal = ({type, valueToModify, data, stationId, refetch, success, setSuccess, jumpTypes, solution, stack}:TimeSeriesConfigModalProps) => {
     const { token, logout } = useAuth();
     const api = useApi(token, logout);
     const { formState, dispatch } = useFormReducer<Record<string, any>>({});
@@ -59,7 +61,7 @@ const TimeSeriesConfigModal = ({type, valueToModify, data, stationId, refetch, s
         if(valueToModify){
             if(type?.table === "jumps"){
                 let relaxation 
-                if(valueToModify.type >= 1){
+                if(getType() >= 1){
                     relaxation = formState.relaxation
                 }
                 else{
@@ -72,9 +74,10 @@ const TimeSeriesConfigModal = ({type, valueToModify, data, stationId, refetch, s
                     jump_type:  Number(getType()),
                     relaxation: relaxation,
                 }
+
                 try{
                     setLoading(true);
-                    const res = await postTimeSeriesJumpService<any>(api, stationId, params);
+                    const res = await postTimeSeriesJumpService<any>(api, stationId, solution, stack,params);
                     if ("status" in res) {
                         setMsg({
                             status: res.statusCode,
@@ -143,7 +146,7 @@ const TimeSeriesConfigModal = ({type, valueToModify, data, stationId, refetch, s
                     chosenMsg = "Polynomial row edited succsessfully"
                 }
                 
-                const res = await service<any>(api, stationId, params);
+                const res = await service<any>(api, stationId, solution, stack, params);
                 if ("status" in res) {
                     setMsg({
                         status: res.statusCode,
@@ -245,7 +248,7 @@ const TimeSeriesConfigModal = ({type, valueToModify, data, stationId, refetch, s
                 {Object.keys(formState).map((key, idx) => (
                 !notAllowedKeys.includes(key) && (key !== "frequence") && (key !== "relaxation") && (key !== "action") && (key !== "jump_type") ? (
                     <label
-                    key={idx}
+                    key={`${key}-${idx}`}
                     className={`w-full input input-bordered flex items-center justify-center gap-2 h-16`}
                     title={"globalDescription"}
                     >

@@ -832,18 +832,6 @@ export async function getStationVisitsByIdService<T>(
     }
 }
 
-export async function getTimeSeriesConfigService<T>(
-    api: AxiosInstance,
-    id: number,
-): Promise<T> {
-    try {
-        const response = await api.get(`api/time-series-config/${id}`);
-        return response.data as Promise<T>;
-    } catch (error) {
-        return Promise.reject(error);
-    }
-}
-
 
 export async function postStationVisitService<T>(
     api: AxiosInstance,
@@ -1105,10 +1093,13 @@ export async function delStationVisitFilesService<T>(
 export async function resetTimeSeriesPolynomialService<T>(
     api: AxiosInstance,
     id: number,
+    solution: string,
+    stack: string,
 ): Promise <T> {
     try{
+        const url = `api/time-series-config/${id}/${solution}/reset-polynomial${solution === "GAMIT" ? `?stack=${stack}` : ""}`
         const response = await api.post(
-            `api/time-series-config/${id}/reset-polynomial`,
+            url,
         );
         return response.data as Promise<T>
     }
@@ -1120,10 +1111,13 @@ export async function resetTimeSeriesPolynomialService<T>(
 export async function resetTimeSeriesPeriodicService<T>(
     api: AxiosInstance,
     id: number,
+    solution: string,
+    stack: string,
 ): Promise <T> {
     try{
+        const url = `api/time-series-config/${id}/${solution}/reset-periodic${solution === "GAMIT" ? `?stack=${stack}` : ""}`
         const response = await api.post(
-            `api/time-series-config/${id}/reset-periodic`,
+            url,
         );
         return response.data as Promise<T>
     }
@@ -1135,10 +1129,13 @@ export async function resetTimeSeriesPeriodicService<T>(
 export async function resetTimeSeriesJumpsService<T>(
     api: AxiosInstance,
     id: number,
+    solution: string,
+    stack: string
 ): Promise <T> {
     try{
+        const url = `api/time-series-config/${id}/${solution}/reset-jumps${solution === "GAMIT" ? `?stack=${stack}` : ""}`
         const response = await api.post(
-            `api/time-series-config/${id}/reset-jumps`,
+            url,
         );
         return response.data as Promise<T>
     }
@@ -1150,11 +1147,14 @@ export async function resetTimeSeriesJumpsService<T>(
 export async function postTimeSeriesPolynomialService<T>(
     api: AxiosInstance,
     id: number,
+    solution: string,
     params: any,
+    stack: string
 ): Promise <T> {
     try{
+        const url = `api/time-series-config/${id}/${solution}/set-polynomial${solution === "GAMIT" ? `?stack=${stack}` : ""}`
         const response = await api.post(
-            `api/time-series-config/${id}/set-polynomial`,
+            url,
             {
             terms: Number(params.terms),
             Year: Number(params.Year),
@@ -1171,11 +1171,14 @@ export async function postTimeSeriesPolynomialService<T>(
 export async function postTimeSeriesPeriodicService<T>(
     api: AxiosInstance,
     id: number,
+    solution: string,
+    stack: string,
     params: any,
 ): Promise <T> {
     try{
+        const url = `api/time-series-config/${id}/${solution}/set-periodic${solution === "GAMIT" ? `?stack=${stack}` : ""}`
         const response = await api.post(
-            `api/time-series-config/${id}/set-periodic`,
+            url,
             params
         );
         return response.data as Promise<T>
@@ -1189,11 +1192,14 @@ export async function postTimeSeriesPeriodicService<T>(
 export async function postTimeSeriesJumpService<T>(
     api: AxiosInstance,
     id: number,
+    solution: string,
+    stack: string,
     params: any,
 ): Promise <T> {
     try{
+        const url = `api/time-series-config/${id}/${solution}/set-jumps${solution === "GAMIT" ? `?stack=${stack}` : ""}`
         const response = await api.post(
-            `api/time-series-config/${id}/set-jumps`,
+            url,
             params
         );
         return response.data as Promise<T>
@@ -1217,11 +1223,12 @@ export async function getJumpTypesService<T>(
 export async function deleteTimeSeriesJumpService<T>(
     api: AxiosInstance,
     id: number,
+    solution: string,
     params: any,
 ): Promise <T> {
     try{
         const response = await api.post(
-            `api/time-series-config/${id}/delete-jump`,
+            `api/time-series-config/${id}/${solution}/delete-jump`,
             params
         );
         return response.data as Promise<T>

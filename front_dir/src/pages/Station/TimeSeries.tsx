@@ -21,6 +21,9 @@ import {
     Errors,
     StationData,
     StationMetadataServiceData,
+    TimeSeriesParamsData,
+    ConfigPolynomialData,
+    ConfigJumpData
 } from "@types";
 
 interface OutletContext {
@@ -46,6 +49,9 @@ const TimeSeries = () => {
         { status: number; msg: string; errors?: Errors } | undefined
     >(undefined);
 
+    const [polynomialData, setPolynomialData] = useState<ConfigPolynomialData | undefined>(undefined);
+    const [periodicData, setPeriodicData] = useState<any | undefined>(undefined);
+    const [jumpsData, setJumpsData] = useState<ConfigJumpData[] | undefined>(undefined);
     const [solutions] = useState<string[]>(["PPP", "GAMIT"]);
     const [solutionSelected, setSolutionSelected] = useState<string>("PPP");
     const [stackSelected, setStackSelected] = useState<string>("");
@@ -116,13 +122,13 @@ const TimeSeries = () => {
             }
 
             const res = await getStationTimeSeriesService<
-                | {
-                      statusCode: number;
-                      time_series: string;
-                  }
-                | ErrorResponse
+            | 
+                {
+                    etm_params: TimeSeriesParamsData
+                    time_series: string;
+                }
+            | ErrorResponse
             >(api, station.api_id ?? 0, timeSeriesParams);
-
             if ("status" in res) {
                 setMsg({
                     status: res.statusCode,
@@ -132,6 +138,17 @@ const TimeSeries = () => {
             } else {
                 setMsg(undefined);
                 setTimeSeries(res.time_series);
+            }
+            if(res && !("status" in res) && res.etm_params){
+                if(res.etm_params.polynomial){
+                    setPolynomialData(res.etm_params.polynomial);
+                }
+                if(res.etm_params.jumps){
+                    setJumpsData(res.etm_params.jumps);
+                }
+                if(res.etm_params.periodic){
+                    setPeriodicData(res.etm_params.periodic);
+                }
             }
         } catch (e) {
             console.error(e);
@@ -183,8 +200,8 @@ const TimeSeries = () => {
             <div className="flex flex-grow w-full justify-center pr-2 space-x-2 px-2 pb-4">
                 {
                 <CardContainer title={""} height={false} addButton={false} >
-                    <div className="flex flex-col space-y-4 items-center">
-                        <div className="flex flex-col space-y-2 items-center">
+                    <div className="flex flex-col space-y-4 items-center w-[100%]">
+                        <div className="flex flex-col space-y-2 items-center w-full">
                             <div className="w-full flex space-x-4 justify-center">
                                 <FormControlSelect
                                     title={"Solution"}
@@ -256,16 +273,20 @@ const TimeSeries = () => {
                                 <img
                                     src={`data:image/png;base64,${timeSeries}`}
                                     alt="Time Series"
-                                    className="w-[80%] pt-6"
+                                    className="w-[95%] pt-6"
                                 />
                             )}
                         </div>
                         { !loading &&
-                        <div className="w-[80%]">
+                        <div className="w-[95%]">
                             <TimeSeriesParams
                                 stationId={station.api_id? station.api_id : 0}
                                 refetch = {getTimeSeries}
-                                setLoading={setLoading}
+                                solution = {solutionSelected}
+                                jumpsData = {jumpsData}
+                                periodicData = {periodicData}
+                                polynomialData = {polynomialData}
+                                stack = {stackSelected}
                             />
                         </div>
                         }

@@ -182,19 +182,38 @@ class TimeSeriesConfigUtils:
 
         return params
 
-    def initialize_etm(self, request, *args, **kwargs):
-        network_code, station_code = self._get_station(
-            kwargs.get("station_api_id"))
+    def _check_one_param(self, request, param_name, params):
+        param_value = request.query_params.get(param_name)
+
+        if param_value is not None and (isinstance(param_value, str) and param_value != ""):
+            params[param_name] = param_value
+            return params
+        else:
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "'" + param_name + "'" + " parameter is required.")
+
+    def initialize_etm(self, request, solution, check_params, station_api_id):
+
+        if solution not in ("PPP", "GAMIT"):
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "Invalid solution parameter.")
+
+        network_code, station_code = self._get_station(station_api_id)
 
         params = self._set_default_params()
 
-        # params = self._check_params(request)
+        if check_params:
+            params = self._check_params(request)
 
         self.cnn = dbConnection.Cnn(settings.CONFIG_FILE_ABSOLUTE_PATH)
 
         try:
 
-            if params["solution"] == "GAMIT":
+            if solution == "GAMIT":
+
+                if not check_params:
+                    params = self._check_one_param(request, "stack", params)
+
                 polyhedrons = self.cnn.query_float('SELECT "X", "Y", "Z", "Year", "DOY" FROM stacks '
                                                    'WHERE "name" = \'%s\' AND "NetworkCode" = \'%s\' AND '
                                                    '"StationCode" = \'%s\' '
