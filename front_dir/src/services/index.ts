@@ -1148,8 +1148,8 @@ export async function postTimeSeriesPolynomialService<T>(
     api: AxiosInstance,
     id: number,
     solution: string,
+    stack: string,
     params: any,
-    stack: string
 ): Promise <T> {
     try{
         const url = `api/time-series-config/${id}/${solution}/set-polynomial${solution === "GAMIT" ? `?stack=${stack}` : ""}`

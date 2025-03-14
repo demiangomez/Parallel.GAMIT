@@ -61,7 +61,7 @@ const TimeSeriesConfigModal = ({type, valueToModify, data, stationId, refetch, s
         if(valueToModify){
             if(type?.table === "jumps"){
                 let relaxation 
-                if(getType() >= 1){
+                if(getType() >= 1 && Array.isArray(formState.relaxation)){
                     relaxation = formState.relaxation
                 }
                 else{
