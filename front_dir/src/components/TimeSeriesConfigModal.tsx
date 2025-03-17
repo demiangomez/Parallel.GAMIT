@@ -87,7 +87,7 @@ const TimeSeriesConfigModal = ({type, valueToModify, data, stationId, refetch, s
                     } else {
                         setMsg({
                             status: res.statusCode,
-                            msg: "Jump row activated succsessfully",
+                            msg: "Jump row activated successfully",
                         });
                     }
                 }
@@ -107,6 +107,13 @@ const TimeSeriesConfigModal = ({type, valueToModify, data, stationId, refetch, s
             let service, chosenMsg, params
             if(type?.table === "jumps" || type?.table === "periodic" || type?.table === "polynomial"){
                 if(type?.table === "jumps"){
+                    let relaxation 
+                    if(getType() >= 1 && Array.isArray(formState.relaxation)){
+                        relaxation = formState.relaxation
+                    }
+                    else{
+                        relaxation = []
+                    }
 
                     params = Object.entries(formState).reduce(
                         (acc, [key, value]) => {
@@ -123,6 +130,12 @@ const TimeSeriesConfigModal = ({type, valueToModify, data, stationId, refetch, s
                                 };
 
                             }
+                            else if(key === "relaxation"){
+                                return {
+                                    ...acc,
+                                    [key]: relaxation,
+                                };
+                            }
                             else{
                                 return {
                                     ...acc,
@@ -133,17 +146,17 @@ const TimeSeriesConfigModal = ({type, valueToModify, data, stationId, refetch, s
                         {},
                     ) as any;
                     service = postTimeSeriesJumpService;
-                    chosenMsg = "Jump row added succsessfully"
+                    chosenMsg = "Jump row added successfully"
                 }
                 else if(type?.table === "periodic"){
                     service = postTimeSeriesPeriodicService;
                     params = { frequencies: [...formState.frequence, ...data] };
-                    chosenMsg = "Periodic row added succsessfully"
+                    chosenMsg = "Periodic row added successfully"
                 }
                 else{
                     service = postTimeSeriesPolynomialService;
                     params = formState;
-                    chosenMsg = "Polynomial row edited succsessfully"
+                    chosenMsg = "Polynomial row edited successfully"
                 }
                 
                 const res = await service<any>(api, stationId, solution, stack, params);
@@ -274,7 +287,7 @@ const TimeSeriesConfigModal = ({type, valueToModify, data, stationId, refetch, s
                     />
                     </label>
                 ) :
-                ((key === "frequence" && type?.table === "periodic") || (key === "relaxation" && type?.table === "jumps" && (type?.type === "add" ||  (getType() >= 1)))) ? (
+                ((key === "frequence" && type?.table === "periodic") || (key === "relaxation" && type?.table === "jumps" && (getType() >= 1))) ? (
                     <div key={idx} className="space-y-4 flex flex-col items-center justify-center">
                     <div className="flex items-center justify-center gap-2 w-full">
                         <input
