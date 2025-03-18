@@ -23,5 +23,3 @@ COPY ./supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 RUN pip install --no-cache-dir -r requirements.txt && cd backend_django_project && python manage.py migrate
 
 CMD ["supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
-
-EXPOSE 8000
