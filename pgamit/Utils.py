@@ -7,6 +7,8 @@ import filecmp
 import argparse
 import stat
 import shutil
+import io
+import base64
 from datetime import datetime
 from zlib import crc32 as zlib_crc32
 from pathlib import Path
@@ -418,6 +420,35 @@ def ecef2lla(ecefArr):
     lat = lat * 180 / numpy.pi
 
     return lat.ravel(), lon.ravel(), alt.ravel()
+
+
+def lla2ecef(llaArr):
+    # convert LLA coordinates to ECEF
+    # test data : test_coord = [-66.8765400174 23.876539914 999.998386689]
+    # expected result : 2297292.91, 1016894.94, -5843939.62
+
+    llaArr = numpy.atleast_1d(llaArr)
+
+    # transpose to work on both vectors and scalars
+    lat = llaArr.T[0]
+    lon = llaArr.T[1]
+    alt = llaArr.T[2]
+
+    rad_lat = lat * (numpy.pi / 180.0)
+    rad_lon = lon * (numpy.pi / 180.0)
+
+    # WGS84
+    a = 6378137.0
+    finv = 298.257223563
+    f = 1 / finv
+    e2 = 1 - (1 - f) * (1 - f)
+    v = a / numpy.sqrt(1 - e2 * numpy.sin(rad_lat) * numpy.sin(rad_lat))
+
+    x = (v + alt) * numpy.cos(rad_lat) * numpy.cos(rad_lon)
+    y = (v + alt) * numpy.cos(rad_lat) * numpy.sin(rad_lon)
+    z = (v * (1 - e2) + alt) * numpy.sin(rad_lat)
+
+    return numpy.round(x, 4).ravel(), numpy.round(y, 4).ravel(), numpy.round(z, 4).ravel()
 
 
 def process_date_str(arg, allow_days=False):
@@ -916,3 +947,85 @@ def fqdn_parse(fqdn, default_port=None):
         return fqdn, int(port[1])
     else:
         return fqdn, default_port
+
+
+def plot_rinex_completion(cnn, NetworkCode, StationCode, landscape=False):
+
+    import matplotlib.pyplot as plt
+
+    # find the available data
+    rinex = numpy.array(cnn.query_float("""
+    SELECT "ObservationYear", "ObservationDOY",
+    "Completion" FROM rinex_proc WHERE
+    "NetworkCode" = '%s' AND "StationCode" = '%s'""" % (NetworkCode,
+                                                        StationCode)))
+
+    if landscape:
+        fig, ax = plt.subplots(figsize=(25, 10))
+        x = 1
+        y = 0
+    else:
+        fig, ax = plt.subplots(figsize=(10, 25))
+        x = 0
+        y = 1
+
+    fig.tight_layout(pad=5)
+    ax.set_title('RINEX and missing data for %s.%s'
+                 % (NetworkCode, StationCode))
+
+    if rinex.size:
+        # create a continuous vector for missing data
+        md = numpy.arange(1, 367)
+        my = numpy.unique(rinex[:, 0])
+        for yr in my:
+
+            if landscape:
+                ax.plot(md, numpy.repeat(yr, 366), 'o', fillstyle='none',
+                        color='silver', markersize=4, linewidth=0.1)
+            else:
+                ax.plot(numpy.repeat(yr, 366), md, 'o', fillstyle='none',
+                        color='silver', markersize=4, linewidth=0.1)
+
+        ax.scatter(rinex[:, x], rinex[:, y],
+                   c=['tab:blue' if c >= 0.5 else 'tab:orange'
+                      for c in rinex[:, 2]], s=10, zorder=10)
+
+        ax.tick_params(top=True, labeltop=True, labelleft=True,
+                       labelright=True, left=True, right=True)
+        if landscape:
+            plt.yticks(numpy.arange(my.min(), my.max() + 1, step=1))  # Set label locations.
+        else:
+            plt.xticks(numpy.arange(my.min(), my.max()+1, step=1),
+                       rotation='vertical')  # Set label locations.
+
+    ax.grid(True)
+    ax.set_axisbelow(True)
+
+    if landscape:
+        plt.xlim([0, 367])
+        plt.xticks(numpy.arange(0, 368, step=5))  # Set label locations.
+
+        ax.set_xlabel('DOYs')
+        ax.set_ylabel('Years')
+    else:
+        plt.ylim([0, 367])
+        plt.yticks(numpy.arange(0, 368, step=5))  # Set label locations.
+
+        ax.set_ylabel('DOYs')
+        ax.set_xlabel('Years')
+
+    figfile = io.BytesIO()
+
+    try:
+        plt.savefig(figfile, format='png')
+        # plt.show()
+        figfile.seek(0)  # rewind to beginning of file
+
+        figdata_png = base64.b64encode(figfile.getvalue()).decode()
+    except Exception:
+        # either no rinex or no station info
+        figdata_png = ''
+
+    plt.close()
+
+    return figdata_png

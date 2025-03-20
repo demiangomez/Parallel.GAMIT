@@ -17,6 +17,7 @@ import base64
 import logging
 from logging import INFO, ERROR, WARNING, DEBUG, StreamHandler, Formatter
 import copy
+import platform
 
 from importlib.metadata import version, PackageNotFoundError
 
@@ -859,8 +860,8 @@ class JumpTable:
         N_data = np.column_stack((time_scaled, l[0]))
 
         # Apply DBSCAN clustering with tuned parameters
-        eps_value = 0.0028     # Adjust as needed to detect prominent clusters
-        min_samples_value = 15 # value from tests
+        eps_value = 0.0028      # Adjust as needed to detect prominent clusters
+        min_samples_value = 15  # value from tests
 
         dbscan = DBSCAN(eps=eps_value, min_samples=min_samples_value)
         e_cluster_labels = dbscan.fit_predict(E_data)
@@ -2749,7 +2750,10 @@ class ETM:
             'ce_y': self.ce_pos[1][0],
             'ce_z': self.ce_pos[2][0],
             't_ref': self.Linear.p.t_ref if self.A is not None else 0.0,
-            'Jumps': [to_list(jump.p.toDict()) for jump in self.Jumps.table]
+            'Jumps': [to_list(jump.p.toDict()) for jump in self.Jumps.table],
+            'timestamp': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            'localhost': platform.node(),
+            'version': VERSION
         }
 
         if self.A is not None:
