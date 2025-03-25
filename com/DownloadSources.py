@@ -462,7 +462,7 @@ class JobsManager:
         self.files_pending = FilesBag()
         self.cpus_qty = 0 if job_server.run_parallel else 1
         self.jobs_submitted = {}  # jobID -> File
-        self.jobs_loc = threading.RLock()
+        self.jobs_lock = threading.RLock()
 
         self.stations = None
         self.on_process_result = None

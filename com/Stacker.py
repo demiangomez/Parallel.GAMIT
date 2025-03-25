@@ -287,7 +287,8 @@ def main():
 
     Config = pyOptions.ReadOptions("gnss_data.cfg")  # type: pyOptions.ReadOptions
 
-    JobServer = pyJobServer.JobServer(Config, run_parallel=not args.noparallel)  # type: pyJobServer.JobServer
+    JobServer = pyJobServer.JobServer(Config, check_archive=False, check_executables=False, check_atx=False,
+                                      run_parallel=not args.noparallel)  # type: pyJobServer.JobServer
 
     if args.max_iters:
         max_iters = int(args.max_iters[0])
@@ -379,6 +380,7 @@ def main():
         stack.transformations.append([poly.info() for poly in stack])
         qbar.close()
 
+    # todo: remove the requirement of redo_stack to enter the external constraints
     if args.redo_stack:
         # before removing common modes (or inheriting periodic terms), calculate ETMs with final aligned solutions
         calculate_etms(cnn, stack, JobServer, iterations=None, create_target=False)
