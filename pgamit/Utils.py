@@ -60,7 +60,7 @@ def get_stack_stations(cnn, name):
     for i, stn in enumerate(rs):
         lla = xyz2sphere_lla(numpy.array([stn['auto_x'], stn['auto_y'], stn['auto_z']]))
         rs[i]['lat'] = lla[0][0]
-        rs[i]['lat'] = lla[0][1]
+        rs[i]['lon'] = lla[0][1]
 
     return rs
 
