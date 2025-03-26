@@ -16,6 +16,7 @@ from pathlib import Path
 
 # deps
 import numpy
+import numpy as np
 
 # app
 from pgamit import pyRinexName
@@ -50,9 +51,18 @@ def stationID(s):
 
 
 def get_stack_stations(cnn, name):
-    return cnn.query_float(f'SELECT DISTINCT "NetworkCode", "StationCode", lat, lon FROM stacks INNER JOIN stations '
-                           f'USING ("NetworkCode", "StationCode")'
-                           f'WHERE "name" = \'{name}\'', as_dict=True)
+    rs = cnn.query_float(f'SELECT DISTINCT "NetworkCode", "StationCode", auto_x, auto_y, auto_z '
+                         f'FROM stacks INNER JOIN stations '
+                         f'USING ("NetworkCode", "StationCode")'
+                         f'WHERE "name" = \'{name}\'', as_dict=True)
+
+    # since we require spherical lat lon for the Euler pole, I compute it from the xyz values
+    for i, stn in enumerate(rs):
+        lla = xyz2sphere_lla(numpy.array([stn['auto_x'], stn['auto_y'], stn['auto_z']]))
+        rs[i]['lat'] = lla[0][0]
+        rs[i]['lat'] = lla[0][1]
+
+    return rs
 
 
 def parse_atx_antennas(atx_file):
@@ -86,7 +96,27 @@ def ll2sphere_xyz(ell):
     return numpy.array(x)
 
 
-def required_length(nmin,nmax):
+def xyz2sphere_lla(xyz):
+    """
+    function to turn xyz coordinates to lat lon using spherical earth
+    output is lat, lon, radius
+    """
+    if isinstance(xyz, list):
+        xyz = numpy.array(xyz)
+
+    if xyz.ndim == 1:
+        xyz = xyz[np.newaxis, :]
+
+    g = numpy.zeros(xyz.shape)
+    for i, x in enumerate(xyz):
+        g[i, 0] = numpy.rad2deg(numpy.arctan2(x[2], numpy.sqrt(x[0]**2 + x[1]**2)))
+        g[i, 1] = numpy.rad2deg(numpy.arctan2(x[1], x[0]))
+        g[i, 2] = numpy.sqrt(x[0]**2 + x[1]**2 + x[2]**2)
+
+    return g
+
+
+def required_length(nmin, nmax):
     class RequiredLength(argparse.Action):
         def __call__(self, parser, args, values, option_string=None):
             if not nmin <= len(values) <= nmax:
@@ -751,12 +781,12 @@ def human_readable_time(secs):
     unit = 'secs'
     
     # make human readable work time with units
-    if time > 60 and time < 3600:
+    if 60 < time < 3600:
         time = time / 60.0
         unit = 'mins'
     elif time > 3600:
         time = time / 3600.0
-        unit = 'hours';
+        unit = 'hours'
         
     return time, unit
 
@@ -812,6 +842,7 @@ def struct_unpack(fs, data):
     return [(f.decode('utf-8', 'ignore') if isinstance(f, (bytes, bytearray)) else f)
             for f in fs.unpack_from(bytes(data, 'utf-8'))]
 
+
 # python 3 zlib.crc32 requires bytes instead of strings
 # also returns a positive int (ints are bignums on python 3)
 def crc32(s):
@@ -851,6 +882,7 @@ def file_try_remove(path):
         return True
     except:
         return False
+
 
 def dir_try_remove(path, recursive=False):
     try:

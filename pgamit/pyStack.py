@@ -797,11 +797,14 @@ class Stack(list):
 
         return np.row_stack((Ax, Ay, Az))
 
-    def save(self):
+    def save(self, erase=False):
         """
         save the polyhedrons to the database
         :return: nothing
         """
+        if erase:
+            self.cnn.query('DELETE FROM stacks WHERE "name" = \'%s\'' % self.name)
+
         for poly in tqdm(self, ncols=160, desc='Saving ' + self.name, disable=None):
             if not poly.aligned_at_init:
                 # this polyhedron was missing when we initialized the objects

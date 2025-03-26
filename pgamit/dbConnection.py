@@ -193,7 +193,7 @@ class Cnn(object):
 
         return recordset
 
-    def get(self, table, filter_fields, return_fields=None):
+    def get(self, table, filter_fields, return_fields=None, limit=None):
         """
         Selects from the given table the records that match filter_fields and returns ONE dictionary.
         Method should not be used to retrieve more than one single record.
@@ -201,6 +201,7 @@ class Cnn(object):
         table (str): The table to select from.
         filter_fields (dict): The dictionary where the keys are the field names and the values are the filter values.
         return_fields (list of str): The fields to return. If empty return all columns
+        limit (int): sets a limit for rows in case it is a query to determine if records exist
 
         Returns:
         list: A list of dictionaries, each representing a record that matches the filter.
@@ -214,6 +215,9 @@ class Cnn(object):
         fields_clause = ', '.join([f'"{field}"' for field in return_fields])
         query = f'SELECT {fields_clause} FROM {table} WHERE {where_clause}'
         values = list(filter_fields.values())
+        # new feature to limit the results
+        if limit:
+            query += ' LIMIT %i' % limit
 
         try:
             self.cursor.execute(query, values)

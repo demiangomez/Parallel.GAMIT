@@ -264,6 +264,11 @@ def main():
     parser.add_argument('-redo', '--redo_stack', action='store_true',
                         help="Delete the stack and redo it from scratch")
 
+    parser.add_argument('-preserve', '--preserve_stack', action='store_true',
+                        help="When calling without --rede_stack, reuse the stack and apply inheritance to the stack "
+                             "as is. This is useful to try different parameters and stations during the inheritance "
+                             "process")
+
     parser.add_argument('-plot', '--plot_stack_etms', action='store_true', default=False,
                         help="Plot the stack ETMs after computation is done")
 
@@ -331,6 +336,13 @@ def main():
     else:
         constraints = None
 
+    # check if stack does not exist and redo = False
+    try:
+        _ = cnn.get('stacks', {'name': args.stack_name[0]}, limit=1)
+    except dbConnection.DatabaseError:
+        # if stack does not exist, then force a redo
+        args.redo_stack = True
+
     # create the stack object
     stack = pyStack.Stack(cnn, args.project[0], args.stack_name[0], args.redo_stack, end_date=dates[1])
 
@@ -381,7 +393,7 @@ def main():
         qbar.close()
 
     # todo: remove the requirement of redo_stack to enter the external constraints
-    if args.redo_stack:
+    if args.redo_stack or args.preserve_stack:
         # before removing common modes (or inheriting periodic terms), calculate ETMs with final aligned solutions
         calculate_etms(cnn, stack, JobServer, iterations=None, create_target=False)
         # only apply common mode removal if redoing the stack
@@ -398,7 +410,7 @@ def main():
     # save the json with the information about the alignment
     stack.to_json(args.stack_name[0] + '_alignment.json')
     # save polyhedrons to the database
-    stack.save()
+    stack.save(erase=args.preserve_stack)
 
     if args.plot_stack_etms:
         qbar = tqdm(total=len(stack.stations), ncols=160, disable=None)

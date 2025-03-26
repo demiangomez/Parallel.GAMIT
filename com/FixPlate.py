@@ -18,7 +18,7 @@ from tqdm import tqdm
 from pgamit import dbConnection, pyETM
 from pgamit.pyLeastSquares import adjust_lsq
 from pgamit.Utils import (cart2euler, get_stack_stations, process_stnlist,
-                          stationID, file_write)
+                          stationID, file_write, xyz2sphere_lla)
 
 
 def build_design(hdata, vdata):
@@ -182,7 +182,8 @@ def main():
 
         if not args.ppp_solutions:
             # use a GAMIT stack
-            rs = cnn.query_float(f'''SELECT etms.*, stations.lat, stations.lon
+            rs = cnn.query_float(f'''SELECT etms.*, 
+                                 stations.auto_x, stations.auto_y, stations.auto_z
                                  FROM etms INNER JOIN stations
                                  USING ("NetworkCode", "StationCode")
                                  WHERE ("NetworkCode", "StationCode", "stack",
@@ -191,7 +192,8 @@ def main():
                                  \'polynomial\')''', as_dict=True)
         else:
             # use PPP solutions
-            rs = cnn.query_float(f'''SELECT etms.*, stations.lat, stations.lon
+            rs = cnn.query_float(f'''SELECT etms.*, 
+                                             stations.auto_x, stations.auto_y, stations.auto_z
                                              FROM etms INNER JOIN stations
                                              USING ("NetworkCode", "StationCode")
                                              WHERE ("NetworkCode", "StationCode", "soln",
@@ -200,11 +202,12 @@ def main():
                                              \'polynomial\')''', as_dict=True)
 
         if len(rs):
+            lla = xyz2sphere_lla([rs[0]['auto_x'], rs[0]['auto_y'], rs[0]['auto_z']])
             params = np.array(rs[0]['params'])
             hdata.append({'NetworkCode': stn['NetworkCode'],
                           'StationCode': stn['StationCode'],
-                          'lat': rs[0]['lat'],
-                          'lon': rs[0]['lon'],
+                          'lat': lla[0][0],
+                          'lon': lla[0][1],
                           'v': params.reshape((
                               3, params.shape[0] // 3))[:, 1]})
 
@@ -218,7 +221,8 @@ def main():
 
             if not args.ppp_solutions:
                 # use a GAMIT stack
-                rs = cnn.query_float(f'''SELECT etms.*, stations.lat, stations.lon
+                rs = cnn.query_float(f'''SELECT etms.*,
+                                     stations.auto_x, stations.auto_y, stations.auto_z
                                      FROM etms INNER JOIN stations
                                      USING ("NetworkCode", "StationCode")
                                      WHERE ("NetworkCode", "StationCode",
@@ -227,7 +231,8 @@ def main():
                                      \'polynomial\')''', as_dict=True)
             else:
                 # use PPP solutions
-                rs = cnn.query_float(f'''SELECT etms.*, stations.lat, stations.lon
+                rs = cnn.query_float(f'''SELECT etms.*,
+                                                 stations.auto_x, stations.auto_y, stations.auto_z
                                                  FROM etms INNER JOIN stations
                                                  USING ("NetworkCode", "StationCode")
                                                  WHERE ("NetworkCode", "StationCode",
@@ -236,11 +241,12 @@ def main():
                                                  \'polynomial\')''', as_dict=True)
 
             if len(rs):
+                lla = xyz2sphere_lla([rs[0]['auto_x'], rs[0]['auto_y'], rs[0]['auto_z']])
                 params = np.array(rs[0]['params'])
                 vdata.append({'NetworkCode': stn['NetworkCode'],
                               'StationCode': stn['StationCode'],
-                              'lat': rs[0]['lat'],
-                              'lon': rs[0]['lon'],
+                              'lat': lla[0][0],
+                              'lon': lla[0][1],
                               'v': params.reshape((
                                   3, params.shape[0] // 3))[:, 1]})
                 vdata[-1]['v'][2] -= float(stn['parameters'][0]) / 1000.
@@ -254,15 +260,15 @@ def main():
     rNE = v[0:len(hdata)*2].reshape((2, len(hdata)))
     fNE = (A @ C)[0:len(hdata)*2].reshape((2, len(hdata)))
     tqdm.write('HREF residuals')
-    tqdm.write('Station  NE-Used Vn [mm/yr] Ve [mm/yr] Rn [mm/yr] Re [mm/yr]')
+    tqdm.write('Station  NE-Used EP Vn[mm/yr] Ve[mm/yr] Rn[mm/yr] Re[mm/yr]')
     for i, stn in enumerate(hdata):
-        tqdm.write('%s %-3s %-3s %8.3f %8.3f %8.3f %8.3f'
+        tqdm.write('%s %-3s %-3s   %9.3f %9.3f %9.3f %9.3f'
                    % (stationID(stn), 'OK' if iNE[0, i] else 'NOK',
                       'OK' if iNE[1, i] else 'NOK',
                       fNE[0, i] * 1000., fNE[1, i] * 1000.,
                       rNE[0, i] * 1000., rNE[1, i] * 1000.))
-    tqdm.write('----------------------------------------------------')
-    tqdm.write('RMS of residuals                   %8.3f %8.3f' %
+    tqdm.write('----------------------------------------------------------')
+    tqdm.write('RMS of residuals (NE)                  %9.3f %9.3f' %
                (np.sqrt(np.sum(np.square(rNE[0, :] * 1000.)) / len(hdata)),
                 np.sqrt(np.sum(np.square(rNE[1, :] * 1000.)) / len(hdata))))
 
@@ -272,13 +278,13 @@ def main():
         rNE = v[len(hdata) * 2:]
         fNE = (A @ C)[len(hdata) * 2:]
         tqdm.write('\nVREF residuals')
-        tqdm.write('Station  Vu-Used Vu [mm/yr] Ru [mm/yr]')
+        tqdm.write('Station  Vu-Used Vu[mm/yr] Ru[mm/yr]')
         for i, stn in enumerate(vdata):
-            tqdm.write('%s %-4s %8.3f %8.3f'
+            tqdm.write('%s %-4s %9.3f %9.3f'
                        % (stationID(stn), 'OK' if iNE[i, 0] else 'NOK',
                           fNE[i, 0] * 1000., rNE[i, 0] * 1000.))
-        tqdm.write('-----------------------------------')
-        tqdm.write('RMS of residuals       %8.3f'
+        tqdm.write('---------------------------------')
+        tqdm.write('RMS of residuals       %9.3f'
                    % (np.sqrt(np.sum(np.square(
                       rNE[:, 0] * 1000.)) / len(vdata))))
 

@@ -279,8 +279,8 @@ class Score(object):
             U = np.zeros_like(self.gx, dtype=bool)
 
             for strike, dip, rake in zip(self.strike, self.dip, self.rake):
-                # check depth of fault edge
-                d2 = depth - W2 * sind(dip)
+                # check depth of fault edge (add 500 meters for security factor)
+                d2 = depth - (W2 * sind(dip) + 500)
 
                 if d2 < 0:
                     # fault is sticking out of the ground! reduce depth
@@ -314,7 +314,7 @@ class Score(object):
 
         mx = self.gx / np.max(ref_scale) * self.dmax * scale_factor
         my = self.gy / np.max(ref_scale) * self.dmax * scale_factor
-
+        print(ref_scale)
         return mx, my, U
 
     def score(self, lat, lon):
@@ -355,10 +355,14 @@ class Score(object):
         cgi.escape = html.escape
 
         cs = plt.contour(np.reshape(self.c_mx, self.c_mask.shape), np.reshape(self.c_my, self.c_mask.shape),
-                         self.c_mask, [9e-8], colors='k')
+                         self.c_mask, [1e-16], colors='k')
 
         ps = plt.contour(np.reshape(self.p_mx, self.p_mask.shape), np.reshape(self.p_my, self.p_mask.shape),
-                         self.p_mask, [9e-8], colors='k')
+                         self.p_mask, [1e-16], colors='k')
+
+        # plt.scatter(np.reshape(self.c_mx, self.c_mask.shape),
+        #             np.reshape(self.c_my, self.c_mask.shape), 10, self.p_mask)
+        # plt.show()
 
         # coseismic
         cp = cs.collections[0].get_paths()[0]

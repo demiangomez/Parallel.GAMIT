@@ -186,6 +186,7 @@ SIGMA_FLOOR_V = 0.15
 ESTIMATION = 0
 DATABASE = 1
 
+
 class Model(object):
     VEL = 1
     LOG = 2
@@ -3102,7 +3103,7 @@ class ETM:
                 break  # cst_pass = True
 
         # make sure there are no values below eps. Otherwise matrix becomes singular
-        P[P < np.finfo(float).eps] = 1e-6
+        P[P < np.finfo(float).eps] = np.finfo(float).eps
 
         # some statistics
         SS = np.linalg.inv(np.dot(A.transpose(), np.multiply(P[:, None], A)))
