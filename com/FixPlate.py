@@ -127,6 +127,12 @@ def main():
                         help='''Use PPP solutions instead of GAMIT. The 
                         input stack name will be ignored.''')
 
+    parser.add_argument('-preserve', '--preserve_stack', action='store_true',
+                        default=False,
+                        help='''Do not erase stack when saving stations. This is useful for 
+                        adding new stations to the stack, but EP parameters should match to 
+                        keep the stack consistent.''')
+
     parser.add_argument('-json', '--save_json', action='store_true',
                         default=False,
                         help='''Save json files for the plotted ETMs. 
@@ -347,19 +353,36 @@ def main():
         stations = get_stack_stations(cnn, args.stack_name[0])
 
         # delete the entire stack to produce the new one
-        cnn.query(f'DELETE FROM stacks WHERE name = \'{save_stack}\'')
+        if not args.preserve_stack:
+            existing_stns = []
+            cnn.query(f'DELETE FROM stacks WHERE name = \'{save_stack}\'')
+        else:
+            existing_stns = get_stack_stations(cnn, save_stack)
+            existing_stns = [stationID(stn) for stn in existing_stns]
 
         pbar = tqdm(total=0, ncols=80, disable=None)
 
         for i, stn in enumerate(stations):
-            StationCode = stn['StationCode']
-            NetworkCode = stn['NetworkCode']
 
-            A, _ = build_design([stn], [stn] if len(vref) > 0 else [])
-            v = np.zeros((3, 1))
-            v[0:3 if len(vref) > 0 else 2] = A @ C
-            model = pyETM.Model(pyETM.Model.VEL, velocity=v, fit=True)
+            # if preserve_stack, check if station was saved. If it was then skip
+            if args.preserve_stack:
+                if stationID(stn) in existing_stns:
+                    tqdm.write(' -- Station %s (%i/%i) already in stack %s, skipping'
+                               % (stationID(stn), i + 1, len(stations), save_stack))
+                    continue
+
             try:
+                tqdm.write(' -- Estimating EP velocity for station %s (%i/%i)'
+                           % (stationID(stn), i + 1, len(stations)))
+
+                StationCode = stn['StationCode']
+                NetworkCode = stn['NetworkCode']
+
+                A, _ = build_design([stn], [stn] if len(vref) > 0 else [])
+                v = np.zeros((3, 1))
+                v[0:3 if len(vref) > 0 else 2] = A @ C
+                model = pyETM.Model(pyETM.Model.VEL, velocity=v, fit=True)
+
                 if not args.ppp_solutions:
                     etm = pyETM.GamitETM(cnn,
                                          stn['NetworkCode'],
@@ -409,6 +432,8 @@ def main():
 
             except pyETM.pyETMException as e:
                 tqdm.write(str(e))
+            except Exception as e:
+                tqdm.write(' -- Unexpected exception while processing %s: %s' % (stationID(stn), str(e)))
 
         pbar.close()
 

@@ -314,7 +314,7 @@ class Score(object):
 
         mx = self.gx / np.max(ref_scale) * self.dmax * scale_factor
         my = self.gy / np.max(ref_scale) * self.dmax * scale_factor
-        print(ref_scale)
+        # print(ref_scale)
         return mx, my, U
 
     def score(self, lat, lon):
