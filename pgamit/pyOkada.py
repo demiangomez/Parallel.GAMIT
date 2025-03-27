@@ -401,7 +401,10 @@ class Score(object):
         if txt_file is not None:
             # inverse azimuthal equidistant (coseismic)
             clon, clat = inv_azimuthal(self.c_mx, self.c_my, self.lon, self.lat)
-            np.savetxt(txt_file, np.column_stack((clon, clat, self.c_mask.flatten())))
+            if include_postseismic:
+                np.savetxt(txt_file, np.column_stack((clon, clat, self.c_mask.flatten(), self.p_mask.flatten())))
+            else:
+                np.savetxt(txt_file, np.column_stack((clon, clat, self.c_mask.flatten())))
 
         return kml.kml()
 
