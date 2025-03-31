@@ -19,6 +19,9 @@ dependencies:
   - tqdm
   - pytest
   - xmltodict
+  - scikit-image
+  - shapely
+  - obspy
   - pip
   - pip:
     - country_converter

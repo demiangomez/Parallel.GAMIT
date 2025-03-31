@@ -40,7 +40,7 @@ def main():
             rake = [float(event['rake1']), float(event['rake2'])] if not math.isnan(event['strike1']) else []
 
             score = pyOkada.Score(event['lat'], event['lon'], event['depth'], event['mag'], strike, dip, rake,
-                                  event['date'], density=1000, location=event['location'])
+                                  event['date'], density=1000, location=event['location'], event_id=event['id'])
 
             score.save_masks(kmz_file=eq + '.kmz', include_postseismic=args.postseismic)
         else:

@@ -57,8 +57,12 @@ import numpy as np
 import math
 from scipy.spatial     import KDTree
 from datetime          import timedelta
-import matplotlib.pyplot as plt
 import simplekml
+import io
+import base64
+from skimage.measure import find_contours
+from shapely.geometry import Polygon
+from obspy.imaging.beachball import beachball
 
 from pgamit.pyDate import Date
 from pgamit import pyETM as etm
@@ -125,7 +129,7 @@ class EarthquakeTable(object):
         rake   = [float(eq['rake1']), float(eq['rake2'])]     if not math.isnan(eq['strike1']) else []
 
         score = Score(float(eq['lat']), float(eq['lon']), float(eq['depth']), float(eq['mag']),
-                      strike, dip, rake, eq['date'])
+                      strike, dip, rake, eq['date'], location=eq['location'], event_id=eq['id'])
 
         for stn in stns:
 
@@ -176,7 +180,7 @@ class ScoreTable(object):
             if s > 0:
 
                 score = Score(float(j['lat']), float(j['lon']), float(j['depth']), float(j['mag']),
-                              strike, dip, rake, j['date'])
+                              strike, dip, rake, j['date'], location=j['location'], event_id=j['id'])
 
                 # capture co-seismic and post-seismic scores
                 s_score, p_score = score.score(lat, lon)
@@ -195,7 +199,7 @@ class ScoreTable(object):
 
 class Score(object):
     def __init__(self, event_lat, event_lon, depth_km, magnitude, strike=(), dip=(), rake=(), event_date=None,
-                 density=250, location=''):
+                 density=250, location='', event_id='Unknown'):
         """
         Seismic-score (s-score) class that allows testing if a latitude longitude locations requires co-seismic
         displacement parameters on its ETM. The class includes the formulations from Wells and Coppersmith (1994) to
@@ -224,6 +228,7 @@ class Score(object):
         self.date   = event_date
         # for the kml information
         self.location = location
+        self.event_id = event_id
 
         # compute fault dimensions from Wells and Coppersmith 1994
         # all lengths and displacements reported in m
@@ -344,67 +349,110 @@ class Score(object):
 
     def save_masks(self, txt_file=None, kmz_file=None, include_postseismic=False):
         """
-        Function to export coseismic mask. Method returns the kml structure. If txt_file and/or kmz_file are given,
-        then files are saved
+        Exports coseismic mask as a KMZ file with proper polygon separation.
         """
-        # to fix the issue from simple kml
-        # AttributeError: module 'cgi' has no attribute 'escape'
-        # see: https://github.com/tjlang/simplekml/issues/38
         import cgi
         import html
         cgi.escape = html.escape
 
-        cs = plt.contour(np.reshape(self.c_mx, self.c_mask.shape), np.reshape(self.c_my, self.c_mask.shape),
-                         self.c_mask, [1e-16], colors='k')
+        # First, transform the scalar field coordinates using inv_azimuthal
+        c_lon, c_lat = inv_azimuthal(self.c_mx, self.c_my, self.lon, self.lat)
+        p_lon, p_lat = inv_azimuthal(self.p_mx, self.p_my, self.lon, self.lat)
 
-        ps = plt.contour(np.reshape(self.p_mx, self.p_mask.shape), np.reshape(self.p_my, self.p_mask.shape),
-                         self.p_mask, [1e-16], colors='k')
+        # Reshape to match mask shape
+        c_lon = np.reshape(c_lon, self.c_mask.shape)
+        c_lat = np.reshape(c_lat, self.c_mask.shape)
+        p_lon = np.reshape(p_lon, self.p_mask.shape)
+        p_lat = np.reshape(p_lat, self.p_mask.shape)
 
-        # plt.scatter(np.reshape(self.c_mx, self.c_mask.shape),
-        #             np.reshape(self.c_my, self.c_mask.shape), 10, self.p_mask)
-        # plt.show()
+        # Find contours on transformed scalar field coordinates
+        coseismic_contours = find_contours(self.c_mask, 1e-16)
+        postseismic_contours = find_contours(self.p_mask, 1e-16) if include_postseismic else []
 
-        # coseismic
-        cp = cs.collections[0].get_paths()[0]
-        cv = cp.vertices
-        # inverse azimuthal equidistant (coseismic)
-        clon, clat = inv_azimuthal(cv[:, 0], cv[:, 1], self.lon, self.lat)
-
-        # postseismic
-        pp = ps.collections[0].get_paths()[0]
-        pv = pp.vertices
-        # inverse azimuthal equidistant (postseismic)
-        plon, plat = inv_azimuthal(pv[:, 0], pv[:, 1], self.lon, self.lat)
-
-        # Produce KML
+        # Create KML
         kml = simplekml.Kml()
+
         epicenter = kml.newpoint(name=self.location, coords=[(self.lon, self.lat)])
         epicenter.style.iconstyle.icon.href = 'https://maps.google.com/mapfiles/kml/shapes/star.png'
         epicenter.style.iconstyle.scale = 1.5
         epicenter.style.iconstyle.color = simplekml.Color.yellow
         epicenter.style.labelstyle.scale = 0
 
-        poly = kml.newpolygon(name="Coseimic mask", outerboundaryis=np.column_stack((clon, clat)))
-        poly.style.linestyle.color = simplekml.Color.blue
-        poly.style.linestyle.width = 3
-        poly.style.polystyle.color = simplekml.Color.changealphaint(0, simplekml.Color.white)
+        if self.strike:
+            img_buffer = io.BytesIO()
+            beachball([self.strike[0], self.dip[0], self.rake[0]], width=100, linewidth=1,
+                      facecolor='k', outfile=img_buffer)
+            img_buffer.seek(0)
+            img_base64 = base64.b64encode(img_buffer.read()).decode("utf-8")
 
+            # Add overlay to KML
+            epicenter.description = """ID: %s<br>
+            Date: %s<br>
+            Magnitude: %.1f<br>
+            Depth: %.0f km<br>
+            <p class="centered">
+            <strong>Focal mechanism</strong><br>
+            <img src="data:image/png;base64, %s" alt="focal mechanism" align="center"/>
+            </p>""" % (self.event_id, self.date.strftime('%Y-%m-%d %H:%M:%S'),
+                       self.mag, self.depth[1]/1000, img_base64)
+
+        def process_contours(contours, lon_grid, lat_grid, color, name):
+            """
+            Converts contour paths into properly formatted KML polygons.
+            """
+            polygons = []
+            for contour in contours:
+                # Convert contour indices to geographic coordinates
+                row_indices = contour[:, 0].astype(int)
+                col_indices = contour[:, 1].astype(int)
+                lon = lon_grid[row_indices, col_indices]
+                lat = lat_grid[row_indices, col_indices]
+
+                poly = Polygon(np.column_stack((lon, lat)))  # Convert to a Shapely polygon
+                if poly.area > 1:
+                    # ignore polygons with areas smaller than 1 km**2
+                    polygons.append(poly)
+
+            # Separate outer polygons from inner holes
+            outer_polys = []
+            holes = []
+            for poly in polygons:
+                is_hole = False
+                for outer in outer_polys:
+                    if outer.contains(poly):  # If it's inside another, it's a hole
+                        holes.append(poly)
+                        is_hole = True
+                        break
+                if not is_hole:
+                    outer_polys.append(poly)
+
+            # Add to KML
+            for outer in outer_polys:
+                kml_poly = kml.newpolygon(name=name, outerboundaryis=outer.exterior.coords)
+                kml_poly.style.linestyle.color = color
+                kml_poly.style.linestyle.width = 3
+                kml_poly.style.polystyle.color = simplekml.Color.changealphaint(0, simplekml.Color.white)
+
+                # todo: add the inner boundary, which needs to be tested
+                # Add inner boundaries (holes)
+                # for hole in holes:
+                #    if outer.contains(hole):  # Ensure hole belongs to this polygon
+                #        kml_poly.innerboundaryis = hole.exterior.coords
+
+        # Process coseismic and postseismic separately
+        process_contours(coseismic_contours, c_lon, c_lat, simplekml.Color.blue, "Coseismic mask")
         if include_postseismic:
-            poly = kml.newpolygon(name="Postseismic mask", outerboundaryis=np.column_stack((plon, plat)))
-            poly.style.linestyle.color = simplekml.Color.orange
-            poly.style.linestyle.width = 3
-            poly.style.polystyle.color = simplekml.Color.changealphaint(0, simplekml.Color.white)
+            process_contours(postseismic_contours, p_lon, p_lat, simplekml.Color.orange, "Postseismic mask")
 
-        if kmz_file is not None:
+        if kmz_file:
             kml.savekmz(kmz_file)
 
         if txt_file is not None:
             # inverse azimuthal equidistant (coseismic)
-            clon, clat = inv_azimuthal(self.c_mx, self.c_my, self.lon, self.lat)
             if include_postseismic:
-                np.savetxt(txt_file, np.column_stack((clon, clat, self.c_mask.flatten(), self.p_mask.flatten())))
+                np.savetxt(txt_file, np.column_stack((c_lon, c_lat, self.c_mask.flatten(), self.p_mask.flatten())))
             else:
-                np.savetxt(txt_file, np.column_stack((clon, clat, self.c_mask.flatten())))
+                np.savetxt(txt_file, np.column_stack((c_lon, c_lat, self.c_mask.flatten())))
 
         return kml.kml()
 
