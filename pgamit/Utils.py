@@ -1061,3 +1061,65 @@ def plot_rinex_completion(cnn, NetworkCode, StationCode, landscape=False):
     plt.close()
 
     return figdata_png
+
+
+def import_blq(blq_str, NetworkCode=None, StationCode=None):
+
+    if blq_str[0:2] != '$$':
+        raise UtilsException('Input string does not appear to be in BLQ format!')
+
+    # header as defined in the new version of the holt.oso.chalmers.se service
+    header = """$$ Ocean loading displacement
+$$
+$$ OTL provider: http://holt.oso.chalmers.se/loading/
+$$ Created by Scherneck & Bos
+$$
+$$ WARNING: All your longitudes were within -90 to +90 degrees
+$$ There is a risk that longitude and latitude were swapped
+$$ Please verify for yourself that this has not been the case
+$$
+$$ COLUMN ORDER:  M2  S2  N2  K2  K1  O1  P1  Q1  MF  MM SSA
+$$
+$$ ROW ORDER:
+$$ AMPLITUDES (m)
+$$   RADIAL
+$$   TANGENTL    EW
+$$   TANGENTL    NS
+$$ PHASES (degrees)
+$$   RADIAL
+$$   TANGENTL    EW
+$$   TANGENTL    NS
+$$
+$$ Displacement is defined positive in upwards, South and West direction.
+$$ The phase lag is relative to Greenwich and lags positive. The PREM
+$$ Green's function is used. The deficit of tidal water mass in the tide
+$$ model has been corrected by subtracting a uniform layer of water with
+$$ a certain phase lag globally.
+$$
+$$ CMC:  NO (corr.tide centre of mass)
+$$
+$$ A constant seawater density of 1030 kg/m^3 is used.
+$$
+$$ A thin tidal layer is subtracted to conserve water mass.
+$$
+$$ FES2014b: m2 s2 n2 k2 k1 o1
+$$ FES2014b: p1 q1 Mf Mm Ssa
+$$
+$$ END HEADER
+$$"""
+    # it's BLQ alright
+    pattern = re.compile(r'(?m)(^\s{2}(\w{3}_\w{4})[\s\S]*?^\$\$(?=\s*(?:END TABLE)?$))', re.MULTILINE)
+    matches = pattern.findall(blq_str)
+
+    # create a list with the matches
+    otl_records = []
+    for match in matches:
+        net, stn = match[1].split('_')
+        # add the match to the list if none requested or if a specific station was requested
+        if NetworkCode is None or StationCode is None or (net == NetworkCode and stn == StationCode):
+            otl = header + '\n' + match[0].replace('$$ ' + match[1], '$$ %-8s' % stn).replace(match[1], stn)
+            otl_records.append({'StationCode': stn,
+                                'NetworkCode': net,
+                                'otl': otl})
+
+    return otl_records

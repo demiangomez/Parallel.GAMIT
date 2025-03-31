@@ -12,6 +12,7 @@ events (M >= 6)
 import re
 import calendar
 import xmltodict
+import datetime as dt
 from collections import OrderedDict
 from datetime import datetime
 from tqdm import tqdm
@@ -74,19 +75,21 @@ def getTimeSegments2(starttime, endtime):
 
 class AddEarthquakes:
 
-    def __init__(self, cnn):
+    def __init__(self, cnn, stime=None, etime=None):
 
         # check the last earthquake in the db
-        quakes = cnn.query('SELECT max(date) as mdate FROM earthquakes')
-
-        stime = None  # quakes.dictresult()[0].get('mdate')
 
         if stime is None:
-            # no events in the table, add all
-            rinex = cnn.query('SELECT min("ObservationSTime") as mdate FROM rinex')
-            stime = rinex.dictresult()[0].get('mdate')
+            quakes = cnn.query('SELECT max(date) as mdate FROM earthquakes')
+            stime = quakes.dictresult()[0].get('mdate')
 
-        etime = datetime.utcnow()
+            if stime is None:
+                # no events in the table, add all
+                rinex = cnn.query('SELECT min("ObservationSTime") as mdate FROM rinex')
+                stime = rinex.dictresult()[0].get('mdate')
+
+        if etime is None:
+            etime = datetime.now(dt.UTC)
 
         # we used to do a count of how many events would be returned,
         # but it turns out that doing the count takes almost as much time

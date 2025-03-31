@@ -26,9 +26,10 @@ from email.mime.text import MIMEText
 import argparse
 import re
 
+from pgamit import Utils
 # app
 from pgamit import dbConnection
-from pgamit.Utils import file_write, file_readlines, process_stnlist, stationID
+from pgamit.Utils import file_write, file_readlines, process_stnlist, stationID, import_blq
 
 
 def main():
@@ -49,7 +50,7 @@ def main():
         stnlist = []
 
     if args.import_otl:
-        import_blq(args.import_otl[0])
+        process_blq(args.import_otl[0])
     else:
         create_files(stnlist)
 
@@ -96,7 +97,6 @@ def create_files(stnlist):
             #
             # s = smtplib.SMTP_SSL('64.233.190.108', 465)
             # s.ehlo()
-            # s.login('demiang@gmail.com', 'demostenes0624')
             # s.sendmail('demiang@gmail.com', 'demiang@gmail.com', msg.as_string())
             # s.close()
 
@@ -137,45 +137,23 @@ def import_harpos(filename):
         print(' >> Could not find a valid header')
 
 
-def import_blq(filename):
-    # parse the file to see if it is HARPOS
-    otl = file_readlines(filename)
-
-    if otl[0][0:2] != '$$':
-        print(' >> Input files does not appear to be in BLQ format!')
-
-    # it's BLQ alright
-    # find the linenumber of the phase and frequency components
-
-    header  = otl[0:34]
-
-    pattern = re.compile('\s{2}\w{3}_\w{4}')
-
-    for line in otl[34:]:
-        if pattern.match(line):
-            load_blq(header, otl[otl.index(line):
-                                 otl.index(line) + 11])
-
-
-def load_blq(header, otl):
-
+def process_blq(filename):
+    # open connection to database
     cnn = dbConnection.Cnn("gnss_data.cfg")
 
-    # begin removing the network code from the OTL
-    NetStn = re.findall('\s{2}(\w{3}_\w{4})', ''.join(otl))
+    # parse the file to see if it is BLQ
+    otl = ''.join(file_readlines(filename))
 
-    print(NetStn)
-    NetworkCode, StationCode = NetStn[0].split('_')
+    try:
+        blq_otl = import_blq(otl)
 
+        for stn in blq_otl:
+            print(' >> Updating OTL for %s.%s' % (stn['NetworkCode'], stn['StationCode']))
+            cnn.update('stations', {'Harpos_coeff_otl': stn['otl']},
+                       NetworkCode=stn['NetworkCode'], StationCode=stn['StationCode'])
 
-    OTL = (''.join(header) + ''.join(otl)).replace('  ' + NetStn[0], '  ' + StationCode)
-    OTL = OTL.replace('$$ ' + NetStn[0], '$$ %-8s' % StationCode)
-    OTL = OTL.replace('$$ END TABLE', '$$')
-    OTL = OTL.replace("'", "")
-
-    print(' >> updating %s.%s' % (NetworkCode, StationCode))
-
-    cnn.query('UPDATE stations SET "Harpos_coeff_otl" = \'%s\' WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\'' % (OTL, NetworkCode, StationCode))
+    except Utils.UtilsException as e:
+        print(str(e))
 
 
 def load_harpos(header, otl):
@@ -190,7 +168,8 @@ def load_harpos(header, otl):
     OTL = (''.join(header) + ''.join(otl)).replace(NetStn[0], StationCode + '    ') + 'HARPOS Format version of 2002.12.12'
 
     print(' >> updating %s.%s' % (NetworkCode, StationCode))
-    cnn.query('UPDATE stations SET "Harpos_coeff_otl" = \'%s\' WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\'' % (OTL, NetworkCode, StationCode))
+    cnn.query('UPDATE stations SET "Harpos_coeff_otl" = \'%s\' WHERE "NetworkCode" = \'%s\' AND '
+              '"StationCode" = \'%s\'' % (OTL, NetworkCode, StationCode))
 
 
 if __name__ == '__main__':

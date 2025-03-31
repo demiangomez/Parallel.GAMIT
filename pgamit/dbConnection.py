@@ -213,7 +213,10 @@ class Cnn(object):
         where_clause = ' AND '.join([f'"{key}" = %s' if val is not None else f'"{key}" IS %s'
                                      for key, val in zip(filter_fields.keys(), filter_fields.values())])
         fields_clause = ', '.join([f'"{field}"' for field in return_fields])
-        query = f'SELECT {fields_clause} FROM {table} WHERE {where_clause}'
+        if where_clause:
+            query = f'SELECT {fields_clause} FROM {table} WHERE {where_clause}'
+        else:
+            query = f'SELECT {fields_clause} FROM {table}'
         values = list(filter_fields.values())
         # new feature to limit the results
         if limit:

@@ -3279,13 +3279,21 @@ class ETM:
         if params:
             if params['object'] == 'jump':
 
+                if params['jump_type'] < 0:
+                    raise pyETMException('jump_type must be >= 0')
+
                 if params['action'] == '+' and params['jump_type'] > 0 and 'relaxation' not in params.keys():
                     raise pyETMException('Relaxation parameters needed when jump_type > 0 and action = +')
 
                 if 'relaxation' in params.keys():
-                    for r in params['relaxation']:
-                        if r <= 0:
-                            raise pyETMException('Relaxation parameters must be > 0')
+                    if len(params['relaxation']):
+                        for r in params['relaxation']:
+                            if type(r) is not float:
+                                raise pyETMException('Relaxation parameters must be float type')
+                            if r <= 0:
+                                raise pyETMException('Relaxation parameters must be > 0')
+                    else:
+                        raise pyETMException('At least one relaxation needed for jump_type > 0')
 
                 # query params to find the jump
                 qpar = copy.deepcopy(params)
