@@ -394,7 +394,13 @@ class Score(object):
             <strong>Focal mechanism</strong><br>
             <img src="data:image/png;base64, %s" alt="focal mechanism" align="center"/>
             </p>""" % (self.event_id, self.date.strftime('%Y-%m-%d %H:%M:%S'),
-                       self.mag, self.depth[1]/1000, img_base64)
+                       self.mag, self.depth[1] / 1000, img_base64)
+        else:
+            epicenter.description = """ID: %s<br>
+            Date: %s<br>
+            Magnitude: %.1f<br>
+            Depth: %.0f km<br>
+            """ % (self.event_id, self.date.strftime('%Y-%m-%d %H:%M:%S'), self.mag, self.depth[1] / 1000)
 
         def process_contours(contours, lon_grid, lat_grid, color, name):
             """
