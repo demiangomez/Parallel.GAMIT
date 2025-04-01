@@ -3,6 +3,7 @@ declare module "@heroicons/*";
 declare module "leaflet-omnivore";
 
 export interface GetParams {
+    without_actual_files?: boolean;
     network_code?: string;
     thumbnail?: boolean;
     country_code?: string;

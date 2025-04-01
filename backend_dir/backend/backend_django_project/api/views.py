@@ -1004,11 +1004,23 @@ class VisitList(CustomListCreateAPIView):
     filter_backends = [DjangoFilterBackend]
     filterset_class = filters.VisitFilter
 
+    @extend_schema(description="Set query param 'without_actual_files' to true to remove log_sheet_actual_file and navigation_actual_file from visits. Set query param 'group_by_day' to true to group visits by date.")
     def list(self, request, *args, **kwargs):
         """If the response status is 200, add some fields of the related station object and group by date if requested."""
 
         # Llamar al método original list()
         response = super().list(request, *args, **kwargs)
+
+        # if 'without_actual_files' query parameter is set to true then remove log_sheet_actual_file and navigation_actual_file from visits
+        without_actual_files = request.query_params.get(
+            'without_actual_files', 'false').lower() == 'true'
+
+        if without_actual_files:
+            for visit in response.data["data"]:
+                if 'log_sheet_actual_file' in visit:
+                    visit.pop('log_sheet_actual_file')
+                if 'navigation_actual_file' in visit:
+                    visit.pop('navigation_actual_file')
 
         if response.status_code == status.HTTP_200_OK:
             # Obtener el valor del parámetro 'group_by_day' desde la URL (por ejemplo, 'group_by_day=true')
