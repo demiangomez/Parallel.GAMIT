@@ -386,21 +386,45 @@ class Score(object):
             img_base64 = base64.b64encode(img_buffer.read()).decode("utf-8")
 
             # Add overlay to KML
-            epicenter.description = """ID: %s<br>
-            Date: %s<br>
-            Magnitude: %.1f<br>
-            Depth: %.0f km<br>
-            <p class="centered">
-            <strong>Focal mechanism</strong><br>
-            <img src="data:image/png;base64, %s" alt="focal mechanism" align="center"/>
-            </p>""" % (self.event_id, self.date.strftime('%Y-%m-%d %H:%M:%S'),
-                       self.mag, self.depth[1] / 1000, img_base64)
+            epicenter.description = """<table style="border-collapse: collapse; width: 100%%; text-align: left;">
+            <tr><td style="text-align: left; font-weight: bold;">ID:</td><td>%s</td></tr>
+            <tr><td style="text-align: left; font-weight: bold;">Date:</td><td>%s</td></tr>
+            <tr><td style="text-align: left; font-weight: bold;">Mag:</td><td>%.1f</td></tr>
+            <tr><td style="text-align: left; font-weight: bold;">Depth:</td><td>%.0f km</td></tr>
+            <tr>
+                <td colspan="2" style="text-align: left;">
+                    <a href="https://earthquake.usgs.gov/earthquakes/eventpage/%s" target="_blank"
+                    style="display: inline-block; text-align: left;">
+                        USGS event page
+                    </a>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="2"">
+                    <strong>Focal Mechanism</strong><br>
+                    <img src="data:image/png;base64,%s" alt="Focal Mechanism" 
+                    style="display: block; margin: 0 auto; max-width: 100%%;" />
+                </td>
+            </tr>
+            </table>""" % (self.event_id, self.date.strftime('%Y-%m-%d %H:%M:%S'),
+                           self.mag, self.depth[1] / 1000, self.event_id, img_base64)
         else:
-            epicenter.description = """ID: %s<br>
-            Date: %s<br>
-            Magnitude: %.1f<br>
-            Depth: %.0f km<br>
-            """ % (self.event_id, self.date.strftime('%Y-%m-%d %H:%M:%S'), self.mag, self.depth[1] / 1000)
+            epicenter.description = """<table style="border-collapse: collapse;">
+            <tr><td style="text-align: left; font-weight: bold;">ID:</td><td>%s</td></tr>
+            <tr><td style="text-align: left; font-weight: bold;">Date:</td><td>%s</td></tr>
+            <tr><td style="text-align: left; font-weight: bold;">Mag:</td><td>%.1f</td></tr>
+            <tr><td style="text-align: left; font-weight: bold;">Depth:</td><td>%.0f km</td></tr>
+            <tr>
+                <td colspan="2" style="text-align: left;">
+                    <a href="https://earthquake.usgs.gov/earthquakes/eventpage/%s" target="_blank"
+                    style="display: inline-block; text-align: left;">
+                        USGS event page
+                    </a>
+                </td>
+            </tr>
+            </table>
+            """ % (self.event_id, self.date.strftime('%Y-%m-%d %H:%M:%S'), self.mag,
+                   self.depth[1] / 1000, self.event_id)
 
         def process_contours(contours, lon_grid, lat_grid, color, name):
             """
@@ -415,9 +439,12 @@ class Score(object):
                 lat = lat_grid[row_indices, col_indices]
 
                 poly = Polygon(np.column_stack((lon, lat)))  # Convert to a Shapely polygon
-                if poly.area > 1:
-                    # ignore polygons with areas smaller than 1 km**2
+                if poly.area > 0.0025:
+                    # ignore polygons with areas smaller than 10 km**2 (expressed in deg**2)
                     polygons.append(poly)
+                    # print('added %f' % poly.area)
+                # else:
+                    # print('not added %f' % poly.area)
 
             # Separate outer polygons from inner holes
             outer_polys = []
@@ -431,6 +458,7 @@ class Score(object):
                         break
                 if not is_hole:
                     outer_polys.append(poly)
+                    # print('outer detected')
 
             # Add to KML
             for outer in outer_polys:
