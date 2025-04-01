@@ -501,7 +501,13 @@ export interface VisitFilesData {
     statusCode: number;
 }
 
+export interface CompletionPlotServiceData{
+    completion_plot: string, 
+    statusCode: number
+}
+
 export interface StationVisitsData {
+    [key: string]: string | number;
     campaign: string | null;
     campaign_name?: string | null;
     campaign_people: string | null;
@@ -515,6 +521,9 @@ export interface StationVisitsData {
     station_formatted?: string;
     station: number;
     comments: string;
+    observation_file_count: number;
+    visit_image_count: number;
+    other_file_count: number;
 }
 
 export interface StationPostVisitData {
@@ -733,6 +742,7 @@ export interface StationData {
     status: string;
     type: string | null;
 }
+
 
 export interface StationInfoData {
     antenna_code: string;

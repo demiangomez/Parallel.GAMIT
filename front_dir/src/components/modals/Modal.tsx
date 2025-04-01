@@ -29,11 +29,14 @@ const Modal = ({
     children,
 }: ModalProps) => {
     return (
-        <dialog id={modalId + "-modal"} className="modal"
-        onClose={() => {
-            handleCloseModal ? handleCloseModal() : null;
-            setModalState ? setModalState(undefined) : null;
-        }}>
+        <dialog
+            id={modalId + "-modal"}
+            className="modal"
+            onClose={() => {
+                handleCloseModal ? handleCloseModal() : null;
+                setModalState ? setModalState(undefined) : null;
+            }}
+        >
             <div
                 className={`modal-box 
                     ${
@@ -45,8 +48,18 @@ const Modal = ({
                                 ? "border-t-4 border-t-green-500"
                                 : ""
                     }`}
-                style={ noPadding? {maxWidth: "", minWidth: size ? modalSizes[size] : "", padding: "0px"} :
-                    { maxWidth: "", minWidth: size ? modalSizes[size] : "" }}
+                style={
+                    noPadding
+                        ? {
+                              maxWidth: "",
+                              minWidth: size ? modalSizes[size] : "",
+                              padding: "0px",
+                          }
+                        : {
+                              maxWidth: "",
+                              minWidth: size ? modalSizes[size] : "",
+                          }
+                }
             >
                 {close && (
                     <form method="dialog">

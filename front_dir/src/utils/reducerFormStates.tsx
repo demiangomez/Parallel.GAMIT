@@ -15,7 +15,7 @@ export const STATION_INFO_STATE = {
     date_start: "",
     date_end: "",
     receiver_vers: "",
-    comments: null,
+    comments: "",
 };
 
 type UserState = {
@@ -68,6 +68,23 @@ export const CAMPAIGN_STATE = {
     start_date: "",
     end_date: "",
 };
+
+export const METADATA_STATE = {
+    stationMeta: {
+        station_code: "",
+        network_code: "",
+        dome: "",
+        max_dist: "",
+    },
+    station: {
+        lat: "",
+        lon: "",
+        height: "",
+        auto_x: "",
+        auto_y: "",
+        auto_z: "",
+    },
+}
 
 export const EVENTS_FILTERS_STATE = {
     description: "",

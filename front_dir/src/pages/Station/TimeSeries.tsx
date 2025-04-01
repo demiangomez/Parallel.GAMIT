@@ -8,7 +8,7 @@ import {
     TimeSeriesParams,
 } from "@componentsReact";
 
-import { FunnelIcon } from "@heroicons/react/24/outline";
+import { FunnelIcon, DocumentChartBarIcon } from "@heroicons/react/24/outline";
 
 import { getStackNamesService, getStationTimeSeriesService } from "@services";
 import { useAuth, useApi } from "@hooks";
@@ -48,6 +48,8 @@ const TimeSeries = () => {
     const [msg, setMsg] = useState<
         { status: number; msg: string; errors?: Errors } | undefined
     >(undefined);
+
+    const [loadingJson, setLoadingJson] = useState<boolean>(false);
 
     const [polynomialData, setPolynomialData] = useState<ConfigPolynomialData | undefined>(undefined);
     const [periodicData, setPeriodicData] = useState<any | undefined>(undefined);
@@ -90,6 +92,73 @@ const TimeSeries = () => {
         }
     };
 
+    const getJsonFile = async () => {
+        getJsonTimeSeries();
+    }
+
+    const getJsonTimeSeries = async () => {
+        try {
+            setLoadingJson(true);
+            const timeSeriesParams = {
+                ...params,
+            };
+
+            for (const key in timeSeriesParams) {
+                if (
+                    timeSeriesParams[key as keyof typeof timeSeriesParams] ===
+                    ""
+                ) {
+                    delete timeSeriesParams[
+                        key as keyof typeof timeSeriesParams
+                    ];
+                }
+
+                if (
+                    key.includes("date") &&
+                    timeSeriesParams[key as keyof typeof timeSeriesParams]
+                ) {
+                    timeSeriesParams[key as keyof typeof timeSeriesParams] = (
+                        timeSeriesParams[
+                            key as keyof typeof timeSeriesParams
+                        ] as string
+                    )?.replace(/-/g, "/");
+                }
+            }
+
+            const res = await getStationTimeSeriesService<
+            | 
+                {
+                    etm_params: TimeSeriesParamsData;
+                    time_series: string;
+                }
+            | ErrorResponse
+            >(api, station.api_id ?? 0, timeSeriesParams, true);
+
+            if ("status" in res) {
+                setMsg({
+                    status: res.statusCode,
+                    msg: res.response.errors[0].detail,
+                    errors: res.response,
+                });
+            } else {
+                setMsg(undefined);
+                const jsonData = JSON.stringify(res.time_series, null, 2);
+                const blob = new Blob([jsonData], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = 'timeseries.json';
+                link.click();
+                URL.revokeObjectURL(url);
+            }
+        } catch (e) {
+            console.error(e);
+            setMsg({ status: 500, msg: "Error fetching time series" });
+        }finally{
+            setLoadingJson(false);
+        }
+    }
+
     const getTimeSeries = async () => {
         setLoading(true);
         setMsg(undefined);
@@ -124,11 +193,12 @@ const TimeSeries = () => {
             const res = await getStationTimeSeriesService<
             | 
                 {
-                    etm_params: TimeSeriesParamsData
+                    etm_params: TimeSeriesParamsData;
                     time_series: string;
                 }
             | ErrorResponse
-            >(api, station.api_id ?? 0, timeSeriesParams);
+            >(api, station.api_id ?? 0, timeSeriesParams, false);
+
             if ("status" in res) {
                 setMsg({
                     status: res.statusCode,
@@ -252,6 +322,21 @@ const TimeSeries = () => {
                                 >
                                     Parameters
                                     <FunnelIcon className="size-6" />
+                                    
+                                </button>
+                                <button
+                                    className="btn self-end"
+                                    onClick={() =>
+                                        getJsonFile()
+                                    }
+                                >
+                                    Json
+                                    { loadingJson ?
+                                        <Spinner size="md" />
+                                        :<DocumentChartBarIcon className="size-6" />
+                                    }
+
+                                    
                                 </button>
                             </div>
                             {loading && (

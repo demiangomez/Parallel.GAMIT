@@ -255,6 +255,8 @@ export async function delPageService<T>(
     }
 }
 
+
+
 // Networks
 export async function getNetworksService<T>(api: AxiosInstance): Promise<T> {
     try {
@@ -569,7 +571,11 @@ export async function patchStationService<T>(
     data: any,
 ): Promise<T> {
     try {
-        const response = await api.patch(`api/stations/${id}`, data);
+        const response = await api.patch(`api/stations/${id}`, data,{
+            headers: {
+                "Content-Type": "multipart/form-data",
+            },
+        });
         return response.data as Promise<T>;
     } catch (error) {
         return Promise.reject(error);
@@ -1243,11 +1249,12 @@ export async function getStationTimeSeriesService<T>(
     api: AxiosInstance,
     id: number,
     params: any,
+    json: boolean,
 ): Promise<T> {
     try {
         const paramsArr = params ? transformParams(params) : "";
         const response = await api.get(
-            `api/time-series/${id}${paramsArr.length > 0 ? `?${paramsArr}` : ""}`,
+            `api/time-series/${id}${paramsArr.length > 0 ? `?${paramsArr}&json=${json}` : `?json=${json}`}`,
         );
         return response.data as Promise<T>;
     } catch (error) {
@@ -1433,6 +1440,18 @@ export async function getHeightCodesService<T>(
 }
 
 // Countries
+
+export async function getCompletionPlotService<T>(
+    api: AxiosInstance,
+    id: number,
+    ): Promise<T> {
+    try {
+        const response = await api.get(`api/rinex-completion-plot/${id}`);
+        return response.data as Promise<T>;
+    } catch (error) {
+        return Promise.reject(error);
+    }
+}
 
 export async function getCountriesService<T>(api: AxiosInstance): Promise<T> {
     try {
@@ -1706,6 +1725,29 @@ export async function patchStationRolesService<T>(
 ): Promise<T> {
     try {
         const response = await api.patch(`api/station-roles/${id}`, data);
+        return response.data as Promise<T>;
+    } catch (error) {
+        return Promise.reject(error);
+    }
+}
+
+export async function postCreateStationService<T>(
+    api: AxiosInstance,
+    data: { 
+        network_code: string
+        station_code: string
+        auto_x: string  
+        auto_y: string 
+        auto_z: string 
+        lat: string 
+        lon: string 
+        height: string 
+        max_dist: string
+        dome: string
+     },
+): Promise<T> {
+    try {
+        const response = await api.post(`/api/stations`, data);
         return response.data as Promise<T>;
     } catch (error) {
         return Promise.reject(error);

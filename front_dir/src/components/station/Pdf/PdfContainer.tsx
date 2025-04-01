@@ -438,6 +438,7 @@ const PdfContainer = ({
     return (
         <button
             className={`hover:scale-110 btn-ghost rounded-lg p-1 transition-all align-top`}
+            title="Download station pdf"
             onClick={() => {
                 fetchAllData();
                 setMessage({ error: undefined, msg: "" });

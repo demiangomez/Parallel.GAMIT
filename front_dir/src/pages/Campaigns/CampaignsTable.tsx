@@ -5,6 +5,7 @@ import {
     StationSelectModal,
     Table,
     TableCard,
+    VisitsCampaignModal,
 } from "@componentsReact";
 
 import useApi from "@hooks/useApi";
@@ -265,6 +266,7 @@ const CampaignsTable = () => {
                 loading={loading}
                 dataOnly={false}
                 buttonRegister={true}
+                visitsRegister={true}
                 onClickFunction={() =>
                     setModals({
                         show: true,
@@ -281,6 +283,13 @@ const CampaignsTable = () => {
                 }
                 setState={setCampaign}
                 state={campaigns}
+                onVisitsClickFunction={() => 
+                    setModals({
+                        show: true,
+                        title: "Visits",
+                        type: "edit",
+                    })
+                }
             />
             {body && body.length > 0 ? (
                 <Pagination
@@ -305,9 +314,20 @@ const CampaignsTable = () => {
             {modals?.show && modals.title === "SelectStation" && (
                 <StationSelectModal
                     campaign={campaign}
+                    setCampaign={setCampaign}
                     setStateModal={setModals}
                 />
             )}
+
+            {
+                modals?.show && modals.title === "Visits" && (
+                    <VisitsCampaignModal
+                        visits={visits && campaign ? visits.filter(v => Number(v.campaign) === campaign.id) : []}
+                        campaign={campaign}
+                        setCampaign={setCampaign}
+                    />
+                )
+            }
         </TableCard>
     );
 };

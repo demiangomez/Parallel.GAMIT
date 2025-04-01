@@ -4,9 +4,34 @@ import { LatLngExpression } from "leaflet";
 import { ChevronLeftIcon } from "@heroicons/react/24/outline";
 import { isStationFiltered, showModal } from "@utils";
 import { useAuth, useApi, useEscape, useLocalStorage } from "@hooks";
-import {getAffectedStationsService, getEarthquakesService, getStationsService,} from "@services";
-import {Map, MapSkeleton, SearchInput, Sidebar, Spinner, StationsModal, MainScroller, EarthQuakeFormModal, EarthQuakeScroller, DropLeft} from "@componentsReact";
-import {GetParams, FilterState, StationData, StationServiceData, StationsAffectedServiceData, EarthQuakeFormState, EarthquakeData, EarthQuakeParams,} from "@types";
+import {
+    getAffectedStationsService,
+    getEarthquakesService,
+    getStationsService,
+} from "@services";
+import {
+    Map,
+    MapSkeleton,
+    SearchInput,
+    Sidebar,
+    Spinner,
+    StationsModal,
+    MainScroller,
+    EarthQuakeFormModal,
+    EarthQuakeScroller,
+    DropLeft,
+    StationModal,
+} from "@componentsReact";
+import {
+    GetParams,
+    FilterState,
+    StationData,
+    StationServiceData,
+    StationsAffectedServiceData,
+    EarthQuakeFormState,
+    EarthquakeData,
+    EarthQuakeParams,
+} from "@types";
 
 const MainPage = () => {
     //---------------------------------------------------------UseAuth-------------------------------------------------------------
@@ -21,9 +46,9 @@ const MainPage = () => {
     //---------------------------------------------------------UseLocalStorage-------------------------------------------------------------
 
     const [, setEarthquakeChosenStorage] = useLocalStorage(
-    "earthquakeChosen",
-    JSON.stringify({}),
-    )
+        "earthquakeChosen",
+        JSON.stringify({}),
+    );
 
     const [mapStateStorage, setMapStateStorage] = useLocalStorage(
         "mapState",
@@ -91,7 +116,9 @@ const MainPage = () => {
         StationData[] | EarthquakeData[] | undefined
     >(undefined);
 
-    const [mapState, setMapState] = useState<boolean>(mapStateStorage === "true" ? true : false);
+    const [mapState, setMapState] = useState<boolean>(
+        mapStateStorage === "true" ? true : false,
+    );
 
     const [list, setList] = useState<boolean>(false);
 
@@ -222,9 +249,8 @@ const MainPage = () => {
     };
 
     const getAffectedStations = async () => {
-        
         setEarthquakeSpinner(true);
-        
+
         try {
             setEarthQuakeAffectedStations(undefined);
 
@@ -243,13 +269,12 @@ const MainPage = () => {
         }
     };
 
-
     const getEarthquakes = async () => {
         setEarthquakeSpinner(true);
 
         try {
             const res = await getEarthquakesService<any>(api, earthQuakeParams);
-            
+
             const filteredEarthquakes =
                 (Array.isArray(formstate?.polygon_coordinates) &&
                     formstate.polygon_coordinates[0].length > 0) ||
@@ -266,7 +291,7 @@ const MainPage = () => {
         } catch (err) {
             console.error(err);
         } finally {
-            !chosenEarthquake ? setEarthquakeSpinner(false) : null
+            !chosenEarthquake ? setEarthquakeSpinner(false) : null;
         }
     };
 
@@ -404,24 +429,21 @@ const MainPage = () => {
         setChosenEarthquake(undefined);
 
         handleEarthQuakeParams(formstate);
-        
+
         setEarthQuakeAffectedStations(undefined);
 
         setMapState(true);
     };
 
     const handleEarthquakeState = (earthquake: EarthquakeData) => {
-
         if (
             chosenEarthquake?.api_id !== earthquake.api_id ||
             chosenEarthquake === undefined
         ) {
-
             setEarthQuakeAffectedParams(earthquake.api_id);
 
             setChosenEarthquake(earthquake);
         } else if (chosenEarthquake?.api_id === earthquake.api_id) {
-
             setChosenEarthquake(undefined);
 
             localStorage.removeItem("earthquakeChosen");
@@ -461,31 +483,27 @@ const MainPage = () => {
         setMapState(false);
         setShowEarthQuakesList(false);
         setEarthQuakeAffectedParams(undefined);
-    }
-
-  
+    };
 
     //---------------------------------------------------------UseEffect-------------------------------------------------------------
     useEffect(() => {
-        if(chosenEarthquake !== undefined){
+        if (chosenEarthquake !== undefined) {
             setEarthQuakeAffectedParams(chosenEarthquake.api_id);
             setEarthquakeChosenStorage(JSON.stringify(chosenEarthquake));
-             if(mapState){
-                 setPosToFly([chosenEarthquake.lat, chosenEarthquake.lon]);
-             }
+            if (mapState) {
+                setPosToFly([chosenEarthquake.lat, chosenEarthquake.lon]);
+            }
         }
-        if(chosenEarthquake === undefined && mapState === false){
+        if (chosenEarthquake === undefined && mapState === false) {
             localStorage.removeItem("earthquakeChosen");
         }
         if (earthQuakeAffectedParams === undefined) {
             setEarthQuakeAffectedStations(undefined);
         }
-        
     }, [chosenEarthquake]);
 
     useEffect(() => {
-        if(earthQuakeAffectedParams)
-        {
+        if (earthQuakeAffectedParams) {
             getAffectedStations();
         }
     }, [earthQuakeAffectedParams]);
@@ -494,17 +512,17 @@ const MainPage = () => {
         const storedMapState = localStorage.getItem("mapState");
         const storedEarthquakeChosen = localStorage.getItem("earthquakeChosen");
         const storagedFormState = localStorage.getItem("earthQuakeFilters");
-    
+
         if (storedMapState) {
             setMapState(storedMapState === "true");
         }
-    
+
         if (storedEarthquakeChosen) {
             setChosenEarthquake(JSON.parse(storedEarthquakeChosen));
         }
-        if(storedMapState === "true"){
+        if (storedMapState === "true") {
             setShowEarthQuakesList(true);
-            if(storagedFormState){
+            if (storagedFormState) {
                 handleEarthQuakeParams(JSON.parse(storagedFormState));
             }
         }
@@ -516,7 +534,6 @@ const MainPage = () => {
         if (storagedFormState) {
             setFormState(JSON.parse(storagedFormState));
         }
-        
     }, []);
 
     useEffect(() => {
@@ -596,23 +613,25 @@ const MainPage = () => {
             ? earthquakes[0]
             : undefined;
 
-        if (earthquake && earthquakes?.length === 1 && chosenEarthquake === undefined) {
+        if (
+            earthquake &&
+            earthquakes?.length === 1 &&
+            chosenEarthquake === undefined
+        ) {
             setPosToFly([earthquake.lat, earthquake.lon]);
         }
     }, [earthquakes]);
 
-    useEffect(()=>{
+    useEffect(() => {
         setMapStateStorage(mapState.toString());
-        if(!mapState && markersByBounds && markersByBounds.length > 0){
+        if (!mapState && markersByBounds && markersByBounds.length > 0) {
             setLoading2(true);
 
             setTimeout(() => {
                 setLoading2(false);
             }, 2900);
         }
-    }, [mapState])
-
-
+    }, [mapState]);
 
     //---------------------------------------------------------UseEscape-------------------------------------------------------------
 
@@ -627,21 +646,22 @@ const MainPage = () => {
             }
         >
             {loading ? (
-                <MapSkeleton 
+                <MapSkeleton
                     styles={{ backgroundColor: "rgb(202, 202, 202)" }}
                 />
             ) : (
                 <>
-                    {
-                        loading2 && 
+                    {loading2 && (
                         <MapSkeleton
-                            styles= {{backgroundColor: "rgb(202, 202, 202)",
-                            zIndex: 1000000000000000,
-                            width: "100vw",
-                            position: "absolute",
-                            height: "92vh"}}
+                            styles={{
+                                backgroundColor: "rgb(202, 202, 202)",
+                                zIndex: 1000000000000000,
+                                width: "100vw",
+                                position: "absolute",
+                                height: "92vh",
+                            }}
                         />
-                    }
+                    )}
                     <MainScroller
                         altData={{
                             dataFiltered: stationsByFilters(stations || []),
@@ -681,16 +701,14 @@ const MainPage = () => {
                                 setShowEarthQuakesList={setShowEarthQuakesList}
                                 setPosToFly={setPosToFly}
                             />
-                    )}
+                        )}
                     {!mapState ? (
                         <Sidebar
                             show={showSidebar}
                             setShow={setShowSidebar}
                             station={station}
                         />
-                    ) 
-                    : null
-                    }
+                    ) : null}
                     <div
                         className={"self-center w-full flex flex-col flex-wrap"}
                     >
@@ -775,6 +793,14 @@ const MainPage = () => {
                                 />
                             </div>
                         )}
+                        {earthquakeModal &&
+                            earthquakeModal.title === "station" && (
+                                <StationModal
+                                    handleCloseModal={() =>
+                                        setShowSidebar(false)
+                                    }
+                                />
+                            )}
                     </div>
                 </>
             )}

@@ -146,7 +146,6 @@ const PeopleTable = () => {
         modals?.show && showModal(modals.title);
     }, [modals]);
 
-
     return (
         <TableCard
             title={"Station People"}

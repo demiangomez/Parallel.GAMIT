@@ -14,6 +14,7 @@ interface TableProps {
     loading?: boolean;
     dataOnly?: boolean;
     buttonRegister?: boolean;
+    visitsRegister?: boolean;
     deleteRegister?: boolean;
     titles: string[];
     body: any[][] | undefined;
@@ -22,6 +23,7 @@ interface TableProps {
     setState?: any;
     onAlterClickFunction?: () => void;
     onClickFunction: () => void;
+    onVisitsClickFunction?: () => void;
 }
 
 const Table = ({
@@ -36,13 +38,17 @@ const Table = ({
     state,
     onClickFunction,
     onAlterClickFunction,
+    onVisitsClickFunction,
     setState,
+    visitsRegister,
 }: TableProps) => {
     const navigate = useNavigate();
 
     const [visibleTooltipIndex, setVisibleTooltipIndex] = useState<
         number | null
     >(null);
+
+
 
     return (
         <div
@@ -70,6 +76,13 @@ const Table = ({
                                 {dataOnly && deleteRegister && (
                                     <th className="text-center text-neutral"></th>
                                 )}
+                                {
+                                visitsRegister && (
+                                    <th className="text-center text-neutral">
+                                        Visits
+                                    </th>
+                                )
+                                }
                                 {buttonRegister && (
                                     <th className="text-center text-neutral">
                                         Add Visit
@@ -153,6 +166,23 @@ const Table = ({
                                         </td>
                                     )
                                 )}
+                                {
+                                visitsRegister && (
+                                    <td
+                                        key={index + "visits"}
+                                        className="text-center"
+                                    >
+                                        <div
+                                            onClick={() =>{onVisitsClickFunction?.();
+                                                setState(state?.[index]);
+                                            }}
+                                            className="btn btn-sm btn-circle btn-ghost"
+                                        >
+                                            📅
+                                        </div>
+                                    </td>
+                                )
+                                }
                                 {buttonRegister && (
                                     <td
                                         key={index + "add_visit"}
@@ -364,7 +394,7 @@ const Table = ({
                                                                             ? "block"
                                                                             : "hidden"
                                                                     } bg-gray-800 text-white p-2 rounded 
-                                                            text-pretty whitespace-nowrap w-[200px] z-50 overflow-visible`}
+                                                            text-pretty whitespace-nowrap w-[200px] z-50 max-h-[200px] overflow-y-auto`}
                                                                     onMouseEnter={() =>
                                                                         setVisibleTooltipIndex(
                                                                             index,
@@ -414,10 +444,10 @@ const Table = ({
                                                                     )}
                                                                     <div
                                                                         className="absolute top-[100%] left-2/4 w-0 
-                                                            -translate-x-2/4 h-0 border-l-8 border-l-transparent 
-                                                            border-r-8 border-r-transparent border-t-8
-                                                             border-t-gray-800"
-                                                                    ></div>
+                                                                        -translate-x-2/4 h-0 border-l-8 border-l-transparent 
+                                                                        border-r-8 border-r-transparent border-t-8
+                                                                        border-t-gray-800"
+                                                                    />
                                                                 </div>
                                                             )}
                                                     </div>

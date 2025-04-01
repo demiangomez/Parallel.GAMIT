@@ -39,14 +39,12 @@ import { useApi, useAuth, useEscape, useFormReducer } from "@hooks";
 import { STATION_INFO_STATE } from "@utils/reducerFormStates";
 import {
     apiOkStatuses,
-    classHtml,
     dateFromDay,
     dateToUTC,
     dayFromDate,
     formattedDates,
     showModal,
 } from "@utils";
-import QuillText from "@components/map/QuillText";
 
 interface EditStatsModalProps {
     stationInfo: StationInfoData | undefined;
@@ -232,8 +230,6 @@ const EditStatsModal = ({
         try {
             setLoading(true);
 
-            formState.comments = classHtml(formState.comments);
-
             const { date_end, ...rest } = formState;
 
             const res = await postStationInfoService<
@@ -267,8 +263,6 @@ const EditStatsModal = ({
     const putStationInfo = async () => {
         try {
             setLoading(true);
-
-            formState.comments = classHtml(formState.comments);
 
             formState.date_end =
                 formState.date_end?.trim() === "" || !formState.date_end
@@ -459,7 +453,6 @@ const EditStatsModal = ({
                             "api_id",
                             "network_code",
                             "station_code",
-                            "comments"
                         ];
                         const inputsToDatePicker = ["date_start", "date_end"];
                         const errorBadge = msg?.errors?.errors?.find(
@@ -720,20 +713,6 @@ const EditStatsModal = ({
                             </div>
                         );
                     })}
-                    <div id="comments" className="h-24">
-                        <QuillText
-                            clase="h-full pb-8"
-                            value={formState.comments}
-                            setValue={(value) =>{
-                                dispatch({
-                                    type: "change_value",
-                                    payload: {
-                                        inputName: "comments",
-                                        inputValue: value,
-                                    }
-                            })}}
-                        />
-                    </div>
                 </div>
                 <Alert msg={msg} />
                 <div className="flex w-full justify-center space-x-4">

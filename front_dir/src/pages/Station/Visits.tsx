@@ -3,12 +3,11 @@ import { useEffect, useState } from "react";
 import {
     CardContainer,
     ConfirmDeleteModal,
-    MapVisit,
-    Spinner,
     TableCard,
     TableSkeleton,
     VisitAddModal,
     VisitDetailModal,
+    VisitThumbNail,
 } from "@componentsReact";
 
 import useApi from "@hooks/useApi";
@@ -32,8 +31,6 @@ import {
     StationVisitsFilesServiceData,
     StationVisitsServiceData,
 } from "@types";
-
-import { Bars3BottomRightIcon, TrashIcon } from "@heroicons/react/24/outline";
 
 import { showModal } from "@utils";
 
@@ -256,106 +253,17 @@ const Visits = () => {
                                     );
 
                                     return (
-                                        <div
-                                            key={vis.id}
-                                            className="card bg-neutral-content"
-                                        >
-                                            <div className="inline-flex self-end">
-                                                <button
-                                                    title={"delete"}
-                                                    className="btn btn-ghost btn-circle"
-                                                    onClick={() => {
-                                                        setModals({
-                                                            show: true,
-                                                            title: "ConfirmDelete",
-                                                            type: "edit",
-                                                        });
-                                                        setVisitToDel(vis.id);
-                                                    }}
-                                                >
-                                                    <TrashIcon className="size-8 text-red-600" />
-                                                </button>
-                                                <button
-                                                    title={"details"}
-                                                    className="btn btn-ghost btn-circle"
-                                                    onClick={() => {
-                                                        setModals({
-                                                            show: true,
-                                                            title: "VisitDetail",
-                                                            type: "none",
-                                                        });
-                                                        setVisit(vis);
-                                                    }}
-                                                >
-                                                    <Bars3BottomRightIcon className="size-8" />
-                                                </button>
-                                            </div>
-                                            <div className="card-body space-y-4">
-                                                <h2 className="text-2xl self-center">
-                                                    <span className="font-semibold ">
-                                                        Visit date{" "}
-                                                    </span>
-                                                    {vis?.date}
-                                                </h2>
-                                                <span className="self-center text-xl">
-                                                    <span className="font-semibold ">
-                                                        Campaign{" "}
-                                                    </span>
-                                                    {vis?.campaign
-                                                        ? campaigns?.find(
-                                                              (c) =>
-                                                                  c.id ===
-                                                                  Number(
-                                                                      vis.campaign,
-                                                                  ),
-                                                          )?.name
-                                                        : "N/A"}
-                                                </span>
-                                                {loadingVisitImages ? (
-                                                    <div className="w-full h-60 flex rounded-md flex-col items-center justify-center ">
-                                                        <span className="text-xl font-semibold mb-12">
-                                                            Loading images
-                                                        </span>
-                                                        <Spinner size="lg" />
-                                                    </div>
-                                                ) : (
-                                                    <div
-                                                        className={`grid grid-cols-2 gap-3 items-start place-items-center overflow-auto`}
-                                                    >
-                                                        <>
-                                                            {visitImages?.map(
-                                                                (img) => {
-                                                                    return (
-                                                                        <img
-                                                                            key={
-                                                                                img.id
-                                                                            }
-                                                                            src={
-                                                                                "data:image/png;base64," +
-                                                                                img.actual_image
-                                                                            }
-                                                                            alt={
-                                                                                img.description
-                                                                            }
-                                                                            className="shadow-xl rounded-lg object-center object-contain w-full h-full"
-                                                                        />
-                                                                    );
-                                                                },
-                                                            )}
-                                                        </>
-                                                    </div>
-                                                )}
-                                                {vis.navigation_filename && (
-                                                    <MapVisit
-                                                        base64Data={
-                                                            vis.navigation_actual_file ??
-                                                            ""
-                                                        }
-                                                        station={station}
-                                                    />
-                                                )}
-                                            </div>
-                                        </div>
+                                        <VisitThumbNail
+                                        key={vis.id}
+                                        station={station}
+                                        visit={vis} 
+                                        setModals={setModals} 
+                                        setVisitToDel={setVisitToDel} 
+                                        setVisit={setVisit} 
+                                        campaigns={campaigns} 
+                                        loadingVisitImages={loadingVisitImages} 
+                                        visitImages={visitImages}
+                                        />
                                     );
                                 })}
                             </div>

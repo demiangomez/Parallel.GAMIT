@@ -15,10 +15,44 @@ export const apiOkStatuses = [200, 201, 204];
 
 export const apiErrorStatuses = [400, 401, 403, 404, 405, 406, 415, 500];
 
+export const findLimits = (coordinates: any) => {
+    const longitudes = coordinates.map((coordinate: any) => coordinate[1]);
+
+    const latitudes = coordinates.map((coordinate: any) => coordinate[0]);
+
+    const max_longitude = Math.max(...longitudes);
+
+    const min_longitude = Math.min(...longitudes);
+
+    const max_latitude = Math.max(...latitudes);
+
+    const min_latitude = Math.min(...latitudes);
+
+    return {
+        max_longitude,
+        min_longitude,
+        max_latitude,
+        min_latitude,
+    };
+};
+
+
 export const classHtml = (s: string) => {
     const parser = new DOMParser();
 
     const doc = parser.parseFromString(s ? s : "", "text/html");
+
+    const emptyStrings = [
+        "<p><span class='ql-cursor'>﻿</span>\t</p>",
+        "<p><br></p>",
+        "<p>\t</p>",
+        "<p>﻿</p>",
+        "<p></p>",
+    ];
+
+    if (emptyStrings.includes(doc.body.innerHTML)) {
+        return "";
+    }
 
     doc.querySelectorAll("ol, ul").forEach((list) => {
         if (list.tagName.toLowerCase() === "ol") {
@@ -34,6 +68,9 @@ export const classHtml = (s: string) => {
 };
 
 const iconUrl = (s: StationData, types: { image: string; name: string }[]) => {
+    if (!s) {
+        return "https://maps.google.com/mapfiles/kml/shapes/caution.png";
+    }
     if (!s.has_stationinfo || s.has_gaps) {
         return "https://maps.google.com/mapfiles/kml/shapes/caution.png";
     } else {
@@ -51,6 +88,9 @@ const iconClass = (
     s: StationData,
     statuses: { color: string; name: string }[],
 ) => {
+    if (!s) {
+        return "";
+    }
     //Problemas
     if (!s.has_stationinfo || s.has_gaps) {
         return "";
@@ -59,6 +99,7 @@ const iconClass = (
         const status = s.status;
         const foundColor = statuses.find((t) => t.name === status)?.color;
         if (foundColor) {
+            6;
             color = foundColor;
         }
         return color;

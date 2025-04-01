@@ -13,7 +13,6 @@ from rest_framework.response import Response
 from rest_framework import status
 import gzip
 from django.core.files.base import ContentFile
-from io import BytesIO
 import re
 import base64
 from io import BytesIO
@@ -22,12 +21,13 @@ import grp
 import os
 from lxml import etree
 import zipfile
-import pwd
 from pgamit import pyOkada, dbConnection
 from pgamit import pyStationInfo, dbConnection, pyDate, pyETM
 from pgamit import Utils as pyUtils
 import dateutil.parser
 from django.http import Http404
+import matplotlib.pyplot as plt
+
 logger = logging.getLogger('django')
 
 
@@ -65,6 +65,56 @@ def get_actual_image(image_obj, request):
             return None
     else:
         return None
+
+
+class StationUtils:
+    @staticmethod
+    def parse_harpos_coeff_otl_file(file, network_code, station_code):
+
+        file_content = file.read()
+        file_as_string = file_content.decode('utf-8')
+
+        harpos_parsed = pyUtils.import_blq(
+            file_as_string, network_code, station_code)
+
+        return harpos_parsed
+
+    @staticmethod
+    def validate_that_coordinates_are_provided(data):
+        by_ecef = False
+        by_lat_lon = False
+        if 'lat' not in data or 'lon' not in data or 'height' not in data:
+            if 'auto_x' not in data or 'auto_y' not in data or 'auto_z' not in data:
+                raise exceptions.CustomValidationErrorExceptionHandler(
+                    "fields 'lat', 'lon' and 'height' or ECEF coordinates (fields 'auto_x', 'auto_y', 'auto_z') must be provided")
+            else:
+                by_ecef = True
+        else:
+            by_lat_lon = True
+
+        if by_lat_lon == True:
+            try:
+                if not isinstance(data['lat'], float):
+                    float(data['lat'])
+                if not isinstance(data['lon'], float):
+                    float(data['lon'])
+                if not isinstance(data['height'], float):
+                    float(data['height'])
+            except (ValueError, TypeError):
+                raise exceptions.CustomValidationErrorExceptionHandler(
+                    "fields 'lat', 'lon' and 'height' must be valid floating point numbers")
+
+        if by_ecef == True:
+            try:
+                if not isinstance(data['auto_x'], float):
+                    float(data['auto_x'])
+                if not isinstance(data['auto_y'], float):
+                    float(data['auto_y'])
+                if not isinstance(data['auto_z'], float):
+                    float(data['auto_z'])
+            except (ValueError, TypeError):
+                raise exceptions.CustomValidationErrorExceptionHandler(
+                    "fields 'auto_x', 'auto_y' and 'auto_z' must be valid floating point numbers")
 
 
 class TimeSeriesConfigUtils:

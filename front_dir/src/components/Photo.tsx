@@ -1,3 +1,4 @@
+import { useOutletContext } from "react-router-dom";
 import { useEffect, useState } from "react";
 import {
     CardContainer,
@@ -15,7 +16,7 @@ import { showModal } from "@utils";
 
 import { useAuth, useApi } from "@hooks";
 
-import { ErrorResponse, Errors } from "@types";
+import { ErrorResponse, Errors, StationData } from "@types";
 
 type Photo = {
     id: number;
@@ -33,6 +34,8 @@ interface Props {
 const Photo = ({ phArray, loader, reFetch }: Props) => {
     const { token, logout } = useAuth();
     const api = useApi(token, logout);
+
+    const { station } = useOutletContext<{ station: StationData }>();
 
     const [edit, setEdit] = useState<boolean>(false);
 
@@ -86,26 +89,25 @@ const Photo = ({ phArray, loader, reFetch }: Props) => {
 
     const editFunction = () => {
         setEdit(!edit);
-    }
+    };
 
     const addFunction = () => {
         setModals({
             show: true,
             title: "AddStationPhoto",
             type: "add",
-        })
+        });
         setEdit(false);
-    }
-
+    };
 
     return (
         <>
             <CardContainer
                 title={"Photos"}
                 height={true}
-                addButton={true}
+                addButton={station ? true : false}
                 addFunction={addFunction}
-                editFunction={editFunction}
+                editFunction={station ? editFunction : undefined}
             >
                 {loader ? (
                     <>
@@ -116,8 +118,7 @@ const Photo = ({ phArray, loader, reFetch }: Props) => {
                     <div className="grid grid-cols-2 w-full gap-6 overflow-auto pr-2">
                         {phArray.map((s: Photo, idx) => {
                             return (
-                                
-                                <div 
+                                <div
                                     key={"photo" + String(idx)}
                                     className="relative flex flex-col justify-between rounded-md card-compact bg-base-100 
                                     h-80 shadow-xl hover:cursor-zoom-in transition-all duration-200 ease-in-out group"
@@ -125,7 +126,6 @@ const Photo = ({ phArray, loader, reFetch }: Props) => {
                                         setBlurPhoto({ blur: true, id: s.id })
                                     }
                                     onMouseLeave={() => setBlurPhoto(undefined)}
-
                                 >
                                     <figure className="my-auto">
                                         <img
@@ -137,7 +137,7 @@ const Photo = ({ phArray, loader, reFetch }: Props) => {
                                             className={` 
                                                 object-center object-cover w-full h-full `}
                                             onClick={() => {
-                                                if(edit){
+                                                if (edit) {
                                                     setPhoto(s);
                                                     setModals({
                                                         show: true,
@@ -145,7 +145,7 @@ const Photo = ({ phArray, loader, reFetch }: Props) => {
                                                         type: "edit",
                                                     });
                                                 }
-                                                if(!edit){
+                                                if (!edit) {
                                                     setPhoto(s);
 
                                                     setModals({
@@ -156,34 +156,33 @@ const Photo = ({ phArray, loader, reFetch }: Props) => {
                                                 }
                                             }}
                                         />
-                                        { edit &&
-                                        <div
-                                            className="absolute top-0 right-0 text-black 
+                                        {edit && (
+                                            <div
+                                                className="absolute top-0 right-0 text-black 
                                             group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
-                                        >   
-                                            <button
-                                                className="bg-white rounded-sm shadow-xl z-[200000] 
-                                                hover:bg-slate-200 transition-all duration-200 "
-                                                onClick={() => {
-                                                    setDelPhoto(s);
-                                                    setModals({
-                                                        show: true,
-                                                        title: "ConfirmDelete",
-                                                        type: "edit",
-                                                    });
-                                                }}
                                             >
-                                                <XMarkIcon className="size-12" />
-                                            </button>
-                                            
-                                        </div>
-                                        }
+                                                <button
+                                                    className="bg-white rounded-sm shadow-xl z-[200000] 
+                                                hover:bg-slate-200 transition-all duration-200 "
+                                                    onClick={() => {
+                                                        setDelPhoto(s);
+                                                        setModals({
+                                                            show: true,
+                                                            title: "ConfirmDelete",
+                                                            type: "edit",
+                                                        });
+                                                    }}
+                                                >
+                                                    <XMarkIcon className="size-12" />
+                                                </button>
+                                            </div>
+                                        )}
                                     </figure>
                                     <div
                                         className={`${blurPhoto && blurPhoto.id === s.id ? "bg-gray-300 " : ""} 
                                             flex flex-col space-y-2 p-4 text-center`}
                                         onClick={() => {
-                                            if(edit){
+                                            if (edit) {
                                                 setPhoto(s);
                                                 setModals({
                                                     show: true,
@@ -191,7 +190,7 @@ const Photo = ({ phArray, loader, reFetch }: Props) => {
                                                     type: "edit",
                                                 });
                                             }
-                                            if(!edit){
+                                            if (!edit) {
                                                 setPhoto(s);
 
                                                 setModals({
@@ -203,7 +202,9 @@ const Photo = ({ phArray, loader, reFetch }: Props) => {
                                         }}
                                     >
                                         <p className="break-words text-md">
-                                            {s.description ? s.description : "NONE"}
+                                            {s.description
+                                                ? s.description
+                                                : "NONE"}
                                         </p>
                                     </div>
                                 </div>
@@ -226,7 +227,7 @@ const Photo = ({ phArray, loader, reFetch }: Props) => {
                     setStateModal={setModals}
                     reFetch={reFetch}
                     photo={photo ?? undefined}
-                    edit = {edit}
+                    edit={edit}
                 />
             )}
 

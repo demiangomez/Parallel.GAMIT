@@ -9,7 +9,7 @@ type ChangeValueAction = {
     type: "change_value";
     payload: {
         inputName: string;
-        inputValue: number | string | boolean | File | number[]  | undefined;
+        inputValue: number | string | boolean | File | number[] | undefined;
     };
 };
 
@@ -45,7 +45,7 @@ function UseFormReducer<T extends Record<string, any>>(INITIAL_STATE: T) {
 
         switch (action.type) {
             case "set": {
-                newState = action.payload as T;
+                newState = JSON.parse(JSON.stringify(action.payload)) as T;
                 break;
             }
             case "change_value": {
@@ -63,18 +63,15 @@ function UseFormReducer<T extends Record<string, any>>(INITIAL_STATE: T) {
                     currentObject = currentObject[key];
                 }
 
-                // Validar el tipo del valor antes de asignarlo
                 if (
                     typeof currentObject[lastKey] === "number" &&
                     typeof action.payload.inputValue !== "number"
                 ) {
-                    // Si la propiedad es de tipo number, intenta convertir el valor a number
                     currentObject[lastKey] = parseInt(
                         action.payload.inputValue as string,
                         10,
                     );
                 } else {
-                    // De lo contrario, asigna el valor directamente
                     currentObject[lastKey] = action.payload.inputValue;
                 }
 
@@ -82,7 +79,9 @@ function UseFormReducer<T extends Record<string, any>>(INITIAL_STATE: T) {
             }
             case "change_array_value": {
                 newState = { ...state };
-                const array = newState[action.payload.arrayName] as Array<any>;
+                const array = [
+                    ...(newState[action.payload.arrayName] as Array<any>),
+                ];
 
                 if (array && array[action.payload.index]) {
                     array[action.payload.index] = {
@@ -91,17 +90,29 @@ function UseFormReducer<T extends Record<string, any>>(INITIAL_STATE: T) {
                     };
                 }
 
+                newState = {
+                    ...newState,
+                    [action.payload.arrayName]: array,
+                } as T;
                 break;
             }
-            case "list_to_clear":
+            case "list_to_clear": {
                 newState = { ...state };
                 action.payload.forEach((n: keyof T) => {
-                    newState[n] = INITIAL_STATE[n];
+                    newState[n] = Array.isArray(INITIAL_STATE[n])
+                        ? ([...(INITIAL_STATE[n] as Array<any>)] as T[typeof n])
+                        : typeof INITIAL_STATE[n] === "object"
+                          ? ({
+                                ...(INITIAL_STATE[n] as Record<string, any>),
+                            } as T[typeof n])
+                          : INITIAL_STATE[n];
                 });
                 break;
-            case "clear":
-                newState = INITIAL_STATE;
+            }
+            case "clear": {
+                newState = JSON.parse(JSON.stringify(INITIAL_STATE));
                 break;
+            }
             default:
                 newState = state;
                 break;

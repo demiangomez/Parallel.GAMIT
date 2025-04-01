@@ -22,6 +22,7 @@ import {
 
 interface Props {
     campaign: CampaignsData | undefined;
+    setCampaign: React.Dispatch<React.SetStateAction<CampaignsData | undefined>>;
     setStateModal: React.Dispatch<
         React.SetStateAction<
             | { show: boolean; title: string; type: "add" | "edit" | "none" }
@@ -30,7 +31,7 @@ interface Props {
     >;
 }
 
-const StationSelectModal = ({ campaign, setStateModal }: Props) => {
+const StationSelectModal = ({ campaign, setCampaign ,setStateModal }: Props) => {
     const { token, logout } = useAuth();
     const api = useApi(token, logout);
 
@@ -130,7 +131,7 @@ const StationSelectModal = ({ campaign, setStateModal }: Props) => {
             close={false}
             modalId={"SelectStation"}
             size={"sm"}
-            handleCloseModal={() => undefined}
+            handleCloseModal={() => setCampaign(undefined)}
             setModalState={setStateModal}
         >
             <div className="flex p-4 flex-col">

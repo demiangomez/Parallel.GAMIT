@@ -126,6 +126,7 @@ const Pdf = ({
         },
     });
 
+
     return (
         <Document>
             <Page size="A4" style={styles.page}>
@@ -430,23 +431,30 @@ const Pdf = ({
                         </Text>
                         {images && images.length > 0 ? (
                             images?.map((img, idx) => (
-                                <Image
-                                    key={img.id + String(idx)}
-                                    style={{
-                                        // width: 400,
-                                        // height: 300,
-                                        width: "auto",
-                                        height: 300,
-                                        marginVertical: 10,
-                                        objectFit: "scale-down",
-                                    }}
-                                    src={{
-                                        uri: `${img.actual_image}`,
-                                        method: "GET",
-                                        headers: {},
-                                        body: "",
-                                    }}
-                                />
+                                <>
+                                    <Image
+                                        key={img.id + String(idx)}
+                                        style={{
+                                            marginVertical: 15,
+                                            marginHorizontal: 100,
+                                            width: "auto",
+                                            height: "auto"
+                                        }}
+                                        src={{
+                                            uri: `${img.actual_image}`,
+                                            method: "GET",
+                                            headers: {},
+                                            body: "",
+                                        }}
+                                    />
+                                    { img.description && img.description !== "" &&                                    
+                                        <Text
+                                        style={{ fontSize: 10, textAlign:"center", width: "100%", margin: 1 
+                                        }}>
+                                            {img.description}
+                                        </Text>
+                                    }
+                                </>
                             ))
                         ) : (
                             <Text style={{ marginVertical: 10, fontSize: 12 }}>

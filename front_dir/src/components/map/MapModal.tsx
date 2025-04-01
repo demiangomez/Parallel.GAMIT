@@ -5,6 +5,7 @@ import { MapContainer, TileLayer, FeatureGroup, useMap} from "react-leaflet";
 import { LatLngExpression, latLng} from "leaflet";
 import { useLocalStorage} from "@hooks";
 import { EarthQuakeFormState, MyMapContainerProps} from "@types";
+import {findLimits} from "@utils";
 interface MapModalProps {
     formState: EarthQuakeFormState;
     setShowMapModal: React.Dispatch<
@@ -75,27 +76,6 @@ const MapModal = ({
     //-----------------------------------------------------Funciones-----------------------------------------------------
 
     const handleCloseModal = () => {};
-
-    const findLimits = (coordinates: any) => {
-        const longitudes = coordinates.map((coordinate: any) => coordinate[1]);
-
-        const latitudes = coordinates.map((coordinate: any) => coordinate[0]);
-
-        const max_longitude = Math.max(...longitudes);
-
-        const min_longitude = Math.min(...longitudes);
-
-        const max_latitude = Math.max(...latitudes);
-
-        const min_latitude = Math.min(...latitudes);
-
-        return {
-            max_longitude,
-            min_longitude,
-            max_latitude,
-            min_latitude,
-        };
-    };
 
     const handleDrawPolygon = (e: any) => {
         const latlngs = e.layer.getLatLngs();

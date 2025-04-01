@@ -1,3 +1,4 @@
+from collections import defaultdict
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, status
 from . import models
@@ -275,6 +276,17 @@ class StationList(CustomListCreateAPIView):
 
         return response
 
+    @extend_schema(description="Must pass either Geodetic Coordinates (fields 'lat', 'lon', and 'height') or ECEF ('auto_x', 'auto_y' and 'auto_z'). If both types of coordinates are passed then ECEF coordinates will be overried by the Geodesic translation. When creating a station, 'harpos_coeff_otl' can only be set as a string")
+    def create(self, request, *args, **kwargs):
+        """
+            Validate that lat, lon and height or ECEF coordinates are provided
+        """
+        data = request.data
+
+        utils.StationUtils.validate_that_coordinates_are_provided(data)
+
+        return super().create(request, *args, **kwargs)
+
 
 class StationDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = models.Stations.objects.all()
@@ -299,6 +311,25 @@ class StationDetail(generics.RetrieveUpdateDestroyAPIView):
                 response.data["type"] = stationmeta.station_type.name if stationmeta.station_type else None
 
         return response
+
+    def update(self, request, *args, **kwargs):
+        """
+            Validate that lat, lon and height or ECEF coordinates are provided
+        """
+        data = request.data
+
+        utils.StationUtils.validate_that_coordinates_are_provided(data)
+
+        return super().update(request, *args, **kwargs)
+
+    @extend_schema(description="Must pass either Geodetic Coordinates (fields 'lat', 'lon', and 'height') or ECEF ('auto_x', 'auto_y' and 'auto_z'). If both types of coordinates are passed then ECEF coordinates will be overried by the Geodesic translation. 'network_code' and 'station_code' are not updatable. In order to set harpos_coeff_otl by a file, send it by 'harpos_coeff_otl_by_file' instead of 'harpos_coeff_otl'. You can set both paramets but the contents of 'harpos_coeff_otl' will be ignored.")
+    def patch(self, request, *args, **kwargs):
+        kwargs['partial'] = True
+        return self.update(request, *args, **kwargs)
+
+    @extend_schema(description="Must pass either Geodetic Coordinates (fields 'lat', 'lon', and 'height') or ECEF ('auto_x', 'auto_y' and 'auto_z'). If both types of coordinates are passed then ECEF coordinates will be overried by the Geodesic translation. 'network_code' and 'station_code' are not updatable. In order to set harpos_coeff_otl by a file, send it by 'harpos_coeff_otl_by_file' instead of 'harpos_coeff_otl'. You can set both paramets but the contents of 'harpos_coeff_otl' will be ignored.")
+    def put(self, request, *args, **kwargs):
+        return self.update(request, *args, **kwargs)
 
 
 class StationCodesList(CustomListAPIView):
@@ -350,12 +381,12 @@ class TimeSeries(CustomListAPIView):
         params = {}
 
         for param_name in ("solution", "residuals", "missing_data", "plot_outliers", "plot_auto_jumps",
-                           "no_model", "remove_jumps", "remove_polynomial"):
+                           "no_model", "remove_jumps", "remove_polynomial", "json"):
             self._get_required_param(request, params, param_name)
 
         self._get_dates_param(request, params)
 
-        for param_name in ("residuals", "missing_data", "plot_outliers", "plot_auto_jumps", "no_model", "remove_jumps", "remove_polynomial"):
+        for param_name in ("residuals", "missing_data", "plot_outliers", "plot_auto_jumps", "no_model", "remove_jumps", "remove_polynomial", "json"):
             self._convert_to_bool(params, param_name)
 
         params["solution"] = params["solution"].strip().upper()
@@ -455,9 +486,12 @@ class TimeSeries(CustomListAPIView):
                 etm = pyETM.PPPETM(cnn, network_code, station_code, False, params["no_model"],
                                    plot_remove_jumps=params["remove_jumps"],
                                    plot_polynomial_removed=params["remove_polynomial"])
-            fileio = BytesIO()
-            image = etm.plot(pngfile=None, t_win=params["dates"], residuals=params["residuals"],
-                             plot_missing=params["missing_data"], plot_outliers=params["plot_outliers"], fileio=fileio)
+            if params["json"]:
+                response = etm.todictionary(time_series=True, model=True)
+            else:
+                fileio = BytesIO()
+                response = etm.plot(pngfile=None, t_win=params["dates"], residuals=params["residuals"],
+                                    plot_missing=params["missing_data"], plot_auto_jumps=params["plot_auto_jumps"], plot_outliers=params["plot_outliers"], fileio=fileio)
 
             etm_config = etm.pull_params()
 
@@ -469,7 +503,7 @@ class TimeSeries(CustomListAPIView):
             raise exceptions.CustomValidationErrorExceptionHandler(
                 e.detail if hasattr(e, 'detail') else str(e))
 
-        return Response(data={"time_series": image, "etm_params": etm_config}, status=status.HTTP_200_OK)
+        return Response(data={"time_series": response, "etm_params": etm_config}, status=status.HTTP_200_OK)
 
 
 class AvailableJumpTypes(APIView):
@@ -970,33 +1004,66 @@ class VisitList(CustomListCreateAPIView):
     filter_backends = [DjangoFilterBackend]
     filterset_class = filters.VisitFilter
 
-    def list(request, *args, **kwargs):
-        """If the response status is 200, add some fields of the related station object"""
+    def list(self, request, *args, **kwargs):
+        """If the response status is 200, add some fields of the related station object and group by date if requested."""
 
+        # Llamar al método original list()
         response = super().list(request, *args, **kwargs)
 
         if response.status_code == status.HTTP_200_OK:
-            # Add people name to people array
+            # Obtener el valor del parámetro 'group_by_day' desde la URL (por ejemplo, 'group_by_day=true')
+            group_by_day = request.query_params.get(
+                'group_by_day', 'false').lower() == 'true'
 
+            # Agregar los nombres de las personas a la lista de personas
             people_list = models.Person.objects.values_list(
                 'id', 'first_name', 'last_name')
-
             people_dict = {
                 person[0]: person[1] + ' ' + person[2]
                 for person in people_list
             }
 
-            for visit in response.data["data"]:
+            # Si se solicita agrupar por día
+            if group_by_day:
+                # Agrupar por fecha
+                grouped_by_day = defaultdict(list)
 
-                if 'people' in visit:
-                    people_ids = visit["people"].copy()
+                for visit in response.data["data"]:
+                    # Agrupar por 'date'
+                    visit_date = visit["date"]
 
-                    visit["people"].clear()
+                    # Agregar las personas a la visita
+                    if 'people' in visit:
+                        people_ids = visit["people"].copy()
+                        visit["people"].clear()
 
-                    for people_id in people_ids:
-                        if people_id in people_dict:
-                            visit["people"].append(
-                                {'id': people_id, 'name': people_dict[people_id]})
+                        for people_id in people_ids:
+                            if people_id in people_dict:
+                                visit["people"].append(
+                                    {'id': people_id, 'name': people_dict[people_id]})
+
+                    # Agregar la visita al grupo correspondiente
+                    grouped_by_day[visit_date].append(visit)
+
+                # Organizar la respuesta en un formato en el que las visitas estén agrupadas por fecha
+                grouped_data = [{"date": date, "visits": visits}
+                                for date, visits in grouped_by_day.items()]
+
+                # Actualizar los datos de la respuesta
+                response.data["data"] = grouped_data
+            else:
+                # Si no se quiere agrupar por día, solo agregar las personas sin agrupar
+                for visit in response.data["data"]:
+
+                    if 'people' in visit:
+                        people_ids = visit["people"].copy()
+
+                        visit["people"].clear()
+
+                        for people_id in people_ids:
+                            if people_id in people_dict:
+                                visit["people"].append(
+                                    {'id': people_id, 'name': people_dict[people_id]})
 
         return response
 
@@ -1525,6 +1592,27 @@ class GetRinexWithStatus(CustomListCreateAPIView):
 class RinexDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = models.Rinex.objects.all()
     serializer_class = serializers.RinexSerializer
+
+
+class RinexCompletionPlot(APIView):
+    serializer_class = serializers.DummySerializer
+
+    def get_queryset(self, station_api_id):
+        try:
+            return models.Stations.objects.get(api_id=station_api_id)
+        except models.Stations.DoesNotExist:
+            raise Http404
+
+    def get(self, request, station_api_id, format=None):
+        station = self.get_queryset(station_api_id)
+        cnn = dbConnection.Cnn(settings.CONFIG_FILE_ABSOLUTE_PATH)
+        try:
+            completion_plot = pyUtils.plot_rinex_completion(cnn,
+                                                            station.network_code.network_code, station.station_code, True)
+        except Exception as e:
+            raise exceptions.CustomValidationErrorExceptionHandler(e)
+
+        return Response(data={"completion_plot": completion_plot}, status=status.HTTP_200_OK)
 
 
 class GetNextStationInfoFromRinex(APIView):

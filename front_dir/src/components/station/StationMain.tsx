@@ -28,8 +28,7 @@ interface OutletContext {
     setLoadedMap: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-interface VisitsStates
-{
+interface VisitsStates {
     visitId: number;
     checked: boolean;
     color: string;
@@ -52,7 +51,6 @@ const StationMain = () => {
         setLoadedMap,
     } = useOutletContext<OutletContext>();
 
-
     const [changeMeta, setChangeMeta] = useState<boolean>(false);
 
     const [changeKml, setChangeKml] = useState<VisitsStates[]>([]);
@@ -62,26 +60,29 @@ const StationMain = () => {
             ? reStation
             : station;
 
-    const visitsAndMeta = 
-    {
+    const visitsAndMeta = {
         visits: visits ?? [],
         stationMeta: stationMeta,
         changeKml: changeKml,
         changeMeta: changeMeta,
-    }    
+    };
 
-    const visitScrollerProps = { 
-    visits: visits ?? [],
-    changeKml: changeKml,
-    changeMeta: changeMeta,
-    setChangeKml: setChangeKml,
-    setChangeMeta: setChangeMeta,
-    stationMeta: stationMeta}
+    const visitScrollerProps = {
+        visits: visits ?? [],
+        changeKml: changeKml,
+        changeMeta: changeMeta,
+        setChangeKml: setChangeKml,
+        setChangeMeta: setChangeMeta,
+        stationMeta: stationMeta,
+    };
 
-    useEffect(() => {setChangeMeta(stationMeta && stationMeta.navigation_actual_file !== null && stationMeta.navigation_actual_file !== "")
-    }, [
-        stationMeta
-    ])
+    useEffect(() => {
+        setChangeMeta(
+            stationMeta &&
+                stationMeta.navigation_actual_file !== null &&
+                stationMeta.navigation_actual_file !== "",
+        );
+    }, [stationMeta]);
 
     return (
         <div>
@@ -93,8 +94,9 @@ const StationMain = () => {
                     <MapStation
                         station={definitiveStation}
                         base64Data={
-                            changeMeta || changeKml?.some(visit => visit.checked)
-                                ? (visitsAndMeta?? "")
+                            changeMeta ||
+                            changeKml?.some((visit) => visit.checked)
+                                ? (visitsAndMeta ?? "")
                                 : ""
                         }
                         loadPdf={loadPdf}

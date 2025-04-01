@@ -23,7 +23,7 @@ import {
 } from "@types";
 
 interface Props {
-    stationId: string | undefined;
+    stationId?: string | undefined;
     stationMetaId?: string | undefined;
     meta: boolean;
     refetchStationMeta: () => void;

@@ -14,6 +14,7 @@ import {
     StationInfoModal,
     StatsModal,
     TableCard,
+    RinexCompletionPlot
 } from "@componentsReact";
 
 import {
@@ -28,7 +29,7 @@ import {
 
 import { useAuth, useApi } from "@hooks";
 
-import { getRinexWithStatusService } from "@services";
+import { getRinexWithStatusService, getCompletionPlotService } from "@services";
 
 import { ensureEndsWithZ, showModal } from "@utils";
 import { RINEX_FILTERS_STATE } from "@utils/reducerFormStates";
@@ -41,6 +42,7 @@ import {
     RinexRelatedStationInfo,
     StationData,
     StationInfoData,
+    CompletionPlotServiceData,
 } from "@types";
 
 type OutletContext = {
@@ -195,6 +197,8 @@ const Rinex = () => {
         "up" | "down" | undefined
     >(undefined);
 
+    const [plotData, setPlotData] = useState<string>("");
+
     const [problematicRinex, setProblematicRinex] = useState<
         RinexObject[] | undefined
     >(undefined);
@@ -202,6 +206,8 @@ const Rinex = () => {
     const [paginatedRinexs, setPaginatedRinexs] = useState<
         RinexObject[] | undefined
     >(undefined);
+
+    const [showCompletionPlot, setShowCompletionPlot] = useState<boolean>(false);
 
     const [loading, setLoading] = useState<boolean>(false);
 
@@ -275,6 +281,16 @@ const Rinex = () => {
             setLoading(false);
         }
     };
+
+    const getCompletionPlot = async () => {
+        try{
+            const res = await getCompletionPlotService<CompletionPlotServiceData>(api, station.api_id ?? 0);
+            setPlotData(res.completion_plot);
+        }
+        catch(e){
+            console.error(e);
+        }
+    }
 
     const getRinexFiltered = async (
         filtersObj: Record<keyof typeof RINEX_FILTERS_STATE, any>,
@@ -519,6 +535,10 @@ const Rinex = () => {
     }, [station]); // eslint-disable-line
 
     useEffect(() => {
+        getCompletionPlot();
+    }, [])
+
+    useEffect(() => {
         if (rinex && !shouldFetchRinex) {
             handleRinexData();
         }
@@ -661,6 +681,19 @@ const Rinex = () => {
                             <div className="w-2/4 flex justify-end space-x-2">
                                 <label className="label cursor-pointer space-x-4">
                                     <span className="label-text">
+                                        Completion Plot
+                                    </span>
+                                    <input
+                                        type="checkbox"
+                                        className="checkbox"
+                                        checked={showCompletionPlot}
+                                        onChange={(e) =>
+                                            setShowCompletionPlot(e.target.checked)
+                                        }
+                                    />
+                                </label>
+                                <label className="label cursor-pointer space-x-4">
+                                    <span className="label-text">
                                         Rinex with problems
                                     </span>
                                     <input
@@ -734,6 +767,9 @@ const Rinex = () => {
                                 handlePage={handlePage}
                             />
                         ) : null}
+                        { showCompletionPlot &&
+                            <RinexCompletionPlot img={`data:image/png;base64,${plotData}`}/>
+                        }
                     </TableCard>
                 </CardContainer>
             </div>

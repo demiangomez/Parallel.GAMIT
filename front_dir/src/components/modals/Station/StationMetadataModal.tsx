@@ -11,6 +11,7 @@ import {
     RenderFileModal,
     StationAddFileModal,
     QuillText,
+    Dropzone,
 } from "@componentsReact";
 
 import {
@@ -37,8 +38,8 @@ import {
     getMonumentsTypesByIdService,
     getRinexService,
     getStationFileByIdAttachedService,
-    getStationInfoService,
     getStationsFilesAttachedService,
+    getStationInfoService,
     getStationStatusService,
     getStationTypesService,
     patchStationMetaService,
@@ -97,6 +98,10 @@ const StationMetadataModal = ({
 
     const [copyId, setCopyId] = useState<string | null>(null);
 
+    const [oceanTideType, setOceanTideType] = useState<
+        "by file" | "manual" | undefined
+    >(undefined);
+
     const [metaMsg, setMetaMsg] = useState<
         { status: number; msg: string; errors?: Errors } | undefined
     >(undefined);
@@ -114,6 +119,10 @@ const StationMetadataModal = ({
 
     const [loading, setLoading] = useState<boolean>(true);
     const [loadFile, setLoadFile] = useState<boolean>(false);
+
+    const [oceanTideFile, setOceanTideFile] = useState<File | undefined>(
+        undefined,
+    );
 
     useWaitCursor(loadFile);
 
@@ -191,7 +200,6 @@ const StationMetadataModal = ({
 
     const getStation = async () => {
         try {
-            setLoading(true);
             const res = await getStationsService<StationServiceData>(api, {
                 network_code: station?.network_code,
                 station_code: station?.station_code,
@@ -206,7 +214,6 @@ const StationMetadataModal = ({
 
     const getStationMeta = async () => {
         try {
-            setLoading(true);
             const res = await getStationMetaService<StationMetadataServiceData>(
                 api,
                 Number(station?.api_id ?? undefined),
@@ -221,7 +228,6 @@ const StationMetadataModal = ({
 
     const getTypes = async () => {
         try {
-            setLoading(true);
             if (stationMetaMain) {
                 const status =
                     await getStationStatusService<StationStatusServiceData>(
@@ -261,7 +267,6 @@ const StationMetadataModal = ({
 
     const getRinex = async () => {
         try {
-            setLoading(true);
             const firstRes = await getRinexService<RinexServiceData>(api, {
                 network_code: station?.network_code,
                 station_code: station?.station_code,
@@ -284,26 +289,23 @@ const StationMetadataModal = ({
 
     const getStationInfo = async () => {
         try {
-            setLoading(true);
-            if (stationMeta && station) {
-                const res = await getStationInfoService<StationInfoServiceData>(
-                    api,
-                    {
-                        network_code: station?.network_code ?? "",
-                        station_code: station?.station_code ?? "",
-                        offset: 0,
-                        limit: 0,
-                    },
-                );
+            const res = await getStationInfoService<StationInfoServiceData>(
+                api,
+                {
+                    network_code: station?.network_code ?? "",
+                    station_code: station?.station_code ?? "",
+                    offset: 0,
+                    limit: 0,
+                },
+            );
 
-                setStationInfo(
-                    res.data.sort(
-                        (a, b) =>
-                            new Date(b.date_end).getTime() -
-                            new Date(a.date_end).getTime(),
-                    )[0],
-                );
-            }
+            setStationInfo(
+                res.data.sort(
+                    (a, b) =>
+                        new Date(b.date_end).getTime() -
+                        new Date(a.date_end).getTime(),
+                )[0],
+            );
         } catch (err) {
             console.error(err);
         }
@@ -313,7 +315,6 @@ const StationMetadataModal = ({
 
     const getFiles = async () => {
         try {
-            setLoading(true);
             if (stationId) {
                 const res =
                     await getStationsFilesAttachedService<StationFilesServiceData>(
@@ -435,14 +436,26 @@ const StationMetadataModal = ({
     };
 
     useEffect(() => {
-        getFiles();
-    }, [stationId]);
+        if (monumentType.length > 0) {
+            const monumentId = monumentType.find(
+                (mt) => mt.id === Number(stationMeta?.monument_type),
+            )?.id;
+            getMonumentPhotoById(monumentId);
+        }
+    }, [stationMeta, monumentType]);
+
+    useEffect(() => {
+        if (stationMeta && station) {
+            getStationInfo();
+            getFiles();
+        }
+    }, [stationMeta, station]);
 
     useEffect(() => {
         Promise.all([
+            setLoading(true),
             getTypes(),
             getRinex(),
-            getStationInfo(),
             getStationMeta(),
             getStation(),
         ]).then(() => {
@@ -450,16 +463,51 @@ const StationMetadataModal = ({
         });
     }, []);
 
+    useEffect(() => {
+        modals?.show && showModal(modals.title);
+    }, [modals]);
+
+    useEffect(() => {
+        const updatedRichText = classHtml(richText);
+
+        dispatch({
+            type: "change_value",
+            payload: {
+                inputName: "rinex.comments",
+                inputValue: updatedRichText,
+            },
+        });
+    }, [richText]);
+
+    useEffect(() => {
+        if (showMenu) {
+            const ref = selectRef(showMenu.type);
+            if (ref && ref.current) {
+                ref.current.focus();
+            }
+        }
+    }, [showMenu]);
+
+    useEffect(() => {
+        if (fileToShow !== undefined) {
+            setModals({
+                show: true,
+                title: "FileRender",
+                type: "edit",
+            });
+        }
+    }, [fileToShow]);
+
     const formattedData = useMemo(() => {
         return {
             equipment: {
-                antenna_code: stationInfo?.antenna_code,
-                antenna_serial: stationInfo?.antenna_serial,
-                height_code: stationInfo?.height_code,
-                receiver_code: stationInfo?.receiver_code,
-                receiver_serial: stationInfo?.receiver_serial,
-                receiver_version: stationInfo?.receiver_vers,
-                radome_code: stationInfo?.radome_code,
+                antenna_code: stationInfo?.antenna_code ?? "",
+                antenna_serial: stationInfo?.antenna_serial ?? "",
+                height_code: stationInfo?.height_code ?? "",
+                receiver_code: stationInfo?.receiver_code ?? "",
+                receiver_serial: stationInfo?.receiver_serial ?? "",
+                receiver_version: stationInfo?.receiver_vers ?? "",
+                radome_code: stationInfo?.radome_code ?? "",
             },
             rinex: {
                 first_rinex: firstRinex?.observation_e_time ?? "",
@@ -492,6 +540,8 @@ const StationMetadataModal = ({
                 remote_access_link: stationMeta?.remote_access_link ?? "",
                 station_name: stationData?.station_name ?? "",
                 dome: stationData?.dome ?? "",
+                harpos_coeff_otl: stationData?.harpos_coeff_otl ?? "",
+                max_dist: String(stationData?.max_dist ?? ""),
             },
 
             station: {
@@ -504,15 +554,6 @@ const StationMetadataModal = ({
             },
         };
     }, [stationType, monumentType, stationStatus, stationData, stationMeta]);
-
-    useEffect(() => {
-        if (monumentType.length > 0) {
-            const monumentId = monumentType.find(
-                (mt) => mt.id === Number(stationMeta?.monument_type),
-            )?.id;
-            getMonumentPhotoById(monumentId);
-        }
-    }, [stationMeta, monumentType]);
 
     const { formState, dispatch } = useFormReducer(formattedData);
 
@@ -607,13 +648,31 @@ const StationMetadataModal = ({
                         msg: "Metadata updated successfully",
                     });
                 }
-                const res = await patchStationService<
-                    ExtendedStationData | ErrorResponse
-                >(api, Number(station?.api_id), {
+                const stationParams = {
                     ...formState.station,
+                    harpos_coeff_otl: formState.stationMeta.harpos_coeff_otl,
+                    max_dist: formState.stationMeta.max_dist,
                     dome: formState.stationMeta.dome ?? "",
                     station_name: formState.stationMeta.station_name ?? "",
+                    harpos_coeff_otl_by_file: oceanTideFile,
+                };
+
+                if (oceanTideType === "by file") {
+                    delete (stationParams as any).harpos_coeff_otl;
+                } else if (oceanTideType === "manual") {
+                    delete (stationParams as any).harpos_coeff_otl_by_file;
+                }
+
+                const stationFormData = new FormData();
+
+                Object.entries(stationParams).forEach(([key, value]) => {
+                    if (value) {
+                        stationFormData.append(key, String(value));
+                    }
                 });
+                const res = await patchStationService<
+                    ExtendedStationData | ErrorResponse
+                >(api, Number(station?.api_id), stationParams);
                 const errorRes = res as ErrorResponse;
                 if (res.statusCode !== 200 && "status" in res) {
                     setStationMsg({
@@ -652,6 +711,8 @@ const StationMetadataModal = ({
         "Remote Access Link",
         "Station Name",
         "Domes Number",
+        "Ocean Tide Loading Model",
+        "Max distance",
     ];
     const generalFields2 = ["Battery", "Communications"];
     const generalFields3 = [
@@ -670,22 +731,6 @@ const StationMetadataModal = ({
         "Radome Code",
     ];
 
-    useEffect(() => {
-        modals?.show && showModal(modals.title);
-    }, [modals]);
-
-    useEffect(() => {
-        const updatedRichText = classHtml(richText);
-
-        dispatch({
-            type: "change_value",
-            payload: {
-                inputName: "rinex.comments",
-                inputValue: updatedRichText,
-            },
-        });
-    }, [richText]);
-
     const inputRefType = useRef<HTMLInputElement>(null);
 
     const inputRefMonument = useRef<HTMLInputElement>(null);
@@ -702,15 +747,6 @@ const StationMetadataModal = ({
                 : null;
     };
 
-    useEffect(() => {
-        if (showMenu) {
-            const ref = selectRef(showMenu.type);
-            if (ref && ref.current) {
-                ref.current.focus();
-            }
-        }
-    }, [showMenu]);
-
     const handleGetFile = async (file: StationFilesData) => {
         const res = await getFileById(file.id);
         if (res) {
@@ -726,20 +762,14 @@ const StationMetadataModal = ({
         return file.includes(".pdf");
     };
 
-    useEffect(() => {
-        if (fileToShow !== undefined) {
-            setModals({
-                show: true,
-                title: "FileRender",
-                type: "edit",
-            });
-        }
-    }, [fileToShow]);
-
     const setEditFile = (file: StationFilesData) => {
         setModals({ show: true, title: "AddFile", type: "edit" });
         setFileToEdit(file);
     };
+
+    const otlErrorBadge = metaMsg?.errors?.errors?.find(
+        (error) => error.attr === "harpos_coeff_otl",
+    );
 
     return (
         <Modal
@@ -778,15 +808,28 @@ const StationMetadataModal = ({
                                 <div className="grid grid-cols-2 gap-6">
                                     {Object.keys(formState.stationMeta).map(
                                         (key, idx) => {
-                                            if (key) {
+                                            const keysToNotShow = [
+                                                "harpos_coeff_otl",
+                                            ];
+
+                                            if (
+                                                key &&
+                                                !keysToNotShow.includes(key)
+                                            ) {
                                                 const errorBadge =
                                                     metaMsg?.errors?.errors?.find(
                                                         (error) =>
                                                             error.attr === key,
                                                     );
+                                                const maxDistErrorBadge =
+                                                    stationMsg?.errors?.errors?.find(
+                                                        (error) =>
+                                                            error.attr ===
+                                                            "max_dist",
+                                                    );
 
                                                 return (
-                                                    <div key={idx + key}>
+                                                    <div key={key}>
                                                         <div
                                                             className="text-sm font-bold flex items-center"
                                                             title={
@@ -808,15 +851,21 @@ const StationMetadataModal = ({
                                                         {edit ? (
                                                             <div className="flex flex-col space-y-1">
                                                                 <label
-                                                                    className={`input input-bordered flex items-center  ${errorBadge ? "input-error" : ""}  `}
+                                                                    className={`input input-bordered flex items-center  ${errorBadge || (key === "max_dist" && maxDistErrorBadge) ? "input-error" : ""}  `}
                                                                     title={
                                                                         errorBadge
                                                                             ? errorBadge.detail
-                                                                            : ""
+                                                                            : key ===
+                                                                                    "max_dist" &&
+                                                                                maxDistErrorBadge
+                                                                              ? maxDistErrorBadge.detail
+                                                                              : ""
                                                                     }
                                                                 >
                                                                     <input
-                                                                        className="w-full"
+                                                                        className={
+                                                                            "w-full "
+                                                                        }
                                                                         autoComplete="off"
                                                                         type="text"
                                                                         ref={selectRef(
@@ -841,13 +890,21 @@ const StationMetadataModal = ({
                                                                             )
                                                                         }
                                                                     />
-                                                                    {errorBadge && (
+                                                                    {errorBadge ? (
                                                                         <span className="badge badge-error self-start -mt-2">
                                                                             {
                                                                                 errorBadge.code
                                                                             }
                                                                         </span>
-                                                                    )}
+                                                                    ) : key ===
+                                                                          "max_dist" &&
+                                                                      maxDistErrorBadge ? (
+                                                                        <span className="badge badge-error self-start -mt-2">
+                                                                            {
+                                                                                maxDistErrorBadge.code
+                                                                            }
+                                                                        </span>
+                                                                    ) : null}
                                                                     {(key ===
                                                                         "station_type" ||
                                                                         key ===
@@ -897,7 +954,7 @@ const StationMetadataModal = ({
                                                                 </span>
                                                             )
                                                         ) : (
-                                                            <p className="break-words">
+                                                            <p className="break-words whitespace-pre-wrap max-h-[150px] overflow-y-auto">
                                                                 {formState
                                                                     .stationMeta[
                                                                     key as keyof typeof formState.stationMeta
@@ -1049,7 +1106,7 @@ const StationMetadataModal = ({
                                                     );
 
                                                 return (
-                                                    <div key={idx}>
+                                                    <div key={key}>
                                                         <div className="text-sm font-bold flex items-center">
                                                             {
                                                                 generalFields2[
@@ -1171,7 +1228,7 @@ const StationMetadataModal = ({
                                                 key !== "navigation_file"
                                             ) {
                                                 return (
-                                                    <div key={idx}>
+                                                    <div key={key}>
                                                         <div className="text-sm font-bold flex items-center">
                                                             {
                                                                 generalFields3[
@@ -1354,201 +1411,290 @@ const StationMetadataModal = ({
                                 }
                             />
                         </div>
-
-                        <div className="card bg-base-200 grow shadow-xl mr-4">
-                            <div className="card bg-base-200 grow shadow-xl">
-                                <h2 className="card-title border-b-2 border-base-300 p-2 justify-between">
-                                    Attached Files
-                                    {edit && (
-                                        <button
-                                            className="btn btn-ghost btn-circle ml-2"
-                                            onClick={() => {
-                                                setModals({
-                                                    show: true,
-                                                    title: "AddFile",
-                                                    type: "add",
-                                                });
-                                            }}
-                                        >
-                                            <PlusCircleIcon
-                                                strokeWidth={1.5}
-                                                stroke="currentColor"
-                                                className="w-8 h-10"
-                                            />
-                                        </button>
-                                    )}
-                                </h2>
-                                <div
-                                    className={`card-body ${showAllFiles ? "overflow-y-auto max-h-44 scrollbar-base" : ""}`}
-                                >
+                    </div>
+                    <div className="grid grid-cols-1 space-y-4 grid-flow-dense">
+                        <div className="card bg-base-200 grow shadow-xl">
+                            <h2 className="card-title border-b-2 border-base-300 p-2 justify-between">
+                                Comments
+                            </h2>
+                            <div className="overflow-y-hidden max-h-48 h-auto">
+                                {edit ? (
+                                    <QuillText
+                                        value={
+                                            metaMsg?.errors
+                                                ? formattedData.rinex.comments
+                                                : richText
+                                        }
+                                        setValue={setRichText}
+                                        clase="h-48 pb-8"
+                                    />
+                                ) : formattedData.rinex.comments ? (
                                     <div
-                                        className={`grid ${files && files.length > 0 ? "grid-cols-2 md:grid-cols-2" : "grid-cols-1"} grid-flow-dense gap-2`}
-                                    >
-                                        {files && files.length > 0 ? (
-                                            files
-                                                .slice(
-                                                    0,
-                                                    showAllFiles
-                                                        ? files.length
-                                                        : 2,
-                                                )
-                                                .map((file) => {
-                                                    return (
-                                                        <div
-                                                            className="flex items-center w-full rounded-md bg-neutral-content"
-                                                            key={
-                                                                file.filename +
-                                                                file.id
-                                                            }
-                                                        >
-                                                            <div className="flex-grow overflow-hidden ">
-                                                                <div className="p-6 flex w-full justify-between items-center">
-                                                                    {edit && (
-                                                                        <button
-                                                                            className="btn btn-ghost btn-circle mr-4"
-                                                                            onClick={() => {
-                                                                                setModals(
-                                                                                    {
-                                                                                        show: true,
-                                                                                        title: "ConfirmDelete",
-                                                                                        type: "edit",
-                                                                                    },
-                                                                                );
-                                                                                setFileToDel(
-                                                                                    file.id,
-                                                                                );
-                                                                            }}
-                                                                        >
-                                                                            <TrashIcon className="size-8 text-red-600" />
-                                                                        </button>
-                                                                    )}
-                                                                    <div className="flex flex-col w-8/12 text-wrap truncate max-w-full">
-                                                                        <h2
-                                                                            className="font-semibold text-xl mb-2 truncate"
-                                                                            title={
-                                                                                file.filename
-                                                                            }
-                                                                        >
-                                                                            {
-                                                                                file.filename
-                                                                            }
-                                                                        </h2>
-                                                                        <p
-                                                                            className="truncate"
-                                                                            title={
-                                                                                file.description
-                                                                            }
-                                                                        >
-                                                                            {
-                                                                                file.description
-                                                                            }
-                                                                        </p>
-                                                                    </div>
-                                                                    <a
-                                                                        className="btn-circle btn-ghost cursor-pointer flex justify-center w-4/12"
-                                                                        onClick={async () => {
-                                                                            edit
-                                                                                ? setEditFile(
-                                                                                      file,
-                                                                                  )
-                                                                                : isPdf(
-                                                                                        file.filename,
-                                                                                    )
-                                                                                  ? setFileToShow(
-                                                                                        await getFileById(
-                                                                                            file.id,
-                                                                                        ),
-                                                                                    )
-                                                                                  : handleGetFile(
-                                                                                        file,
-                                                                                    );
-                                                                        }}
-                                                                    >
-                                                                        {edit ? (
-                                                                            <svg
-                                                                                xmlns="http://www.w3.org/2000/svg"
-                                                                                fill="none"
-                                                                                viewBox="0 0 24 24"
-                                                                                strokeWidth={
-                                                                                    1.5
-                                                                                }
-                                                                                stroke="currentColor"
-                                                                                className="size-6 self-center"
-                                                                            >
-                                                                                <path
-                                                                                    strokeLinecap="round"
-                                                                                    strokeLinejoin="round"
-                                                                                    d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"
-                                                                                />
-                                                                            </svg>
-                                                                        ) : isPdf(
-                                                                              file.filename,
-                                                                          ) ? (
-                                                                            <BookOpenIcon className="size-6 self-center" />
-                                                                        ) : (
-                                                                            <ArrowDownTrayIcon className="size-6 self-center" />
-                                                                        )}
-                                                                    </a>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })
-                                        ) : (
-                                            <div className="text-center text-neutral text-2xl font-bold w-full rounded-md bg-neutral-content p-6">
-                                                There are no files registered
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                                {files && files.length > 2 && (
-                                    <div className="text-center my-4 font-bold">
-                                        {!showAllFiles ? (
-                                            <button onClick={handleShowMore}>
-                                                Show More
-                                            </button>
-                                        ) : (
-                                            <button onClick={handleShowLess}>
-                                                Show Less
-                                            </button>
-                                        )}
+                                        className="textarea-bordered rounded-md text-lg overflow-auto p-4 max-h-48"
+                                        dangerouslySetInnerHTML={{
+                                            __html:
+                                                formattedData.rinex.comments ??
+                                                "",
+                                        }}
+                                    />
+                                ) : (
+                                    <div className="text-center text-neutral text-2xl font-bold w-full rounded-md bg-neutral-content p-6">
+                                        There are no comments registered
                                     </div>
                                 )}
                             </div>
                         </div>
-
+                    </div>
+                    <div className="grid grid-cols-2 space-x-4 grid-flow-dense">
                         <div className="card bg-base-200 grow shadow-xl">
-                            <div className="card bg-base-200 grow shadow-xl">
-                                <h2 className="card-title border-b-2 border-base-300 p-2 justify-between h-16">
-                                    Comments
-                                </h2>
-                                <div className="overflow-y-hidden max-h-48 h-auto">
-                                    {edit ? (
-                                        <QuillText
-                                            value={
-                                                metaMsg?.errors
-                                                    ? formattedData.rinex
-                                                          .comments
-                                                    : richText
-                                            }
-                                            setValue={setRichText}
-                                            clase="h-48 pb-8"
+                            <h2 className="card-title border-b-2 border-base-300 p-2 justify-between relative">
+                                Attached Files
+                                {edit && (
+                                    <button
+                                        className="btn btn-ghost btn-circle ml-2 absolute right-3"
+                                        onClick={() => {
+                                            setModals({
+                                                show: true,
+                                                title: "AddFile",
+                                                type: "add",
+                                            });
+                                        }}
+                                    >
+                                        <PlusCircleIcon
+                                            strokeWidth={1.5}
+                                            stroke="currentColor"
+                                            className="w-8 h-10"
                                         />
+                                    </button>
+                                )}
+                            </h2>
+                            <div
+                                className={`card-body ${showAllFiles ? "overflow-y-auto max-h-44 scrollbar-base" : ""}`}
+                            >
+                                <div
+                                    className={`grid ${files && files.length > 0 ? "grid-cols-2 md:grid-cols-2" : "grid-cols-1"} grid-flow-dense gap-2`}
+                                >
+                                    {files && files.length > 0 ? (
+                                        files
+                                            .slice(
+                                                0,
+                                                showAllFiles ? files.length : 2,
+                                            )
+                                            .map((file) => {
+                                                return (
+                                                    <div
+                                                        className="flex items-center w-full rounded-md bg-neutral-content"
+                                                        key={
+                                                            file.filename +
+                                                            file.id
+                                                        }
+                                                    >
+                                                        <div className="flex-grow overflow-hidden ">
+                                                            <div className="p-6 flex w-full justify-between items-center">
+                                                                {edit && (
+                                                                    <button
+                                                                        className="btn btn-ghost btn-circle mr-4"
+                                                                        onClick={() => {
+                                                                            setModals(
+                                                                                {
+                                                                                    show: true,
+                                                                                    title: "ConfirmDelete",
+                                                                                    type: "edit",
+                                                                                },
+                                                                            );
+                                                                            setFileToDel(
+                                                                                file.id,
+                                                                            );
+                                                                        }}
+                                                                    >
+                                                                        <TrashIcon className="size-8 text-red-600" />
+                                                                    </button>
+                                                                )}
+                                                                <div className="flex flex-col w-8/12 text-wrap truncate max-w-full">
+                                                                    <h2
+                                                                        className="font-semibold text-xl mb-2 truncate"
+                                                                        title={
+                                                                            file.filename
+                                                                        }
+                                                                    >
+                                                                        {
+                                                                            file.filename
+                                                                        }
+                                                                    </h2>
+                                                                    <p
+                                                                        className="truncate"
+                                                                        title={
+                                                                            file.description
+                                                                        }
+                                                                    >
+                                                                        {
+                                                                            file.description
+                                                                        }
+                                                                    </p>
+                                                                </div>
+                                                                <a
+                                                                    className="btn-circle btn-ghost cursor-pointer flex justify-center w-4/12"
+                                                                    onClick={async () => {
+                                                                        edit
+                                                                            ? setEditFile(
+                                                                                  file,
+                                                                              )
+                                                                            : isPdf(
+                                                                                    file.filename,
+                                                                                )
+                                                                              ? setFileToShow(
+                                                                                    await getFileById(
+                                                                                        file.id,
+                                                                                    ),
+                                                                                )
+                                                                              : handleGetFile(
+                                                                                    file,
+                                                                                );
+                                                                    }}
+                                                                >
+                                                                    {edit ? (
+                                                                        <svg
+                                                                            xmlns="http://www.w3.org/2000/svg"
+                                                                            fill="none"
+                                                                            viewBox="0 0 24 24"
+                                                                            strokeWidth={
+                                                                                1.5
+                                                                            }
+                                                                            stroke="currentColor"
+                                                                            className="size-6 self-center"
+                                                                        >
+                                                                            <path
+                                                                                strokeLinecap="round"
+                                                                                strokeLinejoin="round"
+                                                                                d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"
+                                                                            />
+                                                                        </svg>
+                                                                    ) : isPdf(
+                                                                          file.filename,
+                                                                      ) ? (
+                                                                        <BookOpenIcon className="size-6 self-center" />
+                                                                    ) : (
+                                                                        <ArrowDownTrayIcon className="size-6 self-center" />
+                                                                    )}
+                                                                </a>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })
                                     ) : (
-                                        <div
-                                            className="textarea-bordered rounded-md text-lg overflow-auto pl-8 pb-8 h-48 max-h-48"
-                                            dangerouslySetInnerHTML={{
-                                                __html:
-                                                    formattedData.rinex
-                                                        .comments ?? "",
-                                            }}
-                                        />
+                                        <div className="text-center text-neutral text-2xl font-bold w-full rounded-md bg-neutral-content p-6">
+                                            There are no files registered
+                                        </div>
                                     )}
                                 </div>
                             </div>
+                            {files && files.length > 2 && (
+                                <div className="text-center my-4 font-bold">
+                                    {!showAllFiles ? (
+                                        <button onClick={handleShowMore}>
+                                            Show More
+                                        </button>
+                                    ) : (
+                                        <button onClick={handleShowLess}>
+                                            Show Less
+                                        </button>
+                                    )}
+                                </div>
+                            )}
                         </div>
-
-                        <div className="card bg-base-200 grow shadow-xl mr-4">
+                        <div className="card bg-base-200 grow shadow-xl">
+                            <h2 className="card-title border-b-2 border-base-300 p-2 justify-between">
+                                Ocean Tide Loading Model
+                            </h2>
+                            <div className="max-h-48 overflow-y-auto h-full">
+                                {edit ? (
+                                    <>
+                                        <div className="flex gap-2 mb-2">
+                                            <button
+                                                className={`btn flex-1 ${oceanTideType === "by file" ? "btn-primary" : ""}`}
+                                                onClick={() =>
+                                                    setOceanTideType("by file")
+                                                }
+                                            >
+                                                By File
+                                            </button>
+                                            <button
+                                                className={`btn flex-1 ${oceanTideType === "manual" ? "btn-primary" : ""}`}
+                                                onClick={() =>
+                                                    setOceanTideType("manual")
+                                                }
+                                            >
+                                                Manual
+                                            </button>
+                                        </div>
+                                        {oceanTideType === "manual" ? (
+                                            <textarea
+                                                className={
+                                                    "textarea h-44 w-full textarea-ghost resize-none"
+                                                }
+                                                autoComplete="off"
+                                                value={
+                                                    formState.stationMeta[
+                                                        "harpos_coeff_otl" as keyof typeof formState.stationMeta
+                                                    ] ?? ""
+                                                }
+                                                name={
+                                                    "stationMeta." +
+                                                    "harpos_coeff_otl"
+                                                }
+                                                onChange={(e) =>
+                                                    handleChange(e)
+                                                }
+                                            ></textarea>
+                                        ) : (
+                                            oceanTideType === "by file" && (
+                                                <div className="">
+                                                    <Dropzone
+                                                        setFile={
+                                                            setOceanTideFile
+                                                        }
+                                                        file={oceanTideFile}
+                                                    />
+                                                </div>
+                                            )
+                                        )}
+                                        {otlErrorBadge && (
+                                            <span className="badge badge-error self-start -mt-2">
+                                                {otlErrorBadge.code}
+                                            </span>
+                                        )}
+                                    </>
+                                ) : (
+                                    <>
+                                        {formState.stationMeta[
+                                            "harpos_coeff_otl" as keyof typeof formState.stationMeta
+                                        ] &&
+                                        formState.stationMeta[
+                                            "harpos_coeff_otl" as keyof typeof formState.stationMeta
+                                        ] !== "" ? (
+                                            <p className="break-words whitespace-pre-wrap overflow-y-auto h-full p-2">
+                                                {
+                                                    formState.stationMeta[
+                                                        "harpos_coeff_otl" as keyof typeof formState.stationMeta
+                                                    ]
+                                                }
+                                            </p>
+                                        ) : (
+                                            <div className="card-body">
+                                                <div className="text-center text-neutral text-2xl font-bold w-full rounded-md bg-neutral-content p-6">
+                                                    There is no ocean tide
+                                                    loading model
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 space-x-4 grid-flow-dense">
+                        <div className="card bg-base-200 grow shadow-xl">
                             <h2 className="card-title border-b-2 border-base-300 p-2 justify-between">
                                 Geodetic Coordinates
                                 <button
@@ -1810,8 +1956,12 @@ const StationMetadataModal = ({
                                     {Object.entries(formState.equipment).map(
                                         ([key, value], idx) => {
                                             if (key) {
+                                                console.log(
+                                                    equipmentFields,
+                                                    idx,
+                                                );
                                                 return (
-                                                    <div key={idx}>
+                                                    <div key={key}>
                                                         <div className="text-sm font-bold flex items-center">
                                                             {
                                                                 equipmentFields[

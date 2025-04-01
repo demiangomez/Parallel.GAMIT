@@ -70,10 +70,13 @@ class StationAttachedFilesFilter(filters.FilterSet):
 class VisitFilter(filters.FilterSet):
     station_api_id = filters.CharFilter(
         field_name='station')
+    
+    campaign_id = filters.NumberFilter(
+        field_name='campaign')
 
     class Meta:
         model = models.Visits
-        fields = ['station_api_id']
+        fields = ['station_api_id', "campaign"]
 
 
 class VisitAttachedFilesFilter(filters.FilterSet):

@@ -10,6 +10,10 @@ from django.core.files.images import ImageFile
 from django.conf import settings
 import math
 import decimal
+from geopy.geocoders import Nominatim
+from geopy.extra.rate_limiter import RateLimiter
+import country_converter as coco
+from pgamit.Utils import ecef2lla, lla2ecef
 
 
 def validate_file_size(value):
@@ -280,9 +284,80 @@ class StationinfoSerializer(serializers.ModelSerializer):
 
 class StationSerializer(serializers.ModelSerializer):
 
+    harpos_coeff_otl_by_file = serializers.FileField(
+        write_only=True, required=False)
+
     class Meta:
         model = models.Stations
         fields = '__all__'
+        kwargs = {'country_code': {'read_only': True}}
+
+    def validate(self, data):
+        """
+            Check that lat, lon and height are provided
+            or auto_x, auto_y and auto_z are provided
+        """
+        if 'lat' not in data or 'lon' not in data or 'height' not in data:
+            if 'auto_x' not in data or 'auto_y' not in data or 'auto_z' not in data:
+                raise serializers.ValidationError(
+                    "fields 'lat', 'lon' and 'height' or ECEF coordinates (fields 'auto_x', 'auto_y', 'auto_z') must be provided")
+
+        return data
+
+    def create(self, validated_data):
+        validated_data.pop('harpos_coeff_otl_by_file', None)
+
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+
+        # set harpos_coeff_otl by file
+        if 'harpos_coeff_otl_by_file' in validated_data:
+            validated_data['harpos_coeff_otl'] = utils.StationUtils.parse_harpos_coeff_otl_file(
+                validated_data['harpos_coeff_otl_by_file'], instance.network_code.network_code, instance.station_code)
+
+            # Remove this field as it's not actually stored in the model
+            validated_data.pop('harpos_coeff_otl_by_file')
+
+        # Remove network_code and station_code from validated_data to prevent updates
+        validated_data.pop('network_code', None)
+        validated_data.pop('station_code', None)
+
+        return super().update(instance, validated_data)
+
+    def to_internal_value(self, data):
+        internal_value = super().to_internal_value(data)
+
+        # set country code
+        if 'lat' in internal_value and 'lon' in internal_value and internal_value['lat'] is not None and internal_value['lon'] is not None:
+            geolocator = Nominatim(user_agent="Parallel.GAMIT")
+
+            reverse = RateLimiter(geolocator.reverse, min_delay_seconds=1)
+
+            location = reverse("%f, %f" %
+                               (internal_value['lat'], internal_value['lon']))
+
+            if location and 'country_code' in location.raw['address'].keys():
+                internal_value["country_code"] = coco.convert(names=location.raw['address']['country_code'],
+                                                              to='ISO3')
+
+        # set lat and lon from auto_x, auto_y, auto_z (or viceversa)
+
+        if 'auto_x' in internal_value and 'auto_y' in internal_value and 'auto_z' in internal_value and internal_value['auto_x'] is not None and internal_value['auto_y'] is not None and internal_value['auto_z'] is not None:
+            lat, lon, height = ecef2lla([float(internal_value['auto_x']),
+                                         float(internal_value['auto_y']), float(internal_value['auto_z'])])
+            internal_value['lat'] = lat[0]
+            internal_value['lon'] = lon[0]
+            internal_value['height'] = height[0]
+        else:
+            auto_x, auto_y, auto_z = lla2ecef([float(internal_value['lat']), float(internal_value['lon']),
+                                               float(internal_value['height'])])
+
+            internal_value['auto_x'] = auto_x[0]
+            internal_value['auto_y'] = auto_y[0]
+            internal_value['auto_z'] = auto_z[0]
+
+        return internal_value
 
 
 class StationMetaGapsSerializer(serializers.ModelSerializer):
@@ -532,6 +607,9 @@ class VisitSerializer(serializers.ModelSerializer):
     campaign_name = serializers.SerializerMethodField()
     log_sheet_file_delete = serializers.BooleanField(write_only=True)
     navigation_file_delete = serializers.BooleanField(write_only=True)
+    observation_file_count = serializers.SerializerMethodField()
+    visit_image_count = serializers.SerializerMethodField()
+    other_file_count = serializers.SerializerMethodField()
 
     class Meta:
         model = models.Visits
@@ -539,7 +617,10 @@ class VisitSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             'log_sheet_file': {'write_only': True},
             'navigation_file': {'write_only': True},
-            'campaign_name': {'read_only': True}
+            'campaign_name': {'read_only': True},
+            'observation_file_count': {'read_only': True},
+            'visit_image_count': {'read_only': True},
+            'other_file_count': {'read_only': True}
         }
 
     def validate(self, data):
@@ -624,6 +705,15 @@ class VisitSerializer(serializers.ModelSerializer):
     def validate_navigation_file(self, value):
         return validate_file_size(value)
 
+    def get_observation_file_count(self, obj):
+        return models.VisitGNSSDataFiles.objects.filter(visit=obj).count()
+
+    def get_visit_image_count(self, obj):
+        return models.VisitImages.objects.filter(visit=obj).count()
+
+    def get_other_file_count(self, obj):
+        return models.VisitAttachedFiles.objects.filter(visit=obj).count()
+
 
 class VisitAttachedFilesSerializer(serializers.ModelSerializer):
     actual_file = serializers.SerializerMethodField()
@@ -697,6 +787,7 @@ class VisitImagesOnlyMetadataSerializer(serializers.ModelSerializer):
 
 class VisitGNSSDataFilesSerializer(serializers.ModelSerializer):
     actual_file = serializers.SerializerMethodField()
+    file_count = serializers.SerializerMethodField()
 
     class Meta:
         model = models.VisitGNSSDataFiles
@@ -723,6 +814,9 @@ class VisitGNSSDataFilesSerializer(serializers.ModelSerializer):
                 return None
         else:
             return None
+
+    def get_file_count(self, obj):
+        return models.VisitGNSSDataFiles.objects.filter(visit=obj.visit).count()
 
     def validate_file(self, value):
         return validate_file_size(value)

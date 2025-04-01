@@ -21,7 +21,7 @@ import {
     FileErrors,
     FilesErrorResponse,
     VisitFilesData,
-    StationVisitsFilesData
+    StationVisitsFilesData,
 } from "@types";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -42,7 +42,9 @@ interface Props {
     >;
     type?: string;
     fileToEdit?: StationVisitsFilesData;
-    setFileToEdit?: React.Dispatch<React.SetStateAction<StationVisitsFilesData | undefined>>;
+    setFileToEdit?: React.Dispatch<
+        React.SetStateAction<StationVisitsFilesData | undefined>
+    >;
 }
 
 const AddFileModal = ({
@@ -118,8 +120,6 @@ const AddFileModal = ({
         return { filetype, filename };
     };
 
-    
-
     const handleChangePhoto = async (e: HTMLInputElement) => {
         const { files } = e;
 
@@ -173,7 +173,7 @@ const AddFileModal = ({
     };
 
     useEffect(() => {
-        if(fileToEdit){
+        if (fileToEdit) {
             setGlobalDescription(fileToEdit.description ?? "");
         }
     }, [fileToEdit]);
@@ -183,7 +183,6 @@ const AddFileModal = ({
 
         if (!files || files.length === 0) return;
 
-        
         const newFiles = Array.from(files).map((file, idx) => {
             return {
                 file,
@@ -214,7 +213,7 @@ const AddFileModal = ({
                 let uploadedChunks = 0; // Fragmentos subidos globalmente
 
                 if (fileType === "gnss" || fileType === "other") {
-                    if(type !== "edit"){
+                    if (type !== "edit") {
                         setProgressBar(true);
                     }
 
@@ -528,15 +527,20 @@ const AddFileModal = ({
     };
 
     const updateFile = async () => {
-        if(fileType === "gnss"){
-            try{
-                if(globalDescription !== undefined){
+        if (fileType === "gnss") {
+            try {
+                if (globalDescription !== undefined) {
                     const body = {
                         description: globalDescription,
                     };
-                    if(typeof(fileToEdit?.id) === "number"){
-                        const res = await patchVisitAttachedFileDescription<any>(api, body, fileToEdit?.id);
-                        if (res.statusCode !== 200 ) {
+                    if (typeof fileToEdit?.id === "number") {
+                        const res =
+                            await patchVisitAttachedFileDescription<any>(
+                                api,
+                                body,
+                                fileToEdit?.id,
+                            );
+                        if (res.statusCode !== 200) {
                             setMsg({
                                 status: 400,
                                 errors: {
@@ -551,17 +555,15 @@ const AddFileModal = ({
                                 },
                                 msg: "File description was not uploaded successfully",
                             });
-                        } else{
+                        } else {
                             setBMsg({
                                 status: res.statusCode,
                                 msg: "File description updated successfully",
                             });
-                        } 
-                        
+                        }
                     }
                 }
-            }
-            catch(err){
+            } catch (err) {
                 console.error(err);
                 setMsg({
                     status: 400,
@@ -577,19 +579,21 @@ const AddFileModal = ({
                     },
                     msg: "Files were not uploaded successfully",
                 });
-                
             }
-            
         }
-        if(fileType === "other"){
-            try{
-                if(globalDescription !== undefined){
+        if (fileType === "other") {
+            try {
+                if (globalDescription !== undefined) {
                     const body = {
                         description: globalDescription,
                     };
-                    if(typeof(fileToEdit?.id) === "number"){
-                        const res = await patchVisitOthersFileDescription<any>(api, body, fileToEdit?.id);
-                        if (res.statusCode !== 200 ) {
+                    if (typeof fileToEdit?.id === "number") {
+                        const res = await patchVisitOthersFileDescription<any>(
+                            api,
+                            body,
+                            fileToEdit?.id,
+                        );
+                        if (res.statusCode !== 200) {
                             setMsg({
                                 status: 400,
                                 errors: {
@@ -604,17 +608,15 @@ const AddFileModal = ({
                                 },
                                 msg: "File description was not uploaded successfully",
                             });
-                        } else{
+                        } else {
                             setBMsg({
                                 status: res.statusCode,
                                 msg: "File description updated successfully",
                             });
-                        } 
-                        
+                        }
                     }
                 }
-            }
-            catch(err){
+            } catch (err) {
                 console.error(err);
                 setMsg({
                     status: 400,
@@ -630,21 +632,18 @@ const AddFileModal = ({
                     },
                     msg: "Files were not uploaded successfully",
                 });
-                
             }
         }
-    }
+    };
 
     const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-        if(type === "edit"){
+        if (type === "edit") {
             updateFile();
-        }
-        else{
+        } else {
             addFile();
         }
         setSubmited(true);
-
     };
 
     useEffect(() => {
@@ -699,8 +698,7 @@ const AddFileModal = ({
         defaultValues();
 
         dispatch({
-            type: "set",
-            payload: defaultState,
+            type: "clear",
         });
         handleCloseModal();
         const fileInputElement = document.getElementById(
@@ -709,12 +707,12 @@ const AddFileModal = ({
         if (fileInputElement) {
             fileInputElement.value = "";
         }
-        if(fileToEdit && setFileToEdit){
+        if (fileToEdit && setFileToEdit) {
             setFileToEdit(undefined);
         }
     };
 
-    const getPreviewImage = (id: string) =>{
+    const getPreviewImage = (id: string) => {
         const file = files.find((f) => String(f.id) === id)?.file;
         let preview = "";
         if (file) {
@@ -722,7 +720,7 @@ const AddFileModal = ({
         }
 
         return preview;
-    }
+    };
 
     useEffect(() => {
         if (files.length === fileResults.length && fileResults.length > 0) {
@@ -754,7 +752,6 @@ const AddFileModal = ({
             }
         }
     }, [files, fileResults, hasErrorMessage, hasSuccessMessage]);
-    
 
     return (
         <Modal
@@ -765,90 +762,98 @@ const AddFileModal = ({
             setModalState={setStateModal}
         >
             <div className="w-full flex grow mb-2">
-                <h3 className="font-bold text-center text-2xl my-2 w-full self-center" >
+                <h3 className="font-bold text-center text-2xl my-2 w-full self-center">
                     {type === "edit" ? "Edit" : "Add"}
                 </h3>
             </div>
             <form className="form-control space-y-4" onSubmit={handleSubmit}>
                 <div className="form-control space-y-2">
-                    {type !== "edit" &&
-                    <input
-                        type="file"
-                        id="file-input"
-                        multiple={
-                            fileType === "logsheet" || fileType === "navfile"
-                                ? false
-                                : true
-                        }
-                        title={getInputTitle(
-                            fileType === "visitImage" ? "image" : "file",
-                        )}
-                        accept={fileType === "visitImage" ? "image/*" : "*"}
-                        className={` ${otherErrorBadge?.includes("file") ? "file-input-error" : ""} file-input file-input-bordered w-full `}
-                        onChange={(e) => {
-                            defaultValues();
-                            
-                            const files = e.target.files;
-                            if (files && files.length > 0) {
-                                Array.from(files).forEach((file) => {
-                                    if (fileType === "visitImage") {
-                                        handleChangePhoto(e.target);
-                                    } else if (
-                                        fileType === "gnss" ||
-                                        fileType === "other"
-                                    ) {
-                                        handleChangeFiles(e.target);
-                                    } else {
-                                        dispatch({
-                                            type: "change_value",
-                                            payload: {
-                                                inputName:
-                                                    fileType === "logsheet"
-                                                        ? "log_sheet_file"
-                                                        : fileType === "navfile"
-                                                          ? "navigation_file"
-                                                          : "file",
-                                                inputValue: file,
-                                            },
-                                        });
-                                        dispatch({
-                                            type: "change_value",
-                                            payload: {
-                                                inputName:
-                                                    fileType === "logsheet"
-                                                        ? "log_sheet_filename"
-                                                        : fileType === "navfile"
-                                                          ? "navigation_filename"
-                                                          : "filename",
-                                                inputValue: file.name,
-                                            },
-                                        });
-                                    }
-                                });
-                            } else if (files && files.length === 0) {
-                                setFiles([]);
-                                setProgressBar(false);
-                                setBMsg(undefined);
-                                setGlobalDescription("");
+                    {type !== "edit" && (
+                        <input
+                            type="file"
+                            id="file-input"
+                            multiple={
+                                fileType === "logsheet" ||
+                                fileType === "navfile"
+                                    ? false
+                                    : true
                             }
-                        }}
-                    />
-                    }
-                    {(multipleFileTypes.includes(fileType) || (type === "edit")) && (
+                            title={getInputTitle(
+                                fileType === "visitImage" ? "image" : "file",
+                            )}
+                            accept={fileType === "visitImage" ? "image/*" : "*"}
+                            className={` ${otherErrorBadge?.includes("file") ? "file-input-error" : ""} file-input file-input-bordered w-full `}
+                            onChange={(e) => {
+                                defaultValues();
+
+                                const files = e.target.files;
+                                if (files && files.length > 0) {
+                                    Array.from(files).forEach((file) => {
+                                        if (fileType === "visitImage") {
+                                            handleChangePhoto(e.target);
+                                        } else if (
+                                            fileType === "gnss" ||
+                                            fileType === "other"
+                                        ) {
+                                            handleChangeFiles(e.target);
+                                        } else {
+                                            dispatch({
+                                                type: "change_value",
+                                                payload: {
+                                                    inputName:
+                                                        fileType === "logsheet"
+                                                            ? "log_sheet_file"
+                                                            : fileType ===
+                                                                "navfile"
+                                                              ? "navigation_file"
+                                                              : "file",
+                                                    inputValue: file,
+                                                },
+                                            });
+                                            dispatch({
+                                                type: "change_value",
+                                                payload: {
+                                                    inputName:
+                                                        fileType === "logsheet"
+                                                            ? "log_sheet_filename"
+                                                            : fileType ===
+                                                                "navfile"
+                                                              ? "navigation_filename"
+                                                              : "filename",
+                                                    inputValue: file.name,
+                                                },
+                                            });
+                                        }
+                                    });
+                                } else if (files && files.length === 0) {
+                                    setFiles([]);
+                                    setProgressBar(false);
+                                    setBMsg(undefined);
+                                    setGlobalDescription("");
+                                }
+                            }}
+                        />
+                    )}
+                    {(multipleFileTypes.includes(fileType) ||
+                        type === "edit") && (
                         <label
                             className={`w-full input input-bordered flex items-center gap-2 `}
                             title={globalDescription}
                         >
                             <div className="label">
                                 <span className="font-bold">
-                                    {type === "edit" ? "FILE DESCRIPTION" : "GLOBAL DESCRIPTION"}
+                                    {type === "edit"
+                                        ? "FILE DESCRIPTION"
+                                        : "GLOBAL DESCRIPTION"}
                                 </span>
                             </div>
                             <input
                                 type="text"
                                 value={globalDescription}
                                 onChange={(e) => {
-                                    submited ? ()=>{} : setGlobalDescription(e.target.value);
+                                    submited
+                                        ? () => {}
+                                        : setGlobalDescription(e.target.value);
                                 }}
                                 disabled={files.length === 0 && type !== "edit"}
                                 className="grow "
@@ -880,7 +885,7 @@ const AddFileModal = ({
                                         pageRecord={{ pageType, id: id ?? 0 }}
                                         fileResults={fileResults}
                                         setFiles={setFiles}
-                                        image = {getPreviewImage(String(f.id))}
+                                        image={getPreviewImage(String(f.id))}
                                     />
                                 ))}
                             </div>
@@ -913,14 +918,16 @@ const AddFileModal = ({
                 )}
                 <button
                     className="btn btn-success self-center w-3/12"
-                    disabled={(type !== "edit" || apiOkStatuses.includes(Number(bMsg?.status))) && 
+                    disabled={
+                        (type !== "edit" ||
+                            apiOkStatuses.includes(Number(bMsg?.status))) &&
                         ((fileType !== "logsheet" &&
                             fileType !== "navfile" &&
                             files.length === 0) ||
-                        progressBar ||
-                        loading ||
-                        apiOkStatuses.includes(Number(bMsg?.status)) ||
-                        (fileResults.length > 0))
+                            progressBar ||
+                            loading ||
+                            apiOkStatuses.includes(Number(bMsg?.status)) ||
+                            fileResults.length > 0)
                     }
                 >
                     {" "}

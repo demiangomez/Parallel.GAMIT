@@ -104,6 +104,8 @@ urlpatterns = [
          views.GetPreviousStationInfoFromRinex.as_view(), name='rinex_get_previous_station_info'),
     path('rinex/<int:pk>/get-next-station-info',
          views.GetNextStationInfoFromRinex.as_view(), name='rinex_get_next_station_info'),
+    path('rinex-completion-plot/<int:station_api_id>', views.RinexCompletionPlot.as_view(),
+         name='rinex_completion_plot'),
     path('rinex-sources-info', views.RinexSourcesInfoList.as_view(),
          name='rinex_sources_info_list'),
     path('rinex-sources-info/<int:pk>', views.RinexSourcesInfoDetail.as_view(),
@@ -212,4 +214,5 @@ urlpatterns = [
          name='visit_gnss_data_files_list'),
     path('visit-gnss-data-files/<int:pk>', views.VisitGNSSDataFilesDetail.as_view(),
          name='visit_gnss_data_files_detail'),
+    
 ]
