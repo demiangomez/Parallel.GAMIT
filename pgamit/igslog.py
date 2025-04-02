@@ -15,7 +15,6 @@ _REGEX_ID_V1 appears to be missing the parenthesis between OR aka | operator:
     to: ((?:Nine\sCharacter\sID)|(?:Four\sCharacter\sID)|(?:Site\sID))
     (ps. probably same issue in the regex for igs format v2)
     It also needs to allow 'Nine Character ID' in v1
-DDG: no, changed back to (?:Nine\sCharacter\sID|Four\sCharacter\sID|Site\sID)\s+\:\s*(\w{4}).*\W+
     
 extract_id_block() inside:
     id_block = [id_block[1].decode().upper(), id_block[2].decode().upper()] = 
@@ -205,11 +204,12 @@ def extract_id_block(
         raise LogVersionError(f"Incorrect version string '{version}' passed to the extract_id_block() function")
 
     id_block = _REGEX_ID.search(data)
+    print(id_block)
     if id_block is None:
         logger.warning(f"ID rejected from {file_path}")
         return _np.array([]).reshape(0, 12)
 
-    id_block = [id_block[2].decode().upper(), id_block[1].decode().upper()]  # no .groups() thus 1 and 2
+    id_block = [id_block[1].decode().upper(), id_block[2].decode().upper()]  # no .groups() thus 1 and 2
     code = id_block[0]
     return id_block
 
@@ -448,11 +448,11 @@ def parse_igs_log_file(file_path: _np.ndarray) -> Union[_np.ndarray, None]:
 
 
 if __name__ == "__main__":
-    test_input = ('IGM1.log')
+    test_input = ('CHOY.log')
     result = parse_igs_log_file(test_input)
     fs = ' {:4.4}  {:16.16}  {:19.19}{:19.19}{:7.4f}  {:5.5}  {:7.4f}  {:7.4f}  {:20.20}  ' \
                      '{:20.20}  {:>5.5}  {:20.20}  {:15.15}  {:5.5}  {:20.20}'
-    print(result)
+
     stninfo = []
     for row in result:
         stninfo.append(fs.format(

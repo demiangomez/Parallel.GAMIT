@@ -3292,7 +3292,7 @@ class ETM:
                                 raise pyETMException('Relaxation parameters must be float type')
                             if r <= 0:
                                 raise pyETMException('Relaxation parameters must be > 0')
-                    else:
+                    elif not len(params['relaxation']) and params['jump_type'] > 0:
                         raise pyETMException('At least one relaxation needed for jump_type > 0')
 
                 # query params to find the jump
