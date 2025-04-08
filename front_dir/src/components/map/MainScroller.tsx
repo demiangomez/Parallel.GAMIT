@@ -2,7 +2,12 @@ import { useState, useEffect } from "react";
 import { Scroller, Spinner } from "@componentsReact";
 import { useAuth, useApi, useLocalStorage } from "@hooks";
 import { getStationStatusService, getStationTypesService } from "@services";
-import { EarthQuakeFormState, FilterState, StationStatus, StationStatusServiceData} from "@types";
+import {
+    EarthQuakeFormState,
+    FilterState,
+    StationStatus,
+    StationStatusServiceData,
+} from "@types";
 
 interface MainScrollerProps {
     mapState: boolean;
@@ -58,7 +63,6 @@ const MainScroller = ({
     setShowScroller,
     setShowEarthquakeModal,
 }: MainScrollerProps) => {
-
     //------------------------------------------------UseAuth----------------------------------------------
     const { token, logout } = useAuth();
 
@@ -77,7 +81,7 @@ const MainScroller = ({
     const [stationStatus, setStationStatus] = useState<StationStatus[]>([]);
 
     const [loading, setLoading] = useState<boolean>(false);
-    
+
     //------------------------------------------------Functions----------------------------------------------
     const handleLocalStorage = (key: string, value: string) => {
         setMapFilters(
@@ -143,15 +147,17 @@ const MainScroller = ({
 
             setFilterState((prev) => ({
                 ...prev,
-                typeOption: f.stationType?? [],
-                statusOption: f.stationStatus??[],
+                typeOption: f.stationType ?? [],
+                statusOption: f.stationStatus ?? [],
             }));
         }
     }, [mapFilters]);
 
     useEffect(() => {
-        getTypes();
-    }, []);
+        if (!mapState) {
+            getTypes();
+        }
+    }, [mapState]);
 
     //------------------------------------------------Return----------------------------------------------
 
@@ -202,7 +208,6 @@ const MainScroller = ({
                                         max_longitude: "",
                                         polygon_coordinates: [[]],
                                     });
-                                    
                                 }}
                             >
                                 <label className="label cursor-pointer truncate w-[370px]">

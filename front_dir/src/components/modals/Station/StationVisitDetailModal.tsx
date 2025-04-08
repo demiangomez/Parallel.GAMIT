@@ -1149,7 +1149,7 @@ const StationVisitDetailModal = ({
                                                     </div>
                                                 ) : (
                                                     <div className="text-center text-neutral text-xl font-bold w-full rounded-md bg-neutral-content p-6">
-                                                        There are no navigation
+                                                        There is no navigation
                                                         file
                                                     </div>
                                                 )}
@@ -1393,12 +1393,13 @@ const StationVisitDetailModal = ({
                                 >
                                     <input
                                         type="text"
-                                        className=" rounded-md text-md input input-sm input-bordered"
+                                        className="rounded-md text-md input input-sm input-bordered"
                                         onChange={(e) => {
                                             filterObservationFiles(
                                                 e.target.value,
                                             );
                                         }}
+                                        placeholder="Search"
                                     />
                                     <button
                                         className="btn btn-ghost btn-circle ml-2"
@@ -1581,7 +1582,7 @@ const StationVisitDetailModal = ({
                                         })
                                 ) : (
                                     <div className="text-center text-neutral text-2xl font-bold w-full rounded-md bg-neutral-content p-6">
-                                        There are no files registered
+                                        There are no observation files
                                     </div>
                                 )}
                             </div>
@@ -1619,6 +1620,7 @@ const StationVisitDetailModal = ({
                                         onChange={(e) => {
                                             filterOtherFiles(e.target.value);
                                         }}
+                                        placeholder="Search"
                                     />
                                     <button
                                         className="btn btn-ghost btn-circle ml-2"
@@ -1795,7 +1797,7 @@ const StationVisitDetailModal = ({
                                         })
                                 ) : (
                                     <div className="text-center text-neutral text-2xl font-bold w-full rounded-md bg-neutral-content p-6">
-                                        There are no files registered
+                                        There are no other files
                                     </div>
                                 )}
                             </div>

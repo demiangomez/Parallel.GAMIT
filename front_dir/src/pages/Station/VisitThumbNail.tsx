@@ -23,10 +23,12 @@ interface VisitThumbNailProps {
     campaigns: StationCampaignsData[] | undefined;
     loadingVisitImages: boolean;
     visitImages: StationVisitsFilesData[] | undefined;
+    types: { image: string; name: string }[];
+    statuses: { name: string; color: string }[];
 }
 
 
-const VisitThumbNail = ({station, visit, setModals, setVisitToDel, setVisit, campaigns, loadingVisitImages, visitImages}:VisitThumbNailProps) => {
+const VisitThumbNail = ({station, visit, setModals, setVisitToDel, setVisit, campaigns, loadingVisitImages, visitImages, types, statuses}:VisitThumbNailProps) => {
     const joinPeople = (people: {id: number, name: string}[]) =>{
         return people.map(person => person.name).join(", ");
     }
@@ -155,6 +157,8 @@ const VisitThumbNail = ({station, visit, setModals, setVisitToDel, setVisit, cam
                     ""
                     }
                     station={station}
+                    statuses = {statuses}
+                    types = {types}
                 />
                 </div>
             )}

@@ -1,17 +1,26 @@
 import React, { useEffect, useState } from "react";
 import { Modal, MapModal } from "@componentsReact";
-import { showModal } from "@utils";
+import { showModal, findLimits } from "@utils";
 import { EarthQuakeFormState } from "@types";
 import { LatLngExpression } from "leaflet";
 
 interface EarthQuakeModalProps {
     formstate: EarthQuakeFormState;
     handleEarthquakes: () => void;
-    setInitialCenter?: React.Dispatch<React.SetStateAction<LatLngExpression | undefined>>;
+    setInitialCenter?: React.Dispatch<
+        React.SetStateAction<LatLngExpression | undefined>
+    >;
     setFormState: React.Dispatch<React.SetStateAction<EarthQuakeFormState>>;
     setShowEarthQuakesList: React.Dispatch<React.SetStateAction<boolean>>;
-    setShowEarthquakeModal: React.Dispatch<React.SetStateAction<| { show: boolean; title: string; type: "add" | "edit" | "none" }| undefined>>;
-    setPosToFly: React.Dispatch<React.SetStateAction<LatLngExpression | undefined>>;
+    setShowEarthquakeModal: React.Dispatch<
+        React.SetStateAction<
+            | { show: boolean; title: string; type: "add" | "edit" | "none" }
+            | undefined
+        >
+    >;
+    setPosToFly: React.Dispatch<
+        React.SetStateAction<LatLngExpression | undefined>
+    >;
 }
 
 type EarthQuakeFormStateKeys = Omit<EarthQuakeFormState, "polygon_coordinates">;
@@ -64,14 +73,24 @@ const EarthQuakeFormModal = ({
 
         setFormState((prev) => ({
             ...prev,
-            [name]: value,
+            [name]:
+                name === "date_start"
+                    ? value + "T00:00:00"
+                    : name === "date_end"
+                      ? value + "T23:59:59"
+                      : value,
         }));
 
         localStorage.setItem(
             "earthQuakeFilters",
             JSON.stringify({
                 ...formstate,
-                [name]: value,
+                [name]:
+                    name === "date_start"
+                        ? value + "T00:00:00"
+                        : name === "date_end"
+                          ? value + "T23:59:59"
+                          : value,
             }),
         );
     };
@@ -82,7 +101,7 @@ const EarthQuakeFormModal = ({
     };
 
     const isEmptyForm = (form: EarthQuakeFormState) => {
-        if(
+        if (
             form.id === "" &&
             form.min_magnitude === "" &&
             form.max_magnitude === "" &&
@@ -96,19 +115,19 @@ const EarthQuakeFormModal = ({
             form.date_end === undefined
         )
             return true;
-    }
+    };
 
     const handleSubmitForm = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setInitialCenter && setInitialCenter(undefined);
-            
+
         setShowEarthquakeModal(() => ({
             type: "edit",
             title: "",
             show: false,
         }));
-        
-        if(isEmptyForm(formstate)){
+
+        if (isEmptyForm(formstate)) {
             localStorage.setItem(
                 "earthQuakeFilters",
                 JSON.stringify(initialState),
@@ -139,6 +158,39 @@ const EarthQuakeFormModal = ({
 
         return finalArray;
     };
+
+    const handleDrawPolygon = (e: any) => {
+            const latlngs = e.layer.getLatLngs();
+            const coordinates = latlngs[0].map((latlng: any) => [
+                latlng.lat,
+                latlng.lng,
+            ]);
+            const completedCoordinates = coordinates.concat([coordinates[0]]);
+            const limits = findLimits(coordinates);
+    
+            setFormState((prev) => ({
+                ...prev,
+                max_latitude: limits.max_latitude.toString(),
+                min_latitude: limits.min_latitude.toString(),
+                max_longitude: limits.max_longitude.toString(),
+                min_longitude: limits.min_longitude.toString(),
+                polygon_coordinates: completedCoordinates,
+            }));
+    
+            localStorage.setItem(
+                "earthQuakeFilters",
+                JSON.stringify({
+                    ...formstate,
+                    max_latitude: limits.max_latitude.toString(),
+                    min_latitude: limits.min_latitude.toString(),
+                    max_longitude: limits.max_longitude.toString(),
+                    min_longitude: limits.min_longitude.toString(),
+                    polygon_coordinates: completedCoordinates,
+                }),
+            );
+    
+            setShowMapModal(() => ({ type: "edit", show: false, title: "" }));
+        };
 
     //---------------------------------------------------------useState-------------------------------------------------------------
 
@@ -196,8 +248,11 @@ const EarthQuakeFormModal = ({
                                 className="input join-item input-bordered flex items-center w-full"
                             >
                                 <input
-                                    type="datetime-local"
-                                    value={formstate.date_start ?? ""}
+                                    type="date"
+                                    value={
+                                        formstate.date_start?.split("T")[0] ??
+                                        ""
+                                    }
                                     name="date_start"
                                     id="date_start"
                                     className="w-full"
@@ -214,8 +269,10 @@ const EarthQuakeFormModal = ({
                                 className="input join-item input-bordered flex items-center w-full"
                             >
                                 <input
-                                    type="datetime-local"
-                                    value={formstate.date_end ?? ""}
+                                    type="date"
+                                    value={
+                                        formstate.date_end?.split("T")[0] ?? ""
+                                    }
                                     name="date_end"
                                     id="date_end"
                                     className="w-full"
@@ -308,9 +365,9 @@ const EarthQuakeFormModal = ({
             </div>
             {showMapModal && showMapModal.title === "map" ? (
                 <MapModal
-                    formState={formstate}
                     setShowMapModal={setShowMapModal}
-                    setFormState={setFormState}
+                    handleDrawPolygon={handleDrawPolygon}
+                    markerType="polygon"
                 />
             ) : null}
         </Modal>

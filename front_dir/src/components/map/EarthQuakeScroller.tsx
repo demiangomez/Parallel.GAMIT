@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { Spinner } from "@componentsReact";
 
+// import { ArrowDownTrayIcon, ClipboardIcon } from "@heroicons/react/24/outline";
+
 import { formattedDates } from "@utils";
 
 import { EarthquakeData } from "@types";
@@ -96,7 +98,7 @@ const EarthQuakeScroller: React.FC<EarthQuakeScrollerProps> = ({
                                     stroke="currentColor"
                                     className="size-6 cursor-pointer mt-2 mr-1 hover:bg-gray-200 hover:rounded-full hover:shadow-md"
                                     onClick={() => {
-                                        handleEarthquakeClose()
+                                        handleEarthquakeClose();
                                     }}
                                 >
                                     <path
@@ -114,8 +116,7 @@ const EarthQuakeScroller: React.FC<EarthQuakeScrollerProps> = ({
                                         <h2>Search results</h2>
                                     </div>
                                     <div className="">
-                                        {earthquakes.length +
-                                            " earthquakes."}
+                                        {earthquakes.length + " earthquakes."}
                                     </div>
                                 </div>
                                 <div className="flex justify-center items-start flex-col">
@@ -162,7 +163,7 @@ const EarthQuakeScroller: React.FC<EarthQuakeScrollerProps> = ({
                                     <div
                                         key={
                                             forceRenderContainer +
-                                            earthquake.api_id + 
+                                            earthquake.api_id +
                                             forceSyncMapScroller
                                         }
                                         onClick={() => {
@@ -192,6 +193,85 @@ const EarthQuakeScroller: React.FC<EarthQuakeScrollerProps> = ({
                                                             "km"}
                                                     </span>
                                                 </div>
+                                                <div>
+                                                    <span>{earthquake.id}</span>
+                                                </div>
+                                                {/* {isStateTrue(earthquake) ? (
+                                                    <div className="mt-4">
+                                                        <div>
+                                                            <span className="font-bold">
+                                                                Masks
+                                                            </span>
+                                                            <div className="grid grid-cols-2 gap-4">
+                                                                <div className="flex flex-col items-center justify-center">
+                                                                    <span className="font-semibold text-sm">
+                                                                        Coseismic
+                                                                    </span>
+                                                                    <button
+                                                                        className="btn btn-ghost btn-circle"
+                                                                        onClick={(
+                                                                            e,
+                                                                        ) => {
+                                                                            e.stopPropagation();
+                                                                            console.log(
+                                                                                "Coseismic",
+                                                                            );
+                                                                        }}
+                                                                    >
+                                                                        <ArrowDownTrayIcon className="size-6" />
+                                                                    </button>
+                                                                </div>
+                                                                <div className="flex flex-col items-center justify-center">
+                                                                    <span className="font-semibold text-sm">
+                                                                        Postseismic
+                                                                    </span>
+                                                                    <button
+                                                                        className="btn btn-ghost btn-circle"
+                                                                        onClick={(
+                                                                            e,
+                                                                        ) => {
+                                                                            e.stopPropagation();
+                                                                            console.log(
+                                                                                "Coseismic",
+                                                                            );
+                                                                        }}
+                                                                    >
+                                                                        <ArrowDownTrayIcon className="size-6" />
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <span className="font-bold">
+                                                                Stations
+                                                                Affected
+                                                            </span>
+                                                            <div className="grid grid-cols-2 gap-4 justify-items-center">
+                                                                <button
+                                                                    className="btn btn-ghost btn-circle"
+                                                                    onClick={(
+                                                                        e,
+                                                                    ) => {
+                                                                        e.stopPropagation();
+                                                                    }}
+                                                                >
+                                                                    <ArrowDownTrayIcon className="size-6" />
+                                                                </button>
+
+                                                                <button
+                                                                    className="btn btn-ghost btn-circle"
+                                                                    onClick={(
+                                                                        e,
+                                                                    ) => {
+                                                                        e.stopPropagation();
+                                                                    }}
+                                                                >
+                                                                    <ClipboardIcon className="size-6" />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ) : null} */}
                                             </div>
                                         </div>
                                     </div>

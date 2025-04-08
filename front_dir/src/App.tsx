@@ -5,7 +5,7 @@ import {
     createRoutesFromElements,
 } from "react-router-dom";
 
-import 'global';
+import "global";
 
 import {
     Error,
@@ -160,7 +160,6 @@ const router = createBrowserRouter(
 function App() {
     return (
         <AuthProvider>
-            
             <RouterProvider
                 router={router}
                 future={{ v7_startTransition: true }}

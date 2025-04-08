@@ -333,12 +333,15 @@ const TimeSeriesConfigModal = ({type, valueToModify, data, stationId, refetch, s
                             }
                         }}
                         >
-                        {type.table === "periodic" ? "Add Frequency" : "Add Relaxation"}
+                        {type.table === "periodic" ? "Add Frequency" : "Add Relaxation Years"}
                         </button>
                     </div>
-                    <div className="max-h-44 flex flex-wrap gap-3 justify-center overflow-y-auto w-full p-2">
+                    <div className="max-h-44 flex flex-wrap gap-3 justify-start items-center overflow-y-auto w-full p-2">
+                        {Array.isArray(formState.relaxation) &&
+                            <label className="font-bold text-lg">Years:</label>
+                        }
                         {Array.isArray(formState.frequence) && formState.frequence.map((freq: number, i: number) => (
-                        <div key={i} className="flex flex-row justify-between items-center badge badge-primary gap-2 m-1 p-4">
+                        <div key={i} className="flex flex-row justify-between items-center badge badge-primary gap-2 p-4">
                             {freq}
                             <button
                             type="button"
@@ -438,8 +441,7 @@ const TimeSeriesConfigModal = ({type, valueToModify, data, stationId, refetch, s
             <button
                 className="btn btn-success self-center w-3/12"
                 disabled={
-                apiOkStatuses.includes(Number(msg?.status)) ||
-                success
+                apiOkStatuses.includes(Number(msg?.status))
                 }
                 type="submit"
             >

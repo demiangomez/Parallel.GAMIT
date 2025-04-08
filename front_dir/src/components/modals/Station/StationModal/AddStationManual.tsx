@@ -11,16 +11,9 @@ import { METADATA_STATE } from "@utils/reducerFormStates";
 
 import { FormReducerAction } from "@hooks/useFormReducer";
 
-import { EditControl} from "react-leaflet-draw";
-
-import { LatLngExpression} from "leaflet";
-
-import { MapContainer, TileLayer, FeatureGroup, useMap} from "react-leaflet";
-
 import {
     useApi,
     useAuth,
-    useLocalStorage,
 } from "@hooks";
 
 import {
@@ -31,10 +24,24 @@ import {
 
 import {
     Errors,
-    MyMapContainerProps,
     NetworkServiceData,
     NetworkData,
 } from "@types";
+
+import {
+    showModal
+} from "@utils";
+
+import {MapModal} from "@components/index"
+
+// interface CoordinatesData{
+//     lat: string,
+//     lon: string,
+//     height: string,
+//     auto_x: string,
+//     auto_y: string,
+//     auto_z: string,
+// }
 
 interface StationMetadataProps {
     coordinatesType: "ecef" | "latlon" | "map" | undefined;
@@ -53,55 +60,6 @@ interface StationMetadataProps {
     showMenu: { type: string; show: boolean } | undefined;
     setShowMenu: React.Dispatch<React.SetStateAction<{ type: string; show: boolean } | undefined>>;
 }
-
-const SetView = () => {
-    const map = useMap();
-
-    //-----------------------------------------------------UseLocalStorage-----------------------------------------------------
-
-    const [, setLastZoomLevel] = useLocalStorage("lastZoomLevel", "8");
-
-    const [, setLastPosition] = useLocalStorage("lastPosition", "[0,0]");
-
-    //-----------------------------------------------------UseEffect-----------------------------------------------------
-
-    useEffect(() => {
-        const onZoomEnd = () => {
-            const currentZoom = map.getZoom();
-            setLastZoomLevel(currentZoom.toString());
-        };
-
-        const onMoveEnd = () => {
-            const currentCenter = map.getCenter();
-            setLastPosition([currentCenter.lat, currentCenter.lng].toString());
-        };
-
-        map.on("zoomend", onZoomEnd);
-        map.on("moveend", onMoveEnd);
-
-        return () => {
-            map.off("zoomend", onZoomEnd);
-            map.off("moveend", onMoveEnd);
-        };
-    }, [map]);
-    return null;
-};
-
-const ChangeView = ({
-    center,
-    zoom,
-}: {
-    center: LatLngExpression;
-    zoom: number;
-}) => {
-    const map = useMap();
-
-    useEffect(() => {
-        map.setView(center, zoom);
-    }, [center, zoom, map]);
-
-    return null;
-};
 
 const AddStationManual = ({
     coordinatesType,
@@ -122,19 +80,22 @@ const AddStationManual = ({
     const generalFields = [
         "Station Code",
         "Network Code",
-        "Dome",
+        "Domes Number",
         "Max distance",
     ];
 
     const inputRefNetworkCode = useRef<HTMLInputElement>(null);
 
-    const [mapProps, ] = useState<MyMapContainerProps>({
-        center: [0, 0],
-        zoom: 4,
-        scrollWheelZoom: true,
-    });
+   
 
     const [createLoading, setCreateLoading] = useState<boolean>(false);
+
+    const [showMapModal, setShowMapModal] = useState<
+            | { show: boolean; title: string; type: "add" | "edit" | "none" }
+            | undefined
+        >(undefined);
+
+    // const [currentCoordinates, setCurrentCoordinates] = useState<CoordinatesData | undefined>(undefined)
 
     const [networks, setNetworks] = useState<NetworkData[] | undefined>([]);
 
@@ -158,6 +119,8 @@ const AddStationManual = ({
             inputValue: longitude.toString() 
             }
         });
+
+        // setShowMapModal(() => ({ type: "edit", show: false, title: "" }));
     };
 
     const handleChange = (
@@ -232,6 +195,67 @@ const AddStationManual = ({
 
     }
 
+    function lla2ecef(llaArr: number[]): {x: number, y: number, z: number} {
+        const [lat, lon, alt] = llaArr;
+        
+        // Convertir a radianes
+        const rad_lat = lat * Math.PI / 180;
+        const rad_lon = lon * Math.PI / 180;
+        
+        // Parámetros WGS84
+        const a = 6378137.0;
+        const finv = 298.257223563;
+        const f = 1 / finv;
+        const e2 = 1 - (1 - f) * (1 - f);
+        
+        const v = a / Math.sqrt(1 - e2 * Math.pow(Math.sin(rad_lat), 2));
+        
+        const x = (v + alt) * Math.cos(rad_lat) * Math.cos(rad_lon);
+        const y = (v + alt) * Math.cos(rad_lat) * Math.sin(rad_lon);
+        const z = (v * (1 - e2) + alt) * Math.sin(rad_lat);
+        
+        // Redondear a 8 decimales
+        return {
+            x: parseFloat(x.toFixed(8)),
+            y: parseFloat(y.toFixed(8)), 
+            z: parseFloat(z.toFixed(8))
+        };
+    }
+
+    function ecef2lla(ecefArr: number[]): {lat: number, lon: number, alt: number} {
+        const [x, y, z] = ecefArr;
+        
+        // Parámetros WGS84
+        const a = 6378137; // Semieje mayor (m)
+        const e = 8.1819190842622e-2; // Excentricidad
+        
+        const asq = Math.pow(a, 2);
+        const esq = Math.pow(e, 2);
+        
+        const b = Math.sqrt(asq * (1 - esq));
+        const bsq = Math.pow(b, 2);
+        
+        const ep = Math.sqrt((asq - bsq) / bsq);
+        const p = Math.sqrt(Math.pow(x, 2) + Math.pow(y, 2));
+        const th = Math.atan2(a * z, b * p);
+        
+        const lon = Math.atan2(y, x);
+        const lat = Math.atan2(
+            (z + Math.pow(ep, 2) * b * Math.pow(Math.sin(th), 3)),
+            (p - esq * a * Math.pow(Math.cos(th), 3))
+        );
+        
+        const N = a / Math.sqrt(1 - esq * Math.pow(Math.sin(lat), 2));
+        const alt = p / Math.cos(lat) - N;
+        
+        // Convertir a grados y redondear a 8 decimales
+        return {
+            lat: parseFloat((lat * 180 / Math.PI).toFixed(8)),
+            lon: parseFloat((lon * 180 / Math.PI).toFixed(8)),
+            alt: parseFloat(alt.toFixed(8))
+        };
+    }
+
     useEffect(() => {
         if (showMenu) {
             const ref = inputRefNetworkCode;
@@ -242,57 +266,71 @@ const AddStationManual = ({
     }, [showMenu]);
 
     useEffect(() => {
-        if(coordinatesType === "map" || coordinatesType === "latlon"){ 
+        getNetworks()
+    }, [])
+
+    useEffect(() => {
+        if (coordinatesType === "ecef" && formState.station.lat && formState.station.lon) {
+            const {x, y, z} = lla2ecef([
+                Number(formState.station.lat),
+                Number(formState.station.lon),
+                Number(formState.station.height ?? 0)
+            ]);
             dispatch({
                 type: "change_value",
                 payload: {
                     inputName: "station.auto_x",
-                    inputValue: "",
+                    inputValue: x.toString(),
                 },
             });
             dispatch({
                 type: "change_value", 
                 payload: {
                     inputName: "station.auto_y",
-                    inputValue: "",
+                    inputValue: y.toString(),
                 },
             });
             dispatch({
                 type: "change_value",
                 payload: {
                     inputName: "station.auto_z", 
-                    inputValue: "",
+                    inputValue: z.toString(),
                 },
             });
         }
-        else if(coordinatesType === "ecef"){
+        else if (coordinatesType === "latlon" && formState.station.auto_x && formState.station.auto_y) {
+            const {lat, lon, alt} = ecef2lla([
+                Number(formState.station.auto_x),
+                Number(formState.station.auto_y), 
+                Number(formState.station.auto_z ?? 0)
+            ]);
             dispatch({
                 type: "change_value",
                 payload: {
                     inputName: "station.lat",
-                    inputValue: "",
-                },
-            });
-            dispatch({
-                type: "change_value", 
-                payload: {
-                    inputName: "station.lon",
-                    inputValue: "",
+                    inputValue: lat.toString(),
                 },
             });
             dispatch({
                 type: "change_value",
                 payload: {
-                    inputName: "station.height", 
-                    inputValue: "",
+                    inputName: "station.lon",
+                    inputValue: lon.toString(),
+                },
+            });
+            dispatch({
+                type: "change_value",
+                payload: {
+                    inputName: "station.height",
+                    inputValue: alt.toString(),
                 },
             });
         }
     }, [coordinatesType]);
 
     useEffect(() => {
-        getNetworks()
-    }, [])
+            showMapModal?.show && showModal(showMapModal.title);
+        }, [showMapModal]);
 
     return (
         <div className="w-full">
@@ -303,7 +341,7 @@ const AddStationManual = ({
                             General
                         </h2>
                         <div className="card-body">
-                            <div className={`grid grid-cols-2 gap-6`}>
+                            <div className={`grid grid-cols-4 gap-6`}>
                                 {currentPage === 1 && Object.keys(formState.stationMeta).map(
                                     (key, idx) => {
                                         const keysToNotShow = [
@@ -463,7 +501,11 @@ const AddStationManual = ({
                                 >Latitude, Longitude, & Height</button>
                                 <button 
                                     className={`btn flex-1 ${coordinatesType === 'map' ? 'btn-primary' : ''}`}
-                                    onClick={() => setCoordinatesType("map")}
+                                    onClick={() => {setCoordinatesType("latlon"); setShowMapModal({
+                                        show: true,
+                                        title: "map",
+                                        type: "none",
+                                    })}}
                                 >Map</button>
                             </div>
                             {coordinatesType === "ecef" && (
@@ -504,43 +546,6 @@ const AddStationManual = ({
                                     ))}
                                 </div>
                             )}
-            
-                            {coordinatesType === "map" && (
-                                <div className="col-span-2 h-[300px] w-full">
-                                    <MapContainer
-                                        {...mapProps}
-                                        preferCanvas={true}
-                                        zoomControl={false}
-                                        maxBoundsViscosity={1.0}
-                                        worldCopyJump={true}
-                                        className="w-full h-full"
-                                    >
-                                        <ChangeView center={mapProps.center} zoom={mapProps.zoom} />
-                                        <SetView />
-                                        <TileLayer
-                                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                                            minZoom={4}
-                                        />
-                                        <FeatureGroup>
-                                            <EditControl
-                                                position="topright"
-                                                onCreated={(e) => {
-                                                    handleDrawPolygon(e);
-                                                }}
-                                                draw={{
-                                                    rectangle: false,
-                                                    polyline: false,
-                                                    circle: false,
-                                                    marker: true,
-                                                    circlemarker: false,
-                                                    polygon: false,
-                                                }}
-                                            />
-                                        </FeatureGroup>
-                                    </MapContainer>
-                                </div>
-                            )}
                         </div>
                     </div>
                 </div>
@@ -569,6 +574,12 @@ const AddStationManual = ({
                     </button>
                 </div>
             </div>
+            { showMapModal && showMapModal.show && showMapModal.title === "map" &&
+            <MapModal
+                setShowMapModal={setShowMapModal}
+                handleDrawPolygon={handleDrawPolygon}
+                markerType="marker"
+            />}
         </div>
     );
 };

@@ -1956,10 +1956,6 @@ const StationMetadataModal = ({
                                     {Object.entries(formState.equipment).map(
                                         ([key, value], idx) => {
                                             if (key) {
-                                                console.log(
-                                                    equipmentFields,
-                                                    idx,
-                                                );
                                                 return (
                                                     <div key={key}>
                                                         <div className="text-sm font-bold flex items-center">

@@ -403,12 +403,8 @@ const MainPage = () => {
 
     const handleEarthQuakeParams = (formstate: EarthQuakeFormState) => {
         setEarthQuakeParams({
-            date_start: formstate.date_start
-                ? formstate.date_start + ":00"
-                : undefined,
-            date_end: formstate.date_end
-                ? formstate.date_end + ":00"
-                : undefined,
+            date_start: formstate.date_start ? formstate.date_start : undefined,
+            date_end: formstate.date_end ? formstate.date_end : undefined,
             max_magnitude: formstate.max_magnitude
                 ? parseFloat(formstate.max_magnitude)
                 : undefined,

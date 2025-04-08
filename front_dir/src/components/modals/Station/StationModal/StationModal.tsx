@@ -54,6 +54,8 @@ const StationModal = ({ handleCloseModal }: Props) => {
         }
     };
 
+    
+
     return (
         <Modal
             close={false}
@@ -62,8 +64,9 @@ const StationModal = ({ handleCloseModal }: Props) => {
             handleCloseModal={() => {
                 internalHandleCloseModal();
             }}
+
         >
-            <div className="flex flex-col items-center justify-center gap-4 h-fit">
+            <div className={`flex flex-col items-center justify-center gap-4 ${addType === 'manual' ? 'h-full' : 'h-fit'}`}>
                 <h1 className="text-2xl font-bold">Add Station</h1>
                 {addType === undefined && (
                     <div className="flex flex-row items-center justify-center gap-6">

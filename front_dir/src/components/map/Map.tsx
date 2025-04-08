@@ -207,7 +207,9 @@ const MapMarkers = ({
         StationData[] | undefined
     >(undefined);
 
-    const [overlappedClusters, setOverlappedClusters] = useState<StationData[][] | undefined>(undefined);
+    const [overlappedClusters, setOverlappedClusters] = useState<
+        StationData[][] | undefined
+    >(undefined);
 
     //-------------------------------------------------------------------------------UseEffects--------------------------------------------------------------------------------------
     //Modify setview when refreshing the page
@@ -309,10 +311,6 @@ const MapMarkers = ({
         }
     }, [initialCenter, map]);
 
-    useEffect(() => {
-        updateMarkersByBounds();
-    }, []);
-
     // Forces map and marker renders when you get earthquake affected stations
     useEffect(() => {
         if (earthquakes.length > 0) {
@@ -329,45 +327,70 @@ const MapMarkers = ({
     useEffect(() => {
         getStationStatuses();
         getStationTypes();
-    }, []);
-
-    useEffect(() => {
         overlappedStationsByScale();
+        updateMarkersByBounds();
     }, []);
 
     useEffect(() => {
-        if(Array.isArray(overlappedStations) && overlappedStations.length > 0){
-            const stationsWithOverlapArray = [...new Set(overlappedStations.map(station => station.api_id))].map(id => 
-                overlappedStations.find(station => station.api_id === id)
-            ).filter(station => station !== undefined);
+        if (
+            Array.isArray(overlappedStations) &&
+            overlappedStations.length > 0
+        ) {
+            const stationsWithOverlapArray = [
+                ...new Set(overlappedStations.map((station) => station.api_id)),
+            ]
+                .map((id) =>
+                    overlappedStations.find((station) => station.api_id === id),
+                )
+                .filter((station) => station !== undefined);
             setStationsWithOverlap(stationsWithOverlapArray);
             let auxExistsSimilar = false;
-            const clusters : StationData[][] = [];
-            for(let i = 0; i < overlappedStations.length; i+=1){
+            const clusters: StationData[][] = [];
+            for (let i = 0; i < overlappedStations.length; i += 1) {
                 auxExistsSimilar = false;
                 const auxClusterIndexes: number[] = overlappedStations
-                    .map((station, index) => station.api_id === overlappedStations[i].api_id ? index : -1)
-                    .filter(index => index !== -1);
-                const auxCluster: StationData[] = auxClusterIndexes.map(index => (index % 2 === 0) ? overlappedStations[index + 1] : overlappedStations[index - 1]);
+                    .map((station, index) =>
+                        station.api_id === overlappedStations[i].api_id
+                            ? index
+                            : -1,
+                    )
+                    .filter((index) => index !== -1);
+                const auxCluster: StationData[] = auxClusterIndexes.map(
+                    (index) =>
+                        index % 2 === 0
+                            ? overlappedStations[index + 1]
+                            : overlappedStations[index - 1],
+                );
                 auxCluster.push(overlappedStations[i]);
-                
-                if(clusters.length > 0){
-                    for(let j = 0; j < clusters.length; j++){
-                        const existSimilar = clusters[j].some(station => auxCluster.some(auxStation => station.api_id === auxStation.api_id));
-                        if(existSimilar){
-                            auxExistsSimilar = true;                            
-                            const similarClusterDifferences = auxCluster.filter(auxStation => !clusters[j].some(station => station.api_id === auxStation.api_id));
-                            if(similarClusterDifferences.length > 0){
+
+                if (clusters.length > 0) {
+                    for (let j = 0; j < clusters.length; j++) {
+                        const existSimilar = clusters[j].some((station) =>
+                            auxCluster.some(
+                                (auxStation) =>
+                                    station.api_id === auxStation.api_id,
+                            ),
+                        );
+                        if (existSimilar) {
+                            auxExistsSimilar = true;
+                            const similarClusterDifferences = auxCluster.filter(
+                                (auxStation) =>
+                                    !clusters[j].some(
+                                        (station) =>
+                                            station.api_id ===
+                                            auxStation.api_id,
+                                    ),
+                            );
+                            if (similarClusterDifferences.length > 0) {
                                 clusters[j].push(...similarClusterDifferences);
-                                
                             }
                             break;
                         }
                     }
-                    if(auxExistsSimilar === false){
+                    if (auxExistsSimilar === false) {
                         clusters.push(auxCluster);
                     }
-                    continue
+                    continue;
                 }
                 clusters.push(auxCluster);
             }
@@ -375,22 +398,20 @@ const MapMarkers = ({
         }
     }, [overlappedStations]);
 
-    // GENERAR LISTA DE CLUSTERS DE ESTACIONES QUE SE SOBREPONEN
-    // ESTAS ESTACIONES ESTAN EN OVERLAPPEDSTATIONS DE A PARES
-    // CADA PAR DE ESTACIONES CORRESPONDE A UN CLUSTER, SE DEBE GENERAR UN CAMPO NUEVO SOBRE LA STATION QUE DIGA EL CLUSTER ID QUE CORRESPONDE
-    // LUEGO ITERAR LA LISTA DE ESTACIONES Y CHEQUEAR SI YA EXISTE UN CLUSTER PARA ESA ESTACION XQ ESTAN DESORDENADAS Y ASIGNARLE EL CLUSTER ID CORESPONDIENTE
-    // GENERAR REACT CLUSTER MARKER PARA CADA CLUSTER Y QUITARLAS DE MARKER BY BOUNDS XQ SINO SE VOLVERIAN A OVERLAPEAR
 
     //-------------------------------------------------------------------------------Funciones--------------------------------------------------------------------------------------
 
-    const areStationsOverlapped = (stationA: StationData, stationB: StationData)=>{
+    const areStationsOverlapped = (
+        stationA: StationData,
+        stationB: StationData,
+    ) => {
         const zoom = 16; // map.getZoom() o 10
         const center = map.getCenter();
         const latitude = center.lat;
         const metersPerPixel =
             (156543.03392 * Math.cos((latitude * Math.PI) / 180)) /
             Math.pow(2, zoom);
-        const scale = metersPerPixel * 96 * 39.37; // Convert to scale considering screen DPI 
+        const scale = metersPerPixel * 96 * 39.37; // Convert to scale considering screen DPI
         const VISUAL_ACUITY_MM = 1.8; // Increased from 0.2mm due to larger marker size
         const minDistanceMeters = (VISUAL_ACUITY_MM / 1000) * scale; // Convert mm to meters and apply scale
 
@@ -399,8 +420,9 @@ const MapMarkers = ({
             !stationA?.lon ||
             !stationB?.lat ||
             !stationB?.lon
-        ) {return false}
-        else{
+        ) {
+            return false;
+        } else {
             const distance = map.distance(
                 [stationA.lat, stationA.lon],
                 [stationB.lat, stationB.lon],
@@ -410,27 +432,70 @@ const MapMarkers = ({
                 return true;
             }
         }
-        
-    }
+    };
 
     const overlappedStationsByScale = () => {
-        if (!stations) return;
+        if (!stations || stations.length === 0) return;
 
-        // Check distances between stations
-        for (let i = 0; i < stations.length; i++) {
-            for (let j = i + 1; j < stations.length; j++) {
-                const stationA = stations[i] as StationData;
-                const stationB = stations[j] as StationData;
+        // Use spatial binning to reduce number of comparisons
+        const spatialBins: Record<string, StationData[]> = {};
+        const binSize = 0.01; // Adjust bin size based on your data distribution
 
-                if (areStationsOverlapped(stationA, stationB)) {
-                    setOverlappedStations((prev) => {
-                        return prev
-                            ? [...prev, stationA, stationB]
-                            : [stationA, stationB];
-                    });
-                    // overlappingStations.push(stationA, stationB);
+        // Assign stations to spatial bins
+        stations.forEach((station) => {
+            if (!station.lat || !station.lon) return;
+
+            // Create bin keys based on coordinates rounded to binSize
+            const binX = Math.floor(station.lat / binSize);
+            const binY = Math.floor(station.lon / binSize);
+            const binKey = `${binX}:${binY}`;
+
+            // Add station to its bin and initialize if needed
+            if (!spatialBins[binKey]) spatialBins[binKey] = [];
+            spatialBins[binKey].push(station);
+        });
+
+        // Process each bin and neighboring bins
+        const overlappingPairs: StationData[] = [];
+
+        Object.entries(spatialBins).forEach(([binKey, binStations]) => {
+            // Check stations within the same bin
+            for (let i = 0; i < binStations.length; i++) {
+                for (let j = i + 1; j < binStations.length; j++) {
+                    if (areStationsOverlapped(binStations[i], binStations[j])) {
+                        overlappingPairs.push(binStations[i], binStations[j]);
+                    }
                 }
             }
+
+            // Get bin coordinates
+            const [binX, binY] = binKey.split(":").map(Number);
+
+            // Check neighboring bins (8-connected)
+            for (let dx = -1; dx <= 1; dx++) {
+                for (let dy = -1; dy <= 1; dy++) {
+                    if (dx === 0 && dy === 0) continue; // Skip current bin
+
+                    const neighborKey = `${binX + dx}:${binY + dy}`;
+                    const neighborBin = spatialBins[neighborKey];
+
+                    if (neighborBin) {
+                        // Check stations between current bin and neighbor bin
+                        for (const stationA of binStations) {
+                            for (const stationB of neighborBin) {
+                                if (areStationsOverlapped(stationA, stationB)) {
+                                    overlappingPairs.push(stationA, stationB);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Update state only once with all found pairs
+        if (overlappingPairs.length > 0) {
+            setOverlappedStations(overlappingPairs);
         }
     };
 
@@ -460,17 +525,18 @@ const MapMarkers = ({
                   )
                 : filtered;
 
-        if(map.getZoom() >= 14){
-            const nonOverlappedMarkers = filteredMarkers?.filter(station => 
-                !stationsWithOverlap?.some(overlappedStation => overlappedStation.api_id === station.api_id)
+        if (map.getZoom() >= 14 && mainParams?.station_code === "") {
+            const nonOverlappedMarkers = filteredMarkers?.filter(
+                (station) =>
+                    !stationsWithOverlap?.some(
+                        (overlappedStation) =>
+                            overlappedStation.api_id === station.api_id,
+                    ),
             );
-            setMarkersByBounds(nonOverlappedMarkers?? []);
-        }
-        else{
+            setMarkersByBounds(nonOverlappedMarkers ?? []);
+        } else {
             setMarkersByBounds(filteredMarkers);
         }
-
-        
     };
 
     const findStation = (s: StationAffectedInfo) => {
@@ -522,6 +588,7 @@ const MapMarkers = ({
     const [statuses, setStatuses] = useState<{ name: string; color: string }[]>(
         [],
     );
+
 
     const getStationStatuses = async () => {
         try {
@@ -586,11 +653,11 @@ const MapMarkers = ({
     }, [isDangerousPopup]);
 
     const markerClusters = useMemo(() => {
-        if(!map || !overlappedClusters) return null;
+        if (!map || !overlappedClusters) return null;
         return overlappedClusters.map((cluster, index) => {
             return (
                 <MarkerClusterGroup key={`cluster-${index}`}>
-                    { cluster.map((s) => {
+                    {cluster.map((s) => {
                         const iconGaps = chosenIcon(
                             s as StationData,
                             types,
@@ -599,42 +666,41 @@ const MapMarkers = ({
                         const pos: LatLngExpression = [s.lat, s.lon];
                         return (
                             <Marker
-                            icon={iconGaps}
-                            key={s.api_id}
-                            position={pos}
-                            eventHandlers={{
-                                click: () => {
-                                    isNearTop(s as StationData);
-                                },
-                                popupclose: () => {
-                                    setIsDaangerousPopup(false);
-                                },
-                            }}
-                        >
-                            <Tooltip>
-                                <strong className="text-lg">
-                                    {stationTooltip(s as StationData)}
-                                </strong>
-                            </Tooltip>
-                            <Popup
-                                maxWidth={600}
-                                minWidth={400}
-                                eventHandlers={{}}
+                                icon={iconGaps}
+                                key={s.api_id}
+                                position={pos}
+                                eventHandlers={{
+                                    click: () => {
+                                        isNearTop(s as StationData);
+                                    },
+                                    popupclose: () => {
+                                        setIsDaangerousPopup(false);
+                                    },
+                                }}
                             >
-                                <PopupChildren
-                                    station={s as StationData}
-                                    fromMain={true}
-                                    mainParams={mainParams}
-                                />
-                            </Popup>
-                        </Marker>
-                        )})  
-                        
-                    }
+                                <Tooltip>
+                                    <strong className="text-lg">
+                                        {stationTooltip(s as StationData)}
+                                    </strong>
+                                </Tooltip>
+                                <Popup
+                                    maxWidth={600}
+                                    minWidth={400}
+                                    eventHandlers={{}}
+                                >
+                                    <PopupChildren
+                                        station={s as StationData}
+                                        fromMain={true}
+                                        mainParams={mainParams}
+                                    />
+                                </Popup>
+                            </Marker>
+                        );
+                    })}
                 </MarkerClusterGroup>
             );
-        })        
-    }, [overlappedClusters, map])
+        });
+    }, [overlappedClusters, map]);
 
     return (
         <>
@@ -685,9 +751,10 @@ const MapMarkers = ({
                         ) : null;
                     },
                 )}
-                {map.getZoom() >= 14 && overlappedClusters && overlappedClusters.length > 0 && 
-                    markerClusters
-                }
+            {map.getZoom() >= 14 && (mainParams?.station_code === "") && 
+                overlappedClusters &&
+                overlappedClusters.length > 0 &&
+                markerClusters}
             {markersByBounds &&
                 chosenToMap()
                     .filter((s) => s?.lat != null && s?.lon != null)

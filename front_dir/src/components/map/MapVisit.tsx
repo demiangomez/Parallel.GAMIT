@@ -6,17 +6,20 @@ import JSZip from "jszip";
 import { StationData } from "@types";
 // @ts-expect-error leaflet omnivore doesnt have any types
 import omnivore from "leaflet-omnivore";
-
+import { chosenIcon } from "@utils";
 interface MyMapContainerProps {
     zoom: number;
     center: LatLngExpression;
     scrollWheelZoom: boolean;
     style?: React.CSSProperties;
+    
 }
 
 interface MapProps {
     base64Data: string; // Base64 data from the database
     station: StationData;
+    types: { image: string; name: string }[];
+    statuses: { name: string; color: string }[];
 }
 
 const LoadKmzFromBase64 = ({ base64Data }: { base64Data: string }) => {
@@ -73,7 +76,7 @@ const LoadKmzFromBase64 = ({ base64Data }: { base64Data: string }) => {
     return null;
 };
 
-const MapVisit = ({ base64Data, station }: MapProps) => {
+const MapVisit = ({ base64Data, station, statuses, types }: MapProps) => {
     const [mapProps, setMapProps] = useState<MyMapContainerProps>({
         zoom: 13,
         center: [0, 0],
@@ -88,7 +91,8 @@ const MapVisit = ({ base64Data, station }: MapProps) => {
             ...mapProps,
             center: pos,
         });
-    }, [station]);
+    }, [station]); 
+
 
     return (
         <div className="z-10 pt-6 flex justify-center">
@@ -102,7 +106,11 @@ const MapVisit = ({ base64Data, station }: MapProps) => {
                     minZoom={4}
                 />
                 <Marker
-                    // icon={iconGaps}
+                    icon={chosenIcon(
+                        station as StationData,
+                        types,
+                        statuses,
+                    )}
                     key={station ? station.lat + station.lon : "key"}
                     position={mapProps.center}
                 >

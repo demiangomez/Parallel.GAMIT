@@ -18,6 +18,8 @@ import {
     getStationCampaignsService,
     getStationVisitsImagesService,
     getStationVisitsService,
+    getStationStatusService,
+    getStationTypesService,
 } from "@services";
 
 import {
@@ -30,6 +32,10 @@ import {
     StationVisitsFilesData,
     StationVisitsFilesServiceData,
     StationVisitsServiceData,
+    StationStatusServiceData,
+    StationStatusData,
+    StationTypeData,
+    StationTypeServiceData,
 } from "@types";
 
 import { showModal } from "@utils";
@@ -75,6 +81,11 @@ const Visits = () => {
 
     const [visits, setVisits] = useState<StationVisitsData[] | undefined>(
         undefined,
+    );
+
+    const [types, setTypes] = useState<{ image: string; name: string }[]>([]);
+    const [statuses, setStatuses] = useState<{ name: string; color: string }[]>(
+        [],
     );
 
     const [visitToDel, setVisitToDel] = useState<number | undefined>(undefined);
@@ -159,6 +170,42 @@ const Visits = () => {
         }
     };
 
+    const getStationStatuses = async () => {
+        try {
+            const res =
+                await getStationStatusService<StationStatusServiceData>(api);
+            if (res) {
+                const statuses = res.data.map((status: StationStatusData) => {
+                    return {
+                        color: status.color_name,
+                        name: status.name,
+                    };
+                });
+                setStatuses(statuses);
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const getStationTypes = async () => {
+        try {
+            const res =
+                await getStationTypesService<StationTypeServiceData>(api);
+            if (res) {
+                const types = res.data.map((type: StationTypeData) => {
+                    return {
+                        image: type.actual_image,
+                        name: type.name,
+                    };
+                });
+                setTypes(types);
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
     const delVisit = async () => {
         try {
             setLoading(true);
@@ -192,6 +239,8 @@ const Visits = () => {
             getVisits();
             getVisitsImages();
             getCampaigns();
+            getStationStatuses();
+            getStationTypes();
         }
     }, [station]); // eslint-disable-line
 
@@ -216,6 +265,8 @@ const Visits = () => {
             setVisit(visitByCampaign);
         }
     }, [campaign, visitByCampaign]);
+
+    
 
     return (
         <div className="">
@@ -263,6 +314,8 @@ const Visits = () => {
                                         campaigns={campaigns} 
                                         loadingVisitImages={loadingVisitImages} 
                                         visitImages={visitImages}
+                                        statuses = {statuses}
+                                        types = {types}
                                         />
                                     );
                                 })}

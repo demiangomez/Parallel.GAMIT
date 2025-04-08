@@ -14,6 +14,8 @@ export { default as AddStationByFile} from "./modals/Station/StationModal/AddSta
 
 export { default as Dropzone} from "./Dropzone";
 
+export { default as MapStationCreate} from "./map/StationCreateMap";
+
 export {default as VisitsCampaignModal} from "./modals/Campaign/VisitsCampaingModal";
 
 export { default as TimeSeriesParams} from "./TimeSeriesParams";
