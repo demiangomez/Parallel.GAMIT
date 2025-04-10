@@ -1,6 +1,6 @@
 
 #----Modified packages (path relative to gps/backend/ folder)----
-
+wheel==0.45.1
 # modified some code due to bugs in official release
 modified_packages/drf-spectacular
 

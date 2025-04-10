@@ -633,7 +633,7 @@ def create_endpoints_cluster(apps, schema_editor):
         endpoint.objects.get(path="/api/role-person-station", method="POST"))
     front_read_write_people_station.endpoints.add(
         endpoint.objects.get(path="/api/role-person-station/<PATH_PARAM>", method="DELETE"))
-    
+
     # READ VISITS
 
     front_read_visits_station = endpoints_cluster(resource=resource.objects.get(name='visits-station'),
@@ -655,7 +655,7 @@ def create_endpoints_cluster(apps, schema_editor):
         endpoint.objects.get(path="/api/visit-gnss-data-files", method="GET"))
     front_read_visits_station.endpoints.add(
         endpoint.objects.get(path="/api/visit-attached-files", method="GET"))
-    
+
     # READ-WRITE VISITS
 
     front_read_write_visits_station = endpoints_cluster(resource=resource.objects.get(name='visits-station'),
@@ -663,63 +663,63 @@ def create_endpoints_cluster(apps, schema_editor):
     front_read_write_visits_station.save()
     front_read_write_visits_station.endpoints.set(
         front_read_visits_station.endpoints.all())
-    
+
     front_read_write_visits_station.endpoints.add(
         *endpoint.objects.filter(path="/api/people", method__in=["GET"]))
-    
+
     front_read_write_visits_station.endpoints.add(
         *endpoint.objects.filter(path="/api/visits", method__in=["POST"]))
-    
+
     front_read_write_visits_station.endpoints.add(
         *endpoint.objects.filter(path="/api/visit-images", method__in=["POST"]))
-    
+
     front_read_write_visits_station.endpoints.add(
         *endpoint.objects.filter(path="/api/visit-attached-files", method__in=["POST"]))
-    
+
     front_read_write_visits_station.endpoints.add(
         *endpoint.objects.filter(path="/api/visit-gnss-data-files", method__in=["POST"]))
-    
+
     front_read_write_visits_station.endpoints.add(
         *endpoint.objects.filter(path="/api/visits/<PATH_PARAM>", method__in=["PUT", "PATCH", "DELETE"]))
-    
+
     front_read_write_visits_station.endpoints.add(
         *endpoint.objects.filter(path="/api/visit-images/<PATH_PARAM>", method__in=["PUT", "PATCH", "DELETE"]))
-    
+
     front_read_write_visits_station.endpoints.add(
         *endpoint.objects.filter(path="/api/visit-gnss-data-files/<PATH_PARAM>", method__in=["PUT", "PATCH", "DELETE"]))
-    
+
     front_read_write_visits_station.endpoints.add(
         *endpoint.objects.filter(path="/api/visit-attached-files/<PATH_PARAM>", method__in=["PUT", "PATCH", "DELETE"]))
-    
+
     # READ CAMPAIGNS
 
     front_read_campaigns_station = endpoints_cluster(resource=resource.objects.get(name='campaigns'),
-                                                  cluster_type=cluster_type.objects.get(name="read"), role_type='FRONT AND API')
+                                                     cluster_type=cluster_type.objects.get(name="read"), role_type='FRONT AND API')
     front_read_campaigns_station.save()
 
     front_read_campaigns_station.endpoints.add(
         endpoint.objects.get(path="/api/visits", method="GET"))
-    
+
     front_read_campaigns_station.endpoints.add(
         endpoint.objects.get(path="/api/campaigns", method="GET"))
-    
+
     # READ-WRITE CAMPAIGNS
 
     front_read_write_campaigns_station = endpoints_cluster(resource=resource.objects.get(name='campaigns'),
-                                                        cluster_type=cluster_type.objects.get(name="read-write"), role_type='FRONT AND API')
+                                                           cluster_type=cluster_type.objects.get(name="read-write"), role_type='FRONT AND API')
     front_read_write_campaigns_station.save()
     front_read_write_campaigns_station.endpoints.set(
         front_read_campaigns_station.endpoints.all())
-    
+
     front_read_write_campaigns_station.endpoints.add(
         *endpoint.objects.filter(path="/api/stations", method__in=["GET"]))
-    
+
     front_read_write_campaigns_station.endpoints.add(
         *endpoint.objects.filter(path="/api/campaigns", method__in=["POST"]))
-    
+
     front_read_write_campaigns_station.endpoints.add(
         *endpoint.objects.filter(path="/api/campaigns/<PATH_PARAM>", method__in=["PUT", "PATCH", "DELETE"]))
-    
+
     front_read_write_campaigns_station.endpoints.add(
         *endpoint.objects.filter(path="/api/visits/<PATH_PARAM>", method__in=["PUT", "PATCH"]))
 
@@ -1013,7 +1013,7 @@ def create_station_trigger(apps, schema_editor):
     conn, cur = connect_to_db()
 
     query = """
-    CREATE OR REPLACE TRIGGER update_has_stationinfo_field_trigger
+    CREATE OR REPLACE TRIGGER delete_rows_referencing_stations_trigger
     BEFORE DELETE ON stations
     FOR EACH ROW EXECUTE FUNCTION delete_rows_referencing_stations();
     """
