@@ -204,7 +204,7 @@ def extract_id_block(
         raise LogVersionError(f"Incorrect version string '{version}' passed to the extract_id_block() function")
 
     id_block = _REGEX_ID.search(data)
-    print(id_block)
+
     if id_block is None:
         logger.warning(f"ID rejected from {file_path}")
         return _np.array([]).reshape(0, 12)

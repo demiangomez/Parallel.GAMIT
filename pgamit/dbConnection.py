@@ -171,27 +171,32 @@ class Cnn(object):
             raise dbErrConnect(err)
 
     def query(self, command):
-        self.cursor.execute(command)
+        try:
+            self.cursor.execute(command)
 
-        debug(" QUERY: command=%r" % command)
+            debug(" QUERY: command=%r" % command)
 
-        # passing a query object to match response from pygresql
-        return query_obj(self.cursor)
+            # passing a query object to match response from pygresql
+            return query_obj(self.cursor)
+        except Exception as e:
+            raise DatabaseError(e)
 
     def query_float(self, command, as_dict=False):
         # deprecated: using psycopg2 now solves the problem of returning float numbers
         # still in to maintain backwards compatibility
+        try:
+            if not as_dict:
+                cursor = self.cnn.cursor()
+                cursor.execute(command)
+                recordset = cast_array_to_float(cursor.fetchall())
+            else:
+                # return results as a dictionary
+                self.cursor.execute(command)
+                recordset = cast_array_to_float(self.cursor.fetchall())
 
-        if not as_dict:
-            cursor = self.cnn.cursor()
-            cursor.execute(command)
-            recordset = cast_array_to_float(cursor.fetchall())
-        else:
-            # return results as a dictionary
-            self.cursor.execute(command)
-            recordset = cast_array_to_float(self.cursor.fetchall())
-
-        return recordset
+            return recordset
+        except Exception as e:
+            raise DatabaseError(e)
 
     def get(self, table, filter_fields, return_fields=None, limit=None):
         """
