@@ -9,6 +9,7 @@ import { useFormReducer } from "@hooks";
 import { METADATA_STATE } from "@utils/reducerFormStates";
 
 import { Errors } from "@types";
+import { useLocation } from "react-router-dom";
 
 interface Props {
     handleCloseModal: () => void;
@@ -26,6 +27,13 @@ const StationModal = ({ handleCloseModal }: Props) => {
     const [addType, setAddType] = useState<"by file" | "manual" | undefined>(
         "manual",
     );
+
+    useEffect(() => {
+        dispatch({
+            type: "set",
+            payload: METADATA_STATE
+        })
+    }, [])
 
     const [msg, setMsg] = useState<
         { status: number; msg: string; errors?: Errors } | undefined
@@ -54,7 +62,8 @@ const StationModal = ({ handleCloseModal }: Props) => {
         }
     };
 
-    
+    const location = useLocation();
+
 
     return (
         <Modal
@@ -63,6 +72,9 @@ const StationModal = ({ handleCloseModal }: Props) => {
             size={addType !== "manual" ? "fit" : "xl"}
             handleCloseModal={() => {
                 internalHandleCloseModal();
+                if((msg?.status === 201) && (location.pathname === "/")) {
+                    handleCloseModal();
+                }
             }}
 
         >
@@ -97,7 +109,7 @@ const StationModal = ({ handleCloseModal }: Props) => {
                     <AddStationManual
                         coordinatesType={coordinatesType}
                         setCoordinatesType={setCoordinatesType}
-                        formState={formState}
+                        formState={formState as typeof METADATA_STATE}
                         dispatch={dispatch}
                         currentPage={currentPage}
                         msg={msg}

@@ -177,7 +177,10 @@ const Nav = () => {
                 </div>
             </div>
             {modals && modals.show && modals.title === "station" && (
-                <StationModal handleCloseModal={() => {}} />
+                <StationModal handleCloseModal={() => {
+                    setModals(undefined);
+                    window.location.href = '/';
+                }} />
             )}
         </>
     );

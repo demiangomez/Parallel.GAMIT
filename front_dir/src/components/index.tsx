@@ -1,24 +1,24 @@
 export { default as Nav } from "./Nav";
 
-export { default as RinexCompletionPlot} from "../pages/Station/Rinex/RinexCompletionPlot";
+export { default as RinexCompletionPlot } from "../pages/Station/Rinex/RinexCompletionPlot";
 
 export { default as VisitsCampaingTable } from "./modals/Campaign/VisitsCampaignTable";
 
 export { default as TimeSeriesConfigModal } from "./TimeSeriesConfigModal";
 
-export { default as StationModal} from "./modals/Station/StationModal/StationModal";
+export { default as StationModal } from "./modals/Station/StationModal/StationModal";
 
-export { default as AddStationManual} from "./modals/Station/StationModal/AddStationManual";
+export { default as AddStationManual } from "./modals/Station/StationModal/AddStationManual";
 
-export { default as AddStationByFile} from "./modals/Station/StationModal/AddStationByFile";
+export { default as AddStationByFile } from "./modals/Station/StationModal/AddStationByFile";
 
-export { default as Dropzone} from "./Dropzone";
+export { default as Dropzone } from "./Dropzone";
 
-export { default as MapStationCreate} from "./map/StationCreateMap";
+export { default as MapStationCreate } from "./map/StationCreateMap";
 
-export {default as VisitsCampaignModal} from "./modals/Campaign/VisitsCampaingModal";
+export { default as VisitsCampaignModal } from "./modals/Campaign/VisitsCampaingModal";
 
-export { default as TimeSeriesParams} from "./TimeSeriesParams";
+export { default as TimeSeriesParams } from "./TimeSeriesParams";
 
 export { default as ColorPickerModal } from "./modals/ColorPickerModal";
 
@@ -217,3 +217,5 @@ export { default as MapModal } from "./map/MapModal";
 export { default as QuillText } from "./map/QuillText";
 
 export { default as MergePeopleModal } from "./modals/MergePeopleModal";
+
+export { default as StationCreateMap } from "./map/StationCreateMap";

@@ -1,13 +1,18 @@
-import React, { useEffect, useState} from "react";
+import React, { useEffect, useState, useRef} from "react";
 import { EditControl} from "react-leaflet-draw";
 import { MapSkeleton, Modal} from "@componentsReact";
 import { MapContainer, TileLayer, FeatureGroup, useMap} from "react-leaflet";
+import L from 'leaflet';
 import { LatLngExpression, latLng} from "leaflet";
 import { useLocalStorage} from "@hooks";
 import { MyMapContainerProps, StationStatusServiceData, StationStatusData, StationTypeServiceData, StationTypeData, StationServiceData, StationData} from "@types";
 import StationCreateMap from "./StationCreateMap";
 import { getStationTypesService, getStationStatusService, getStationsService } from "@services";
 import { useAuth, useApi } from "@hooks";
+import { METADATA_STATE } from "@utils/reducerFormStates";
+import iconUrl from "leaflet/dist/images/marker-icon.png";
+import shadowUrl from "leaflet/dist/images/marker-shadow.png";
+import iconRetinaUrl from "leaflet/dist/images/marker-icon-2x.png";
 interface MapModalProps {
     setShowMapModal: React.Dispatch<
         React.SetStateAction<
@@ -17,6 +22,7 @@ interface MapModalProps {
     >;
     handleDrawPolygon: (e: any) => void;
     markerType: "marker" | "polygon"
+    formState?: typeof METADATA_STATE;
 }
 
 const ChangeView = ({
@@ -72,16 +78,30 @@ const MapModal = ({
     setShowMapModal,
     handleDrawPolygon,
     markerType,
+    formState,
 }: MapModalProps) => {
 
     const { token, logout } = useAuth();
     
     const api = useApi(token, logout);
 
+    const featureGroupRef = useRef<L.FeatureGroup>(null!);
 
     //-----------------------------------------------------Funciones-----------------------------------------------------
 
-    const handleCloseModal = () => {};
+    const handleCloseModal = () => {
+        setIsMarkerSelected(false);
+        setCurrentMarker(null);
+    };
+
+    const addManualMarker = (lat: number, lng: number) => {
+        if (featureGroupRef.current) {
+            const newMarker = L.marker([lat, lng], {
+                draggable: true // Hacerlo editable
+            });
+            featureGroupRef.current.addLayer(newMarker);
+        }
+    }
 
     const getStationStatuses = async () => {
             try {
@@ -140,6 +160,8 @@ const MapModal = ({
         undefined,
     );
 
+    const [refMap, setRefMap] = useState<any>(null);
+
     const [types, setTypes] = useState<{ image: string; name: string }[]>([]);
     
     const [statuses, setStatuses] = useState<{ name: string; color: string }[]>(
@@ -163,11 +185,16 @@ const MapModal = ({
     
     const [rangeValue, setRangeValue] = useState(40);
 
-    const memoizedEditControl = React.useMemo(() => (
-        !isMarkerSelected && 
+    useEffect(() => {}, [formState]);
+
+    const memoizedEditControl = React.useMemo(() => ( 
         <EditControl
             position="topright"
             onCreated={(e) => {
+                if (featureGroupRef.current) {
+                    // Remove any existing markers before adding a new one
+                    featureGroupRef.current.clearLayers();
+                }
                 handleDrawPolygon(e);
                 setIsMarkerSelected(true);
                 setCurrentMarker({
@@ -177,6 +204,42 @@ const MapModal = ({
             }}
             onDeleted={() => {
                 setIsMarkerSelected(false);
+                setCurrentMarker(null);
+                if (featureGroupRef.current) {
+                    featureGroupRef.current.clearLayers();
+                }
+                // Reset the form state coordinates
+                if (formState?.station) {
+                    formState.station.lat = '';
+                    formState.station.lon = '';
+                    formState.station.auto_x = '';
+                    formState.station.auto_y = '';
+                    formState.station.auto_z = '0';
+                }
+            }}
+            onMounted={() => {
+                if(formState && formState.station && formState.station.lat && formState.station.lon) {
+                    if (featureGroupRef.current) {
+                        featureGroupRef.current.clearLayers();
+                    }
+                    addManualMarker(parseFloat(formState.station.lat), parseFloat(formState.station.lon));
+                    setIsMarkerSelected(true);
+                    setCurrentMarker({
+                        lat: parseFloat(formState.station.lat),
+                        lng: parseFloat(formState.station.lon),
+                    })
+                }
+            }}
+            onEdited={(e) => {
+                const layer = e.layers.getLayers()[0];
+                handleDrawPolygon({
+                    layer: layer,
+                });
+                setIsMarkerSelected(true);
+                setCurrentMarker({
+                    lat: layer._latlng.lat,
+                    lng: layer._latlng.lng,
+                });
             }}
             draw={{
                 rectangle: false,
@@ -186,9 +249,12 @@ const MapModal = ({
                 circlemarker: false,
                 polygon: markerType === "polygon"
             }}
+            edit={{
+                featureGroup: featureGroupRef.current,
+                remove: true
+            }}
         />
     ), [markerType, isMarkerSelected, handleDrawPolygon]);
-
 
     //-----------------------------------------------------UseEffect-----------------------------------------------------
 
@@ -213,10 +279,6 @@ const MapModal = ({
         }));
     }, []);
 
-    
-
-
-
     useEffect(() => {
         if(markerType === "marker") {
             setLoadingMap(true);
@@ -228,10 +290,15 @@ const MapModal = ({
                 setLoadingMap(false);
             });
         }
-        }, [markerType]);
+    }, [markerType]);
 
+    delete (L.Icon.Default.prototype as any)._getIconUrl;
 
-
+    L.Icon.Default.mergeOptions({
+        iconRetinaUrl,
+        iconUrl,
+        shadowUrl,
+    });
 
     return (
         <Modal
@@ -250,11 +317,25 @@ const MapModal = ({
                     preferCanvas={true}
                     zoomControl={false}
                     maxBoundsViscosity={1.0}
+                    ref={(map) => {
+                        if (map) {
+                            setRefMap(map);
+                        }
+                    }}
                     worldCopyJump={true}
                     className="w-[90vw] h-[60vh] md:w-[70vw] md:h-[70vh] xl:w-[60vw] lg:h-[80vh] max-w-[1000px] max-h-[600px]"
                 >
                     {  markerType === "marker" && isMarkerSelected &&
-                        <div className="z-[999999999] bg-white absolute top-2 left-2 p-2 rounded-md w-48">
+                        <div className="z-[999999999] bg-white absolute top-2 left-2 p-2 rounded-md w-48"
+                        onMouseEnter={() => {
+                            refMap?.dragging.disable();
+                            refMap?.scrollWheelZoom.disable();
+                        }}
+                        onMouseLeave={() => {
+                            refMap?.dragging.enable();
+                            refMap?.scrollWheelZoom.enable();
+                        }}
+                        >
                             <input 
                                 type="range" 
                                 className="range range-xs range-neutral w-full"
@@ -284,10 +365,15 @@ const MapModal = ({
                         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                         minZoom={4}
                     />
-                    <FeatureGroup>
+                    <FeatureGroup 
+                        ref={featureGroupRef}
+                    >
                         {memoizedEditControl}
                     </FeatureGroup>
                 </MapContainer>
+                <button className="btn btn-success btn-md w-32" onClick={() => {handleCloseModal(); setShowMapModal({ show: false, title: "", type: "none" });}}>
+                    Save
+                </button>
             </div>
             }
         </Modal>

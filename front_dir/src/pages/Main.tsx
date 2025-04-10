@@ -20,7 +20,6 @@ import {
     EarthQuakeFormModal,
     EarthQuakeScroller,
     DropLeft,
-    StationModal,
 } from "@componentsReact";
 import {
     GetParams,
@@ -789,14 +788,6 @@ const MainPage = () => {
                                 />
                             </div>
                         )}
-                        {earthquakeModal &&
-                            earthquakeModal.title === "station" && (
-                                <StationModal
-                                    handleCloseModal={() =>
-                                        setShowSidebar(false)
-                                    }
-                                />
-                            )}
                     </div>
                 </>
             )}

@@ -545,12 +545,12 @@ const StationMetadataModal = ({
             },
 
             station: {
-                lat: String(stationData?.lat) ?? "",
-                lon: String(stationData?.lon) ?? "",
-                height: String(stationData?.height) ?? "",
-                auto_x: String(stationData?.auto_x) ?? "",
-                auto_y: String(stationData?.auto_y) ?? "",
-                auto_z: String(stationData?.auto_z) ?? "",
+            lat: String(Number(stationData?.lat).toFixed(8)) ?? "",
+            lon: String(Number(stationData?.lon).toFixed(8)) ?? "",
+            height: String(Number(stationData?.height).toFixed(3)) ?? "",
+            auto_x: String(Number(stationData?.auto_x).toFixed(3)) ?? "",
+            auto_y: String(Number(stationData?.auto_y).toFixed(3)) ?? "",
+            auto_z: String(Number(stationData?.auto_z).toFixed(3)) ?? "",
             },
         };
     }, [stationType, monumentType, stationStatus, stationData, stationMeta]);

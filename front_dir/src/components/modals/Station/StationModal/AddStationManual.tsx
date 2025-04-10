@@ -109,14 +109,20 @@ const AddStationManual = ({
             type: "change_value",
             payload: {
             inputName: "station.lat",  
-            inputValue: latitude.toString()
-            }
+            inputValue: parseFloat(latitude.toFixed(8)).toString()            }
         });
         dispatch({
             type: "change_value",
             payload: {
             inputName: "station.lon",
-            inputValue: longitude.toString() 
+            inputValue: parseFloat(longitude.toFixed(8)).toString()
+            }
+        });
+        dispatch({
+            type: "change_value", 
+            payload: {
+            inputName: "station.height",
+            inputValue: "0"
             }
         });
 
@@ -216,9 +222,9 @@ const AddStationManual = ({
         
         // Redondear a 8 decimales
         return {
-            x: parseFloat(x.toFixed(8)),
-            y: parseFloat(y.toFixed(8)), 
-            z: parseFloat(z.toFixed(8))
+            x: parseFloat(x.toFixed(3)),
+            y: parseFloat(y.toFixed(3)), 
+            z: parseFloat(z.toFixed(3))
         };
     }
 
@@ -252,7 +258,7 @@ const AddStationManual = ({
         return {
             lat: parseFloat((lat * 180 / Math.PI).toFixed(8)),
             lon: parseFloat((lon * 180 / Math.PI).toFixed(8)),
-            alt: parseFloat(alt.toFixed(8))
+            alt: parseFloat(alt.toFixed(3))
         };
     }
 
@@ -579,6 +585,8 @@ const AddStationManual = ({
                 setShowMapModal={setShowMapModal}
                 handleDrawPolygon={handleDrawPolygon}
                 markerType="marker"
+                formState={formState}
+
             />}
         </div>
     );
