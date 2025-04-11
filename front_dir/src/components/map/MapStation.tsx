@@ -9,9 +9,10 @@ import {
     TileLayer,
     useMap,
 } from "react-leaflet";
+
 import { PopupChildren, Spinner, VisitsScroller } from "@componentsReact";
-// @ts-expect-error leaflet omnivore doesnt have any types
-import omnivore from "leaflet-omnivore";
+
+import * as toGeoJSON from "@tmcw/togeojson";
 
 import domtoimage from "dom-to-image";
 import JSZip from "jszip";
@@ -24,6 +25,7 @@ import {
     StationTypeData,
     StationStatusData,
 } from "@types";
+
 import { apiOkStatuses, chosenIcon } from "@utils";
 import { getStationTypesService, getStationStatusService } from "@services";
 
@@ -101,33 +103,80 @@ const LoadKmzFromBase64 = ({
                 }
                 const arrayBuffer = bytes.buffer;
 
-                // Intentar cargar como KMZ
+                const parseAndAddGeoJSON = (kmlString: string) => {
+                    const dom = new DOMParser().parseFromString(
+                        kmlString,
+                        "application/xml",
+                    );
+                    const geojson = toGeoJSON.kml(dom);
+
+                    const geoJsonLayer = L.geoJSON(geojson, {
+                        pointToLayer: (feature, latlng) => {
+                            if (feature.properties && feature.properties.icon) {
+                                const customIcon = L.icon({
+                                    iconUrl: feature.properties.icon,
+                                    iconSize: [32, 32],
+                                    iconAnchor: [16, 16],
+                                });
+                                return L.marker(latlng, { icon: customIcon });
+                            }
+                            return L.marker(latlng);
+                        },
+                        style: (feature) => {
+                            return feature
+                                ? {
+                                      color: feature.properties.stroke,
+                                      opacity:
+                                          feature.properties["stroke-opacity"],
+                                      fillColor:
+                                          feature.properties["fill-color"],
+                                      //   fillOpacity:
+                                      //       feature.properties["fill-opacity"],
+                                  }
+                                : {};
+                        },
+                        onEachFeature: (_feature, layer) => {
+                            if (
+                                _feature.properties &&
+                                _feature.properties.description
+                            ) {
+                                layer.bindPopup(
+                                    _feature.properties.description,
+                                );
+                            }
+                        },
+                    });
+
+                    map.fitBounds(geoJsonLayer.getBounds());
+                    map.zoomOut(1);
+                    geoJsonLayer.setStyle({
+                        color: color,
+                    });
+                    geoJsonLayer.addTo(map);
+                };
+
                 try {
+                    // Intenta como KMZ
                     const zip = await JSZip.loadAsync(arrayBuffer);
                     const kmlFile = zip.file(/.*\.kml/)[0];
+
                     if (kmlFile) {
                         const kmlString = await kmlFile.async("string");
-                        const overlayLayer = omnivore.kml.parse(kmlString);
-                        overlayLayer.setStyle({ color: color });
-                        overlayLayer.options = { interactive: false };
-                        overlayLayer.addTo(map);
+                        parseAndAddGeoJSON(kmlString);
                     } else {
-                        console.error("No KML file found in the KMZ archive.");
+                        console.error("No KML file found in KMZ.");
                     }
                 } catch (kmzError) {
-                    // Si falla, intentar cargar como KML
                     try {
+                        // Intenta como KML suelto
                         const kmlString = new TextDecoder().decode(arrayBuffer);
-                        const overlayLayer = omnivore.kml.parse(kmlString);
-                        overlayLayer.setStyle({ color: color });
-                        overlayLayer.options = { interactive: false };
-                        overlayLayer.addTo(map);
+                        parseAndAddGeoJSON(kmlString);
                     } catch (kmlError) {
-                        console.error("Error loading KML file:", kmlError);
+                        console.error("Error parsing KML:", kmlError);
                     }
                 }
             } catch (error) {
-                console.error("Error processing file:", error);
+                console.error("Error decoding base64 file:", error);
             }
         };
 

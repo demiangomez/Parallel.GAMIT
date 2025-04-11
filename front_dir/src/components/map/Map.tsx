@@ -1,4 +1,9 @@
 import L, { LatLngExpression } from "leaflet";
+
+import * as toGeoJSON from "@tmcw/togeojson";
+import JSZip from "jszip";
+import MarkerClusterGroup from "react-leaflet-markercluster";
+
 import {
     MapContainer,
     Marker,
@@ -9,9 +14,13 @@ import {
     useMap,
     ZoomControl,
 } from "react-leaflet";
+
 import { useEffect, useMemo, useState } from "react";
+
 import { PopupChildren } from "@componentsReact";
+
 import { useLocalStorage, useAuth, useApi } from "@hooks";
+
 import {
     EarthquakeData,
     FilterState,
@@ -25,13 +34,9 @@ import {
     StationStatusData,
     StationTypeData,
 } from "@types";
-import { isStationFiltered, chosenIcon, removeMarkersFromKml } from "@utils";
-import { getStationTypesService, getStationStatusService } from "@services";
 
-// @ts-expect-error leaflet omnivore doesnt have any types
-import omnivore from "leaflet-omnivore";
-import JSZip from "jszip";
-import MarkerClusterGroup from "react-leaflet-markercluster";
+import { isStationFiltered, chosenIcon } from "@utils";
+import { getStationTypesService, getStationStatusService } from "@services";
 
 interface MapProps {
     handleEarthquakeState: (earthquake: EarthquakeData) => void;
@@ -102,9 +107,10 @@ const LoadKmzFromBase64 = ({ base64Data }: { base64Data: string }) => {
             if (!base64Data) return;
 
             removeOldKmls();
+
             try {
-                const updatedBase64Data = removeMarkersFromKml(base64Data);
-                const binaryString = atob(updatedBase64Data);
+                // const updatedBase64Data = removeMarkersFromKml(base64Data);
+                const binaryString = atob(base64Data);
                 const len = binaryString.length;
                 const bytes = new Uint8Array(len);
                 for (let i = 0; i < len; i++) {
@@ -112,33 +118,96 @@ const LoadKmzFromBase64 = ({ base64Data }: { base64Data: string }) => {
                 }
                 const arrayBuffer = bytes.buffer;
 
-                // Intentar cargar como KMZ
+                const parseAndAddGeoJSON = (kmlString: string) => {
+                    const dom = new DOMParser().parseFromString(
+                        kmlString,
+                        "application/xml",
+                    );
+
+                    const geojson = toGeoJSON.kml(dom);
+
+                    const geoJsonLayer = L.geoJSON(geojson, {
+                        style: (feature) => {
+                            return feature
+                                ? {
+                                      color: feature.properties.stroke,
+                                      opacity:
+                                          feature.properties["stroke-opacity"],
+                                      fillColor:
+                                          feature.properties["fill-color"],
+                                      //   fillOpacity:
+                                      //       feature.properties["fill-opacity"],
+                                  }
+                                : {};
+                        },
+                        pointToLayer: (feature, latlng) => {
+                            if (feature.properties) {
+                                const iconUrl =
+                                    feature.properties.icon ||
+                                    "https://maps.google.com/mapfiles/kml/shapes/star.png";
+                                const iconScale =
+                                    feature.properties["icon-scale"] || 1;
+                                const iconOpacity =
+                                    feature.properties["icon-opacity"] || 1;
+
+                                const baseSize = 32;
+                                const scaledSize = Math.round(
+                                    baseSize * iconScale,
+                                );
+
+                                const customIcon = L.icon({
+                                    iconUrl: iconUrl,
+                                    iconSize: [scaledSize, scaledSize],
+                                    iconAnchor: [
+                                        scaledSize / 2,
+                                        scaledSize / 2,
+                                    ],
+                                    className: "light-red-icon",
+                                });
+
+                                const marker = L.marker(latlng, {
+                                    icon: customIcon,
+                                    opacity: iconOpacity,
+                                });
+
+                                marker.bindPopup(
+                                    feature.properties.description,
+                                );
+                                setTimeout(() => marker.openPopup(), 100);
+
+                                return marker;
+                            }
+                            return L.marker(latlng);
+                        },
+                    });
+
+                    map.fitBounds(geoJsonLayer.getBounds());
+                    map.zoomOut(1);
+                    geoJsonLayer.addTo(map);
+                };
+
                 try {
+                    // Intenta como KMZ
                     const zip = await JSZip.loadAsync(arrayBuffer);
                     const kmlFile = zip.file(/.*\.kml/)[0];
+
                     if (kmlFile) {
                         const kmlString = await kmlFile.async("string");
-                        const overlayLayer = omnivore.kml.parse(kmlString);
-                        overlayLayer.setStyle({ color: "blue" });
-                        overlayLayer.options = { interactive: false };
-                        overlayLayer.addTo(map);
+                        parseAndAddGeoJSON(kmlString);
                     } else {
-                        console.error("No KML file found in the KMZ archive.");
+                        console.error("No KML file found in KMZ.");
                     }
                 } catch (kmzError) {
-                    // Si falla, intentar cargar como KML
                     try {
+                        // Intenta como KML suelto
                         const kmlString = new TextDecoder().decode(arrayBuffer);
-                        const overlayLayer = omnivore.kml.parse(kmlString);
-                        overlayLayer.setStyle({ color: "blue" });
-                        overlayLayer.options = { interactive: false };
-                        overlayLayer.addTo(map);
+                        parseAndAddGeoJSON(kmlString);
                     } catch (kmlError) {
-                        console.error("Error loading KML file:", kmlError);
+                        console.error("Error parsing KML:", kmlError);
                     }
                 }
             } catch (error) {
-                console.error("Error processing file:", error);
+                console.error("Error decoding base64 file:", error);
             } finally {
                 const pos = map.getCenter();
                 map.setView([pos.lat + 0.001, pos.lng + 0.001]);
@@ -210,6 +279,14 @@ const MapMarkers = ({
     const [overlappedClusters, setOverlappedClusters] = useState<
         StationData[][] | undefined
     >(undefined);
+
+    const [isDangerousPopup, setIsDaangerousPopup] = useState<boolean>(false);
+
+    const [types, setTypes] = useState<{ image: string; name: string }[]>([]);
+
+    const [statuses, setStatuses] = useState<{ name: string; color: string }[]>(
+        [],
+    );
 
     //-------------------------------------------------------------------------------UseEffects--------------------------------------------------------------------------------------
     //Modify setview when refreshing the page
@@ -398,7 +475,6 @@ const MapMarkers = ({
         }
     }, [overlappedStations]);
 
-
     //-------------------------------------------------------------------------------Funciones--------------------------------------------------------------------------------------
 
     const areStationsOverlapped = (
@@ -584,12 +660,6 @@ const MapMarkers = ({
         });
     };
 
-    const [types, setTypes] = useState<{ image: string; name: string }[]>([]);
-    const [statuses, setStatuses] = useState<{ name: string; color: string }[]>(
-        [],
-    );
-
-
     const getStationStatuses = async () => {
         try {
             const res =
@@ -633,8 +703,6 @@ const MapMarkers = ({
             }
         });
     };
-
-    const [isDangerousPopup, setIsDaangerousPopup] = useState<boolean>(false);
 
     const isNearTop = (station: StationData) => {
         const result = station.lat;
@@ -751,7 +819,8 @@ const MapMarkers = ({
                         ) : null;
                     },
                 )}
-            {map.getZoom() >= 14 && (mainParams?.station_code === "") && 
+            {map.getZoom() >= 14 &&
+                mainParams?.station_code === "" &&
                 overlappedClusters &&
                 overlappedClusters.length > 0 &&
                 markerClusters}
@@ -772,8 +841,7 @@ const MapMarkers = ({
                         if (mapState) {
                             if (
                                 earthQuakeChosen === undefined ||
-                                (earthQuakeChosen &&
-                                    s.api_id === earthQuakeChosen.api_id)
+                                earthquakeAffectedStations === undefined
                             ) {
                                 return (
                                     <Marker
@@ -789,6 +857,7 @@ const MapMarkers = ({
                                                 handleEarthquakeState(
                                                     s as EarthquakeData,
                                                 );
+
                                                 setForceSyncScrollerMap(
                                                     (prev) => prev + 1,
                                                 );
@@ -820,10 +889,6 @@ const MapMarkers = ({
                                 types,
                                 statuses,
                             );
-
-                            // (markersByBounds[index ]
-                            // markersByBounds[index + 1]) en overlappingStations
-                            //     entonces return marker cluster
 
                             return (
                                 <Marker

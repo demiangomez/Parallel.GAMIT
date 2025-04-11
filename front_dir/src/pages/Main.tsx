@@ -57,6 +57,7 @@ const MainPage = () => {
     //---------------------------------------------------------UseRef-------------------------------------------------------------
 
     const abortControllerRef = useRef<AbortController | null>(null);
+    const abortAffectedStationsRef = useRef<AbortController | null>(null);
 
     //---------------------------------------------------------UseState-------------------------------------------------------------
     const [forceSyncScrollerMap, setForceSyncScrollerMap] = useState(0);
@@ -250,6 +251,18 @@ const MainPage = () => {
     const getAffectedStations = async () => {
         setEarthquakeSpinner(true);
 
+        if (abortAffectedStationsRef.current) {
+            abortAffectedStationsRef.current.abort();
+            if (earthQuakeAffectedParams === undefined) {
+                abortAffectedStationsRef.current.abort();
+                setEarthquakeSpinner(false);
+                return;
+            }
+        }
+
+        const abortController = new AbortController();
+        abortAffectedStationsRef.current = abortController;
+
         try {
             setEarthQuakeAffectedStations(undefined);
 
@@ -257,14 +270,18 @@ const MainPage = () => {
                 await getAffectedStationsService<StationsAffectedServiceData>(
                     api,
                     earthQuakeAffectedParams,
+                    { signal: abortAffectedStationsRef.current.signal },
                 );
-            if (result) {
+            if (result && result.affected_stations) {
                 setEarthQuakeAffectedStations(result);
             }
-        } catch (err) {
+        } catch (err: unknown) {
             console.error(err);
         } finally {
-            setEarthquakeSpinner(false);
+            // Only set spinner to false if the request wasn't aborted
+            if (!abortController.signal.aborted) {
+                setEarthquakeSpinner(false);
+            }
         }
     };
 
@@ -498,9 +515,7 @@ const MainPage = () => {
     }, [chosenEarthquake]);
 
     useEffect(() => {
-        if (earthQuakeAffectedParams) {
-            getAffectedStations();
-        }
+        getAffectedStations();
     }, [earthQuakeAffectedParams]);
 
     useEffect(() => {

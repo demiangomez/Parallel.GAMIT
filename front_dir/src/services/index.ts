@@ -255,8 +255,6 @@ export async function delPageService<T>(
     }
 }
 
-
-
 // Networks
 export async function getNetworksService<T>(api: AxiosInstance): Promise<T> {
     try {
@@ -362,13 +360,15 @@ export async function patchStationAttachedFileDescription<T>(
     id: number,
 ): Promise<T> {
     try {
-        const response = await api.patch("api/station-attached-files/"+id.toString(), body);
+        const response = await api.patch(
+            "api/station-attached-files/" + id.toString(),
+            body,
+        );
         return response.data as Promise<T>;
     } catch (err) {
         return Promise.reject(err);
     }
 }
-
 
 export async function patchVisitAttachedFileDescription<T>(
     api: AxiosInstance,
@@ -376,7 +376,10 @@ export async function patchVisitAttachedFileDescription<T>(
     id: number,
 ): Promise<T> {
     try {
-        const response = await api.patch("api/visit-gnss-data-files/"+id.toString(), body);
+        const response = await api.patch(
+            "api/visit-gnss-data-files/" + id.toString(),
+            body,
+        );
         return response.data as Promise<T>;
     } catch (err) {
         return Promise.reject(err);
@@ -389,7 +392,10 @@ export async function patchVisitOthersFileDescription<T>(
     id: number,
 ): Promise<T> {
     try {
-        const response = await api.patch("api/visit-attached-files/"+id.toString(), body);
+        const response = await api.patch(
+            "api/visit-attached-files/" + id.toString(),
+            body,
+        );
         return response.data as Promise<T>;
     } catch (err) {
         return Promise.reject(err);
@@ -402,13 +408,15 @@ export async function patchStationImagesDescription<T>(
     id: number,
 ): Promise<T> {
     try {
-        const response = await api.patch("api/station-images/"+id.toString(), body);
+        const response = await api.patch(
+            "api/station-images/" + id.toString(),
+            body,
+        );
         return response.data as Promise<T>;
     } catch (err) {
         return Promise.reject(err);
     }
 }
-
 
 export async function patchVisitImagesDescription<T>(
     api: AxiosInstance,
@@ -416,7 +424,10 @@ export async function patchVisitImagesDescription<T>(
     id: number,
 ): Promise<T> {
     try {
-        const response = await api.patch("api/visit-images/"+id.toString(), body);
+        const response = await api.patch(
+            "api/visit-images/" + id.toString(),
+            body,
+        );
         return response.data as Promise<T>;
     } catch (err) {
         return Promise.reject(err);
@@ -501,9 +512,13 @@ export async function getEarthquakesService<T>(
 export async function getAffectedStationsService<T>(
     api: AxiosInstance,
     id?: number,
+    options?: { signal?: AbortSignal },
 ): Promise<T> {
     try {
-        const response = await api.get(`api/earthquakes/${id}/affected-stations`);
+        const response = await api.get(
+            `api/earthquakes/${id}/affected-stations`,
+            { signal: options?.signal },
+        );
         return response.data as Promise<T>;
     } catch (error) {
         return Promise.reject(error);
@@ -513,9 +528,9 @@ export async function getAffectedStationsService<T>(
 export async function getKmzFileService<T>(
     api: AxiosInstance,
     params: string,
-): Promise < T > {
+): Promise<T> {
     try {
-        const url = `api/stations/${params}/get-kmz` 
+        const url = `api/stations/${params}/get-kmz`;
         const response = await api.get(url);
         return response.data as Promise<T>;
     } catch (error) {
@@ -552,7 +567,6 @@ export async function getStationService<T>(
     }
 }
 
-
 export async function postStationService<T>(
     api: AxiosInstance,
     data: StationData,
@@ -571,7 +585,7 @@ export async function patchStationService<T>(
     data: any,
 ): Promise<T> {
     try {
-        const response = await api.patch(`api/stations/${id}`, data,{
+        const response = await api.patch(`api/stations/${id}`, data, {
             headers: {
                 "Content-Type": "multipart/form-data",
             },
@@ -705,8 +719,6 @@ export async function postStationsImagesService<T>(
     }
 }
 
-
-
 export async function delStationsImagesService<T>(
     api: AxiosInstance,
     id: number,
@@ -837,7 +849,6 @@ export async function getStationVisitsByIdService<T>(
         return Promise.reject(error);
     }
 }
-
 
 export async function postStationVisitService<T>(
     api: AxiosInstance,
@@ -1101,15 +1112,12 @@ export async function resetTimeSeriesPolynomialService<T>(
     id: number,
     solution: string,
     stack: string,
-): Promise <T> {
-    try{
-        const url = `api/time-series-config/${id}/${solution}/reset-polynomial${solution === "GAMIT" ? `?stack=${stack}` : ""}`
-        const response = await api.post(
-            url,
-        );
-        return response.data as Promise<T>
-    }
-    catch(error){
+): Promise<T> {
+    try {
+        const url = `api/time-series-config/${id}/${solution}/reset-polynomial${solution === "GAMIT" ? `?stack=${stack}` : ""}`;
+        const response = await api.post(url);
+        return response.data as Promise<T>;
+    } catch (error) {
         return Promise.reject(error);
     }
 }
@@ -1119,15 +1127,12 @@ export async function resetTimeSeriesPeriodicService<T>(
     id: number,
     solution: string,
     stack: string,
-): Promise <T> {
-    try{
-        const url = `api/time-series-config/${id}/${solution}/reset-periodic${solution === "GAMIT" ? `?stack=${stack}` : ""}`
-        const response = await api.post(
-            url,
-        );
-        return response.data as Promise<T>
-    }
-    catch(error){
+): Promise<T> {
+    try {
+        const url = `api/time-series-config/${id}/${solution}/reset-periodic${solution === "GAMIT" ? `?stack=${stack}` : ""}`;
+        const response = await api.post(url);
+        return response.data as Promise<T>;
+    } catch (error) {
         return Promise.reject(error);
     }
 }
@@ -1136,16 +1141,13 @@ export async function resetTimeSeriesJumpsService<T>(
     api: AxiosInstance,
     id: number,
     solution: string,
-    stack: string
-): Promise <T> {
-    try{
-        const url = `api/time-series-config/${id}/${solution}/reset-jumps${solution === "GAMIT" ? `?stack=${stack}` : ""}`
-        const response = await api.post(
-            url,
-        );
-        return response.data as Promise<T>
-    }
-    catch(error){
+    stack: string,
+): Promise<T> {
+    try {
+        const url = `api/time-series-config/${id}/${solution}/reset-jumps${solution === "GAMIT" ? `?stack=${stack}` : ""}`;
+        const response = await api.post(url);
+        return response.data as Promise<T>;
+    } catch (error) {
         return Promise.reject(error);
     }
 }
@@ -1156,20 +1158,16 @@ export async function postTimeSeriesPolynomialService<T>(
     solution: string,
     stack: string,
     params: any,
-): Promise <T> {
-    try{
-        const url = `api/time-series-config/${id}/${solution}/set-polynomial${solution === "GAMIT" ? `?stack=${stack}` : ""}`
-        const response = await api.post(
-            url,
-            {
+): Promise<T> {
+    try {
+        const url = `api/time-series-config/${id}/${solution}/set-polynomial${solution === "GAMIT" ? `?stack=${stack}` : ""}`;
+        const response = await api.post(url, {
             terms: Number(params.terms),
             Year: Number(params.Year),
-            DOY: Number(params.DOY)
-            }
-        );
-        return response.data as Promise<T>
-    }
-    catch(error){
+            DOY: Number(params.DOY),
+        });
+        return response.data as Promise<T>;
+    } catch (error) {
         return Promise.reject(error);
     }
 }
@@ -1180,17 +1178,12 @@ export async function postTimeSeriesPeriodicService<T>(
     solution: string,
     stack: string,
     params: any,
-): Promise <T> {
-    try{
-        const url = `api/time-series-config/${id}/${solution}/set-periodic${solution === "GAMIT" ? `?stack=${stack}` : ""}`
-        const response = await api.post(
-            url,
-            params
-        );
-        return response.data as Promise<T>
-
-    }
-    catch(error){
+): Promise<T> {
+    try {
+        const url = `api/time-series-config/${id}/${solution}/set-periodic${solution === "GAMIT" ? `?stack=${stack}` : ""}`;
+        const response = await api.post(url, params);
+        return response.data as Promise<T>;
+    } catch (error) {
         return Promise.reject(error);
     }
 }
@@ -1201,25 +1194,21 @@ export async function postTimeSeriesJumpService<T>(
     solution: string,
     stack: string,
     params: any,
-): Promise <T> {
-    try{
-        const url = `api/time-series-config/${id}/${solution}/set-jumps${solution === "GAMIT" ? `?stack=${stack}` : ""}`
-        const response = await api.post(
-            url,
-            params
-        );
-        return response.data as Promise<T>
-    }
-    catch(error){
+): Promise<T> {
+    try {
+        const url = `api/time-series-config/${id}/${solution}/set-jumps${solution === "GAMIT" ? `?stack=${stack}` : ""}`;
+        const response = await api.post(url, params);
+        return response.data as Promise<T>;
+    } catch (error) {
         return Promise.reject(error);
     }
 }
 
-export async function getJumpTypesService<T>(
-    api: AxiosInstance,
-): Promise<T> {
+export async function getJumpTypesService<T>(api: AxiosInstance): Promise<T> {
     try {
-        const response = await api.get(`api/time-series-config/available-jump-types`);
+        const response = await api.get(
+            `api/time-series-config/available-jump-types`,
+        );
         return response.data as Promise<T>;
     } catch (error) {
         return Promise.reject(error);
@@ -1231,19 +1220,17 @@ export async function deleteTimeSeriesJumpService<T>(
     id: number,
     solution: string,
     params: any,
-): Promise <T> {
-    try{
+): Promise<T> {
+    try {
         const response = await api.post(
             `api/time-series-config/${id}/${solution}/delete-jump`,
-            params
+            params,
         );
-        return response.data as Promise<T>
-    }
-    catch(error){
+        return response.data as Promise<T>;
+    } catch (error) {
         return Promise.reject(error);
     }
 }
-
 
 export async function getStationTimeSeriesService<T>(
     api: AxiosInstance,
@@ -1444,7 +1431,7 @@ export async function getHeightCodesService<T>(
 export async function getCompletionPlotService<T>(
     api: AxiosInstance,
     id: number,
-    ): Promise<T> {
+): Promise<T> {
     try {
         const response = await api.get(`api/rinex-completion-plot/${id}`);
         return response.data as Promise<T>;
@@ -1610,14 +1597,11 @@ export async function delMonumentTypesService<T>(
     }
 }
 
-
 export async function getStationStatusColorsService<T>(
     api: AxiosInstance,
 ): Promise<T> {
     try {
-        const response = await api.get(
-            "api/station-status-color"
-        );
+        const response = await api.get("api/station-status-color");
         return response.data as Promise<T>;
     } catch (error) {
         return Promise.reject(error);
@@ -1638,7 +1622,6 @@ export async function getStationStatusService<T>(
         return Promise.reject(error);
     }
 }
-
 
 export async function getStationStatusByIdService<T>(
     api: AxiosInstance,
@@ -1733,18 +1716,18 @@ export async function patchStationRolesService<T>(
 
 export async function postCreateStationService<T>(
     api: AxiosInstance,
-    data: { 
-        network_code: string
-        station_code: string
-        auto_x: string  
-        auto_y: string 
-        auto_z: string 
-        lat: string 
-        lon: string 
-        height: string 
-        max_dist: string
-        dome: string
-     },
+    data: {
+        network_code: string;
+        station_code: string;
+        auto_x: string;
+        auto_y: string;
+        auto_z: string;
+        lat: string;
+        lon: string;
+        height: string;
+        max_dist: string;
+        dome: string;
+    },
 ): Promise<T> {
     try {
         const response = await api.post(`/api/stations`, data);
@@ -1800,10 +1783,11 @@ export async function postStationTypesService<T>(
     data: FormData,
 ): Promise<T> {
     try {
-        const response = await api.post(`api/station-types`, data, 
-        {headers: {
-            "Content-Type": "multipart/form-data",
-        },});
+        const response = await api.post(`api/station-types`, data, {
+            headers: {
+                "Content-Type": "multipart/form-data",
+            },
+        });
         return response.data as Promise<T>;
     } catch (error) {
         return Promise.reject(error);
@@ -1816,9 +1800,11 @@ export async function patchStationTypesService<T>(
     data: FormData,
 ): Promise<T> {
     try {
-        const response = await api.patch(`api/station-types/${id}`, data, {headers: {
-            "Content-Type": "multipart/form-data",
-        },});
+        const response = await api.patch(`api/station-types/${id}`, data, {
+            headers: {
+                "Content-Type": "multipart/form-data",
+            },
+        });
         return response.data as Promise<T>;
     } catch (error) {
         return Promise.reject(error);
@@ -1856,7 +1842,7 @@ export async function getPeopleService<T>(
 
 export async function mergePeopleService<T>(
     api: AxiosInstance,
-    params: { from: number, to: number},
+    params: { from: number; to: number },
 ): Promise<T> {
     try {
         const url = `api/people/${params.from}/merge-to/${params.to}`;
@@ -1878,7 +1864,6 @@ export async function postPeopleService<T>(
             },
         });
         return response.data as Promise<T>;
-        
     } catch (error) {
         return Promise.reject(error);
     }
