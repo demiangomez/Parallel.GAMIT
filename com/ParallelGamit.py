@@ -688,7 +688,7 @@ def ExecuteGamit(cnn, JobServer, GamitConfig, stations, check_stations, ignore_m
                  dry_run=False, create_kml=False):
 
     modules = ('pgamit.pyRinex', 'datetime', 'os', 'shutil', 'pgamit.pyProducts', 'subprocess', 're', 'pgamit.pyETM',
-               'glob', 'platform', 'traceback', 'pgamit.pyGamitTask')
+               'glob', 'platform', 'traceback', 'pgamit.pyGamitTask', 'zipfile')
 
     tqdm.write(' >> %s Creating GAMIT session instances and executing GAMIT, please wait...' % print_datetime())
 

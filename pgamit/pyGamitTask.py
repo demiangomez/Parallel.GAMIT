@@ -12,6 +12,7 @@ import glob
 import platform
 import traceback
 import numpy
+import zipfile
 
 # app
 from pgamit import pyRinex
@@ -386,20 +387,41 @@ class GamitTask(object):
                 shutil.rmtree(self.pwd_brdc)
                 shutil.rmtree(self.pwd_igs)
 
-                # remove files from tables files only if successful
-                for ftype in ('*.??o', '*.grid', '*.dat', '*.apr', 'nbody', 'pole.*', 'ut1.*'):
-                    for ff in glob.glob(os.path.join(self.pwd_tables, ftype)):
-                        os.remove(ff)
+                # files to remove from tables only if successful
+                erase_tables = ('*.??o', '*.grid', '*.dat', '*.apr', 'nbody', 'pole.*', 'ut1.*')
+                # files to remove from processing directory
+                erase_process = ('*.??o', 'z*', '*.grid', '*.dat', '*.apr')
 
-                # remove files in rinex files only if successful
-                for ff in glob.glob(os.path.join(self.pwd_rinex, '*')):
+            else:
+                self.log(f'Deleting only RINEX and .grid files. Other files preserved for diagnostic purposes.')
+
+                # files to remove from tables (unsuccessful)
+                erase_tables = ('*.??o', '*.grid', 'antmod.dat')
+                # files to remove from processing directory
+                erase_process = ('*.??o', '*.grid', 'rcvant.*')
+
+            # remove files from tables files only if successful
+            for ftype in erase_tables:
+                for ff in glob.glob(os.path.join(self.pwd_tables, ftype)):
                     os.remove(ff)
 
-                # remove files from processing directory
-                for system in self.systems:
-                    for ftype in ('*.??o', 'z*', '*.grid', '*.dat', '*.apr'):
-                        for ff in glob.glob(os.path.join(self.pwd, f'{self.date.ddd()}{system}/{ftype}')):
-                            os.remove(ff)
+            # remove files from processing directory
+            for system in self.systems:
+                for ftype in erase_process:
+                    for ff in glob.glob(os.path.join(self.pwd, f'{self.date.ddd()}{system}/{ftype}')):
+                        os.remove(ff)
+
+            # remove files in rinex files ALWAYS
+            for ff in glob.glob(os.path.join(self.pwd_rinex, '*')):
+                os.remove(ff)
+
+            # new feature: compress autcln files to release more disk space
+            for system in self.systems:
+                for ftype in ('autcln.*', 'autcln.*.sum*'):
+                    for ff in glob.glob(os.path.join(self.pwd, f'{self.date.ddd()}{system}/{ftype}')):
+                        with zipfile.ZipFile(f'{ff}.zip', "w", zipfile.ZIP_DEFLATED, allowZip64=True) as zf:
+                            zf.write(ff, os.path.basename(ff))
+                        os.remove(ff)
 
             try:
                 if not os.path.exists(os.path.dirname(self.solution_pwd)):

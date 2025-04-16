@@ -320,10 +320,10 @@ class StationInfo:
                         row[1],  # station name
                         str(pyDate.Date(datetime=row[2])),  # session start
                         str(pyDate.Date(datetime=row[3])) if row[3].year < 2100 else '9999 999 00 00 00',  # session end
-                        float(row[4]),  # antenna height
+                        float(row[4]) if type(row[4]) is float else 0.000,  # antenna height
                         row[5],  # height code
-                        float(row[6]),  # antenna north offset
-                        float(row[7]),  # antenna east offset
+                        float(row[6]) if type(row[6]) is float else 0.000,  # antenna north offset
+                        float(row[7]) if type(row[7]) is float else 0.000,  # antenna east offset
                         row[8],  # receiver type
                         row[9],  # receiver firmware version
                         row[10],  # software version
