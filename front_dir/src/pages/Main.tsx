@@ -160,8 +160,6 @@ const MainPage = () => {
         stationStatus: false,
     });
 
-    const [showSidebar, setShowSidebar] = useState<boolean>(false);
-
     const [showEarthQuakesList, setShowEarthQuakesList] =
         useState<boolean>(false);
 
@@ -712,13 +710,7 @@ const MainPage = () => {
                                 setPosToFly={setPosToFly}
                             />
                         )}
-                    {!mapState ? (
-                        <Sidebar
-                            show={showSidebar}
-                            setShow={setShowSidebar}
-                            station={station}
-                        />
-                    ) : null}
+                    {!mapState ? <Sidebar station={station} /> : null}
                     <div
                         className={"self-center w-full flex flex-col flex-wrap"}
                     >

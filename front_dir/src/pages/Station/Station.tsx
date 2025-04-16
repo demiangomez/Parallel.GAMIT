@@ -6,7 +6,7 @@ import {
     useParams,
 } from "react-router-dom";
 
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 import {
     Sidebar,
@@ -81,8 +81,6 @@ const Station = () => {
     const [visits, setVisits] = useState<StationVisitsData[] | undefined>(
         undefined,
     );
-
-    const [showSidebar, setShowSidebar] = useState<boolean>(false);
 
     const [loading, setLoading] = useState<boolean>(true);
     const [reLoading, setReLoading] = useState<boolean>(false);
@@ -379,7 +377,6 @@ const Station = () => {
             ) : (
                 <div className="flex w-full">
                     <Sidebar
-                        show={showSidebar}
                         station={
                             station &&
                             reStation &&
@@ -391,10 +388,8 @@ const Station = () => {
                         stationMeta={stationMeta}
                         refetchStationMeta={getStationMeta}
                         refetch={refetch}
-                        setShow={setShowSidebar}
                     />
                     <Breadcrumb
-                        sidebar={showSidebar}
                         state={
                             station &&
                             reStation &&
@@ -451,7 +446,6 @@ const Station = () => {
                                 station,
                                 reStation,
                                 stationMeta,
-                                showSidebar,
                                 images,
                                 photoLoading,
                                 loadPdf,
@@ -473,4 +467,4 @@ const Station = () => {
     );
 };
 
-export default Station;
+export default React.memo(Station);

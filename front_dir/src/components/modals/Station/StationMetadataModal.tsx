@@ -21,6 +21,7 @@ import {
     usePopup,
     useWaitCursor,
 } from "@hooks";
+
 import {
     ArrowDownTrayIcon,
     BookOpenIcon,
@@ -436,15 +437,6 @@ const StationMetadataModal = ({
     };
 
     useEffect(() => {
-        if (monumentType.length > 0) {
-            const monumentId = monumentType.find(
-                (mt) => mt.id === Number(stationMeta?.monument_type),
-            )?.id;
-            getMonumentPhotoById(monumentId);
-        }
-    }, [stationMeta, monumentType]);
-
-    useEffect(() => {
         if (stationMeta && station) {
             getStationInfo();
             getFiles();
@@ -545,12 +537,12 @@ const StationMetadataModal = ({
             },
 
             station: {
-            lat: String(Number(stationData?.lat).toFixed(8)) ?? "",
-            lon: String(Number(stationData?.lon).toFixed(8)) ?? "",
-            height: String(Number(stationData?.height).toFixed(3)) ?? "",
-            auto_x: String(Number(stationData?.auto_x).toFixed(3)) ?? "",
-            auto_y: String(Number(stationData?.auto_y).toFixed(3)) ?? "",
-            auto_z: String(Number(stationData?.auto_z).toFixed(3)) ?? "",
+                lat: String(Number(stationData?.lat).toFixed(8)) ?? "",
+                lon: String(Number(stationData?.lon).toFixed(8)) ?? "",
+                height: String(Number(stationData?.height).toFixed(3)) ?? "",
+                auto_x: String(Number(stationData?.auto_x).toFixed(3)) ?? "",
+                auto_y: String(Number(stationData?.auto_y).toFixed(3)) ?? "",
+                auto_z: String(Number(stationData?.auto_z).toFixed(3)) ?? "",
             },
         };
     }, [stationType, monumentType, stationStatus, stationData, stationMeta]);
@@ -563,6 +555,29 @@ const StationMetadataModal = ({
             payload: formattedData,
         });
     }, [formattedData]);
+
+    useEffect(() => {
+        if (monumentType.length > 0) {
+            const newMonumentSelected = monumentType.find(
+                (mt) => mt.name === formState.stationMeta.monument_type,
+            );
+            if (
+                newMonumentSelected &&
+                newMonumentSelected.id !== Number(stationMeta?.monument_type)
+            ) {
+                const monumentId = newMonumentSelected.id;
+                getMonumentPhotoById(monumentId);
+            } else if (
+                newMonumentSelected &&
+                newMonumentSelected.id === Number(stationMeta?.monument_type)
+            ) {
+                const monumentId = monumentType.find(
+                    (mt) => mt.id === Number(stationMeta?.monument_type),
+                )?.id;
+                getMonumentPhotoById(monumentId);
+            }
+        }
+    }, [stationMeta, monumentType, formState]);
 
     const handleChange = (
         e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -1417,7 +1432,7 @@ const StationMetadataModal = ({
                             <h2 className="card-title border-b-2 border-base-300 p-2 justify-between">
                                 Comments
                             </h2>
-                            <div className="overflow-y-hidden max-h-48 h-auto">
+                            <div className="max-h-48 h-auto">
                                 {edit ? (
                                     <QuillText
                                         value={

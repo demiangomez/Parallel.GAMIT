@@ -14,49 +14,68 @@
     background-color: rgb(202, 202, 202);
 }
 
-@layer utilities {
-    .granate-icon{
-        filter: invert(9%) sepia(60%) saturate(4585%) hue-rotate(341deg) brightness(88%) contrast(100%);
-    }
-    .light-green-icon{
-        filter: invert(86%) sepia(20%) saturate(848%) hue-rotate(62deg) brightness(96%) contrast(96%);
-    }
-    .yellow-icon {
-        filter: invert(84%) sepia(100%) saturate(1000%) hue-rotate(0deg) brightness(100%) contrast(100%);
-    }
-    .green-icon {
-        filter: invert(18%) sepia(33%) saturate(7316%) hue-rotate(97deg) brightness(97%) contrast(102%);
-    }
-    .light-gray-icon {
-        filter: invert(72%) sepia(0%) saturate(0%) hue-rotate(141deg) brightness(88%) contrast(85%);
-    }
-    .gray-icon {
-        filter: invert(19%) sepia(0%) saturate(1102%) hue-rotate(257deg) brightness(100%) contrast(84%);
-    }
-    .light-red-icon {
-        filter: invert(31%) sepia(75%) saturate(4977%) hue-rotate(2deg) brightness(99%) contrast(103%);
-    }
-    .orange-icon{
-        filter: invert(54%) sepia(77%) saturate(1117%) hue-rotate(0deg) brightness(105%) contrast(102%);
-    }
-    .light-blue-icon{
-        filter: invert(58%) sepia(24%) saturate(2543%) hue-rotate(155deg) brightness(106%) contrast(90%);
-    }
-    .purple-icon{
-        filter: invert(20%) sepia(84%) saturate(3857%) hue-rotate(280deg) brightness(88%) contrast(99%);
-    }
-    .lilac-icon{
-        filter: invert(59%) sepia(10%) saturate(1190%) hue-rotate(245deg) brightness(89%) contrast(89%);
-    }
-    .blue-icon{
-        filter: invert(10%) sepia(100%) saturate(5793%) hue-rotate(247deg) brightness(96%) contrast(149%);
-    }
-
+.ql-size-small {
+    font-size: 10px;
+}
+.ql-size-large {
+    font-size: 18px;
+}
+.ql-size-huge {
+    font-size: 32px;
 }
 
+@layer utilities {
+    .granate-icon {
+        filter: invert(9%) sepia(60%) saturate(4585%) hue-rotate(341deg)
+            brightness(88%) contrast(100%);
+    }
+    .light-green-icon {
+        filter: invert(86%) sepia(20%) saturate(848%) hue-rotate(62deg)
+            brightness(96%) contrast(96%);
+    }
+    .yellow-icon {
+        filter: invert(84%) sepia(100%) saturate(1000%) hue-rotate(0deg)
+            brightness(100%) contrast(100%);
+    }
+    .green-icon {
+        filter: invert(18%) sepia(33%) saturate(7316%) hue-rotate(97deg)
+            brightness(97%) contrast(102%);
+    }
+    .light-gray-icon {
+        filter: invert(72%) sepia(0%) saturate(0%) hue-rotate(141deg)
+            brightness(88%) contrast(85%);
+    }
+    .gray-icon {
+        filter: invert(19%) sepia(0%) saturate(1102%) hue-rotate(257deg)
+            brightness(100%) contrast(84%);
+    }
+    .light-red-icon {
+        filter: invert(31%) sepia(75%) saturate(4977%) hue-rotate(2deg)
+            brightness(99%) contrast(103%);
+    }
+    .orange-icon {
+        filter: invert(54%) sepia(77%) saturate(1117%) hue-rotate(0deg)
+            brightness(105%) contrast(102%);
+    }
+    .light-blue-icon {
+        filter: invert(58%) sepia(24%) saturate(2543%) hue-rotate(155deg)
+            brightness(106%) contrast(90%);
+    }
+    .purple-icon {
+        filter: invert(20%) sepia(84%) saturate(3857%) hue-rotate(280deg)
+            brightness(88%) contrast(99%);
+    }
+    .lilac-icon {
+        filter: invert(59%) sepia(10%) saturate(1190%) hue-rotate(245deg)
+            brightness(89%) contrast(89%);
+    }
+    .blue-icon {
+        filter: invert(10%) sepia(100%) saturate(5793%) hue-rotate(247deg)
+            brightness(96%) contrast(149%);
+    }
+}
 
-
-.sr-only{
+.sr-only {
     display: none;
 }
 

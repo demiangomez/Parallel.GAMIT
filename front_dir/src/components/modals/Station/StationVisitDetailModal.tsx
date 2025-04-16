@@ -1174,7 +1174,7 @@ const StationVisitDetailModal = ({
                                                 <QuillText
                                                     value={richText}
                                                     setValue={setRichText}
-                                                    clase="overflow-y-auto min-h-32 max-h-32"
+                                                    clase="min-h-32 max-h-32"
                                                 />
                                             ) : richText ? (
                                                 <div

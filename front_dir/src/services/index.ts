@@ -1730,7 +1730,7 @@ export async function postCreateStationService<T>(
     },
 ): Promise<T> {
     try {
-        const response = await api.post(`/api/stations`, data);
+        const response = await api.post(`api/stations`, data);
         return response.data as Promise<T>;
     } catch (error) {
         return Promise.reject(error);

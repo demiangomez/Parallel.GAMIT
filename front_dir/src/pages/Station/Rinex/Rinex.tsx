@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
 import { useOutletContext } from "react-router-dom";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Rnd } from "react-rnd";
 
 import {
@@ -14,7 +14,7 @@ import {
     StationInfoModal,
     StatsModal,
     TableCard,
-    RinexCompletionPlot
+    RinexCompletionPlot,
 } from "@componentsReact";
 
 import {
@@ -48,7 +48,6 @@ import {
 type OutletContext = {
     station: StationData;
     reStation: StationData;
-    showSidebar: boolean;
     getReStation: () => void;
 };
 
@@ -149,8 +148,7 @@ const Rinex = () => {
     const { token, logout } = useAuth();
     const api = useApi(token, logout);
 
-    const { station, showSidebar, getReStation } =
-        useOutletContext<OutletContext>();
+    const { station, getReStation } = useOutletContext<OutletContext>();
 
     const [lastGroupIdPreviousPage, setLastGroupIdPreviousPage] = useState<
         string | undefined
@@ -207,7 +205,8 @@ const Rinex = () => {
         RinexObject[] | undefined
     >(undefined);
 
-    const [showCompletionPlot, setShowCompletionPlot] = useState<boolean>(false);
+    const [showCompletionPlot, setShowCompletionPlot] =
+        useState<boolean>(false);
 
     const [loading, setLoading] = useState<boolean>(false);
 
@@ -283,14 +282,17 @@ const Rinex = () => {
     };
 
     const getCompletionPlot = async () => {
-        try{
-            const res = await getCompletionPlotService<CompletionPlotServiceData>(api, station.api_id ?? 0);
+        try {
+            const res =
+                await getCompletionPlotService<CompletionPlotServiceData>(
+                    api,
+                    station.api_id ?? 0,
+                );
             setPlotData(res.completion_plot);
-        }
-        catch(e){
+        } catch (e) {
             console.error(e);
         }
-    }
+    };
 
     const getRinexFiltered = async (
         filtersObj: Record<keyof typeof RINEX_FILTERS_STATE, any>,
@@ -536,7 +538,7 @@ const Rinex = () => {
 
     useEffect(() => {
         getCompletionPlot();
-    }, [])
+    }, []);
 
     useEffect(() => {
         if (rinex && !shouldFetchRinex) {
@@ -643,8 +645,51 @@ const Rinex = () => {
         rinexGroup ?? singleRinex ?? [],
     );
 
+    // FAL: 16-04-2025 Sidebar observer to not use show state
+
+    const [sidebarWidth, setSidebarWidth] = useState<number>();
+
+    const onResize = useCallback<ResizeObserverCallback>((entries) => {
+        const [entry] = entries;
+        if (entry) {
+            setSidebarWidth(entry.contentRect.width);
+        }
+    }, []);
+
+    // Set up resize observer for the sidebar
+    useEffect(() => {
+        const resizeObserver = new ResizeObserver(onResize);
+        const sidebar = document.querySelector(".sidebar") as HTMLElement;
+
+        if (sidebar) {
+            resizeObserver.observe(sidebar);
+        }
+
+        return () => {
+            if (sidebar) {
+                resizeObserver.unobserve(sidebar);
+            }
+            resizeObserver.disconnect();
+        };
+    }, [onResize]);
+
+    const containerWidth = useMemo(() => {
+        const defaultW = "w-[calc(100vw-10rem)]";
+        const maxW = "w-[calc(100vw-20rem)]";
+        const sidebarElement = document.querySelector(".sidebar");
+        if (!sidebarElement) return defaultW;
+
+        if (sidebarElement.classList.contains("w-32")) {
+            return defaultW;
+        } else if (sidebarElement.classList.contains("w-72")) {
+            return maxW;
+        }
+        return defaultW;
+    }, [sidebarWidth]);
+
     return (
-        <div className="w-inherit flex flex-col items-center justify-center">
+        <div className="flex flex-col items-center justify-center">
+            {/* Manual actions panel */}
             {actionsManual && (
                 <Rnd
                     default={rndOptions}
@@ -660,10 +705,7 @@ const Rinex = () => {
 
             <h1 className="text-2xl font-base text-center">RINEX</h1>
             <div
-                className="flex justify-center pr-2 px-2 pb-4 transition-all duration-200"
-                style={{
-                    width: `${showSidebar ? "calc(100vw - 20rem)" : "calc(100vw - 10rem)"}`,
-                }}
+                className={`flex justify-center pr-2 px-2 pb-4 transition-all duration-100 ${containerWidth}`}
             >
                 <CardContainer title="" titlePosition="start">
                     <TableCard title={""} size="100%">
@@ -688,7 +730,9 @@ const Rinex = () => {
                                         className="checkbox"
                                         checked={showCompletionPlot}
                                         onChange={(e) =>
-                                            setShowCompletionPlot(e.target.checked)
+                                            setShowCompletionPlot(
+                                                e.target.checked,
+                                            )
                                         }
                                     />
                                 </label>
@@ -767,9 +811,11 @@ const Rinex = () => {
                                 handlePage={handlePage}
                             />
                         ) : null}
-                        { showCompletionPlot &&
-                            <RinexCompletionPlot img={`data:image/png;base64,${plotData}`}/>
-                        }
+                        {showCompletionPlot && (
+                            <RinexCompletionPlot
+                                img={`data:image/png;base64,${plotData}`}
+                            />
+                        )}
                     </TableCard>
                 </CardContainer>
             </div>
@@ -845,7 +891,7 @@ const Rinex = () => {
                         setRinexGroup(undefined);
                     }}
                     setStateModal={setModals}
-                    typeAddition= {"none-clear"}
+                    typeAddition={"none-clear"}
                 />
             )}
         </div>

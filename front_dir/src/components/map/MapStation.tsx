@@ -326,6 +326,11 @@ const MapStation = ({
 
     const [showScroller, setShowScroller] = useState(false);
 
+    const [types, setTypes] = useState<{ image: string; name: string }[]>([]);
+    const [statuses, setStatuses] = useState<{ name: string; color: string }[]>(
+        [],
+    );
+
     //--------------------------------------------------UseRef--------------------------------------------------
 
     const mapRef = useRef<L.Map | null>(null);
@@ -378,11 +383,6 @@ const MapStation = ({
     useEffect(() => {
         setForceRerender((prev) => prev + 1);
     }, [base64Data]);
-
-    const [types, setTypes] = useState<{ image: string; name: string }[]>([]);
-    const [statuses, setStatuses] = useState<{ name: string; color: string }[]>(
-        [],
-    );
 
     const getStationStatuses = async () => {
         try {
@@ -462,13 +462,13 @@ const MapStation = ({
                 {!loadPdf && (
                     <VisitsScroller
                         map={mapRef.current}
+                        showScroller={showScroller}
                         visits={visitScrollerProps.visits}
                         changeKml={visitScrollerProps.changeKml}
                         changeMeta={visitScrollerProps.changeMeta}
+                        stationMeta={visitScrollerProps.stationMeta}
                         setChangeKml={visitScrollerProps.setChangeKml}
                         setChangeMeta={visitScrollerProps.setChangeMeta}
-                        stationMeta={visitScrollerProps.stationMeta}
-                        showScroller={showScroller}
                         setShowScroller={setShowScroller}
                     />
                 )}

@@ -88,6 +88,9 @@ const LoadKmzFromBase64 = ({ base64Data }: { base64Data: string }) => {
 
                     map.fitBounds(geoJsonLayer.getBounds());
                     map.zoomOut(1);
+                    geoJsonLayer.setStyle({
+                        color: "#0000FF",
+                    });
                     geoJsonLayer.addTo(map);
                 };
 

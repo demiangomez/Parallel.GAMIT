@@ -28,7 +28,7 @@ Skip this part if you are using an existing db
 4. GROUP_ID_TO_SAVE_FILES: all the media saved by the app will be owned by this group. 
 
 .env file on front_dir folder
-1. VITE_SERVER_URL: The API URL is the same as the app URL (as the front end and the back end are running on the same machine). For example, if users access the app at https://192.168.18.10:2375/, then that will also be the value for this parameter.
+1. VITE_API_URL: The API URL is the same as the app URL (as the front end and the back end are running on the same machine). For example, if users access the app at https://192.168.18.10:2375/, then that will also be the value for this parameter.
 
 ### Procedure
 

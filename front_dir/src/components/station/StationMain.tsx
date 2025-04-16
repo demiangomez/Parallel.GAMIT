@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
-import { MapStation, Photo } from "@componentsReact";
+import { MapSkeleton, MapStation, Photo } from "@componentsReact";
 
 import { hasDifferences } from "@utils";
 
@@ -55,6 +55,8 @@ const StationMain = () => {
 
     const [changeKml, setChangeKml] = useState<VisitsStates[]>([]);
 
+    const [mapBlinked, setMapBlinked] = useState<boolean>(true);
+
     const definitiveStation =
         station && reStation && hasDifferences(station, reStation)
             ? reStation
@@ -84,6 +86,10 @@ const StationMain = () => {
         );
     }, [stationMeta]);
 
+    useEffect(() => {
+        if (visits && stationMeta) setMapBlinked(false);
+    }, [stationMeta, visits]);
+
     return (
         <div>
             <h1 className="text-2xl font-base text-center">
@@ -91,24 +97,33 @@ const StationMain = () => {
             </h1>
             <div className="flex flex-col items-center justify-center space-y-4 px-2 pb-4">
                 <div className="flex w-full space-x-2 ">
-                    <MapStation
-                        station={definitiveStation}
-                        base64Data={
-                            changeMeta ||
-                            changeKml?.some((visit) => visit.checked)
-                                ? (visitsAndMeta ?? "")
-                                : ""
-                        }
-                        loadPdf={loadPdf}
-                        loadedPdfData={loadedPdfData}
-                        setStationLocationScreen={setStationLocationScreen}
-                        setStationLocationDetailScreen={
-                            setStationLocationDetailScreen
-                        }
-                        setLoadPdf={setLoadPdf}
-                        setLoadedMap={setLoadedMap}
-                        visitScrollerProps={visitScrollerProps}
-                    />
+                    {mapBlinked ? (
+                        <MapSkeleton
+                            styles={{
+                                backgroundColor: "rgb(202, 202, 202)",
+                                marginTop: "1.5rem",
+                            }}
+                        />
+                    ) : (
+                        <MapStation
+                            station={definitiveStation}
+                            base64Data={
+                                changeMeta ||
+                                changeKml?.some((visit) => visit.checked)
+                                    ? (visitsAndMeta ?? "")
+                                    : ""
+                            }
+                            loadPdf={loadPdf}
+                            loadedPdfData={loadedPdfData}
+                            setStationLocationScreen={setStationLocationScreen}
+                            setStationLocationDetailScreen={
+                                setStationLocationDetailScreen
+                            }
+                            setLoadPdf={setLoadPdf}
+                            setLoadedMap={setLoadedMap}
+                            visitScrollerProps={visitScrollerProps}
+                        />
+                    )}
 
                     <Photo
                         loader={photoLoading}

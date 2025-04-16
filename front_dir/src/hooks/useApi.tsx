@@ -1,6 +1,6 @@
 import axios, { AxiosError, AxiosInstance } from "axios";
 
-const BASEURL: string = import.meta.env.VITE_SERVER_URL;
+const BASEURL: string = import.meta.env.VITE_API_URL;
 
 export default function useApi(
     token: string | null,

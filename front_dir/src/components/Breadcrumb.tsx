@@ -2,11 +2,10 @@ import { StationData } from "@types";
 import { Link, useMatches } from "react-router-dom";
 
 type Props = {
-    sidebar: boolean;
     state?: StationData;
 };
 
-const Breadcrumb = ({ sidebar, state }: Props) => {
+const Breadcrumb = ({ state }: Props) => {
     // FAL: 05/08/2024
     // STATE IN BREADCRUMB REFERENCE TO STATION DATA BCS ITS USED IN MAIN PAGE
     // TO RETURN IT POSITION.
@@ -18,8 +17,7 @@ const Breadcrumb = ({ sidebar, state }: Props) => {
 
     return (
         <div
-            className={`breadcrumbs absolute 
-                left-36 ${sidebar ? "translate-x-40" : ""} transition-all mt-4 
+            className={`breadcrumbs absolute left-36 peer-[.w-72]:translate-x-40 transition-all mt-4 
                 badge overflow-hidden text-sm`}
         >
             <ul>

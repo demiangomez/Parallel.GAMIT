@@ -28,3 +28,4 @@ src/assets/kml
 
 .env
 .prettierrc
+srv/nginxdev.conf

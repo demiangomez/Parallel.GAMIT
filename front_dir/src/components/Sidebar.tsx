@@ -17,13 +17,11 @@ import { GetParams, StationData, StationMetadataServiceData } from "@types";
 import { showModal } from "@utils";
 
 interface SidebarProps {
-    show: boolean;
     station: StationData | undefined;
     mainParams?: GetParams;
     stationMeta?: StationMetadataServiceData | undefined;
     refetchStationMeta?: () => void;
     refetch?: () => void;
-    setShow: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 interface Icons {
@@ -31,12 +29,10 @@ interface Icons {
 }
 
 const Sidebar = ({
-    show,
     station,
     mainParams,
     stationMeta,
     refetch,
-    setShow,
 }: SidebarProps) => {
     //------------------------------------------------Constantes-----------------------------------------------------
     const icons: Icons = {
@@ -48,6 +44,8 @@ const Sidebar = ({
         People: UsersIcon,
         Events: ClipboardDocumentListIcon,
     };
+
+    const [show, setShow] = useState<boolean>(false);
 
     // const longTitles = ["Information", "Metadata", "Visits", "People"];
     const longTitles = [
@@ -86,7 +84,9 @@ const Sidebar = ({
             {
                 /*userRole === "1" && AGREGAR SI VAMOS A HANDLEAR X ROLE */ station && (
                     <div
-                        className="left-0 top-0 pt-[8vh] bg-gray-800"
+                        className={`peer sidebar transition-all left-0 top-0 pt-[8vh] bg-gray-800 ${
+                            sidebarWidth
+                        }`}
                         style={{ minHeight: `calc(100vh - 8vh)` }}
                         onMouseEnter={() => setShow(true)}
                         onMouseLeave={() => setShow(false)}
@@ -102,7 +102,7 @@ const Sidebar = ({
                                     {longTitles.map((title, idx) => (
                                         <div
                                             className="flex w-full justify-center mt-16"
-                                            key={idx}
+                                            key={title + idx}
                                         >
                                             <div className="flex items-center justify-center w-4/12 ">
                                                 {icons[title] &&
@@ -206,4 +206,4 @@ const Sidebar = ({
     );
 };
 
-export default Sidebar;
+export default React.memo(Sidebar);
