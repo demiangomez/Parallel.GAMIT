@@ -419,7 +419,7 @@ class GamitTask(object):
             for system in self.systems:
                 for ftype in ('autcln.*', 'autcln.*.sum*'):
                     for ff in glob.glob(os.path.join(self.pwd, f'{self.date.ddd()}{system}/{ftype}')):
-                        with zipfile.ZipFile(f'{ff}.zip', "w", zipfile.ZIP_DEFLATED, allowZip64=True) as zf:
+                        with zipfile.ZipFile(f'{ff}.gz', "w", zipfile.ZIP_DEFLATED, allowZip64=True) as zf:
                             zf.write(ff, os.path.basename(ff))
                         os.remove(ff)
 

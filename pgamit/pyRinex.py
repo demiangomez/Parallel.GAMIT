@@ -1199,6 +1199,10 @@ class ReadRinex(RinexRecord):
             else:
                 NewValues = NewValues.currentrecord
 
+        # DDG: check if NewValues is None -> assign empty dict in that case
+        if NewValues is None:
+            NewValues = {}
+
         fieldnames  = ('AntennaHeight', 'AntennaNorth', 'AntennaEast', 'ReceiverCode', 'ReceiverVers',
                        'ReceiverSerial', 'AntennaCode', 'RadomeCode', 'AntennaSerial')
         rinex_field = ('AntennaOffset', None, None, 'ReceiverType', 'ReceiverFw', 'ReceiverSerial',

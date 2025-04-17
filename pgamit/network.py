@@ -185,9 +185,9 @@ class Network(object):
         central_points = select_central_point(points, qmean.cluster_centers_)
         # expand the initial clusters to overlap stations with neighbors
         OC = over_cluster(qmean.labels_, points, metric='euclidean',
-                          neighborhood=5, overlap_points=2)
+                          neighbors=16, overlap_points=4)
         # set 'method=None' to disable
-        OC, central_points = prune(OC, central_points, method='linear')
+        OC, central_points = prune(OC, central_points, method='minsize')
         # calculate all 'tie' stations
         ties = np.where(np.sum(OC, axis=0) > 1)[0]
 
