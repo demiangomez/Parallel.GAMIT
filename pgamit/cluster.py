@@ -20,40 +20,45 @@ from sklearn.cluster._kmeans import (_BaseKMeans, _kmeans_single_elkan,
                                      _kmeans_single_lloyd)
 
 
-def prune(OC, central_points, method='linear'):
+def prune(OC, central_points, method='minsize'):
     """Prune redundant clusters from over cluster (OC) and other arrays
 
     Parameters
     ----------
 
     OC : bool array of shape (n_clusters, n_coordinates)
-    method : ["linear", None]; defaults linear scan
+    method : ["linear", "minsize:]; "linear" is a row-by-row scan through the
+        cluster matrix, "minsize" will sort matrix rows (i.e., the clusters)
+        according to size and prioritize pruning the smallest clusters first.
 
     Returns
 
     OC : Pruned bool array of shape (n_clusters - N, n_coordinates)
     central_points : Pruned int array of shape (n_clusters -N,)
     """
+    subset = []
+    rowlength = len(OC[0,:])
     if method == "linear":
-        subset = []
-        for i, row in enumerate(OC):
-            mod = OC.copy()
-            mod[i, :] = np.zeros(len(row))
-            counts = mod.sum(axis=0)
-            problems = np.sum(counts == 0)
-            if problems == 0:
-                subset.append(i)
-                OC[i, :] = np.zeros(len(row))
-        # Cast subset list to pandas index
-        dfIndex = pd.Index(subset)
-        # Cast OC to pandas dataframe
-        dfOC = pd.DataFrame(OC)
-        # Apply the 'inverse' index; pruned is boolean numpy index array
-        pruned = ~dfOC.index.isin(dfIndex)
-        return OC[pruned], central_points[pruned]
+        indices = list(range(len(OC)))
+    elif method == "minsize":
+        indices = np.argsort(OC.sum(axis=1))
     else:
-        return OC, central_points
-
+        raise ValueError("Unknown method '" + method + "'")
+    for i in indices:
+        mod = OC.copy()
+        mod[i, :] = np.zeros(rowlength)
+        counts = mod.sum(axis=0)
+        problems = np.sum(counts == 0)
+        if problems == 0:
+            subset.append(i)
+            OC[i, :] = np.zeros(rowlength)
+    # Cast subset list to pandas index
+    dfIndex = pd.Index(subset)
+    # Cast OC to pandas dataframe
+    dfOC = pd.DataFrame(OC)
+    # Apply the 'inverse' index; pruned is boolean numpy index array
+    pruned = ~dfOC.index.isin(dfIndex)
+    return OC[pruned], central_points[pruned]
 
 def select_central_point(coordinates, centroids, metric='euclidean'):
     """Select the nearest central point in a given neighborhood
