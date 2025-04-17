@@ -100,8 +100,8 @@ def select_central_point(coordinates, centroids, metric='euclidean'):
     return idxs.squeeze()
 
 
-def over_cluster(labels, coordinates, metric='haversine', neighborhood=5,
-                 overlap_points=2, rejection_threshold=None):
+def over_cluster(labels, coordinates, metric='haversine', neighbors=5,
+                 overlap_points=2, rejection_threshold=None, method='static'):
     """Expand cluster membership to include edge points of neighbor clusters
 
     Expands an existing clustering to create overlapping membership between
@@ -160,9 +160,12 @@ def over_cluster(labels, coordinates, metric='haversine', neighborhood=5,
         Sparse matrices are only supported by scikit-learn metrics.  See the
         documentation for scipy.spatial.distance for details on these metrics.
 
-    neighborhood : int greater than or equal to 1, default=3
-        Number of adjacent clusters to include when adding cluster membership
-        overlap. Should be less than the number of unique cluster labels - 1.
+    neighbors: int greater than or equal to 1, default=3
+        For method='static', this is total number of points that will be added
+        to the seed clusters during cluster expansion.
+        For method='dynamic', this is the (zero-indexed) number of adjacent
+        clusters to include when adding cluster membership overlap. Should be
+        less than the number of unique cluster labels - 1.
 
     overlap_points : int greater than or equal to 1, default=2
         Should not exceed the size of the smallest cluster in `labels`.
@@ -173,6 +176,11 @@ def over_cluster(labels, coordinates, metric='haversine', neighborhood=5,
         Default of 'None' is equivalent to setting the threshold to infinity.
         Note that if value other than 'None' is used, there is no guarantee
         that all clusters will have overlap points added.
+
+    method : 'static' (default) or 'dynamic'
+        The 'static' method will always produce an overcluster equal to the
+        `neighbors` parameter; 'dynamic' will produce an overcluster ceiling
+        of (neighbors - 1) * overlap_points, with a floor of neighbors.
 
     Returns
     -------
@@ -188,8 +196,8 @@ def over_cluster(labels, coordinates, metric='haversine', neighborhood=5,
     clusters = np.unique(labels)
     n_clusters = len(clusters)
 
-    if (n_clusters - 1) < neighborhood:
-        neighborhood = (n_clusters - 1)
+    if (n_clusters - 1) < neighbors:
+        neighbors = (n_clusters - 1)
 
     # reference index for reverse lookups
     ridx = np.array(list(range(len(labels))))
@@ -205,10 +213,11 @@ def over_cluster(labels, coordinates, metric='haversine', neighborhood=5,
         # Build index tree on members
         nbrs = NearestNeighbors(n_neighbors=1, algorithm='ball_tree',
                                 metric=metric).fit(coordinates[members])
-        # Could be set to '1';
-        # using same check as while loop for consistency
-        coverage = len(np.unique(labels[output[cluster, :]]))
-        while coverage <= neighborhood:
+        if method == 'dynamic':
+            coverage = len(np.unique(labels[output[cluster, :]]))
+        elif method == 'static':
+            coverage = 0
+        while coverage <= neighbors:
             # intersect search tree with non-members
             D, _ = nbrs.kneighbors(coordinates[nonmembers, :])
             # Rejection threshold is lightly tested...
@@ -221,8 +230,12 @@ def over_cluster(labels, coordinates, metric='haversine', neighborhood=5,
             nonmembers[new_member] = 0
             # Add to member label array
             output[cluster, new_member] = 1
-            # Update current count of over-clustered neighbors
-            coverage = len(np.unique(labels[output[cluster, :]]))
+            if method == 'dynamic':
+                # Update current count of over-clustered neighbors
+                coverage = len(np.unique(labels[output[cluster, :]]))
+            elif method == 'static':
+                # Update current point expansion count
+                coverage += 1
             # Grab label of new member for overlap check
             nm_label = labels[new_member]
             # Check if we've exceeded our overlap allotment...
