@@ -58,8 +58,9 @@ def test_max_clust_expansion(min_clust, max_clust, neighbors, overlap):
                             max_iter=8000, random_state=42)
     clust.fit(data)
  
-    OC = over_cluster(clust.labels_, data, metric='euclidean',
-                      neighbors=neighbors, overlap_points=overlap)
+    OC = over_cluster(clust.labels_, data, metric='euclidean', 
+                      neighbors=neighbors, overlap_points=overlap,
+                      method='dynamic')
 
     expanded_sizes = np.sum(OC, axis=1)
     _, original_sizes = np.unique(clust.labels_, return_counts=True)
