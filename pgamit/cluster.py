@@ -270,18 +270,6 @@ class BisectingQMeans(_BaseKMeans):
 
     Parameters
     ----------
-    min_size : int, default=4
-        The minimum acceptable cluster size. Clusters of size <= to this
-        parameter will **not** be produced by this algorithm.
-
-    opt_size : int, default=12
-        Target optimum cluster size. If the sum membership of a proposed
-        cluster bisection is less than this value, the cluster will not be
-        bisected. When combined with the `min_size` parameter above,
-        these conditions together mean that clusters of sizes smaller than
-        (`opt_size` - `min_size`) are *a priori* ineligible to be
-        bisected.
-
     max_size: int, default=25
         Hard cutoff to bypass the heuristic when bisecting clusters; no
         clusters greater than this size will be produced.
@@ -382,8 +370,6 @@ class BisectingQMeans(_BaseKMeans):
 
     def __init__(
         self,
-        min_size=4,
-        opt_size=12,
         max_size=25,
         *,
         init="random",
@@ -393,7 +379,7 @@ class BisectingQMeans(_BaseKMeans):
         verbose=0,
         tol=1e-4,
         copy_x=True,
-        algorithm="lloyd",
+        algorithm="elkan",
         n_clusters=2,      # needed for base class, do not remove
     ):
         super().__init__(
@@ -406,8 +392,6 @@ class BisectingQMeans(_BaseKMeans):
             n_init=n_init,
         )
 
-        self.min_size = min_size
-        self.opt_size = opt_size
         self.max_size = max_size
         self.copy_x = copy_x
         self.algorithm = algorithm
@@ -421,40 +405,6 @@ class BisectingQMeans(_BaseKMeans):
             "threads. You can avoid it by setting the environment"
             f" variable OMP_NUM_THREADS={n_active_threads}."
         )
-
-    def _inertia_per_cluster(self, X, centers, labels, sample_weight):
-        """Calculate the sum of squared errors (inertia) per cluster.
-
-        Parameters
-        ----------
-        X : {ndarray, csr_matrix} of shape (n_samples, n_features)
-            The input samples.
-
-        centers : ndarray of shape (n_clusters=2, n_features)
-            The cluster centers.
-
-        labels : ndarray of shape (n_samples,)
-            Index of the cluster each sample belongs to.
-
-        sample_weight : ndarray of shape (n_samples,)
-            The weights for each observation in X.
-
-        Returns
-        -------
-        inertia_per_cluster : ndarray of shape (n_clusters=2,)
-            Sum of squared errors (inertia) for each cluster.
-        """
-        # n_clusters = 2 since centers comes from a bisection
-        n_clusters = centers.shape[0]
-        _inertia = _inertia_sparse if sp.issparse(X) else _inertia_dense
-
-        inertia_per_cluster = np.empty(n_clusters)
-        for label in range(n_clusters):
-            inertia_per_cluster[label] = _inertia(X, sample_weight, centers,
-                                                  labels, self._n_threads,
-                                                  single_label=label)
-
-        return inertia_per_cluster
 
     def _bisect(self, X, x_squared_norms, sample_weight, cluster_to_bisect):
         """Split a cluster into 2 subsclusters.
@@ -511,24 +461,12 @@ class BisectingQMeans(_BaseKMeans):
         if self.verbose:
             print(f"New centroids from bisection: {best_centers}")
 
-        scores = self._inertia_per_cluster(X, best_centers, best_labels,
-                                           sample_weight)
         counts = np.bincount(best_labels, minlength=2)
-        scores[np.where(counts <
-                        (self.opt_size - self.min_size))] = -np.inf
-        # case where bisecting is not optimum
-        if (counts[0] + counts[1]) < self.opt_size:
-            cluster_to_bisect.score = -np.inf
-        # bisect as long as the smallest child meets membership constraints
-        elif ((counts[0] >= self.min_size) and
-              (counts[1] >= self.min_size)):
+        scores = counts
+        if (counts[0] + counts[1] >= self.max_size):
             cluster_to_bisect.split(best_labels, best_centers, scores)
-        # one child will have membership of 3 or less; don't split
         else:
-            if (counts[0] + counts[1] >= self.max_size):
-                cluster_to_bisect.split(best_labels, best_centers, scores)
-            else:
-                cluster_to_bisect.score = -np.inf
+            self.bisect = False
 
     @_fit_context(prefer_skip_nested_validation=True)
     def fit(self, X, y=None, sample_weight=None):
@@ -592,15 +530,20 @@ class BisectingQMeans(_BaseKMeans):
 
         x_squared_norms = row_norms(X, squared=True)
 
+        # run first bisection out of loop to avoid 0-count early termination
+        cluster_to_bisect = self._bisecting_tree.get_cluster_to_bisect()
+        self._bisect(X, x_squared_norms, sample_weight, cluster_to_bisect)
         while self.bisect:
             # Chose cluster to bisect
             cluster_to_bisect = self._bisecting_tree.get_cluster_to_bisect()
 
             # Split this cluster into 2 subclusters
-            if cluster_to_bisect is not None:
+            #if cluster_to_bisect is not None:
+            if cluster_to_bisect.score > self.max_size:
                 self._bisect(X, x_squared_norms, sample_weight,
                              cluster_to_bisect)
             else:
+                self.bisect = False
                 break
 
         # Aggregate final labels and centers from the bisecting tree
@@ -677,6 +620,7 @@ class _BisectingTree:
                 max_score = cluster_leaf.score
                 best_cluster_leaf = cluster_leaf
 
+        #if max_score >= self.opt_size: 
         if np.isneginf(max_score):
             self.bisect = False
         else:
