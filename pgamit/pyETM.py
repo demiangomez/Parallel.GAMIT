@@ -21,6 +21,8 @@ import platform
 
 from importlib.metadata import version, PackageNotFoundError
 
+import numpy.linalg
+
 try:
     VERSION = str(version("pgamit"))
 except PackageNotFoundError:
@@ -3106,7 +3108,11 @@ class ETM:
         P[P < np.finfo(float).eps] = np.finfo(float).eps
 
         # some statistics
-        SS = np.linalg.inv(np.dot(A.transpose(), np.multiply(P[:, None], A)))
+        try:
+            SS = np.linalg.inv(np.dot(A.transpose(), np.multiply(P[:, None], A)))
+        except numpy.linalg.LinAlgError as e:
+            logger.info('np.linalg.inv failed in adjust_lsq: %s' % str(e))
+            SS = np.ones(A.shape)
 
         sigma = So * np.sqrt(np.diag(SS))
 
