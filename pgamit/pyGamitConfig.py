@@ -70,6 +70,12 @@ class GamitConfiguration(ReadOptions):
             if 'type' not in self.NetworkConfig.keys():
                 raise ValueError('Network "type" must be specified in config file: use "regional" or "global"')
 
+            if 'cluster_size' not in self.NetworkConfig.keys():
+                self.NetworkConfig.cluster_size = '25'
+
+            if 'ties' not in self.NetworkConfig.keys():
+                self.NetworkConfig.ties = '4'
+
             self.gamitopt['gnss_data'] = config.get('Archive', 'gnss_data')
             self.gamitopt['max_cores'] = int(self.gamitopt['max_cores'])
 
@@ -91,10 +97,14 @@ class GamitConfiguration(ReadOptions):
         if not os.path.isfile(item):
             raise pyGamitConfigException('sestbl file '+item+' could not be found')
 
-        item = config.get('gamit', 'overconst_action')
-        if item not in ('relax', 'inflate', 'delete', 'remove'):
-            raise pyGamitConfigException('overconst_action accepts the following options: '
-                                         'relax, inflate, delete, or remove')
+        try:
+            item = config.get('gamit', 'overconst_action')
+            if item not in ('relax', 'inflate', 'delete', 'remove'):
+                raise pyGamitConfigException('overconst_action accepts the following options: '
+                                             'relax or inflate, and delete or remove')
+        except configparser.NoOptionError:
+            raise pyGamitConfigException('overconst_action not present. Option accepts the following: '
+                                         'relax or inflate, and delete or remove')
 
         # item = config.get('gamit','atx')
         # if not os.path.isfile(item):
