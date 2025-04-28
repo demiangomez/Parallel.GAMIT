@@ -6,7 +6,12 @@ import {
     TableCard,
 } from "@componentsReact";
 import { getSourcesStationsByServerIdService } from "@services";
-import { SourcesFormatData, SourcesServerData, SourcesStationsData, SourcesStationsServiceData } from "@types";
+import {
+    SourcesFormatData,
+    SourcesServerData,
+    SourcesStationsData,
+    SourcesStationsServiceData,
+} from "@types";
 import { AxiosInstance } from "axios";
 import { useEffect, useState } from "react";
 
@@ -52,7 +57,9 @@ const SourcesServersPage = ({
 
     const [data, setData] = useState<string[][]>([]);
 
-    const [sourcesStations, setSourcesStations] = useState<SourcesStationsData[] | undefined>(undefined);
+    const [sourcesStations, setSourcesStations] = useState<
+        SourcesStationsData[] | undefined
+    >(undefined);
 
     const titles: string[] =
         data.length > 0
@@ -68,10 +75,14 @@ const SourcesServersPage = ({
         if (sourcesServers && sourcesServers.length > 0) {
             const body: string[][] = [];
             sourcesServers
-                .sort((a, b) => a.username.localeCompare(b.username))
-                .map((sourceServer: SourcesServerData) => {
+                .sort((a, b) => {
+                    const usernameA = a.username ?? "";
+                    const usernameB = b.username ?? "";
+                    return usernameA.localeCompare(usernameB);
+                })
+                .forEach((sourceServer: SourcesServerData) => {
                     body.push([
-                        sourceServer.username,
+                        sourceServer.username ?? "",
                         sourceServer.password,
                         sourceServer.format,
                         sourceServer.fqdn,
@@ -83,36 +94,42 @@ const SourcesServersPage = ({
         }
     }, [sourcesServers]);
 
-    const onViewClickFunction = () =>{
+    const onViewClickFunction = () => {
         setModals({
             show: true,
             title: "Sources Stations",
             type: "edit",
         });
-    }
+    };
 
     const getSourcesStationsByServerId = async () => {
-        try{
+        try {
             setViewLoading(true);
-            const res = await getSourcesStationsByServerIdService<SourcesStationsServiceData>(api, sourceServer?.server_id as number);
-            if(res && res.statusCode === 200){
+            const res =
+                await getSourcesStationsByServerIdService<SourcesStationsServiceData>(
+                    api,
+                    sourceServer?.server_id as number,
+                );
+            if (res && res.statusCode === 200) {
                 setSourcesStations(res.data);
             }
-        }
-        catch (error) {
+        } catch (error) {
             console.error(error);
-        }
-        finally {
+        } finally {
             setViewLoading(false);
         }
-    }   
+    };
 
     useEffect(() => {
-        if (modals && modals.show && modals.title === "Sources Stations" && sourceServer) {
-            getSourcesStationsByServerId()
+        if (
+            modals &&
+            modals.show &&
+            modals.title === "Sources Stations" &&
+            sourceServer
+        ) {
+            getSourcesStationsByServerId();
         }
-    }, [sourceServer])
-
+    }, [sourceServer]);
 
     return (
         <TableCard
@@ -171,12 +188,10 @@ const SourcesServersPage = ({
                         setModals(undefined);
                         setSourceServer(undefined);
                     }}
-                    
                     loading={viewLoading}
                     sourcesStations={sourcesStations}
                 />
-            )
-            }
+            )}
         </TableCard>
     );
 };
