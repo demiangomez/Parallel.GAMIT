@@ -610,6 +610,8 @@ class VisitSerializer(serializers.ModelSerializer):
     observation_file_count = serializers.SerializerMethodField()
     visit_image_count = serializers.SerializerMethodField()
     other_file_count = serializers.SerializerMethodField()
+    station_network_code = serializers.SerializerMethodField()
+    station_station_code = serializers.SerializerMethodField()
 
     class Meta:
         model = models.Visits
@@ -713,6 +715,18 @@ class VisitSerializer(serializers.ModelSerializer):
 
     def get_other_file_count(self, obj):
         return models.VisitAttachedFiles.objects.filter(visit=obj).count()
+
+    def get_station_network_code(self, obj):
+        if hasattr(obj, "station") and obj.station is not None:
+            return obj.station.network_code.network_code
+        else:
+            return None
+
+    def get_station_station_code(self, obj):
+        if hasattr(obj, "station") and obj.station is not None:
+            return obj.station.station_code
+        else:
+            return None
 
 
 class VisitAttachedFilesSerializer(serializers.ModelSerializer):

@@ -128,10 +128,14 @@ urlpatterns = [
          name='sources_servers_list'),
     path('sources-servers/<int:pk>', views.SourcesServersDetail.as_view(),
          name='sources_servers_detail'),
+    path('sources-servers/<int:pk>/merge-to/<int:source_server_target_pk>',
+         views.MergeSourceServer.as_view(), name='merge_source_server'),
     path('sources-stations', views.SourcesStationsList.as_view(),
          name='sources_stations_list'),
     path('sources-stations/<int:pk>', views.SourcesStationsDetail.as_view(),
          name='sources_stations_detail'),
+    path('sources-stations/<int:from_pk>/swap-try-order/<int:to_pk>', views.SourcesStationsSwapTryOrder.as_view(),
+         name='sources_stations_swap_try_order'),
     path('stacks', views.StacksList.as_view(), name='stacks_list'),
     path('stacks/<int:pk>', views.StacksDetail.as_view(), name='stacks_detail'),
     path('stationalias', views.StationaliasList.as_view(),
@@ -214,5 +218,5 @@ urlpatterns = [
          name='visit_gnss_data_files_list'),
     path('visit-gnss-data-files/<int:pk>', views.VisitGNSSDataFilesDetail.as_view(),
          name='visit_gnss_data_files_detail'),
-    
+
 ]

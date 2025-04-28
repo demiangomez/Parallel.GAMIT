@@ -117,7 +117,7 @@ const EditUsersModal = ({
         try {
             const res = await getUserPhotoService<any>(api, Number(User?.id));
             //const url = URL.createObjectURL(res);
-            const url = "data:image/*;base64,"+ res.photo;
+            const url = "data:image/*;base64," + res.photo;
             setUserPhoto(url);
         } catch (err) {
             console.error(err);
@@ -163,6 +163,10 @@ const EditUsersModal = ({
             setLoading(false);
         }
     };
+
+    // const handleDelete = () => {
+    // console.log("logica para eliminar el usuario")
+    // };
 
     const putUser = async () => {
         try {
@@ -225,7 +229,7 @@ const EditUsersModal = ({
 
     useEffect(() => {
         getRoles();
-        if(modalType === "edit"){
+        if (modalType === "edit") {
             getPhoto();
         }
     }, []); // eslint-disable-line
@@ -527,9 +531,20 @@ const EditUsersModal = ({
                 </div>
                 <Alert msg={msg} />
                 <div className="flex w-full justify-center space-x-4">
+                    {/* <button
+                        type="button"
+                        className="btn btn-error w-4/12"
+                        disabled={apiOkStatuses.includes(Number(msg?.status))}
+                        onClick={handleDelete}
+                    >
+                        {loading && (
+                            <span className="loading loading-spinner loading-md"></span>
+                        )}
+                        Delete
+                    </button> */}
                     <button
                         type="submit"
-                        className="btn btn-success w-5/12"
+                        className="btn btn-success w-4/12"
                         disabled={apiOkStatuses.includes(Number(msg?.status))}
                     >
                         {loading && (

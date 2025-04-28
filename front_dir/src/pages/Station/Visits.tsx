@@ -195,7 +195,7 @@ const Visits = () => {
             if (res) {
                 const types = res.data.map((type: StationTypeData) => {
                     return {
-                        image: type.actual_image,
+                        image: type.actual_image as string,
                         name: type.name,
                     };
                 });
@@ -261,12 +261,9 @@ const Visits = () => {
                 title: "VisitDetail",
                 type: "none",
             });
-            delete visitByCampaign?.station_formatted;
             setVisit(visitByCampaign);
         }
     }, [campaign, visitByCampaign]);
-
-    
 
     return (
         <div className="">
@@ -305,17 +302,19 @@ const Visits = () => {
 
                                     return (
                                         <VisitThumbNail
-                                        key={vis.id}
-                                        station={station}
-                                        visit={vis} 
-                                        setModals={setModals} 
-                                        setVisitToDel={setVisitToDel} 
-                                        setVisit={setVisit} 
-                                        campaigns={campaigns} 
-                                        loadingVisitImages={loadingVisitImages} 
-                                        visitImages={visitImages}
-                                        statuses = {statuses}
-                                        types = {types}
+                                            key={vis.id}
+                                            station={station}
+                                            visit={vis}
+                                            setModals={setModals}
+                                            setVisitToDel={setVisitToDel}
+                                            setVisit={setVisit}
+                                            campaigns={campaigns}
+                                            loadingVisitImages={
+                                                loadingVisitImages
+                                            }
+                                            visitImages={visitImages}
+                                            statuses={statuses}
+                                            types={types}
                                         />
                                     );
                                 })}

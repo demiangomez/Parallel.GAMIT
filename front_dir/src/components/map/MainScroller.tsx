@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Scroller, Spinner } from "@componentsReact";
 import { useAuth, useApi, useLocalStorage } from "@hooks";
 import { getStationStatusService, getStationTypesService } from "@services";
@@ -153,11 +153,16 @@ const MainScroller = ({
         }
     }, [mapFilters]);
 
-    useEffect(() => {
+    const getTypesCallback = useMemo(() => {
         if (!mapState) {
-            getTypes();
+            return () => getTypes();
         }
+        return () => {};
     }, [mapState]);
+
+    useEffect(() => {
+        getTypesCallback();
+    }, [getTypesCallback]);
 
     //------------------------------------------------Return----------------------------------------------
 

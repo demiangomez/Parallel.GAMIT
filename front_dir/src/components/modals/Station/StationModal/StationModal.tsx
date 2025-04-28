@@ -2,8 +2,6 @@ import { useEffect, useState } from "react";
 
 import { Modal, AddStationByFile, AddStationManual } from "@componentsReact";
 
-import {} from "@services";
-
 import { useFormReducer } from "@hooks";
 
 import { METADATA_STATE } from "@utils/reducerFormStates";
@@ -13,9 +11,19 @@ import { useLocation } from "react-router-dom";
 
 interface Props {
     handleCloseModal: () => void;
+    setModals: (
+        value: React.SetStateAction<
+            | {
+                  show: boolean;
+                  title: string;
+                  type: "add" | "edit" | "none";
+              }
+            | undefined
+        >,
+    ) => void;
 }
 
-const StationModal = ({ handleCloseModal }: Props) => {
+const StationModal = ({ handleCloseModal, setModals }: Props) => {
     const [currentPage, setCurrentPage] = useState<number>(1);
 
     const [showMenu, setShowMenu] = useState<
@@ -24,6 +32,13 @@ const StationModal = ({ handleCloseModal }: Props) => {
 
     const { formState, dispatch, clearForm } = useFormReducer(METADATA_STATE);
 
+    useEffect(() => {
+        dispatch({
+            type: "set",
+            payload: METADATA_STATE,
+        });
+    }, []);
+
     const [addType, setAddType] = useState<"by file" | "manual" | undefined>(
         "manual",
     );
@@ -31,9 +46,9 @@ const StationModal = ({ handleCloseModal }: Props) => {
     useEffect(() => {
         dispatch({
             type: "set",
-            payload: METADATA_STATE
-        })
-    }, [])
+            payload: METADATA_STATE,
+        });
+    }, []);
 
     const [msg, setMsg] = useState<
         { status: number; msg: string; errors?: Errors } | undefined
@@ -52,6 +67,7 @@ const StationModal = ({ handleCloseModal }: Props) => {
         setMsg(undefined);
         setCoordinatesType(undefined);
         setShowMenu(undefined);
+        setModals(undefined);
     };
 
     const handleCancel = () => {
@@ -64,7 +80,6 @@ const StationModal = ({ handleCloseModal }: Props) => {
 
     const location = useLocation();
 
-
     return (
         <Modal
             close={false}
@@ -72,13 +87,14 @@ const StationModal = ({ handleCloseModal }: Props) => {
             size={addType !== "manual" ? "fit" : "xl"}
             handleCloseModal={() => {
                 internalHandleCloseModal();
-                if((msg?.status === 201) && (location.pathname === "/")) {
+                if (msg?.status === 201 && location.pathname === "/") {
                     handleCloseModal();
                 }
             }}
-
         >
-            <div className={`flex flex-col items-center justify-center gap-4 ${addType === 'manual' ? 'h-full' : 'h-fit'}`}>
+            <div
+                className={`flex flex-col items-center justify-center gap-4 ${addType === "manual" ? "h-full" : "h-fit"}`}
+            >
                 <h1 className="text-2xl font-bold">Add Station</h1>
                 {addType === undefined && (
                     <div className="flex flex-row items-center justify-center gap-6">

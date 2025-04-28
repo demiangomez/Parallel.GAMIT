@@ -1,7 +1,7 @@
 import { Scroller } from "@componentsReact";
-import { StationVisitsData, StationMetadataServiceData} from "@types";
+import { StationVisitsData, StationMetadataServiceData } from "@types";
 import { getRandomColor, possibleColors } from "@utils";
-import { useEffect} from "react";
+import React, { useEffect } from "react";
 
 interface VisitsScrollerProps {
     map?: L.Map | null;
@@ -32,42 +32,44 @@ const VisitsScroller = ({
     showScroller,
     setShowScroller,
 }: VisitsScrollerProps) => {
-
     const getColor = (visit: StationVisitsData) => {
-        const visitColor = changeKml.find((visitBool) => visitBool.visitId === visit.id);
+        const visitColor = changeKml.find(
+            (visitBool) => visitBool.visitId === visit.id,
+        );
         if (visitColor) {
             return visitColor.color;
         }
         return "black";
-    }
+    };
 
     const adjustIndex = (index: number) => {
-        const exponente = index % 7 === 0? index : Math.floor(index / 7);
+        const exponente = index % 7 === 0 ? index : Math.floor(index / 7);
 
-        const finalNumber =index > 7? index - (exponente * possibleColors.length) : index ;
+        const finalNumber =
+            index > 7 ? index - exponente * possibleColors.length : index;
 
         return finalNumber;
-    }
+    };
 
     //--------------------------------------------------------UseEffect--------------------------------------------------------
     useEffect(() => {
-        if(changeKml.length === 0)
-        {
-            if(visits.length > 0)
-            {
+        if (changeKml.length === 0) {
+            if (visits.length > 0) {
                 const newChangeKml: VisitsStates[] = [];
 
                 visits?.forEach((visit, index) => {
-                    const newKml = {visitId: visit.id, checked: false, color: getRandomColor(adjustIndex(index))};
-                    
+                    const newKml = {
+                        visitId: visit.id,
+                        checked: false,
+                        color: getRandomColor(adjustIndex(index)),
+                    };
+
                     newChangeKml.push(newKml);
                 });
-            
+
                 setChangeKml(newChangeKml);
             }
-            
-        }   
-
+        }
     }, [showScroller]);
 
     //--------------------------------------------------------Return--------------------------------------------------------
@@ -76,7 +78,9 @@ const VisitsScroller = ({
             <Scroller
                 map={map}
                 buttonCondition={
-                    (Array.isArray(visits) && visits.length > 0) && visits.some(visit => visit.navigation_actual_file) ||
+                    (Array.isArray(visits) &&
+                        visits.length > 0 &&
+                        visits.some((visit) => visit.navigation_actual_file)) ||
                     !!stationMeta?.navigation_actual_file
                 }
                 scrollerCondition={visits && showScroller}
@@ -93,10 +97,11 @@ const VisitsScroller = ({
                             className="checkbox checkbox-sm"
                             checked={
                                 (changeKml.length > 0 &&
-                                changeKml.every(
-                                    (visitBool) => visitBool.checked,
-                                ) &&
-                                changeMeta) || (changeKml.length === 0 && changeMeta)
+                                    changeKml.every(
+                                        (visitBool) => visitBool.checked,
+                                    ) &&
+                                    changeMeta) ||
+                                (changeKml.length === 0 && changeMeta)
                             }
                             onChange={(e) => {
                                 if (changeKml.length !== 0) {
@@ -133,18 +138,28 @@ const VisitsScroller = ({
                 </div>
                 {stationMeta?.navigation_actual_file && (
                     <div className="form-control">
-                        <label className="cursor-pointer" style={{
-                            display: "flex",
-                            userSelect: "none",
-                            alignItems: "center",
-                            justifyContent: "start",
-                            paddingLeft: "0.25rem",
-                            paddingRight: "0.25rem",
-                            paddingTop: "0.5rem",
-                            paddingBottom: "0.5rem",
-                            
-                        }}>
-                            <div style={{backgroundColor:"black", width: "20px", height: "20px", borderRadius: "10px", marginRight:"5px"}}></div>
+                        <label
+                            className="cursor-pointer"
+                            style={{
+                                display: "flex",
+                                userSelect: "none",
+                                alignItems: "center",
+                                justifyContent: "start",
+                                paddingLeft: "0.25rem",
+                                paddingRight: "0.25rem",
+                                paddingTop: "0.5rem",
+                                paddingBottom: "0.5rem",
+                            }}
+                        >
+                            <div
+                                style={{
+                                    backgroundColor: "black",
+                                    width: "20px",
+                                    height: "20px",
+                                    borderRadius: "10px",
+                                    marginRight: "5px",
+                                }}
+                            ></div>
                             <span className="font-bold mr-4">Default</span>
                             <input
                                 type="checkbox"
@@ -153,71 +168,93 @@ const VisitsScroller = ({
                                 onChange={(e) => {
                                     setChangeMeta(e.target.checked);
                                 }}
-                                style={{marginLeft: "auto"}}
+                                style={{ marginLeft: "auto" }}
                             />
                         </label>
                     </div>
                 )}
-                {visits.map((visit, index) => (
-                    visit.navigation_actual_file &&
-                    <div className="form-control" key={visit.id}>
-                        <label className="label cursor-pointer">
-                            <div style={{backgroundColor: getColor(visit) , width: "20px", height: "20px", borderRadius: "10px", marginRight:"5px"}}></div>
-                            <span
-                                className="font-bold mr-2 truncate"
-                                title={
-                                    visit.campaign_name && visit.date
-                                        ? visit.campaign_name +
-                                          " - " +
-                                          visit.date
-                                        : visit.date
-                                }
-                            >
-                                {visit.date && "Visit - " + visit.date}
-                            </span>
-                            <input
-                                type="checkbox"
-                                className="checkbox checkbox-sm"
-                                checked={changeKml.some(
-                                    (visitBool) =>
-                                        visitBool.visitId === visit.id &&
-                                        visitBool.checked,
-                                )}
-                                onChange={(e) => {
-                                    setChangeKml((prev) => {
-                                        const visitToMod = prev.find(
-                                            (visitBool) =>
-                                                visitBool.visitId === visit.id,
-                                        );
-                                        if (visitToMod) {
-                                            return prev.map((visitBool) =>
-                                                visitBool.visitId === visit.id
-                                                    ? {
-                                                          ...visitBool,
-                                                          checked:
-                                                              e.target.checked,
-                                                      }
-                                                    : visitBool,
-                                            );
-                                        } else {
-                                            return [
-                                                ...prev,
-                                                {
-                                                    visitId: visit.id,
-                                                    checked: e.target.checked,
-                                                    color: getRandomColor(adjustIndex(index)),
-                                                },
-                                            ];
+                {visits.map(
+                    (visit, index) =>
+                        visit.navigation_actual_file && (
+                            <div className="form-control" key={visit.id}>
+                                <label className="label cursor-pointer">
+                                    <div
+                                        style={{
+                                            backgroundColor: getColor(visit),
+                                            width: "20px",
+                                            height: "20px",
+                                            borderRadius: "10px",
+                                            marginRight: "5px",
+                                        }}
+                                    ></div>
+                                    <span
+                                        className="font-bold mr-2 truncate"
+                                        title={
+                                            visit.campaign_name && visit.date
+                                                ? visit.campaign_name +
+                                                  " - " +
+                                                  visit.date
+                                                : visit.date
                                         }
-                                    });
-                                }}
-                            />
-                        </label>
-                    </div>
-                ))}
+                                    >
+                                        {visit.date && "Visit - " + visit.date}
+                                    </span>
+                                    <input
+                                        type="checkbox"
+                                        className="checkbox checkbox-sm"
+                                        checked={changeKml.some(
+                                            (visitBool) =>
+                                                visitBool.visitId ===
+                                                    visit.id &&
+                                                visitBool.checked,
+                                        )}
+                                        onChange={(e) => {
+                                            setChangeKml((prev) => {
+                                                const visitToMod = prev.find(
+                                                    (visitBool) =>
+                                                        visitBool.visitId ===
+                                                        visit.id,
+                                                );
+                                                if (visitToMod) {
+                                                    return prev.map(
+                                                        (visitBool) =>
+                                                            visitBool.visitId ===
+                                                            visit.id
+                                                                ? {
+                                                                      ...visitBool,
+                                                                      checked:
+                                                                          e
+                                                                              .target
+                                                                              .checked,
+                                                                  }
+                                                                : visitBool,
+                                                    );
+                                                } else {
+                                                    return [
+                                                        ...prev,
+                                                        {
+                                                            visitId: visit.id,
+                                                            checked:
+                                                                e.target
+                                                                    .checked,
+                                                            color: getRandomColor(
+                                                                adjustIndex(
+                                                                    index,
+                                                                ),
+                                                            ),
+                                                        },
+                                                    ];
+                                                }
+                                            });
+                                        }}
+                                    />
+                                </label>
+                            </div>
+                        ),
+                )}
             </Scroller>
         </>
     );
 };
 
-export default VisitsScroller;
+export default React.memo(VisitsScroller);

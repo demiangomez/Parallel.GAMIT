@@ -51,8 +51,10 @@ const StationStatusTable = () => {
                 params,
             );  
             setStationStatus(res.data);
-            if(bParams.limit)
-            setPages(Math.ceil(res.total_count / bParams.limit));
+            if(bParams.limit){
+                setPages(Math.ceil(res.total_count / bParams.limit));
+            }
+            res.data && res.data.length === 0 && handlePage(1);
         } catch (err) {
             console.error(err);
         } finally {
@@ -92,6 +94,7 @@ const StationStatusTable = () => {
         }
     };
 
+
     const handlePage = (page: number) => {
         if (page < 1 || page > pages) return;
         let newParams;
@@ -114,15 +117,6 @@ const StationStatusTable = () => {
         paginateStationStatus(newParams);
     };
 
-    const reFetch = () => {
-        getStationStatus();
-    };
-
-    useEffect(() => {
-        getStationStatus();
-        getStationsStatusColors();
-    }, []); // eslint-disable-line
-
     const titles = ["Name", "Color"];
 
     const body = useMemo(() => {
@@ -137,9 +131,21 @@ const StationStatusTable = () => {
             );
     }, [stationStatus]);
 
+    const reFetch = () => {
+        getStationStatus();
+    };
+
+    useEffect(() => {
+        getStationStatus();
+        getStationsStatusColors();
+    }, []); // eslint-disable-line
+
+    
+
     useEffect(() => {
         modals?.show && showModal(modals.title);
     }, [modals]);
+
 
     return (
         <TableCard

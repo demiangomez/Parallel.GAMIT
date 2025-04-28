@@ -96,6 +96,7 @@ const AddVisitModal = ({
         [],
     );
 
+
     const [matchingPeople, setMatchingPeople] = useState<
         PeopleType[] | undefined
     >(undefined);
@@ -390,6 +391,7 @@ const AddVisitModal = ({
     }
     
 
+
     useEffect(() => {
         if(showMenu){
             const ref = selectRef(showMenu.type);
@@ -398,6 +400,30 @@ const AddVisitModal = ({
             }
         }
         },[showMenu])
+
+    useEffect(() => {
+        if(formState.campaign){
+            const campaignSelected = campaigns?.find((campaign) => 
+                formState.campaign === "(" + campaign.name + ")" + " " + campaign.start_date + " - " + campaign.end_date
+            );
+            
+            if(campaignSelected && campaignSelected.default_people){
+                const peoples = campaignSelected.default_people
+                const peoplesNames = peoples.map((p) => {
+                    const person = people.find((person) => person.id === p);
+                    return person ? `${person.first_name} ${person.last_name}` : '';
+                }).filter(name => name !== '');
+                setPeopleSelected(peoplesNames);
+                dispatch({
+                    type: "change_value",
+                    payload: {
+                        inputName: "people",
+                        inputValue: peoplesNames.join(" / "),
+                    },
+                });
+            }
+        }
+    }, [formState.campaign])
 
     return (
         <Modal

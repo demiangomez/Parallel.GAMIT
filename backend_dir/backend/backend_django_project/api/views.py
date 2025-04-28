@@ -116,6 +116,27 @@ class UserDetail(generics.RetrieveUpdateAPIView):
     serializer_class = serializers.UserSerializer
     parser_classes = [MultiPartParser]
 
+    def update(self, request, *args, **kwargs):
+        user = self.get_object()
+        if user.username == 'update-gaps-status':
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "The 'update-gaps-status' user cannot be modified.")
+        return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        user = self.get_object()
+        if user.username == 'update-gaps-status':
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "The 'update-gaps-status' user cannot be deleted.")
+        return super().destroy(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        user = self.get_object()
+        if user.username == 'update-gaps-status':
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "The 'update-gaps-status' user cannot be modified.")
+        return super().partial_update(request, *args, **kwargs)
+
 
 class RoleList(CustomListCreateAPIView):
     queryset = models.Role.objects.all()
@@ -141,6 +162,27 @@ class RoleDetail(generics.RetrieveUpdateAPIView):
                 role=self.get_object().id).update(is_active=False)
 
         return response
+
+    def update(self, request, *args, **kwargs):
+        role = self.get_object()
+        if role.name == 'update-gaps-status':
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "The 'update-gaps-status' role cannot be modified.")
+        return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        role = self.get_object()
+        if role.name == 'update-gaps-status':
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "The 'update-gaps-status' role cannot be deleted.")
+        return super().destroy(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        role = self.get_object()
+        if role.name == 'update-gaps-status':
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "The 'update-gaps-status' role cannot be modified.")
+        return super().partial_update(request, *args, **kwargs)
 
 
 class EndpointList(CustomListCreateAPIView):
@@ -1717,14 +1759,68 @@ class SourcesServersDetail(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = serializers.SourcesServersSerializer
 
 
+class MergeSourceServer(APIView):
+    serializer_class = serializers.DummySerializer
+
+    def get_source_server(self, pk):
+        try:
+            return models.SourcesServers.objects.get(server_id=pk)
+        except models.SourcesServers.DoesNotExist:
+            raise Http404
+
+    def post(self, request, *args, **kwargs):
+
+        source_server_source_pk = kwargs.get('pk')
+        source_server_target_pk = kwargs.get('source_server_target_pk')
+
+        source_server_source = self.get_source_server(source_server_source_pk)
+        source_server_target = self.get_source_server(source_server_target_pk)
+
+        try:
+            utils.SourceServerUtils.merge_source_server(
+                source_server_source, source_server_target)
+        except Exception as e:
+            raise exceptions.CustomServerErrorExceptionHandler(e)
+
+        return Response(data={"message": "Source server merged successfully"}, status=status.HTTP_200_OK)
+
+
 class SourcesStationsList(CustomListCreateAPIView):
     queryset = models.SourcesStations.objects.all()
     serializer_class = serializers.SourcesStationsSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = filters.SourcesStationsFilter
 
 
 class SourcesStationsDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = models.SourcesStations.objects.all()
     serializer_class = serializers.SourcesStationsSerializer
+
+
+class SourcesStationsSwapTryOrder(APIView):
+    serializer_class = serializers.DummySerializer
+
+    def get_source_station(self, pk):
+        try:
+            return models.SourcesStations.objects.get(api_id=pk)
+        except models.SourcesStations.DoesNotExist:
+            raise Http404
+
+    def post(self, request, *args, **kwargs):
+
+        source_station_from_pk = kwargs.get('from_pk')
+        source_station_to_pk = kwargs.get('to_pk')
+
+        source_station_from = self.get_source_station(source_station_from_pk)
+        source_station_to = self.get_source_station(source_station_to_pk)
+
+        try:
+            utils.SourceServerUtils.swap_try_order(
+                source_station_from, source_station_to)
+        except Exception as e:
+            raise exceptions.CustomServerErrorExceptionHandler(e)
+
+        return Response(data={"message": "Try order swaped successfully"}, status=status.HTTP_200_OK)
 
 
 class StacksList(CustomListCreateAPIView):

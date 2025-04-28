@@ -237,7 +237,6 @@ const TimeSeriesParams = ({stationId, refetch, solution, jumpsData, periodicData
 
 
 
-
     return (
     
     <div className="p-4 space-y-8 flex flex-col bg-white">
@@ -451,6 +450,7 @@ const TimeSeriesParams = ({stationId, refetch, solution, jumpsData, periodicData
                     }
                     setModals(undefined)
                     setModalType(undefined)
+                    setMsg(undefined)
                 }}
                 loading={loadingConfirmModal}
                 type = {modalType?.type}

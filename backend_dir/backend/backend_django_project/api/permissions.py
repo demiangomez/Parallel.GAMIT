@@ -14,10 +14,21 @@ class RolePermission(permissions.BasePermission):
                 return True
             elif check_has_all_endpoints(request):
                 return True
+            elif user_is_update_gaps_status(request) and endpoint_is_related_to_gaps_status(request):
+                return True
             else:
                 return check_has_endpoint(request)
 
         return False
+
+
+def user_is_update_gaps_status(request):
+    return request.user.username == "update-gaps-status" and request.user.role.name == "update-gaps-status"
+
+
+def endpoint_is_related_to_gaps_status(request):
+    if (request.path == "/api/update-gaps-status" and request.method == "POST") or (request.path == "/api/delete-update-gaps-status-block" and request.method == "POST"):
+        return True
 
 
 def endpoint_is_always_allowed(request):

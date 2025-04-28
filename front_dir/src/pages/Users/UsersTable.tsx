@@ -138,6 +138,13 @@ const UsersTable = () => {
                         type: "edit",
                     })
                 }
+                onAlterClickFunction={()=>{
+                    setModals({
+                        show: true,
+                        title: "ConfirmDelete",
+                        type: "none",
+                    });
+                }}
                 setState={setUser}
                 state={users}
             />

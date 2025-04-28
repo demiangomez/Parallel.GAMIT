@@ -8,21 +8,21 @@ import {
     VisitsCampaignModal,
 } from "@componentsReact";
 
-import useApi from "@hooks/useApi";
-import { useAuth } from "@hooks/useAuth";
+import { useAuth, useApi } from "@hooks";
 
 import { showModal } from "@utils";
 import {
+    getPeopleService,
     getStationCampaignsService,
-    getStationService,
     getStationVisitsService,
 } from "@services";
+
 import {
     CampaignsData,
     CampaignsServiceData,
-    ExtendedStationData,
     GetParams,
-    StationData,
+    People,
+    PeopleServiceData,
     StationVisitsData,
     StationVisitsServiceData,
 } from "@types";
@@ -42,7 +42,7 @@ const CampaignsTable = () => {
         undefined,
     );
 
-    const [stations, setStations] = useState<StationData[]>([]);
+    const [people, setPeople] = useState<People[] | undefined>(undefined);
 
     const [campaigns, setCampaigns] = useState<CampaignsData[] | undefined>(
         undefined,
@@ -69,6 +69,18 @@ const CampaignsTable = () => {
 
     const [params, setParams] = useState<GetParams>(bParams);
 
+    const getPeople = async () => {
+        try {
+            setLoading(true);
+            const res = await getPeopleService<PeopleServiceData>(api);
+            setPeople(res.data);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const getCampaigns = async () => {
         try {
             setLoading(true);
@@ -78,7 +90,7 @@ const CampaignsTable = () => {
             );
             setCampaigns(res.data);
 
-            if(bParams.limit){
+            if (bParams.limit) {
                 setPages(Math.ceil(res.total_count / bParams.limit));
             }
         } catch (err) {
@@ -102,43 +114,9 @@ const CampaignsTable = () => {
 
             if (res.statusCode === 200) {
                 setVisits(res.data);
-
-                const uniqueStationIds = Array.from(
-                    new Set(res.data.map((visit) => visit.station)),
-                );
-
-                uniqueStationIds.forEach(async (stationId) => {
-                    const station = await getStationById(stationId);
-                    if (station) {
-                        setStations((prevStations) => {
-                            if (
-                                !prevStations.some(
-                                    (s) => s.api_id === station?.api_id,
-                                )
-                            ) {
-                                return [...prevStations, station];
-                            }
-                            return prevStations;
-                        });
-                    }
-                });
             }
         } catch (error) {
             console.error(error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const getStationById = async (id: number) => {
-        try {
-            setLoading(true);
-            const res = await getStationService<ExtendedStationData>(api, id);
-            if (res.statusCode === 200) {
-                return res;
-            }
-        } catch (err) {
-            console.error(err);
         } finally {
             setLoading(false);
         }
@@ -188,6 +166,7 @@ const CampaignsTable = () => {
     useEffect(() => {
         getVisits();
         getCampaigns();
+        getPeople();
     }, []); // eslint-disable-line
 
     useEffect(() => {
@@ -198,54 +177,49 @@ const CampaignsTable = () => {
                     visits.filter(
                         (visit) => Number(visit.campaign) === campaign.id,
                     );
-
-                newCampaignVisits[campaign.name + "/~/" + campaign.id].map(
-                    (v) => {
-                        const station = stations.find(
-                            (s) => s.api_id === v.station,
-                        );
-                        v.station_formatted = station
-                            ? station.network_code + "." + station.station_code
-                            : "";
-
-                        return v;
-                    },
-                );
             });
 
             setCampaignVisits(newCampaignVisits);
         }
-    }, [campaigns, visits, stations]);
+    }, [campaigns, visits]);
 
-    const titles = ["Name", "Visit", "Start Date", "End Date"];
+    const titles = [
+        "Name",
+        "Visit",
+        "Start Date",
+        "End Date",
+        "Default People",
+    ];
 
     const body = useMemo(() => {
         return campaigns?.map((campaign) => {
             const visit = visits?.find(
                 (v) => Number(v.campaign) === campaign.id,
             );
-            const visitStation = stations.find(
-                (s) => s.api_id === visit?.station,
-            );
-
-            const visitRes = visitStation
+            const visitRes = visit
                 ? "(" +
-                  visitStation?.network_code +
+                  visit?.station_network_code +
                   "." +
-                  visitStation?.station_code +
+                  visit.station_station_code +
                   ")" +
                   " - " +
                   visit?.date
                 : "";
+            const defaultPeople = campaign.default_people
+                .map((person) => {
+                    const personData = people?.find((p) => p.id === person);
+                    return personData?.first_name + " " + personData?.last_name;
+                })
+                .join(", ");
             return Object.values({
                 name: campaign.name,
                 visit: visitRes,
                 start_date: campaign.start_date,
                 end_date: campaign.end_date,
+                default_people: defaultPeople,
             });
         });
-    }, [campaigns, visits, stations]);
-
+    }, [campaigns, visits, people]);
     useEffect(() => {
         modals?.show && showModal(modals.title);
     }, [modals]);
@@ -284,7 +258,7 @@ const CampaignsTable = () => {
                 }
                 setState={setCampaign}
                 state={campaigns}
-                onVisitsClickFunction={() => 
+                onVisitsClickFunction={() =>
                     setModals({
                         show: true,
                         title: "Visits",
@@ -309,6 +283,7 @@ const CampaignsTable = () => {
                         reFetch();
                         setCampaign(undefined);
                     }}
+                    people={people}
                 />
             )}
 
@@ -320,15 +295,20 @@ const CampaignsTable = () => {
                 />
             )}
 
-            {
-                modals?.show && modals.title === "Visits" && (
-                    <VisitsCampaignModal
-                        visits={visits && campaign ? visits.filter(v => Number(v.campaign) === campaign.id) : []}
-                        campaign={campaign}
-                        setCampaign={setCampaign}
-                    />
-                )
-            }
+            {modals?.show && modals.title === "Visits" && (
+                <VisitsCampaignModal
+                    visits={
+                        visits && campaign
+                            ? visits.filter(
+                                  (v) => Number(v.campaign) === campaign.id,
+                              )
+                            : []
+                    }
+                    campaign={campaign}
+                    setCampaign={setCampaign}
+                    setModals={setModals}
+                />
+            )}
         </TableCard>
     );
 };

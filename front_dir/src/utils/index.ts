@@ -11,6 +11,8 @@ export const modalSizes = {
     fit: "fit-content",
 };
 
+export const apiMethods = ["get", "post", "put", "patch", "delete"];
+
 export const apiOkStatuses = [200, 201, 204];
 
 export const apiErrorStatuses = [400, 401, 403, 404, 405, 406, 415, 500];
@@ -36,10 +38,8 @@ export const findLimits = (coordinates: any) => {
     };
 };
 
-
 export const classHtml = (s: string) => {
     const parser = new DOMParser();
-
     const doc = parser.parseFromString(s ? s : "", "text/html");
 
     const emptyStrings = [
@@ -54,11 +54,16 @@ export const classHtml = (s: string) => {
         return "";
     }
 
+    // Añadir clases a listas
     doc.querySelectorAll("ol, ul").forEach((list) => {
         if (list.tagName.toLowerCase() === "ol") {
             list.classList.add("list-decimal");
+            list.classList.add("ps-[19.5px]");
+            list.classList.add("pl-[19.5px]");
         } else if (list.tagName.toLowerCase() === "ul") {
             list.classList.add("list-disc");
+            list.classList.add("ps-[19.5px]");
+            list.classList.add("pl-[19.5px]");
         }
     });
 

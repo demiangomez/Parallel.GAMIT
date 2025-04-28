@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
-import {Alert, ConfirmDeleteModal, Modal } from "@componentsReact";
-import {delStationTypesService, patchStationTypesService, postStationTypesService,} from "@services";
-import { useFormReducer, useAuth, useApi} from "@hooks";
+import { Alert, ConfirmDeleteModal, Modal } from "@componentsReact";
+import {
+    delStationTypesService,
+    patchStationTypesService,
+    postStationTypesService,
+} from "@services";
+import { useFormReducer, useAuth, useApi } from "@hooks";
 import { apiOkStatuses, showModal } from "@utils";
 
 import {
@@ -40,18 +44,49 @@ const StationTypesModal = ({
     const [msg, setMsg] = useState<
         { status: number; msg: string; errors?: Errors } | undefined
     >(undefined);
+    const [deleteMsg, setDeleteMsg] = useState<
+        { status: number; msg: string; errors?: Errors } | undefined
+    >(undefined);
 
     const [modals, setModals] = useState<
         | { show: boolean; title: string; type: "add" | "edit" | "none" }
         | undefined
     >(undefined);
 
-    const { formState, dispatch } = useFormReducer({
+    const { formState, dispatch } = useFormReducer<{
+        id: string;
+        name: string;
+        search_icon_on_assets_folder: string;
+        actual_image: string | File;
+    }>({
         id: "",
         name: "",
         search_icon_on_assets_folder: "",
         actual_image: "",
     });
+
+    function base64ToFile(
+        base64String: string,
+        fileName: string,
+        mimeType: string = "image/jpeg",
+    ): File {
+        const base64WithoutPrefix = base64String?.includes("base64,")
+            ? base64String.split("base64,")[1]
+            : base64String;
+
+        const byteString = atob(base64WithoutPrefix);
+
+        const arrayBuffer = new ArrayBuffer(byteString.length);
+        const intArray = new Uint8Array(arrayBuffer);
+
+        for (let i = 0; i < byteString.length; i++) {
+            intArray[i] = byteString.charCodeAt(i);
+        }
+
+        const blob = new Blob([arrayBuffer], { type: mimeType });
+
+        return new File([blob], fileName, { type: mimeType });
+    }
 
     useEffect(() => {
         if (StationType) {
@@ -65,13 +100,9 @@ const StationTypesModal = ({
     const postType = async () => {
         try {
             setLoading(true);
-
             const formData = new FormData();
 
-            formData.append(
-                "name",
-                formState.name,
-            );
+            formData.append("name", formState.name);
             formData.append("icon", formState.actual_image);
 
             const res = await postStationTypesService<
@@ -102,15 +133,19 @@ const StationTypesModal = ({
 
             const formData = new FormData();
 
-            formData.append(
-                "name",
-                formState.name,
-            );
-            formData.append("icon", formState.actual_image);
+            const imageBase64 =
+                (StationType?.actual_image as string) ?? undefined;
+
+            const imageFile = imageBase64
+                ? base64ToFile(imageBase64, "image.jpg", "image/jpeg")
+                : formState.actual_image;
+
+            formData.append("name", formState.name);
+            formData.append("icon", imageFile);
 
             const res = await patchStationTypesService<
                 ExtendedStationStatus | ErrorResponse
-            >(api, Number(StationType?.id) ,formData);
+            >(api, Number(StationType?.id), formData);
             if ("status" in res) {
                 setMsg({
                     status: res.statusCode,
@@ -139,12 +174,12 @@ const StationTypesModal = ({
                 Number(StationType?.id),
             );
             if ("status" in res && res.status === "success") {
-                setMsg({
+                setDeleteMsg({
                     status: res.statusCode,
                     msg: res.msg,
                 });
             } else {
-                setMsg({
+                setDeleteMsg({
                     status: res.statusCode,
                     msg: res.response.type,
                     errors: res.response,
@@ -207,7 +242,10 @@ const StationTypesModal = ({
                             (error) => error.attr === key,
                         );
                         const optionalFields: string[] = [];
-                        if(key !== "actual_image" && key !== "search_icon_on_assets_folder"){
+                        if (
+                            key !== "actual_image" &&
+                            key !== "search_icon_on_assets_folder"
+                        ) {
                             return (
                                 <div
                                     className="flex items-center gap-2"
@@ -217,7 +255,9 @@ const StationTypesModal = ({
                                         key={index}
                                         id={key}
                                         className={`w-full input input-bordered flex items-center gap-2 ${errorBadge ? "input-error" : ""}`}
-                                        title={errorBadge ? errorBadge.detail : ""}
+                                        title={
+                                            errorBadge ? errorBadge.detail : ""
+                                        }
                                     >
                                         <div className="label">
                                             <span className="font-bold">
@@ -231,9 +271,17 @@ const StationTypesModal = ({
                                             type="text"
                                             name={key}
                                             value={
-                                                formState[
+                                                typeof formState[
                                                     key as keyof typeof formState
-                                                ] ?? ""
+                                                ] === "object"
+                                                    ? (
+                                                          formState[
+                                                              key as keyof typeof formState
+                                                          ] as File
+                                                      ).name
+                                                    : ((formState[
+                                                          key as keyof typeof formState
+                                                      ] as string) ?? "")
                                             }
                                             onChange={(e) => {
                                                 handleChange(e.target);
@@ -255,35 +303,57 @@ const StationTypesModal = ({
                                     </label>
                                 </div>
                             );
-                        }
-                        else if(key === "actual_image"){
+                        } else if (key === "actual_image" && formState[key]) {
                             const base64Str = "data:image/png;base64,";
-                            return(
-                                <div>
-                                    <img src={base64Str + formState.actual_image} alt="" />
+                            return (
+                                <div
+                                    key={key + index}
+                                    className="flex items-center gap-2 w-full"
+                                >
+                                    {formState.actual_image instanceof File ? (
+                                        <img
+                                            src={URL.createObjectURL(
+                                                formState.actual_image,
+                                            )}
+                                            alt=""
+                                            className="w-full h-32 object-contain"
+                                        />
+                                    ) : (
+                                        <img
+                                            src={
+                                                base64Str +
+                                                formState.actual_image
+                                            }
+                                            alt=""
+                                            className="w-full h-32 object-contain"
+                                        />
+                                    )}
                                 </div>
-                            )
+                            );
                         }
                     })}
                     {
                         <div className="flex items-center gap-2">
-                                <input
-                                    type="file"
-                                    name="actual_image"
-                                    accept=".png,.jpg,.jpeg"
-                                    onChange={(e) => {
-                                        if (e.target.files && e.target.files.length === 1) {
-                                            dispatch({
-                                                type: "change_value",
-                                                payload: {
-                                                    inputName: "actual_image",
-                                                    inputValue: e.target.files[0],
-                                                },
-                                            });
-                                        }
-                                    }}
-                                    className="file-input file-input-bordered w-full"
-                                />
+                            <input
+                                type="file"
+                                name="actual_image"
+                                accept=".png,.jpg,.jpeg"
+                                onChange={(e) => {
+                                    if (
+                                        e.target.files &&
+                                        e.target.files.length === 1
+                                    ) {
+                                        dispatch({
+                                            type: "change_value",
+                                            payload: {
+                                                inputName: "actual_image",
+                                                inputValue: e.target.files[0],
+                                            },
+                                        });
+                                    }
+                                }}
+                                className="file-input file-input-bordered w-full"
+                            />
                         </div>
                     }
                 </div>
@@ -299,6 +369,9 @@ const StationTypesModal = ({
                             className="btn btn-error w-5/12"
                             type="button"
                             disabled={
+                                apiOkStatuses.includes(
+                                    Number(deleteMsg?.status),
+                                ) ||
                                 apiOkStatuses.includes(Number(msg?.status)) ||
                                 loading
                             }
@@ -317,6 +390,7 @@ const StationTypesModal = ({
                         type="submit"
                         className="btn btn-success w-5/12"
                         disabled={
+                            apiOkStatuses.includes(Number(deleteMsg?.status)) ||
                             apiOkStatuses.includes(Number(msg?.status)) ||
                             loading
                         }
@@ -327,7 +401,7 @@ const StationTypesModal = ({
             </form>
             {modals && modals?.title === "ConfirmDelete" && (
                 <ConfirmDeleteModal
-                    msg={msg}
+                    msg={deleteMsg}
                     loading={loading}
                     confirmRemove={() => delStatus()}
                     closeModal={() => {

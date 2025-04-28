@@ -3,12 +3,13 @@ import { Link } from "react-router-dom";
 
 import {
     ArrowRightEndOnRectangleIcon,
-    MegaphoneIcon,
+    TruckIcon,
     PlusIcon,
     ServerIcon,
     Squares2X2Icon,
     UserCircleIcon,
     UserGroupIcon,
+    ServerStackIcon,
 } from "@heroicons/react/24/outline";
 
 import { useApi, useAuth } from "@hooks";
@@ -117,7 +118,7 @@ const Nav = () => {
                         to={"/campaigns"}
                         title="Campaigns"
                     >
-                        <MegaphoneIcon className="size-8" />
+                        <TruckIcon className="size-8" />
                     </Link>
                     <Link
                         className="btn btn-ghost btn-circle"
@@ -125,6 +126,13 @@ const Nav = () => {
                         title="Overview"
                     >
                         <Squares2X2Icon className="size-8" />
+                    </Link>
+                    <Link
+                        className="btn btn-ghost btn-circle"
+                        to={"/sources"}
+                        title="Sources Servers"
+                    >
+                        <ServerStackIcon className="size-8" />
                     </Link>
                     <div className="dropdown dropdown-end">
                         <div
@@ -177,10 +185,13 @@ const Nav = () => {
                 </div>
             </div>
             {modals && modals.show && modals.title === "station" && (
-                <StationModal handleCloseModal={() => {
-                    setModals(undefined);
-                    window.location.href = '/';
-                }} />
+                <StationModal
+                    handleCloseModal={() => {
+                        setModals(undefined);
+                        window.location.href = "/";
+                    }}
+                    setModals={setModals}
+                />
             )}
         </>
     );

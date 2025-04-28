@@ -4,7 +4,7 @@ import { Spinner } from "@componentsReact";
 
 import { findFlagUrlByIso3Code } from "country-flags-svg-v2";
 
-import { TrashIcon } from "@heroicons/react/24/outline";
+import { BookOpenIcon, EyeIcon, EyeSlashIcon, TrashIcon } from "@heroicons/react/24/outline";
 
 import { formattedDates } from "@utils";
 import { StationVisitsData } from "@types";
@@ -16,6 +16,7 @@ interface TableProps {
     buttonRegister?: boolean;
     visitsRegister?: boolean;
     deleteRegister?: boolean;
+    viewRegister?: boolean;
     titles: string[];
     body: any[][] | undefined;
     alterInfo?: any;
@@ -24,6 +25,7 @@ interface TableProps {
     onAlterClickFunction?: () => void;
     onClickFunction: () => void;
     onVisitsClickFunction?: () => void;
+    onViewClickFunction?: () => void;
 }
 
 const Table = ({
@@ -41,6 +43,8 @@ const Table = ({
     onVisitsClickFunction,
     setState,
     visitsRegister,
+    viewRegister,
+    onViewClickFunction,
 }: TableProps) => {
     const navigate = useNavigate();
 
@@ -48,6 +52,7 @@ const Table = ({
         number | null
     >(null);
 
+    const [showPassword, setShowPassword] = useState<number | null>(null);
 
 
     return (
@@ -76,16 +81,19 @@ const Table = ({
                                 {dataOnly && deleteRegister && (
                                     <th className="text-center text-neutral"></th>
                                 )}
-                                {
-                                visitsRegister && (
+                                {visitsRegister && (
                                     <th className="text-center text-neutral">
                                         Visits
                                     </th>
-                                )
-                                }
+                                )}
                                 {buttonRegister && (
                                     <th className="text-center text-neutral">
                                         Add Visit
+                                    </th>
+                                )}
+                                {viewRegister && (
+                                    <th className="text-center text-neutral">
+                                        View
                                     </th>
                                 )}
                             </>
@@ -96,6 +104,7 @@ const Table = ({
                                     : `There is no information for this ${table}`}
                             </th>
                         )}
+
 
                         {titles.map((title, index) => (
                             <th
@@ -167,13 +176,33 @@ const Table = ({
                                     )
                                 )}
                                 {
-                                visitsRegister && (
+                                    viewRegister && (
+                                        <td
+                                            key={index + "view"}
+                                            className="text-center"
+                                        >
+                                            <button
+                                                className="btn btn-sm btn-circle btn-ghost"
+                                                onClick={() => {
+                                                    setState(state?.[index]);
+                                                    onViewClickFunction?.();
+                                                }}
+                                            >
+                                                <BookOpenIcon className="size-6" 
+                                                    onClick={() => {}}
+                                                />
+                                            </button>
+                                        </td>
+                                    )
+                                }
+                                {visitsRegister && (
                                     <td
                                         key={index + "visits"}
                                         className="text-center"
                                     >
                                         <div
-                                            onClick={() =>{onVisitsClickFunction?.();
+                                            onClick={() => {
+                                                onVisitsClickFunction?.();
                                                 setState(state?.[index]);
                                             }}
                                             className="btn btn-sm btn-circle btn-ghost"
@@ -181,8 +210,7 @@ const Table = ({
                                             📅
                                         </div>
                                     </td>
-                                )
-                                }
+                                )}
                                 {buttonRegister && (
                                     <td
                                         key={index + "add_visit"}
@@ -215,7 +243,7 @@ const Table = ({
                                         };
                                         const isDate =
                                             isDateFunc(val) && val !== "";
-                                        
+
                                         const flag =
                                             titles[idx] === "country_code" &&
                                             val &&
@@ -273,63 +301,119 @@ const Table = ({
                                                         );
                                                 }}
                                             >
-                                                {titles[idx] === "Color" && val && (
-                                                    <div className="flex justify-center">
-                                                        <div className={val as string} style={{width: '40px', height: '40px', backgroundColor: '#000', borderRadius: '50%'}}></div>
-                                                    </div>
-                                                )}
-                                                {titles[idx] === "comments" && val && (
-                                                    <div className="overflow-y-auto overflow-x-auto pl-8 max-h-32"
-                                                        dangerouslySetInnerHTML={{
-                                                            __html: val ?? "",
-                                                        }}
-                                                    />
-                                                )}
-                                                {titles[idx] === "country_code" && val && (
-                                                    <img
-                                                        width={30}
-                                                        height={30}
-                                                        className="mr-2"
-                                                        src={`${flag}`}
-                                                    />
-                                                )}
-                                                {titles[idx] === "Image" && val && (
-                                                    <div className="avatar">
-                                                        <div className="w-14 mask mask-squircle ">
-                                                            <img
-                                                                src={
-                                                                    base64Str +
-                                                                    val
+                                                {titles[idx] === "Color" &&
+                                                    val && (
+                                                        <div className="flex justify-center">
+                                                            <div
+                                                                className={
+                                                                    val as string
                                                                 }
-                                                            />
+                                                                style={{
+                                                                    width: "40px",
+                                                                    height: "40px",
+                                                                    backgroundColor:
+                                                                        "#000",
+                                                                    borderRadius:
+                                                                        "50%",
+                                                                }}
+                                                            ></div>
                                                         </div>
-                                                    </div>
-                                                )
-                                                }
-                                                
+                                                    )}
+                                                {titles[idx] === "comments" &&
+                                                    val && (
+                                                        <div
+                                                            className="overflow-y-auto overflow-x-auto pl-8 max-h-32"
+                                                            dangerouslySetInnerHTML={{
+                                                                __html:
+                                                                    val ?? "",
+                                                            }}
+                                                        />
+                                                    )}
+                                                {titles[idx] ===
+                                                    "country_code" &&
+                                                    val && (
+                                                        <img
+                                                            width={30}
+                                                            height={30}
+                                                            className="mr-2"
+                                                            src={`${flag}`}
+                                                        />
+                                                    )}
+                                                {titles[idx] === "Image" &&
+                                                    val && (
+                                                        <div className="avatar">
+                                                            <div className="w-14 mask mask-squircle ">
+                                                                <img
+                                                                    src={
+                                                                        base64Str +
+                                                                        val
+                                                                    }
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    )}
 
                                                 {val !== "" &&
                                                 titles[idx] !== "Photo" &&
                                                 titles[idx] !== "Visit" &&
-                                                titles[idx] !== "comments" && 
+                                                titles[idx] !== "comments" &&
                                                 titles[idx] !== "Image" &&
-                                                titles[idx] !== "Color"
-                                                ? (
-                                                    typeof val === "string" && titles[idx] !== "Image"  && titles[idx] !== "Color" ?  (
+                                                titles[idx] !== "Color" ? (
+                                                    titles[idx] ===
+                                                    "password" ? (
+                                                        <div className="overflow-hidden text-ellipsis flex flex-row justify-center items-center gap-">
+                                                            <input
+                                                                type={
+                                                                    showPassword ===
+                                                                    index
+                                                                        ? "text"
+                                                                        : "password"
+                                                                }
+                                                                value={
+                                                                    val as string
+                                                                }
+                                                                readOnly
+                                                                className="bg-transparent w-20"
+                                                            />
+                                                            <button
+                                                                className="btn btn-xs btn-ghost"
+                                                                onClick={(
+                                                                    e,
+                                                                ) => {
+                                                                    e.stopPropagation();
+                                                                    setShowPassword(
+                                                                        showPassword ===
+                                                                            index
+                                                                            ? null
+                                                                            : index,
+                                                                    );
+                                                                }}
+                                                            >
+                                                                {showPassword ===
+                                                                index
+                                                                    ? <EyeSlashIcon className="size-6 self-center"/>                                                                    
+                                                                    : <EyeIcon className="size-6 self-center"/>}
+                                                            </button>
+                                                        </div>
+                                                    ) : typeof val ===
+                                                          "string" &&
+                                                      titles[idx] !== "Image" &&
+                                                      titles[idx] !==
+                                                          "Color" ? (
                                                         <div className="overflow-hidden text-ellipsis">
                                                             {val?.length > 15 &&
-                                                            !isDate ? (
-                                                                val?.substring(
-                                                                    0,
-                                                                    15,
-                                                                ) + "..."
-                                                            ) : isDate ? (
-                                                                formattedDates(
-                                                                    new Date(val),
-                                                                )
-                                                            ) : (
-                                                                val
-                                                            )}
+                                                            !isDate
+                                                                ? val?.substring(
+                                                                      0,
+                                                                      15,
+                                                                  ) + "..."
+                                                                : isDate
+                                                                  ? formattedDates(
+                                                                        new Date(
+                                                                            val,
+                                                                        ),
+                                                                    )
+                                                                  : val}
                                                         </div>
                                                     ) : typeof val ===
                                                       "boolean" ? (
@@ -341,13 +425,12 @@ const Table = ({
                                                     ) : typeof val ===
                                                       "number" ? (
                                                         val
-                                                    ) : 
-                                                    (
+                                                    ) : (
                                                         "-"
                                                     )
                                                 ) : val !== "" &&
                                                   val !== null &&
-                                                   titles[idx] === "Photo" ?(
+                                                  titles[idx] === "Photo" ? (
                                                     <div className="avatar">
                                                         <div className="w-14 mask mask-squircle ">
                                                             <img
@@ -360,7 +443,7 @@ const Table = ({
                                                     </div>
                                                 ) : val !== "" &&
                                                   val !== null &&
-                                                  typeof val === "string"  &&
+                                                  typeof val === "string" &&
                                                   titles[idx] === "Visit" ? (
                                                     <div
                                                         className="relative group"
@@ -374,7 +457,7 @@ const Table = ({
                                                                 null,
                                                             )
                                                         }
-                                                    >   
+                                                    >
                                                         <div>
                                                             {val?.length > 15 &&
                                                             !isDate
@@ -384,7 +467,7 @@ const Table = ({
                                                                   ) + "..."
                                                                 : val}
                                                         </div>
-                                                        {alterInfo && 
+                                                        {alterInfo &&
                                                             table !==
                                                                 "Stations" && (
                                                                 <div
@@ -413,13 +496,10 @@ const Table = ({
                                                                             v: StationVisitsData,
                                                                         ) => {
                                                                             const stationNetwork =
-                                                                                v?.station_formatted?.split(
-                                                                                    ".",
-                                                                                )[0];
+                                                                                v?.station_network_code;
                                                                             const stationCode =
-                                                                                v?.station_formatted?.split(
-                                                                                    ".",
-                                                                                )[1];
+                                                                                v?.station_station_code;
+
                                                                             return (
                                                                                 <Link
                                                                                     className="text-base block mb-1 even:bg-gray-700 rounded last:mb-0"
@@ -429,12 +509,17 @@ const Table = ({
                                                                                     to={`/${stationNetwork}/${stationCode}/visits`}
                                                                                     state={{
                                                                                         visitDetail:
-                                                                                            v,
+                                                                                            {
+                                                                                                ...v,
+                                                                                                api_id: v.station,
+                                                                                            },
                                                                                     }}
                                                                                 >
                                                                                     {" " +
                                                                                         "(" +
-                                                                                        v.station_formatted +
+                                                                                        stationNetwork +
+                                                                                        "." +
+                                                                                        stationCode +
                                                                                         ")" +
                                                                                         " - " +
                                                                                         v.date}{" "}
@@ -451,7 +536,10 @@ const Table = ({
                                                                 </div>
                                                             )}
                                                     </div>
-                                                ) : (titles[idx] !== "comments" && titles[idx] !== "Image" && titles[idx] !== "Color") ? (
+                                                ) : titles[idx] !==
+                                                      "comments" &&
+                                                  titles[idx] !== "Image" &&
+                                                  titles[idx] !== "Color" ? (
                                                     "-"
                                                 ) : null}
                                             </td>

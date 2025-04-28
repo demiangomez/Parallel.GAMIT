@@ -14,7 +14,6 @@ const Layout = ({ children }: LayoutProps) => {
     return (
         <>
             {token && <Nav />}
-
             <div className={containerDiv}>{children}</div>
 
             {/* {token && (

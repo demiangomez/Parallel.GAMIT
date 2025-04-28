@@ -6,16 +6,23 @@ interface VisitsCampaignModalProps {
     visits: StationVisitsData[] 
     campaign: CampaignsData | undefined
     setCampaign: React.Dispatch<React.SetStateAction<CampaignsData | undefined>>
+    setModals: React.Dispatch<React.SetStateAction<{ show: boolean; title: string; type: "add" | "edit" | "none" } | undefined>>
 }
 
-const VisitsCampaignModal = ({visits, campaign, setCampaign}:VisitsCampaignModalProps) => {
-    
+const VisitsCampaignModal = ({visits, campaign, setCampaign, setModals}:VisitsCampaignModalProps) => {
     const titles = ["date","edit", "station", "people", "other_file_count", "observation_file_count", "log_sheet_filename", "comments", "visit_image_count"]
+
 
     const [orderedVisits, setOrderedVisits] = useState<StationVisitsData[]>([])
 
+    const handleCloseModal = () => {
+        setCampaign(undefined); 
+        setOrderedVisits([])
+        setModals(undefined)
+    }
+
     useEffect(() => {
-        if(visits){
+        if(visits && visits.length > 0){
             const ordered = visits.sort((a,b) => {
                 if(a.date > b.date) return -1
                 if(a.date < b.date) return 1
@@ -25,9 +32,8 @@ const VisitsCampaignModal = ({visits, campaign, setCampaign}:VisitsCampaignModal
         }
     },[visits])    
 
-
     return (  
-        <Modal size='fit' close={false} modalId="Visits" handleCloseModal={() => {setCampaign(undefined)}}>
+        <Modal size='fit' close={false} modalId="Visits" handleCloseModal={handleCloseModal}>
             <div className="w-full flex flex-col justify-start items-center">
                 <h3 className="font-bold text-center text-2xl my-2 w-full">
                     {campaign?.name.toUpperCase()} 

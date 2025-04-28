@@ -6,8 +6,8 @@ import {
     TableCard,
 } from "@componentsReact";
 
-import useApi from "@hooks/useApi";
-import { useAuth } from "@hooks/useAuth";
+import { useAuth, useApi } from "@hooks";
+
 import { showModal } from "@utils";
 
 import { getStationTypesService } from "@services";
@@ -51,8 +51,10 @@ const StationTypesTable = () => {
                 params,
             );
             setStationTypes(res.data);
-            if(bParams.limit)
-            setPages(Math.ceil(res.total_count / bParams.limit));
+            if (bParams.limit) {
+                setPages(Math.ceil(res.total_count / bParams.limit));
+            }
+            res.data && res.data.length === 0 && handlePage(1);
         } catch (err) {
             console.error(err);
         } finally {

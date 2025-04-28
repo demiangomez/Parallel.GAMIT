@@ -301,7 +301,10 @@ const PdfContainer = ({
             const ctx = canvas.getContext("2d");
             ctx?.drawImage(img, 0, 0, width, height);
 
-            resolve(canvas.toDataURL("image/png", 1));
+            const match = img.src.match(/^data:image\/([a-zA-Z0-9+]+);base64,/);
+            const mimeType = match ? `image/${match[1]}` : "image/png";
+
+            resolve(canvas.toDataURL(mimeType, 1));
         });
     };
 
@@ -313,7 +316,8 @@ const PdfContainer = ({
 
         const resizedImagesPromises = images.map(async (img) => {
             const imgElement = new Image();
-            imgElement.src = `data:image/*;base64,${img.actual_image}`;
+            const imageExtension = img.name.split(".").pop() || "*";
+            imgElement.src = `data:image/${imageExtension};base64,${img.actual_image}`;
             await new Promise((resolve) => {
                 imgElement.onload = resolve;
                 imgElement.onerror = () => {
@@ -334,6 +338,7 @@ const PdfContainer = ({
         });
 
         const resizedImages = await Promise.all(resizedImagesPromises);
+
         return images.map((img, idx) => ({
             ...img,
             actual_image: resizedImages[idx],

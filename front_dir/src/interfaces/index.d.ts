@@ -1,7 +1,5 @@
 declare module "@heroicons/*";
 
-declare module "leaflet-omnivore";
-
 export interface GetParams {
     without_actual_files?: boolean;
     network_code?: string;
@@ -71,6 +69,11 @@ export interface TokenPayload {
     jti: string;
     iat: number;
     exp: number;
+}
+
+export interface DropdownState {
+    dropdown: boolean;
+    type: string | undefined;
 }
 
 export interface EarthquakeData {
@@ -198,7 +201,6 @@ export interface ExtendedStationInfoData extends StationInfoData {
     statusCode: number;
 }
 
-
 export interface StationMetadataServiceData {
     battery_description: string;
     communications_description: string;
@@ -224,7 +226,6 @@ export interface StationMetadataServiceData {
     station_name?: string;
     rinex_count?: number;
     distinct_visit_years: string[];
-    
 }
 
 export interface StationInfoServiceData {
@@ -401,6 +402,7 @@ export interface CampaignsData {
     name: string;
     start_date: string;
     end_date: string;
+    default_people: number[];
     statusCode: number;
 }
 
@@ -465,7 +467,6 @@ export interface ExtendedStationStatus extends StationStatus {
     statusCode: number;
 }
 
-
 export interface StationStatus {
     id: number;
     name: string;
@@ -502,9 +503,9 @@ export interface VisitFilesData {
     statusCode: number;
 }
 
-export interface CompletionPlotServiceData{
-    completion_plot: string, 
-    statusCode: number
+export interface CompletionPlotServiceData {
+    completion_plot: string;
+    statusCode: number;
 }
 
 export interface StationVisitsData {
@@ -514,13 +515,16 @@ export interface StationVisitsData {
     campaign_people: string | null;
     date: string;
     id: number;
+    // api_id added to avoid error on station when redirect visit from campaign
+    api_id?: number;
     log_sheet_actual_file: string | null;
     log_sheet_filename: string;
     navigation_actual_file: string | null;
     navigation_filename: string;
     people: string[{ id: number; name: string }];
-    station_formatted?: string;
     station: number;
+    station_network_code: string;
+    station_station_code: string;
     comments: string;
     observation_file_count: number;
     visit_image_count: number;
@@ -545,6 +549,7 @@ export interface StationCampaignsData {
     name: string;
     start_date: string;
     end_date: string;
+    default_people: number[];
 }
 
 export interface StationVisitsFilesData {
@@ -566,40 +571,40 @@ export interface StationImagesData {
     station: number;
 }
 
-export interface StationTypeServiceData{
+export interface StationTypeServiceData {
     count: number;
     total_count: number;
     data: StationTypeData[];
     statusCode: number;
 }
 
-export interface StationStatusServiceData{
+export interface StationStatusServiceData {
     count: number;
     total_count: number;
     data: StationStatusData[];
     statusCode: number;
 }
 
-export interface ColorData{
+export interface ColorData {
     id: number;
     color: string;
 }
 
-export interface ColorServiceData{
+export interface ColorServiceData {
     count: number;
     data: colorData[];
     total_count: number;
     statusCode: number;
 }
 
-export interface StationTypeData{
-    actual_image: string;
+export interface StationTypeData {
+    actual_image: string | File;
     id: number;
     name: string;
     search_icon_on_assets_folder: boolean;
 }
 
-export interface StationStatusData{
+export interface StationStatusData {
     id: number;
     color_name: string;
     name: string;
@@ -637,8 +642,20 @@ export interface People {
     user_name: string;
 }
 
-export type PeopleSelectedData =undefined | [number, string, string, string, string, string, number | string, string, string, string];
-
+export type PeopleSelectedData =
+    | undefined
+    | [
+          number,
+          string,
+          string,
+          string,
+          string,
+          string,
+          number | string,
+          string,
+          string,
+          string,
+      ];
 
 export interface EndpointCluster {
     [key: string]: [
@@ -662,7 +679,6 @@ export interface FrontPagesData {
         },
     ];
 }
-
 
 export interface NetworkData {
     api_id: number;
@@ -720,6 +736,7 @@ export interface GapData {
 
 export interface StationData {
     api_id?: number;
+    visitDetail?: any;
     network_code: string;
     station_code: string;
     station_name: string;
@@ -743,7 +760,6 @@ export interface StationData {
     status: string;
     type: string | null;
 }
-
 
 export interface StationInfoData {
     antenna_code: string;
@@ -785,8 +801,6 @@ export interface GamitHTCData {
     v_offset: number;
 }
 
-
-
 export interface RolePersonStationData {
     id: number;
     role: number;
@@ -799,37 +813,81 @@ export interface ExtendedRolePersonStationData extends RolePersonStationData {
 }
 
 export interface ConfigJumpData {
-    Year: number,
-    DOY: number,
-    action: string,
-    fit: boolean,
-    type: number,
-    type_name: string,
-    metadata: string,
-    relaxation: number[],
-    type: string,
+    Year: number;
+    DOY: number;
+    action: string;
+    fit: boolean;
+    type: number;
+    type_name: string;
+    metadata: string;
+    relaxation: number[];
+    type: string;
 }
 
-export interface JumpType{
-    id: number,
-    type: string,
+export interface JumpType {
+    id: number;
+    type: string;
 }
 
-
-export interface ConfigPolynomialData{
-    DOY: number,
-    Year: number,
-    terms: number,
+export interface ConfigPolynomialData {
+    DOY: number;
+    Year: number;
+    terms: number;
 }
 
-
-export interface TimeSeriesParamsData{
+export interface TimeSeriesParamsData {
     jumps: ConfigJumpData[];
     periodic: any;
     polynomial: ConfigPolynomialData;
 }
 
-export interface TimeSeriesParamsServiceData{
-    current_config: TimeSeriesParamsData,
+export interface TimeSeriesParamsServiceData {
+    current_config: TimeSeriesParamsData;
     statusCode: number;
+}
+
+export interface SourcesServerServiceData {
+    count: number;
+    data: SourcesServerData[];
+    statusCode: number;
+    total_count: number;
+}
+
+export interface SourcesServerData {
+    format: string;
+    fqdn: string;
+    password: string;
+    path: string | null;
+    protocol: string;
+    server_id: number;
+    username: string;
+}
+
+export interface SourcesFormatServiceData {
+    count: number;
+    data: SourcesFormatData[];
+    statusCode: number;
+    total_count: number;
+}
+
+export interface SourcesFormatData {
+    api_id: number;
+    format: string;
+}
+
+export interface SourcesStationsServiceData {
+    count: number;
+    data: SourcesStationsData[];
+    statusCode: number;
+    total_count: number;
+}
+
+export interface SourcesStationsData {
+    api_id: number;
+    network_code: string;
+    station_code: string;
+    try_order: number;
+    path: string | null;
+    server_id: number;
+    format: string;
 }

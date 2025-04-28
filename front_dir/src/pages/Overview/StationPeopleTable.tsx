@@ -49,8 +49,11 @@ const PeopleTable = () => {
             setLoading(true);
             const res = await getPeopleService<PeopleServiceData>(api, params);
             setPeoples(res.data);
-            if(bParams.limit)
-            setPages(Math.ceil(res.total_count / bParams.limit));
+            if(bParams.limit){
+                setPages(Math.ceil(res.total_count / bParams.limit));
+            }
+            res.data && res.data.length === 0 && handlePage(1);
+
         } catch (err) {
             console.error(err);
         } finally {
@@ -113,9 +116,11 @@ const PeopleTable = () => {
 
     useEffect(() => {
         getPeople();
+        getAllPeople();
     }, []); // eslint-disable-line
 
     const titles = [
+        "Username",
         "Name",
         "Lastname",
         "Email",
@@ -130,6 +135,7 @@ const PeopleTable = () => {
             ?.sort((a, b) => a.last_name.localeCompare(b.last_name))
             .map((st) =>
                 Object.values({
+                    username: st.user_name,
                     name: st.first_name,
                     lastname: st.last_name,
                     email: st.email,
@@ -154,24 +160,10 @@ const PeopleTable = () => {
             modalTitle="EditPerson"
             setModals={setModals}
             addButton={true}
+            secondAddButton = {true}
+            secondAddButtonTitle="Merge"
+            secondModalTitle="MergePeople"
         >
-            <button className="absolute right-36 top-2 flex justify-center items-center gap-1 btn btn-neutral"
-                onClick={
-                    () => { 
-                        getAllPeople();
-                        body.length > 0 ?
-                        setModals({
-                        show: true,
-                        title: "MergePeople",
-                        type: "edit",
-                    }) : alert("There are no people to merge")}
-                }
-            >
-                Merge
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
-                </svg>
-            </button>
             <Table
                 titles={body && body.length > 0 ? titles : []}
                 body={body}
@@ -206,7 +198,7 @@ const PeopleTable = () => {
                 />
             )}
             {
-                modals?.show && modals.title === "MergePeople" && body.length > 0 && (
+                modals?.show && modals.title === "MergePeople" && body && body.length > 0 && (
                     <MergePeopleModal
                         setStateModal={setModals}
                         handleCloseModal={() => setModals(undefined)}

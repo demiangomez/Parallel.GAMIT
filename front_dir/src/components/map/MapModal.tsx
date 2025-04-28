@@ -154,7 +154,7 @@ const MapModal = ({
             if (res) {
                 const types = res.data.map((type: StationTypeData) => {
                     return {
-                        image: type.actual_image,
+                        image: type.actual_image as string,
                         name: type.name,
                     };
                 });
@@ -195,6 +195,8 @@ const MapModal = ({
     const [loadingMap, setLoadingMap] = useState(false);
 
     const [rangeValue, setRangeValue] = useState(40);
+
+    useEffect(() => {}, [formState]);
 
     useEffect(() => {}, [formState]);
 

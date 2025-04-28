@@ -110,6 +110,7 @@ const MergePeopleModal = ({
             noPadding={true}
         >
             {" "}
+            
             <div
                 className={
                     successText
@@ -122,6 +123,7 @@ const MergePeopleModal = ({
                 <div className="w-full border-b-2 border-gray-300 pb-6 pl-8 pt-6">
                     <h1 className="text-2xl font-bold">Merge People</h1>
                 </div>
+                {
                 <form
                     typeof="submit"
                     onSubmit={(e) => {
@@ -213,6 +215,7 @@ const MergePeopleModal = ({
                         </button>
                     </div>
                 </form>
+                }
                 {successText ? (
                     <div className="w-full p-4">
                         <Alert
@@ -245,6 +248,7 @@ const MergePeopleModal = ({
                         />
                     </div>
                 ) : null}
+                
             </div>
         </Modal>
     );

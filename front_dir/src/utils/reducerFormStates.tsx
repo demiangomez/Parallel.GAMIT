@@ -67,7 +67,32 @@ export const CAMPAIGN_STATE = {
     name: "",
     start_date: "",
     end_date: "",
+    default_people: [] as string[],
 };
+
+export const SOURCES_STATIONS_STATE = {
+    network_code: "",
+    station_code: "",
+    try_order: "",
+    path: "",
+    format: "",
+    server_id: "",
+}
+
+export const SOURCES_SERVERS_STATE = {
+    server_id: "",
+    format: "",
+    fqdn: "",
+    password: "",
+    path: "",
+    protocol: "",
+    username: ""
+}
+
+export const SOURCES_FORMATS_STATE = {
+    format: "",
+    api_id: "",
+}
 
 export const METADATA_STATE = {
     stationMeta: {

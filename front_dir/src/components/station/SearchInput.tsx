@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Dropdown } from "@componentsReact";
 
@@ -72,18 +72,31 @@ const SearchInput = ({ stations, params, setParams }: SearchInputProps) => {
         getNetworks();
 
         const handleClickOutside = (event: MouseEvent) => {
+            const searchInput = document.getElementById('search-station');
             if (
                 dropdownRef.current &&
-                !dropdownRef.current.contains(event.target as Node)
+                !dropdownRef.current.contains(event.target as Node) &&
+                event.target !== searchInput
             ) {
                 setDropdownClassnames("hidden");
             }
         };
+
+        const handleSearchInputClick = () => {
+            if (params.station_code) {
+                setDropdownClassnames("dropdown dropdown-open w-[80%] pt-2");
+            }
+        };
+
+        const searchInput = document.getElementById('search-station');
+        searchInput?.addEventListener('click', handleSearchInputClick);
         document.addEventListener("mousedown", handleClickOutside);
+
         return () => {
+            searchInput?.removeEventListener('click', handleSearchInputClick);
             document.removeEventListener("mousedown", handleClickOutside);
         };
-    }, []);
+    }, [params.station_code]);
 
     useEffect(() => {
         if (!locationState) {
@@ -155,7 +168,6 @@ const SearchInput = ({ stations, params, setParams }: SearchInputProps) => {
         const searchInput = e.target.value.trim();
 
         const isInputEmpty = searchInput.length === 0;
-
         if (isInputEmpty) {
             setDropdownClassnames("hidden");
             setParams((prev) => ({

@@ -92,8 +92,6 @@ const LoadKmzFromBase64 = ({
     //--------------------------------------------------UseEffect--------------------------------------------------
     useEffect(() => {
         const loadKmzOrKmlFile = async () => {
-            if (!base64Data) return;
-
             try {
                 const binaryString = atob(base64Data);
                 const len = binaryString.length;
@@ -147,12 +145,14 @@ const LoadKmzFromBase64 = ({
                         },
                     });
 
-                    map.fitBounds(geoJsonLayer.getBounds());
-                    map.zoomOut(1);
-                    geoJsonLayer.setStyle({
-                        color: color,
-                    });
-                    geoJsonLayer.addTo(map);
+                    if (geoJsonLayer.getBounds().isValid()) {
+                        map.fitBounds(geoJsonLayer.getBounds());
+                        map.zoomOut(1);
+                        geoJsonLayer.setStyle({
+                            color: color,
+                        });
+                        geoJsonLayer.addTo(map);
+                    }
                 };
 
                 try {
@@ -262,13 +262,13 @@ const MapStation = ({
         const zoom = map?.getZoom();
         if (isMapReady && loadPdf) {
             if (zoom && zoom === 6) {
-                captureImage(1000, (dataUrl) => {
+                captureImage(1300, (dataUrl) => {
                     setStationLocationScreen &&
                         setStationLocationScreen(dataUrl);
                 });
             }
             if (zoom && zoom === 16) {
-                captureImage(4000, (dataUrl) => {
+                captureImage(4300, (dataUrl) => {
                     setStationLocationDetailScreen &&
                         setStationLocationDetailScreen(dataUrl);
                 });
@@ -298,7 +298,7 @@ const MapStation = ({
             const container = mapRef?.current?.getContainer();
             if (container) {
                 domtoimage
-                    .toPng(container, {
+                    .toJpeg(container, {
                         width: container.clientWidth,
                         height: container.clientHeight,
                     })
@@ -310,6 +310,42 @@ const MapStation = ({
                     });
             }
         }, timeout);
+    };
+
+    const getStationStatuses = async () => {
+        try {
+            const res =
+                await getStationStatusService<StationStatusServiceData>(api);
+            if (res) {
+                const statuses = res.data.map((status: StationStatusData) => {
+                    return {
+                        color: status.color_name,
+                        name: status.name,
+                    };
+                });
+                setStatuses(statuses);
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const getStationTypes = async () => {
+        try {
+            const res =
+                await getStationTypesService<StationTypeServiceData>(api);
+            if (res && apiOkStatuses.includes(res.statusCode)) {
+                const types = res.data.map((type: StationTypeData) => {
+                    return {
+                        image: type.actual_image as string,
+                        name: type.name,
+                    };
+                });
+                setTypes(types);
+            }
+        } catch (err) {
+            console.error(err);
+        }
     };
 
     //--------------------------------------------------UseState--------------------------------------------------
@@ -384,41 +420,6 @@ const MapStation = ({
         setForceRerender((prev) => prev + 1);
     }, [base64Data]);
 
-    const getStationStatuses = async () => {
-        try {
-            const res =
-                await getStationStatusService<StationStatusServiceData>(api);
-            if (res) {
-                const statuses = res.data.map((status: StationStatusData) => {
-                    return {
-                        color: status.color_name,
-                        name: status.name,
-                    };
-                });
-                setStatuses(statuses);
-            }
-        } catch (err) {
-            console.error(err);
-        }
-    };
-
-    const getStationTypes = async () => {
-        try {
-            const res =
-                await getStationTypesService<StationTypeServiceData>(api);
-            if (res && apiOkStatuses.includes(res.statusCode)) {
-                const types = res.data.map((type: StationTypeData) => {
-                    return {
-                        image: type.actual_image,
-                        name: type.name,
-                    };
-                });
-                setTypes(types);
-            }
-        } catch (err) {
-            console.error(err);
-        }
-    };
     useEffect(() => {
         getStationStatuses();
         getStationTypes();

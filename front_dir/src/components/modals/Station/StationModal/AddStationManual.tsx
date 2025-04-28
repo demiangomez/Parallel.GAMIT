@@ -100,10 +100,12 @@ const AddStationManual = ({
     const [networks, setNetworks] = useState<NetworkData[] | undefined>([]);
 
     const handleDrawPolygon = (e: any) => {
+
         const layer = e.layer; 
         const latlng = layer.getLatLng();
         const latitude = latlng.lat;
         const longitude = latlng.lng;
+
 
         dispatch({
             type: "change_value",
@@ -112,7 +114,7 @@ const AddStationManual = ({
             inputValue: parseFloat(latitude.toFixed(8)).toString()            }
         });
         dispatch({
-            type: "change_value",
+            type: "change_value", 
             payload: {
             inputName: "station.lon",
             inputValue: parseFloat(longitude.toFixed(8)).toString()
@@ -585,8 +587,6 @@ const AddStationManual = ({
                 setShowMapModal={setShowMapModal}
                 handleDrawPolygon={handleDrawPolygon}
                 markerType="marker"
-                formState={formState}
-
             />}
         </div>
     );

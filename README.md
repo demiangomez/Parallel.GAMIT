@@ -40,7 +40,3 @@ Skip this part if you are using an existing db
 ```
    docker compose up --build -d
 ```
-
-### Usage
-
-Don't change password of 'update-gaps-status' user. Otherwise, gaps status won't be updated.

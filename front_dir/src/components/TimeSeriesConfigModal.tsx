@@ -188,6 +188,7 @@ const TimeSeriesConfigModal = ({type, valueToModify, data, stationId, refetch, s
         if(success){
             refetch();
         }
+        setMsg(undefined);
     }
 
 
@@ -246,8 +247,6 @@ const TimeSeriesConfigModal = ({type, valueToModify, data, stationId, refetch, s
             }
         }
     }, [type])
-
-
 
     return (  
         <Modal modalId="TimeSeriesConfigModal" close={false} size="smPlus" handleCloseModal={handleClose}>

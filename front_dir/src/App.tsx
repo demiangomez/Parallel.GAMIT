@@ -24,12 +24,14 @@ import {
     StationRinex,
     StationTimeSeries,
     StationVisits,
+    StationSources,
+    SourcesServers,
 } from "@componentsReact";
 
 import { ProtectedRoute, UnprotectedRoute } from "@routes";
-import { AuthProvider } from "@hooks/useAuth";
 
-// note: future tags are for the new features of the react-router-dom v7
+import { AuthProvider } from "@hooks/useAuth";
+import { UserContextProvider } from "@hooks/user/userInfo.context";
 
 const router = createBrowserRouter(
     createRoutesFromElements(
@@ -40,7 +42,7 @@ const router = createBrowserRouter(
             </Route>
             <Route
                 path="/"
-                element={<ProtectedRoute />}
+                element={<ProtectedRoute />} // Aquí debe estar la lógica de autorización
                 handle={{
                     crumb: () => {
                         return "Home";
@@ -48,21 +50,21 @@ const router = createBrowserRouter(
                 }}
             >
                 <Route index element={<Main />} />
-                {/* <Route
-                    element={
-                        <div className="flex flex-col justify-center items-center text-xl font-bold w-full min-h-[90vh]">
-                            <span>Leandro Dino Ricciardi at backend</span>
-                            <span>Franco Alex Laurino at frontend</span>
-                        </div>
-                    }
-                    path="16091998020720011704200028112001"
-                /> */}
                 <Route
                     path="campaigns"
                     element={<Campaigns />}
                     handle={{
                         crumb: () => {
                             return "campaigns";
+                        },
+                    }}
+                />
+                <Route
+                    path="sources"
+                    element={<SourcesServers />}
+                    handle={{
+                        crumb: () => {
+                            return "sources-servers";
                         },
                     }}
                 />
@@ -103,7 +105,15 @@ const router = createBrowserRouter(
                             },
                         }}
                     />
-
+                    <Route
+                        path="sources"
+                        element={<StationSources />}
+                        handle={{
+                            crumb: () => {
+                                return "Sources";
+                            },
+                        }}
+                    />
                     <Route
                         path="people"
                         element={<StationPeople />}
@@ -122,7 +132,6 @@ const router = createBrowserRouter(
                             },
                         }}
                     />
-
                     <Route
                         path="timeseries"
                         element={<StationTimeSeries />}
@@ -159,12 +168,14 @@ const router = createBrowserRouter(
 
 function App() {
     return (
-        <AuthProvider>
-            <RouterProvider
-                router={router}
-                future={{ v7_startTransition: true }}
-            />
-        </AuthProvider>
+        <UserContextProvider>
+            <AuthProvider>
+                <RouterProvider
+                    router={router}
+                    future={{ v7_startTransition: true }}
+                />
+            </AuthProvider>
+        </UserContextProvider>
     );
 }
 

@@ -55,7 +55,7 @@ const StationMain = () => {
 
     const [changeKml, setChangeKml] = useState<VisitsStates[]>([]);
 
-    const [mapBlinked, setMapBlinked] = useState<boolean>(true);
+    const [mapFlicker, setMapFlicker] = useState<boolean>(true);
 
     const definitiveStation =
         station && reStation && hasDifferences(station, reStation)
@@ -87,8 +87,10 @@ const StationMain = () => {
     }, [stationMeta]);
 
     useEffect(() => {
-        if (visits && stationMeta) setMapBlinked(false);
-    }, [stationMeta, visits]);
+        if (visits && stationMeta) {
+            setMapFlicker(false);
+        }
+    }, [visits, stationMeta]);
 
     return (
         <div>
@@ -96,34 +98,36 @@ const StationMain = () => {
                 {station?.country_code?.toUpperCase()}
             </h1>
             <div className="flex flex-col items-center justify-center space-y-4 px-2 pb-4">
-                <div className="flex w-full space-x-2 ">
-                    {mapBlinked ? (
-                        <MapSkeleton
-                            styles={{
-                                backgroundColor: "rgb(202, 202, 202)",
-                                marginTop: "1.5rem",
-                            }}
-                        />
-                    ) : (
-                        <MapStation
-                            station={definitiveStation}
-                            base64Data={
-                                changeMeta ||
-                                changeKml?.some((visit) => visit.checked)
-                                    ? (visitsAndMeta ?? "")
-                                    : ""
-                            }
-                            loadPdf={loadPdf}
-                            loadedPdfData={loadedPdfData}
-                            setStationLocationScreen={setStationLocationScreen}
-                            setStationLocationDetailScreen={
-                                setStationLocationDetailScreen
-                            }
-                            setLoadPdf={setLoadPdf}
-                            setLoadedMap={setLoadedMap}
-                            visitScrollerProps={visitScrollerProps}
-                        />
+                <div className="flex w-full space-x-2 relative">
+                    {mapFlicker && (
+                        <div className="absolute z-[100] pt-6 ml-2 w-6/12 h-[55vh] xl:w-[40vw] lg:w-[30vw] md:w-[30vw] sm:w-[20vw]">
+                            <MapSkeleton
+                                styles={{
+                                    backgroundColor: "rgb(202, 202, 202)",
+                                    paddingBottom: "0.7rem",
+                                }}
+                            />
+                        </div>
                     )}
+
+                    <MapStation
+                        station={definitiveStation}
+                        base64Data={
+                            changeMeta ||
+                            changeKml?.some((visit) => visit.checked)
+                                ? (visitsAndMeta ?? "")
+                                : ""
+                        }
+                        loadPdf={loadPdf}
+                        loadedPdfData={loadedPdfData}
+                        visitScrollerProps={visitScrollerProps}
+                        setStationLocationScreen={setStationLocationScreen}
+                        setStationLocationDetailScreen={
+                            setStationLocationDetailScreen
+                        }
+                        setLoadPdf={setLoadPdf}
+                        setLoadedMap={setLoadedMap}
+                    />
 
                     <Photo
                         loader={photoLoading}

@@ -247,16 +247,6 @@ const MapMarkers = ({
     //---------------------------------------------------------------------------Constantes--------------------------------------------------------------------------------------
     const map = useMap();
 
-    const southWest = L.latLng(-100.98155760646617, -250);
-    const nortEast = L.latLng(100.99346179538875, 250);
-    const bounds = L.latLngBounds(southWest, nortEast);
-
-    map.setMaxBounds(bounds);
-    map.on("drag", () => {
-        const extendedBounds = bounds.pad(0.5);
-        map.panInsideBounds(extendedBounds, { animate: false });
-    });
-
     //---------------------------------------------------------------------------UseLocalStorage--------------------------------------------------------------------------------------
     const [lastZoomLevel, setLastZoomLevel] = useLocalStorage(
         "lastZoomLevel",
@@ -355,7 +345,13 @@ const MapMarkers = ({
     ]);
 
     //Updates storage when you modify zoom and position
+    //set map on pan when dragging
     useEffect(() => {
+        const southWest = L.latLng(-85.0511, -180);
+        const northEast = L.latLng(85.0511, 180);
+
+        const bounds = L.latLngBounds(southWest, northEast);
+
         const onZoomEnd = () => {
             const currentZoom = map.getZoom();
             setLastZoomLevel(currentZoom.toString());
@@ -365,6 +361,8 @@ const MapMarkers = ({
             const currentCenter = map.getCenter();
             setLastPosition([currentCenter.lat, currentCenter.lng].toString());
         };
+
+        map.setMaxBounds(bounds);
 
         map.on("zoomend", onZoomEnd);
         map.on("moveend", onMoveEnd);
@@ -685,7 +683,7 @@ const MapMarkers = ({
             if (res) {
                 const types = res.data.map((type: StationTypeData) => {
                     return {
-                        image: type.actual_image,
+                        image: type.actual_image as string,
                         name: type.name,
                     };
                 });
@@ -998,7 +996,7 @@ const Map = ({
                 key={forceRender}
                 preferCanvas={true}
                 maxBoundsViscosity={1.0}
-                worldCopyJump={true}
+                worldCopyJump={false}
                 zoomControl={false}
                 className="w-full h-[92vh]"
             >

@@ -70,7 +70,7 @@ class StationAttachedFilesFilter(filters.FilterSet):
 class VisitFilter(filters.FilterSet):
     station_api_id = filters.CharFilter(
         field_name='station')
-    
+
     campaign_id = filters.NumberFilter(
         field_name='campaign')
 
@@ -164,3 +164,10 @@ class EarthquakesFilter(filters.FilterSet):
         model = models.Earthquakes
         fields = ['date_start', 'date_end', 'max_magnitude', 'min_magnitude',
                   'max_depth', 'min_depth', 'id']
+
+
+class SourcesStationsFilter(filters.FilterSet):
+
+    class Meta:
+        model = models.SourcesStations
+        fields = ['network_code', 'station_code', 'server_id']

@@ -1,10 +1,6 @@
-import { CountriesData, NetworkData } from "@types";
+import { CountriesData, NetworkData, DropdownState } from "@types";
 import { useState } from "react";
 
-interface DropdownState {
-    dropdown: boolean;
-    type: string | undefined;
-}
 
 interface DropdownProps {
     position?: string;

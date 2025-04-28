@@ -38,6 +38,7 @@
         "react-leaflet-editable": "^0.2.2",
         "react-leaflet-markercluster": "^4.2.1",
         "react-pdf": "^9.1.1",
+        "react-pdf-html": "^2.1.3",
         "react-quill": "^2.0.0",
         "react-rnd": "^10.4.13",
         "react-router-dom": "^6.23.0",
@@ -67,6 +68,6 @@
         "prettier": "^3.2.5",
         "tailwindcss": "^3.4.3",
         "typescript": "^5.2.2",
-        "vite": "^5.2.0"
+        "vite": "^6.3.1"
     }
 }

@@ -1853,6 +1853,32 @@ export async function mergePeopleService<T>(
     }
 }
 
+export async function mergeSourcesServersService<T>(
+    api: AxiosInstance,
+    params: { from: number; to: number },
+): Promise<T> {
+    try {
+        const url = `api/sources-servers/${params.from}/merge-to/${params.to}`;
+        const response = await api.post(url);
+        return response.data as Promise<T>;
+    } catch (error) {
+        return Promise.reject(error);
+    }
+}
+
+export async function swapTryOrdenService<T>(
+    api: AxiosInstance,
+    params: { from: number; to: number },
+): Promise<T> {
+    try {
+        const url = `api/sources-stations/${params.from}/swap-try-order/${params.to}`;
+        const response = await api.post(url);
+        return response.data as Promise<T>;
+    } catch (error) {
+        return Promise.reject(error);
+    }
+}
+
 export async function postPeopleService<T>(
     api: AxiosInstance,
     data: FormData,
@@ -1941,4 +1967,202 @@ export async function delRolePersonStationService<T>(
     }
 }
 
-/* <------------------------------------------------------------> */
+
+
+// Sources Servers CRUD
+export async function getSourcesServersByIdService<T>(
+    api: AxiosInstance,
+    id: number,
+): Promise<T> {
+    try {
+        const response = await api.get(`api/sources-servers/${id}`)
+        return response.data as Promise<T>;
+    } catch (error) {
+        return Promise.reject(error);
+    }
+}
+
+export async function getSourcesServersService<T>(
+    api: AxiosInstance,
+): Promise<T> {
+    try {
+        const response = await api.get(`api/sources-servers`)
+        return response.data as Promise<T>;
+    } catch (error) {
+        return Promise.reject(error);
+    }
+}
+
+export async function postSourcesServersService<T>(
+    api: AxiosInstance,
+    data: any,
+): Promise<T> {
+    try {
+        const response = await api.post(`api/sources-servers`, data)
+        return response.data as Promise<T>
+    } catch (error) {
+        return Promise.reject(error)
+    }
+}
+
+export async function putSourcesServersService<T>(
+    api: AxiosInstance,
+    id: number,
+    data: any,
+): Promise<T> {
+    try {
+        const response = await api.put(`api/sources-servers/${id}`, data)
+        return response.data as Promise<T>
+    } catch (error) {
+        return Promise.reject(error)
+    }
+}
+
+export async function deleteSourcesServersService<T>(
+    api: AxiosInstance,
+    id: number,
+): Promise<T> {
+    try {
+        const response = await api.delete(`api/sources-servers/${id}`)
+        return response.data as Promise<T>
+    } catch (error) {
+        return Promise.reject(error)
+    }
+}
+
+// Sources Formats CRUD
+export async function getSourcesFormatsByIdService<T>(
+    api: AxiosInstance,
+    id: number,
+): Promise<T> {
+    try {
+        const response = await api.get(`api/sources-formats/${id}`)
+        return response.data as Promise<T>;
+    } catch (error) {
+        return Promise.reject(error);
+    }
+}
+
+export async function getSourcesFormatsService<T>(
+    api: AxiosInstance,
+): Promise<T> {
+    try {
+        const response = await api.get(`api/sources-formats`)
+        return response.data as Promise<T>;
+    } catch (error) {
+        return Promise.reject(error);
+    }
+}
+
+export async function postSourcesFormatsService<T>(
+    api: AxiosInstance,
+    data: any,
+): Promise<T> {
+    try {
+        const response = await api.post(`api/sources-formats`, data)
+        return response.data as Promise<T>
+    } catch (error) {
+        return Promise.reject(error)
+    }
+}
+
+export async function putSourcesFormatsService<T>(
+    api: AxiosInstance,
+    id: number,
+    data: any,
+): Promise<T> {
+    try {
+        const response = await api.put(`api/sources-formats/${id}`, data)
+        return response.data as Promise<T>
+    } catch (error) {
+        return Promise.reject(error)
+    }
+}
+
+export async function deleteSourcesFormatsService<T>(
+    api: AxiosInstance,
+    id: number,
+): Promise<T> {
+    try {
+        const response = await api.delete(`api/sources-formats/${id}`)
+        return response.data as Promise<T>
+    } catch (error) {
+        return Promise.reject(error)
+    }
+}
+
+// Sources Stations CRUD
+export async function getSourcesStationsByServerIdService<T>(
+    api: AxiosInstance,
+    id: number,
+): Promise<T> {
+    try {
+        const response = await api.get(`api/sources-stations?server_id=${id}`)
+        return response.data as Promise<T>;
+    } catch (error) {
+        return Promise.reject(error);
+    }
+}
+
+export async function getSourcesStationsByStationIdService<T>(
+    api: AxiosInstance,
+    nc: string,
+    sc: string,
+): Promise<T> {
+    try {
+        const response = await api.get(`api/sources-stations?network_code=${nc}&station_code=${sc}`)
+        return response.data as Promise<T>;
+    } catch (error) {
+        return Promise.reject(error);
+    }
+}
+
+export async function getSourcesStationsService<T>(
+    api: AxiosInstance,
+): Promise<T> {
+    try {
+        const response = await api.get(`api/sources-stations`)
+        return response.data as Promise<T>;
+    } catch (error) {
+        return Promise.reject(error);
+    }
+}
+
+export async function postSourcesStationsService<T>(
+    api: AxiosInstance,
+    data: any,
+): Promise<T> {
+    try {
+        const response = await api.post(`api/sources-stations`, data)
+        return response.data as Promise<T>
+    } catch (error) {
+        return Promise.reject(error)
+    }
+}
+
+export async function putSourcesStationsService<T>(
+    api: AxiosInstance,
+    id: number,
+    data: any,
+): Promise<T> {
+    try {
+        const response = await api.put(`api/sources-stations/${id}`, data)
+        return response.data as Promise<T>
+    } catch (error) {
+        return Promise.reject(error)
+    }
+}
+
+export async function deleteSourcesStationsService<T>(
+    api: AxiosInstance,
+    id: number,
+): Promise<T> {
+    try {
+        const response = await api.delete(`api/sources-stations/${id}`)
+        return response.data as Promise<T>
+    } catch (error) {
+        return Promise.reject(error)
+    }
+}
+
+

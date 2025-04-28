@@ -9,7 +9,7 @@ type ChangeValueAction = {
     type: "change_value";
     payload: {
         inputName: string;
-        inputValue: number | string | boolean | File | number[] | undefined;
+        inputValue: number | string | boolean | File | number[] | undefined | string[]
     };
 };
 

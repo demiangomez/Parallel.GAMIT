@@ -173,7 +173,7 @@ const MainPage = () => {
 
     //---------------------------------------------------------Constantes------------------------------------------------------------
 
-    const windowState = window.history.state.usr as StationData;
+    const windowState = window.history?.state?.usr as StationData;
 
     const locationState =
         location.state && windowState
@@ -264,14 +264,16 @@ const MainPage = () => {
         try {
             setEarthQuakeAffectedStations(undefined);
 
-            const result =
-                await getAffectedStationsService<StationsAffectedServiceData>(
-                    api,
-                    earthQuakeAffectedParams,
-                    { signal: abortAffectedStationsRef.current.signal },
-                );
-            if (result && result.affected_stations) {
-                setEarthQuakeAffectedStations(result);
+            if (earthQuakeAffectedParams) {
+                const result =
+                    await getAffectedStationsService<StationsAffectedServiceData>(
+                        api,
+                        earthQuakeAffectedParams,
+                        { signal: abortAffectedStationsRef.current.signal },
+                    );
+                if (result && result.affected_stations) {
+                    setEarthQuakeAffectedStations(result);
+                }
             }
         } catch (err: unknown) {
             console.error(err);

@@ -27,6 +27,11 @@ from pgamit import Utils as pyUtils
 import dateutil.parser
 from django.http import Http404
 import matplotlib.pyplot as plt
+import time
+
+
+from django.db import transaction
+from django.db.models import Max
 
 logger = logging.getLogger('django')
 
@@ -369,6 +374,58 @@ class PersonUtils:
                 role_person_station_source.save()
             else:
                 role_person_station_source.delete()
+
+        # transfer default people in all campaign
+        default_people = models.Campaigns.objects.filter(
+            default_people__in=[person_source])
+
+        for campaign in default_people:
+            if person_target not in campaign.default_people.all():
+                campaign.default_people.add(person_target)
+            campaign.default_people.remove(person_source)
+            campaign.save()
+
+
+class SourceServerUtils:
+    @staticmethod
+    def merge_source_server(source_server_source, source_server_target):
+
+        # transfer all source stations
+        sources_stations = models.SourcesStations.objects.filter(
+            server_id=source_server_source.server_id)
+
+        for source_station in sources_stations:
+            source_station.server_id = source_server_target
+            source_station.save()
+
+    @staticmethod
+    @transaction.atomic
+    def swap_try_order(source_station_from, source_station_to):
+        # check that objects share the same network code and station code
+        if source_station_from.network_code != source_station_to.network_code or source_station_from.station_code != source_station_to.station_code:
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "both sources_stations records must have the same network code and station code")
+
+        # Store the original try_order values
+        from_try_order = source_station_from.try_order
+        to_try_order = source_station_to.try_order
+
+        # Find a unique temporary try_order value
+        max_try_order = models.SourcesStations.objects.filter(
+            network_code=source_station_from.network_code,
+            station_code=source_station_from.station_code
+        ).aggregate(Max('try_order'))['try_order__max'] or 0
+        temp_try_order = max_try_order + 100  # Use a value unlikely to conflict
+
+        # Use a three-step swap to avoid constraint violations
+        source_station_from.try_order = temp_try_order
+        source_station_from.save()
+
+        source_station_to.try_order = from_try_order
+        source_station_to.save()
+
+        source_station_from.try_order = to_try_order
+        source_station_from.save()
 
 
 class StationKMZGenerator:

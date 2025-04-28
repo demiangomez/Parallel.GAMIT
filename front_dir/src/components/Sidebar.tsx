@@ -11,6 +11,7 @@ import {
     PaperAirplaneIcon,
     PresentationChartLineIcon,
     UsersIcon,
+    ServerStackIcon,
 } from "@heroicons/react/24/outline";
 
 import { GetParams, StationData, StationMetadataServiceData } from "@types";
@@ -43,27 +44,33 @@ const Sidebar = ({
         Visits: PaperAirplaneIcon,
         People: UsersIcon,
         Events: ClipboardDocumentListIcon,
+        "Data Sources": ServerStackIcon,
     };
 
     const [show, setShow] = useState<boolean>(false);
 
-    // const longTitles = ["Information", "Metadata", "Visits", "People"];
     const longTitles = [
         "Information",
         "Metadata",
         "Time Series",
         "Rinex",
+        "Data Sources",
         "Visits",
         "People",
         "Events",
     ];
 
-    // const stationPages = ["People", "Visits"];
-    const stationPages = ["People", "Visits", "Rinex", "Time Series", "Events"];
+    const stationPages = [
+        "People",
+        "Visits",
+        "Rinex",
+        "Data Sources",
+        "Time Series",
+        "Events",
+    ];
 
-    // const admTitles = ["Admin", "Users", "Settings"];
     const sidebarWidth = show ? "w-72" : "w-32";
-    //-----------------------------------------------UseNavigate-----------------------------------------------------
+    //-----------------------------------------------UseNavigate---------------------------------------------
 
     const navigate = useNavigate();
 
@@ -73,6 +80,13 @@ const Sidebar = ({
         | { show: boolean; title: string; type: "add" | "edit" | "none" }
         | undefined
     >(undefined);
+
+    //-----------------------------------------------Funciones------------------------------------------------
+
+    const formatTitle = (title: string) => {
+        const formattedTitle = title.replace(/ /g, "").toLowerCase();
+        return formattedTitle === "datasources" ? "sources" : formattedTitle;
+    };
 
     //-----------------------------------------------UseEffect------------------------------------------------
     useEffect(() => {
@@ -101,17 +115,13 @@ const Sidebar = ({
                                 <nav className="mt-10 space-y-8 flex flex-col items-center text-center">
                                     {longTitles.map((title, idx) => (
                                         <div
-                                            className="flex w-full justify-center mt-16"
+                                            className="flex w-full justify-center mt-12"
                                             key={title + idx}
                                         >
                                             <div className="flex items-center justify-center w-4/12 ">
                                                 {icons[title] &&
                                                     React.createElement(
-                                                        title === "Time Series"
-                                                            ? icons[
-                                                                  "Time Series"
-                                                              ]
-                                                            : icons[title],
+                                                        icons[title],
                                                         {
                                                             className: `h-8 w-full hover:scale-110 transition-all
                                                              cursor-pointer ${show ? "ml-16" : ""} text-white mt-2 `,
@@ -120,7 +130,7 @@ const Sidebar = ({
                                                                     title,
                                                                 )
                                                                     ? navigate(
-                                                                          `/${station.network_code}/${station.station_code}/${title == "Time Series" ? "timeseries" : title.toLowerCase()}`,
+                                                                          `/${station.network_code}/${station.station_code}/${formatTitle(title)}`,
                                                                           {
                                                                               state: {
                                                                                   ...station,
@@ -153,7 +163,7 @@ const Sidebar = ({
                                                                 title,
                                                             )
                                                                 ? navigate(
-                                                                      `/${station.network_code}/${station.station_code}/${title.replace(" ", "").toLowerCase()}`,
+                                                                      `/${station.network_code}/${station.station_code}/${formatTitle(title)}`,
                                                                       {
                                                                           state: {
                                                                               ...station,

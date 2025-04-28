@@ -11,6 +11,8 @@ import {
     Image,
 } from "@react-pdf/renderer";
 
+import Html from "react-pdf-html";
+
 import { adjustToLocalTimezone, decimalToDMS, formattedDates } from "@utils";
 
 import {
@@ -63,6 +65,7 @@ const Pdf = ({
         fonts: [
             {
                 src: "https://fonts.gstatic.com/s/lora/v35/0QI6MX1D_JOuGQbT0gvTJPa787weuyJGmKxemMeZ.ttf",
+                fontWeight: 400,
             },
             {
                 src: "https://fonts.gstatic.com/s/lora/v35/0QI6MX1D_JOuGQbT0gvTJPa787zAvCJGmKxemMeZ.ttf",
@@ -126,8 +129,200 @@ const Pdf = ({
         },
     });
 
-    
+    // Create styles for your HTML content
+    const reactPdfStyles: Record<string, { fontSize: number }> =
+        StyleSheet.create({
+            "ql-size-small": {
+                fontSize: 8,
+            },
+            "ql-size-normal": {
+                fontSize: 12,
+            },
+            "ql-size-large": {
+                fontSize: 18,
+            },
+            "ql-size-huge": {
+                fontSize: 32,
+            },
+        });
 
+    const htmlRenderers = {
+        ul: ({ children }: any) => (
+            <View style={{ marginBottom: 10, paddingLeft: 10 }}>
+                {children}
+            </View>
+        ),
+        ol: ({ children }: any) => (
+            <View style={{ marginBottom: 10, paddingLeft: 10 }}>
+                {children}
+            </View>
+        ),
+        li: ({ element, children }: { element: any; children: any }) => {
+            // Detect if parent is <ol>
+            const isOrderedList =
+                element.parentNode?.tag === "ol" ||
+                element.closest?.("ol")?.tag === "ol";
+            // Get index for ordered lists
+            const index =
+                typeof element.indexOfType === "number"
+                    ? element.indexOfType + 1
+                    : "•";
+
+            // Busca si el elemento <li> o sus hijos tienen alguna clase ql-size-*
+            // Si la tiene, aplica el style correspondiente de reactPdfStyles
+            // Solo toma la primera clase ql-size-* encontrada en el <li>
+            let qlSizeStyle = undefined;
+            if (element.classList && element.classList.length > 0) {
+                const qlSizeClass = Array.from(element.classList._set).find(
+                    (cls) => (cls as string)?.startsWith("ql-size-"),
+                ) as string | undefined;
+                if (
+                    qlSizeClass &&
+                    reactPdfStyles[qlSizeClass as keyof typeof reactPdfStyles]
+                ) {
+                    qlSizeStyle =
+                        reactPdfStyles[
+                            qlSizeClass as keyof typeof reactPdfStyles
+                        ];
+                }
+            }
+            // Si no está en el <li>, busca en el primer hijo span/strong/s/etc
+            if (
+                !qlSizeStyle &&
+                element.childNodes &&
+                element.childNodes.length > 0
+            ) {
+                for (const child of element.childNodes) {
+                    if (child.classList && child.classList.length > 0) {
+                        const qlSizeClass = Array.from(
+                            child.classList._set,
+                        ).find((cls) =>
+                            (cls as string)?.startsWith("ql-size-"),
+                        );
+                        if (
+                            qlSizeClass &&
+                            (qlSizeClass as keyof typeof reactPdfStyles) in
+                                reactPdfStyles
+                        ) {
+                            qlSizeStyle =
+                                reactPdfStyles[
+                                    qlSizeClass as keyof typeof reactPdfStyles
+                                ];
+                            break;
+                        }
+                    } else {
+                        // Si el hijo no tiene clase, pero es un <span> o <strong>, aplica el estilo del padre
+                        qlSizeStyle = reactPdfStyles["ql-size-normal"];
+                        break;
+                    }
+                }
+            }
+
+            return (
+                <View
+                    style={{
+                        flexDirection: "row",
+                        marginBottom: 4,
+                        ...(qlSizeStyle || {}),
+                    }}
+                >
+                    <Text style={{ marginRight: 6 }}>
+                        {isOrderedList ? `${index}.` : "•"}
+                    </Text>
+                    <View style={{ flex: 1 }}>
+                        {/* Children may be spans, so flatten and wrap strings in <Text> */}
+                        {Array.isArray(children) ? (
+                            children.map((c, i) =>
+                                typeof c === "string" ? (
+                                    <Text key={i}>{c}</Text>
+                                ) : (
+                                    c
+                                ),
+                            )
+                        ) : typeof children === "string" ? (
+                            <Text>{children}</Text>
+                        ) : (
+                            children
+                        )}
+                    </View>
+                </View>
+            );
+        },
+        p: ({ children, element }: any) => {
+            // Busca si el elemento <p> o sus hijos tienen alguna clase ql-size-*
+            // Si la tiene, aplica el style correspondiente de reactPdfStyles
+            // Solo toma la primera clase ql-size-* encontrada en el <p>
+            let qlSizeStyle = undefined;
+            if (element.classList && element.classList.length > 0) {
+                const qlSizeClass = Array.from(element.classList._set).find(
+                    (cls) => (cls as string)?.startsWith("ql-size-"),
+                ) as string | undefined;
+                if (
+                    qlSizeClass &&
+                    reactPdfStyles[qlSizeClass as keyof typeof reactPdfStyles]
+                ) {
+                    qlSizeStyle =
+                        reactPdfStyles[
+                            qlSizeClass as keyof typeof reactPdfStyles
+                        ];
+                }
+            }
+            // Si no está en el <p>, busca en el primer hijo span/strong/s/etc
+            if (
+                !qlSizeStyle &&
+                element.childNodes &&
+                element.childNodes.length > 0
+            ) {
+                for (const child of element.childNodes) {
+                    if (child.classList && child.classList.length > 0) {
+                        const qlSizeClass = Array.from(
+                            child.classList._set,
+                        ).find((cls) =>
+                            (cls as string)?.startsWith("ql-size-"),
+                        );
+                        if (
+                            qlSizeClass &&
+                            reactPdfStyles[
+                                qlSizeClass as keyof typeof reactPdfStyles
+                            ]
+                        ) {
+                            qlSizeStyle =
+                                reactPdfStyles[
+                                    qlSizeClass as keyof typeof reactPdfStyles
+                                ];
+                            break;
+                        }
+                    }
+                }
+            }
+
+            return (
+                <View style={qlSizeStyle}>
+                    {Array.isArray(children) ? (
+                        children.map((c, i) =>
+                            typeof c === "string" ? (
+                                <Text key={i}>{c}</Text>
+                            ) : (
+                                c
+                            ),
+                        )
+                    ) : typeof children === "string" ? (
+                        <Text>{children}</Text>
+                    ) : (
+                        children
+                    )}
+                </View>
+            );
+        },
+        span: ({ children }: any) => {
+            return (
+                <Text>
+                    {Array.isArray(children) ? children.join("") : children}
+                </Text>
+            );
+        },
+        br: () => <Text>{"\n"}</Text>,
+    };
 
     return (
         <Document>
@@ -432,32 +627,42 @@ const Pdf = ({
                             Site pictures
                         </Text>
                         {images && images.length > 0 ? (
-                            images?.map((img, idx) => (
-                                <>
-                                    <Image
-                                        key={img.id + String(idx)}
-                                        style={{
-                                            marginVertical: 15,
-                                            marginHorizontal: 100,
-                                            width: "auto",
-                                            height: "auto"
-                                        }}
-                                        src={{
-                                            uri: `${img.actual_image}`,
-                                            method: "GET",
-                                            headers: {},
-                                            body: "",
-                                        }}
-                                    />
-                                    { img.description && img.description !== "" &&                                    
+                            images?.map((img, idx) => {
+                                return (
+                                    <View
+                                        key={img.id ?? idx}
+                                        // style={{ alignItems: "center" }}
+                                    >
+                                        <Image
+                                            style={{
+                                                marginVertical: 15,
+                                                marginHorizontal: 100,
+                                                width: "auto",
+                                                height: "auto",
+                                            }}
+                                            src={{
+                                                uri: `${img.actual_image}`,
+                                                method: "GET",
+                                                headers: {},
+                                                body: "",
+                                            }}
+                                        />
                                         <Text
-                                        style={{ fontSize: 10, textAlign:"center", width: "100%", margin: 1 
-                                        }}>
-                                            {img.description}
+                                            style={{
+                                                fontSize: 10,
+                                                textAlign: "center",
+                                                width: "100%",
+                                                margin: 1,
+                                            }}
+                                        >
+                                            {img.description &&
+                                            img.description.trim() !== ""
+                                                ? img.description
+                                                : ""}
                                         </Text>
-                                    }
-                                </>
-                            ))
+                                    </View>
+                                );
+                            })
                         ) : (
                             <Text style={{ marginVertical: 10, fontSize: 12 }}>
                                 No images found
@@ -654,16 +859,19 @@ const Pdf = ({
                             display: "flex",
                             flexDirection: "column",
                             width: "100%",
+                            fontSize: 12,
                         }}
                     >
                         <Text style={{ fontWeight: "bold", fontSize: 20 }}>
                             Comments
                         </Text>
-                        <Text style={{ fontSize: 12 }}>
-                            {stationMeta?.comments !== ""
-                                ? stationMeta?.comments
-                                : "None"}
-                        </Text>
+
+                        <Html
+                            renderers={htmlRenderers}
+                            stylesheet={reactPdfStyles}
+                        >
+                            {stationMeta?.comments ?? ""}
+                        </Html>
                     </View>
 
                     <View style={styles.section} break={true}>
@@ -867,7 +1075,9 @@ const Pdf = ({
                                                                     ) => (
                                                                         <View
                                                                             key={
-                                                                                idx
+                                                                                idx +
+                                                                                f.id +
+                                                                                2
                                                                             }
                                                                             style={{
                                                                                 display:
@@ -901,6 +1111,7 @@ const Pdf = ({
                                                                             <View
                                                                                 key={
                                                                                     idx +
+                                                                                    f.id +
                                                                                     3
                                                                                 }
                                                                                 style={{
@@ -943,7 +1154,8 @@ const Pdf = ({
                                                                     ) => (
                                                                         <View
                                                                             key={
-                                                                                idx
+                                                                                idx +
+                                                                                f.id
                                                                             }
                                                                             style={{
                                                                                 display:
@@ -983,11 +1195,14 @@ const Pdf = ({
                                                 <Text style={styles.textBold}>
                                                     Comments
                                                 </Text>
-                                                <Text style={{ fontSize: 12 }}>
+                                                <Html
+                                                    renderers={htmlRenderers}
+                                                    stylesheet={reactPdfStyles}
+                                                >
                                                     {v?.comments !== ""
                                                         ? v?.comments
                                                         : "None"}
-                                                </Text>
+                                                </Html>
                                             </View>
 
                                             <View

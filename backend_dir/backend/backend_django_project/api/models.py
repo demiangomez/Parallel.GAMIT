@@ -648,7 +648,7 @@ class RinexTankStruct(BaseModel):
 
 
 class SourcesFormats(BaseModel):
-    format = models.CharField()
+    format = models.CharField(unique=True)
     api_id = models.AutoField(primary_key=True)
 
     class Meta:
@@ -664,7 +664,7 @@ class SourcesServers(BaseModel):
     password = models.CharField(blank=True, null=True)
     path = models.CharField(blank=True, null=True)
     format = models.ForeignKey(
-        SourcesFormats, models.DO_NOTHING, db_column='format')
+        SourcesFormats, models.DO_NOTHING, db_column='format', to_field='format')
 
     class Meta:
         managed = False
@@ -675,10 +675,11 @@ class SourcesStations(BaseModel):
     network_code = models.CharField(db_column='NetworkCode', max_length=3)
     station_code = models.CharField(db_column='StationCode', max_length=4)
     try_order = models.SmallIntegerField()
-    server_id = models.ForeignKey(SourcesServers, models.DO_NOTHING)
+    server_id = models.ForeignKey(
+        SourcesServers, models.DO_NOTHING, to_field='server_id', db_column='server_id')
     path = models.CharField(blank=True, null=True)
     format = models.ForeignKey(
-        SourcesFormats, models.DO_NOTHING, db_column='format', blank=True, null=True)
+        SourcesFormats, models.DO_NOTHING, db_column='format', to_field='format', blank=True, null=True)
 
     api_id = models.AutoField(primary_key=True)
 
@@ -966,7 +967,7 @@ class EndPointsCluster(BaseModel):
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=['resource', 'cluster_type', 'role_type', 'description'], name='resource_cluster_type_role_type_description_unique')
+                fields=['resource', 'cluster_type', 'role_type'], name='resource_cluster_type_role_type_unique')
         ]
 
 
@@ -1159,6 +1160,8 @@ class Campaigns(BaseModel):
     name = models.CharField(max_length=100)
     start_date = models.DateField()
     end_date = models.DateField()
+    default_people = models.ManyToManyField(
+        Person, blank=True)
 
     class Meta:
         ordering = ["-start_date"]

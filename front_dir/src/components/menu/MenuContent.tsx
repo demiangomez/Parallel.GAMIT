@@ -13,6 +13,7 @@ interface MenuContentProps {
         React.SetStateAction<string[] | undefined>
     >;
     dispatch?: (value: FormReducerAction) => void;
+    alterFunctionWithValue?: (value: string) => void;
     setShowMenu: React.Dispatch<
         React.SetStateAction<
             | {
@@ -35,11 +36,16 @@ const MenuContent = ({
     alterFunction,
     setMultipleSelected,
     setShowMenu,
+    alterFunctionWithValue,
 }: MenuContentProps) => {
     const handleClick = () => {
         const newValue = alterValue ? alterValue : value;
-
-        if (multiple) {
+        if(alterFunctionWithValue){
+            alterFunctionWithValue(newValue);
+            setShowMenu(undefined)
+            return;
+        }
+        else if (multiple) {
             setMultipleSelected &&
                 setMultipleSelected((prev) => {
                     if (prev) {
@@ -53,7 +59,8 @@ const MenuContent = ({
                     }
                 });
         }
-        dispatch &&
+        else{
+            dispatch &&
             !setMultipleSelected &&
             dispatch({
                 type: "change_value",
@@ -62,8 +69,9 @@ const MenuContent = ({
                     inputValue: newValue,
                 },
             });
-
-        !multiple && setShowMenu(undefined);
+            !multiple && setShowMenu(undefined);
+        }
+        
     };
 
     return (

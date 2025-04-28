@@ -285,16 +285,35 @@ const Station = () => {
     }, [locationState, station]); //eslint-disable-line
 
     useEffect(() => {
+        // This effect is used to handle the case when the user
+        // renders the page and the station is already in the state.
+
         if (station) {
             if (isMainLocation) {
                 getStationImages();
+                // getVisits() bcs it is called on visits page and when user
+                // navigates back to station page he should see the new visits
                 getVisits();
             }
             getStationMeta();
         }
-    }, [station, locationState]); //eslint-disable-line
+        // eslint-disable-next-line
+    }, [station, isMainLocation]);
 
     useEffect(() => {
+        if (station) {
+            // if (location.pathname === `/${nc}/${sc}`) {
+            //     getVisits();
+            // }
+            setLoadPdf(false);
+            setLoadedPdfData(undefined);
+            setLoadedMap(undefined);
+        }
+    }, [location, station]);
+
+    useEffect(() => {
+        // This effect is used to handle the case when te user
+        // navigates back to main page.
         if (station) {
             const unsubscribe = router.subscribe((state) => {
                 if (state.historyAction === NavigationType.Pop) {
@@ -318,17 +337,6 @@ const Station = () => {
             };
         }
     }, [station, locationState, navigate]);
-
-    useEffect(() => {
-        if (station) {
-            // if (location.pathname === `/${nc}/${sc}`) {
-            //     getVisits();
-            // }
-            setLoadPdf(false);
-            setLoadedPdfData(undefined);
-            setLoadedMap(undefined);
-        }
-    }, [location, station]);
 
     useEffect(() => {
         if (kmzFile !== undefined && kmzFile !== "") {
