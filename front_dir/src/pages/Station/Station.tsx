@@ -260,6 +260,8 @@ const Station = () => {
 
     const refetch = () => {
         getStation();
+        setVisits(undefined);
+        setStationMeta(undefined);
         setLoadedMap(undefined);
     };
 
@@ -417,6 +419,10 @@ const Station = () => {
                                     }
                                   : locationState
                         }
+                        setters={{
+                            setStationMeta,
+                            setVisits,
+                        }}
                     />
                     <div className="w-full flex flex-col pt-20">
                         <div className="flex relative self-center gap-2">

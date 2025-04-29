@@ -1,14 +1,18 @@
-const MapSkeleton = (styles: any) => {
-    const style = styles.styles;
+interface MapSkeletonProps {
+    height?: string;
+    styles?: React.CSSProperties;
+}
+
+const MapSkeleton = ({ height = "500px", styles }: MapSkeletonProps) => {
     return (
         <div
             className="flex w-full flex-col skeleton justify-center items-center"
-            style={style}
+            style={{ height: height, ...styles }}
         >
             <svg
                 xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 20 683 343"
-                className=" self-center h-[500px] w-full"
+                viewBox="0 20 695 343"
+                className={` self-center w-full`}
             >
                 <g fill="rgb(107 114 128 / 0.2)" fillRule="evenodd">
                     <path d="M110 24v1h1l1-1h2v-1-1h1v-1a1 1 0 0 0-1-1v1h-1-2l-2 1v2h1zm34-2h-3v1h6v-1h-1-2zm27 13v-1h-1v1h-1l-1 1v2l2 1 1-1h3l1-1h1v-1-1h-1a1 1 0 0 1 0-1v1l-1-1h-1l-1 1h-1z"></path>

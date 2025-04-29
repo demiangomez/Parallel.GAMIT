@@ -100,12 +100,13 @@ const StationMain = () => {
             <div className="flex flex-col items-center justify-center space-y-4 px-2 pb-4">
                 <div className="flex w-full space-x-2 relative">
                     {mapFlicker && (
-                        <div className="absolute z-[100] pt-6 ml-2 w-6/12 h-[55vh] xl:w-[40vw] lg:w-[30vw] md:w-[30vw] sm:w-[20vw]">
+                        <div className="absolute z-[100] pt-6 ml-2 w-6/12 h-full xl:w-[40vw] lg:w-[30vw] md:w-[30vw] sm:w-[20vw]">
                             <MapSkeleton
                                 styles={{
                                     backgroundColor: "rgb(202, 202, 202)",
                                     paddingBottom: "0.7rem",
                                 }}
+                                height="100%"
                             />
                         </div>
                     )}

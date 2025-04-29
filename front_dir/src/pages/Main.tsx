@@ -657,7 +657,13 @@ const MainPage = () => {
         >
             {loading ? (
                 <MapSkeleton
-                    styles={{ backgroundColor: "rgb(202, 202, 202)" }}
+                    styles={{
+                        backgroundColor: "rgb(202, 202, 202)",
+                        zIndex: 1000000000000000,
+                        width: "100vw",
+                        position: "absolute",
+                        height: "92vh",
+                    }}
                 />
             ) : (
                 <>

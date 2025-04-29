@@ -83,6 +83,9 @@ class PersonSerializer(serializers.ModelSerializer):
 
     def get_photo_actual_file(self, obj):
         """Returns the actual image encoded in base64"""
+        request = self.context.get('request')
+        if request and request.query_params.get('without_photo') == 'true':
+            return None
 
         if obj.photo and obj.photo.name:
             try:

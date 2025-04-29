@@ -1,14 +1,33 @@
-import { StationData } from "@types";
 import { Link, useMatches } from "react-router-dom";
+import {
+    StationData,
+    StationMetadataServiceData,
+    StationVisitsData,
+} from "@types";
 
 type Props = {
     state?: StationData;
+    setters: {
+        setStationMeta: React.Dispatch<
+            React.SetStateAction<StationMetadataServiceData | undefined>
+        >;
+        setVisits: React.Dispatch<
+            React.SetStateAction<StationVisitsData[] | undefined>
+        >;
+    };
 };
 
-const Breadcrumb = ({ state }: Props) => {
+const Breadcrumb = ({ state, setters }: Props) => {
     // FAL: 05/08/2024
     // STATE IN BREADCRUMB REFERENCE TO STATION DATA BCS ITS USED IN MAIN PAGE
     // TO RETURN IT POSITION.
+
+    const { setStationMeta, setVisits } = setters || {};
+
+    const handleStation = () => {
+        setStationMeta(undefined);
+        setVisits(undefined);
+    };
 
     const matches = useMatches();
     const crumbs = matches
@@ -21,13 +40,24 @@ const Breadcrumb = ({ state }: Props) => {
                 badge overflow-hidden text-sm`}
         >
             <ul>
-                {crumbs.map((c: string, idx: number) => (
-                    <li key={c + String(idx)}>
-                        <Link to={`${matches[idx].pathname}`} state={state}>
-                            {c}
-                        </Link>
-                    </li>
-                ))}
+                {crumbs.map((c: string, idx: number) => {
+                    return (
+                        <li key={c + String(idx)}>
+                            <Link
+                                to={`${matches[idx].pathname}`}
+                                onClick={() =>
+                                    (matches as any)[idx]?.handle.crumb() ===
+                                    "Station"
+                                        ? handleStation()
+                                        : null
+                                }
+                                state={state}
+                            >
+                                {c}
+                            </Link>
+                        </li>
+                    );
+                })}
             </ul>
         </div>
     );

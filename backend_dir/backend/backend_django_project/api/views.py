@@ -1509,10 +1509,20 @@ class PersonList(CustomListCreateAPIView):
     queryset = models.Person.objects.all()
     serializer_class = serializers.PersonSerializer
 
+    @extend_schema(description="Set query param 'without_photo' to true to remove 'photo_actual_file' from people.")
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+
 
 class PersonDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = models.Person.objects.all()
     serializer_class = serializers.PersonSerializer
+
+    @extend_schema(description="Set query param 'without_photo' to true to remove 'photo_actual_file' from people.")
+    def retrieve(self, request, *args, **kwargs):
+        """If response is 200, add some related station fields"""
+
+        return super().retrieve(request, *args, **kwargs)
 
 
 class MergePerson(APIView):
