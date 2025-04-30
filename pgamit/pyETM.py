@@ -3294,7 +3294,7 @@ class ETM:
                 if 'relaxation' in params.keys():
                     if len(params['relaxation']):
                         for r in params['relaxation']:
-                            if type(r) is not float:
+                            if type(r) not in (float, int):
                                 raise pyETMException('Relaxation parameters must be float type')
                             if r <= 0:
                                 raise pyETMException('Relaxation parameters must be > 0')

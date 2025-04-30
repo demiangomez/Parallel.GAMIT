@@ -76,6 +76,12 @@ class GamitConfiguration(ReadOptions):
             if 'ties' not in self.NetworkConfig.keys():
                 self.NetworkConfig.ties = '4'
 
+            if 'algorithm' not in self.NetworkConfig.keys():
+                self.NetworkConfig.algorithm = 'qmeans'
+
+            if self.NetworkConfig.algorithm.lower() not in ('qmeans', 'agglomerative'):
+                raise ValueError('Invalid clustering algorithm, options are qmeans or agglomerative.')
+
             self.gamitopt['gnss_data'] = config.get('Archive', 'gnss_data')
             self.gamitopt['max_cores'] = int(self.gamitopt['max_cores'])
 
