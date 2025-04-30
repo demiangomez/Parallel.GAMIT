@@ -120,7 +120,7 @@ const SourcesServersMergeModal = ({
                                                 {s.protocol}
                                             </label>
                                         </div>
-                                        <label>
+                                        <label className="w-full overflow-auto whitespace-normal break-all">
                                             {s.path}
                                         </label>
                                         <label>
@@ -165,10 +165,10 @@ const SourcesServersMergeModal = ({
                                                     </label>
                                                 </div>
                                                 <label>
-                                                    {s.path}
-                                                </label>
-                                                <label>
                                                     {s.format}
+                                                </label>
+                                                <label className="w-full overflow-auto whitespace-normal break-all">
+                                                    {s.path}
                                                 </label>
                                             </div>
                                         </div>

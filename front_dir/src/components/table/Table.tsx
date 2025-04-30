@@ -118,7 +118,7 @@ const Table = ({
                                 className={`text-center text-neutral ${
                                     title?.toLowerCase() === 'path' || 
                                     title?.toLowerCase() === 'name'
-                                        ? 'max-w-lg w-full' 
+                                        ? 'max-w-lg w-full'  
                                         : 'max-w-[200px]'
                                 }`}
                                 key={index}
@@ -409,7 +409,7 @@ const Table = ({
                                                             </button>
                                                         </div> 
                                                     ) : (titles[idx] === "path" || titles[idx] === "server" || titles[idx] === "fqdn" || titles[idx] === "Name") ?
-                                                        <div className="w-full">
+                                                        <div className="w-full  overflow-auto whitespace-wrap">
                                                             {val}
                                                         </div> 
                                                     :

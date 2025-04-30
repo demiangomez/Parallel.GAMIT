@@ -133,7 +133,7 @@ const StationChangeTryOrderModal = ({sourcesStations, sourcesServers, handleClos
                                                 >
                                                     {matchServer(s.server_id)}
                                                 </label>
-                                                <label className="text-lg text-pretty">
+                                                <label className="text-lg text-pretty w-full overflow-auto whitespace-normal break-all">
                                                     {s.path && s.path !== "" ? s.path : ("*" + getDefaultPath(s.server_id))}
                                                 </label>    
                                                 <label className="text-lg text-pretty">
@@ -178,7 +178,7 @@ const StationChangeTryOrderModal = ({sourcesStations, sourcesServers, handleClos
                                             >
                                                 {matchServer(s.server_id)}
                                             </label>
-                                            <label className="text-lg text-pretty">
+                                            <label className="text-lg text-pretty w-full overflow-auto whitespace-normal break-all">
                                                 {s.path && s.path !== "" ? s.path : ("*" + getDefaultPath(s.server_id))}
                                             </label>    
                                             <label className="text-lg text-pretty">
