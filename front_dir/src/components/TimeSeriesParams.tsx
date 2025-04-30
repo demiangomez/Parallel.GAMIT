@@ -425,7 +425,7 @@ const TimeSeriesParams = ({stationId, refetch, solution, jumpsData, periodicData
                     {jumpData.action ? jumpData.action : "-"} 
                 </td>
                 <td className="p-3 text-center border border-gray-300" title={jumpData.metadata}>
-                    {jumpData.metadata ? jumpData.metadata : "-"}
+                    <div dangerouslySetInnerHTML={{ __html: jumpData.metadata ? jumpData.metadata : "-" }} />
                 </td>
             </tr>
             ))}

@@ -90,7 +90,7 @@ const StationSourcesModel = ({
         try {
             setLoading(true);
             const server = sourcesServers?.find(
-                (s) => `${s.fqdn} ${s.protocol}` === formState.server_id,
+                (s) => `${s.fqdn} ${s.protocol} ${s.path} ${s.format}` === formState.server_id,
             );
 
             const params = {
@@ -129,9 +129,8 @@ const StationSourcesModel = ({
         try {
             setLoading(true);
             const server = sourcesServers?.find(
-                (s) => `${s.fqdn} ${s.protocol}` === formState.server_id,
+                (s) => `${s.fqdn} ${s.protocol} ${s.path} ${s.format}` === formState.server_id,
             );
-
             const params = {
                 try_order: formState.try_order,
                 network_code: station.network_code,
@@ -201,6 +200,21 @@ const StationSourcesModel = ({
         }
     };
 
+    
+
+    const matchServer = (serverId: number) => {
+        const server = sourcesServers?.find((sv) => sv.server_id === serverId)
+        if(server){
+            const fqdn = server.fqdn
+            const protocol = server.protocol
+            const format = server.format
+            const path = server.path
+
+            return `${fqdn} ${protocol} ${path} ${format}`
+        }
+        return ""
+    }
+
     useEffect(() => {
         if (sourceStation && type === "edit") {
             const stringifiedSourceStation = Object.fromEntries(
@@ -221,12 +235,13 @@ const StationSourcesModel = ({
                 payload: {
                     inputName: "server_id",
                     inputValue: server
-                        ? `${server.fqdn} ${server.protocol}`
+                        ? matchServer(server.server_id)
                         : "",
                 },
             });
         }
     }, [sourceStation]);
+
 
     useEffect(() => {
         deleteModals?.show && showModal(deleteModals.title);
@@ -338,19 +353,20 @@ const StationSourcesModel = ({
                                 camp === "server_id" && (
                                     <Menu>
                                         {sourcesServers
-                                            ?.filter((s) =>
-                                                `${s.fqdn} ${s.protocol}`
-                                                    .toLowerCase()
-                                                    .includes(
-                                                        formState.server_id?.toLowerCase() ||
-                                                            "",
-                                                    ),
-                                            )
-                                            .map((s) => (
+                                            ?.filter((server) => {
+                                                const serverInfo = matchServer(server.server_id).toLowerCase();
+                                                const searchTerm = formState.server_id?.toLowerCase() || "";
+                                                const searchWords = searchTerm.split(' ');
+                                                
+                                                return searchWords.every(word => 
+                                                    serverInfo.includes(word.toLowerCase())
+                                                );
+                                            })
+                                            .map((server) => (
                                                 <MenuContent
-                                                    key={s.server_id}
+                                                    key={server.server_id}
                                                     typeKey={camp}
-                                                    value={`${s.fqdn} ${s.protocol}`}
+                                                    value={matchServer(server.server_id)}
                                                     setShowMenu={setShowMenu}
                                                     dispatch={dispatch}
                                                 />

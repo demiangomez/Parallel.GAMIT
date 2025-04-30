@@ -18,15 +18,15 @@ interface SourcesServersTableModalProps {
 
 const SourcesServersTableModal = ({handleClose, type, refetch, sourcesFormats, sourceServer, api}:SourcesServersTableModalProps) => {
     const camps = [
+        "protocol",
+        "fqdn",
         "username",
         "password",
-        "fqdn",
         "path",
-        "protocol",
         "format", 
     ]; 
 
-    const protocols = ["ftp", "http", "sftp", "https", "ftps", "FTP", "HTTP", "SFTP", "HTTPS", "FTPS"];
+    const protocols = ["FTP", "HTTP", "SFTP", "HTTPS", "FTPS"];
 
     const [msg, setMsg] = useState<
             { status: number; msg: string; errors?: Errors } | undefined
@@ -169,7 +169,7 @@ const SourcesServersTableModal = ({handleClose, type, refetch, sourcesFormats, s
         <Modal
             modalId="Sources Servers"
             close = {false}
-            size="sm"
+            size="md"
             handleCloseModal={() => {
                 handleClose();
                 setMsg(undefined);

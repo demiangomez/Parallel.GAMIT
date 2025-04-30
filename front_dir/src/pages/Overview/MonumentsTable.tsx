@@ -25,7 +25,7 @@ const MonumentsTable = () => {
         | undefined
     >(undefined);
 
-    const [loading, setLoading] = useState<boolean>(false);
+    const [loading, setLoading] = useState<boolean>(true);
     const [params, setParams] = useState<GetParams>(bParams);
 
     const [monuments, setMonuments] = useState<MonumentTypes[]>([]);
@@ -47,7 +47,7 @@ const MonumentsTable = () => {
                     params,
                 );
             setMonuments(res.data);
-            if(bParams.limit){
+            if (bParams.limit) {
                 setPages(Math.ceil(res.total_count / bParams.limit));
             }
             res.data && res.data.length === 0 && handlePage(1);

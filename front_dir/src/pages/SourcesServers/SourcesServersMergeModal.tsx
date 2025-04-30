@@ -55,7 +55,7 @@ const SourcesServersMergeModal = ({
     return (
         <Modal
             close={false}
-            size="smPlus"
+            size="md"
             handleCloseModal={() => {
                 handleCloseModal();
                 setTo(undefined);
@@ -75,7 +75,7 @@ const SourcesServersMergeModal = ({
             >
                 <div className="w-full border-b-2 border-gray-300 pb-6 pl-8 pt-6">
                     <h1 className="text-2xl font-bold">
-                        Merge Sources Servers
+                        Transfer Stations
                     </h1>
                 </div>
                 <form
@@ -88,27 +88,28 @@ const SourcesServersMergeModal = ({
                     <div className="grid grid-cols-2 gap-2 grid-flow-col-dense items-center mt-4 w-full">
                         <div className="flex flex-col gap-6 w-full">
                             <h2 className="text-xl font-semibold">
-                                Merge From:
+                                Transfer From:
                             </h2>
                             <div className="max-h-[20vh] flex flex-col w-full gap-2 overflow-y-auto">
                                 {sourcesServers?.map((s, index) => (
-                                    <div
-                                        key={index + sourcesServers.length}
-                                        className="flex gap-4 p-2 mb-1 hover:bg-gray-400 rounded-md bg-gray-300"
-                                    >
-                                        <input
-                                            className="checkbox"
-                                            type="checkbox"
-                                            name="person"
-                                            value={s.server_id}
-                                            checked={from === s.server_id}
-                                            onChange={() =>
-                                                from === s.server_id
-                                                    ? setFrom(undefined)
-                                                    : setFrom(s.server_id)
-                                            }
-                                        />
-                                        <div className="flex items-center w-full">
+                                <div
+                                    key={index}
+                                    className="flex justify-center items-center gap-4 p-2 mb-1 hover:bg-gray-400 rounded-md bg-gray-300"
+                                >
+                                    <input
+                                        className="checkbox checkbox-lg"
+                                        type="checkbox"
+                                        name="person"
+                                        value={s.server_id}
+                                        checked={from === s.server_id}
+                                        onChange={() =>
+                                            to === s.server_id
+                                                ? setFrom(undefined)
+                                                : setFrom(s.server_id)
+                                        }
+                                    />
+                                    <div className="flex flex-col justify-start items-start w-full">
+                                        <div className="flex flex-row justify-start items-start w-full">
                                             <label
                                                 title={s.fqdn}
                                                 className="text-2xl w-3/4 text-pretty truncate"
@@ -119,21 +120,28 @@ const SourcesServersMergeModal = ({
                                                 {s.protocol}
                                             </label>
                                         </div>
+                                        <label>
+                                            {s.path}
+                                        </label>
+                                        <label>
+                                            {s.format}
+                                        </label>
                                     </div>
+                                </div>
                                 ))}
                             </div>
                         </div>
                         <div className="flex flex-col gap-6 w-full">
-                            <h2 className="text-xl font-semibold">Merge To:</h2>
+                            <h2 className="text-xl font-semibold">Transfer To:</h2>
                             <div className="max-h-[20vh] flex flex-col gap-2 overflow-y-auto">
                                 {sourcesServers?.map((s, index) => {
                                     return (
                                         <div
                                             key={index}
-                                            className="flex gap-4 p-2 mb-1 hover:bg-gray-400 rounded-md bg-gray-300"
+                                            className="flex justify-center items-center gap-4 p-2 mb-1 hover:bg-gray-400 rounded-md bg-gray-300"
                                         >
                                             <input
-                                                className="checkbox"
+                                                className="checkbox checkbox-lg"
                                                 type="checkbox"
                                                 name="person"
                                                 value={s.server_id}
@@ -144,15 +152,23 @@ const SourcesServersMergeModal = ({
                                                         : setTo(s.server_id)
                                                 }
                                             />
-                                            <div className="flex items-center w-full">
-                                                <label
-                                                    title={s.fqdn}
-                                                    className="text-2xl w-3/4 text-pretty truncate"
-                                                >
-                                                    {s.fqdn}
+                                            <div className="flex flex-col justify-start items-start w-full">
+                                                <div className="flex flex-row justify-start items-start w-full">
+                                                    <label
+                                                        title={s.fqdn}
+                                                        className="text-2xl w-3/4 text-pretty truncate"
+                                                    >
+                                                        {s.fqdn}
+                                                    </label>
+                                                    <label className="text-lg w-1/4 font-bold text-center">
+                                                        {s.protocol}
+                                                    </label>
+                                                </div>
+                                                <label>
+                                                    {s.path}
                                                 </label>
-                                                <label className="text-lg w-1/4 font-bold text-center">
-                                                    {s.protocol}
+                                                <label>
+                                                    {s.format}
                                                 </label>
                                             </div>
                                         </div>
@@ -174,7 +190,7 @@ const SourcesServersMergeModal = ({
                             {!loading && (
                                 <div className="flex justify-center items-center gap-1">
                                     <p className="font-semibold text-base">
-                                        Merge
+                                        Transfer
                                     </p>
                                     <ArrowRightIcon className="size-5" />
                                 </div>
@@ -187,7 +203,7 @@ const SourcesServersMergeModal = ({
                         <Alert
                             msg={{
                                 status: 200,
-                                msg: "!Merge successfully done!",
+                                msg: "!Transfer successfully done!",
                             }}
                         />
                     </div>
@@ -199,16 +215,16 @@ const SourcesServersMergeModal = ({
                         <Alert
                             msg={{
                                 status: 400,
-                                msg: "Merge same source station order is not possible!",
+                                msg: "Transfer same source station order is not possible!",
                                 errors: {
                                     errors: [
                                         {
                                             code: "400",
                                             detail: "",
-                                            attr: "merge",
+                                            attr: "transfer",
                                         },
                                     ],
-                                    type: "MergeError",
+                                    type: "TransferError",
                                 } as Errors,
                             }}
                         />

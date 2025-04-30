@@ -56,8 +56,28 @@ const StationChangeTryOrderModal = ({sourcesStations, sourcesServers, handleClos
         }
     }
 
+    const getDefaultFormat = (serverId: number) =>{
+        const server = sourcesServers?.find((sv) => sv.server_id === serverId)
+        if(server){
+            return server.format
+        }
+        else{
+            return ""
+        }
+    }
+
+    const getDefaultPath = (serverId: number) =>{
+        const server = sourcesServers?.find((sv) => sv.server_id === serverId)
+        if(server){
+            return server.path
+        }
+        else{
+            return ""
+        }
+    }
+
     return (  
-        <Modal  close = {false} size="smPlus" handleCloseModal={() =>{handleCloseModal(); setTo(undefined); setFrom(undefined); successText && refetch();}} modalId="Change Try Order">
+        <Modal  close = {false} size="md" handleCloseModal={() =>{handleCloseModal(); setTo(undefined); setFrom(undefined); successText && refetch();}} modalId="Change Try Order">
             <div
                 className={
                     successText
@@ -77,7 +97,7 @@ const StationChangeTryOrderModal = ({sourcesStations, sourcesServers, handleClos
                     }}
                     className="w-full flex justify-start items-center flex-col gap-4"
                 >
-                    <div className="flex justify-start flex-row items-center border-b-2 mt-4 border-gray-300 w-full pb-6">
+                    <div className="flex justify-center flex-row items-center border-b-2 mt-4 border-gray-300 w-full pb-6">
                         <div className="flex flex-col gap-6 w-full max-w-[500px] pl-6">
                             <h2 className="text-xl font-semibold">
                                 Swap From:
@@ -86,10 +106,10 @@ const StationChangeTryOrderModal = ({sourcesStations, sourcesServers, handleClos
                                 {sourcesStations?.map((s, index) => (
                                     <div
                                         key={index}
-                                        className="flex flex-row gap-4 p-2 mb-1 hover:bg-gray-400 rounded-md bg-gray-300"
+                                        className="flex justify-center items-center gap-4 p-2 mb-1 hover:bg-gray-400 rounded-md bg-gray-300"
                                     >
                                         <input
-                                            className="checkbox"
+                                            className="checkbox checkbox-lg"
                                             type="checkbox"
                                             name="person"
                                             value={s.api_id}
@@ -100,19 +120,27 @@ const StationChangeTryOrderModal = ({sourcesStations, sourcesServers, handleClos
                                                     : setFrom(s.api_id)
                                             }
                                         />
-                                        <div className="flex flex-row gap-2 justify-start items-center">
-                                            <label
-                                                className="text-2xl font-bold "
-                                            >
-                                                {s.try_order}
-                                            </label>
-                                            <label
-                                                className="text-xl truncate"
-                                            >
-                                                {matchServer(s.server_id)}
-                                            </label>
+                                        <div className="flex flex-row justify-start items-center w-full gap-2">
+                                            <div className="flex flex-row gap-2 justify-start items-center">
+                                                <label className="text-3xl w-1/4 font-bold text-center">
+                                                    {s.try_order}
+                                                </label>
+                                            </div>
+                                            <div className="flex flex-col justify-center items-center w-full">
+                                                <label
+                                                    title={s.server_id.toString()}
+                                                    className="flex justify-center items-center text-2xl w-full text-pretty"
+                                                >
+                                                    {matchServer(s.server_id)}
+                                                </label>
+                                                <label className="text-lg text-pretty">
+                                                    {s.path && s.path !== "" ? s.path : ("*" + getDefaultPath(s.server_id))}
+                                                </label>    
+                                                <label className="text-lg text-pretty">
+                                                    {s.format && s.format !== "" ? s.format  : ("*" + getDefaultFormat(s.server_id)) }
+                                                </label>
+                                            </div>
                                         </div>
-                                        
                                     </div>
                                 ))}
                             </div>
@@ -122,34 +150,43 @@ const StationChangeTryOrderModal = ({sourcesStations, sourcesServers, handleClos
                             <div className="max-h-[20vh] flex flex-col gap-2 overflow-y-auto">
                                 {sourcesStations?.map((s, index) => (
                                     <div
-                                        key={index}
-                                        className="flex flex-row gap-4 p-2 mb-1 hover:bg-gray-400 rounded-md bg-gray-300"
-                                    >
-                                        <input
-                                            className="checkbox"
-                                            type="checkbox"
-                                            name="person"
-                                            value={s.api_id}
-                                            checked={to === s.api_id}
-                                            onChange={() =>
-                                                to === s.api_id
-                                                    ? setTo(undefined)
-                                                    : setTo(s.api_id)
-                                            }
-                                        />
+                                    key={index}
+                                    className="flex justify-center items-center gap-4 p-2 mb-1 hover:bg-gray-400 rounded-md bg-gray-300"
+                                >
+                                    <input
+                                        className="checkbox checkbox-lg"
+                                        type="checkbox"
+                                        name="person"
+                                        value={s.api_id}
+                                        checked={to === s.api_id}
+                                        onChange={() =>
+                                            to === s.api_id
+                                                ? setTo(undefined)
+                                                : setTo(s.api_id)
+                                        }
+                                    />
+                                    <div className="flex flex-row justify-start items-center w-full gap-2">
                                         <div className="flex flex-row gap-2 justify-start items-center">
-                                            <label
-                                                className="text-2xl font-bold "
-                                            >
+                                            <label className="text-3xl w-1/4 font-bold text-center">
                                                 {s.try_order}
                                             </label>
+                                        </div>
+                                        <div className="flex flex-col justify-center items-center w-full">
                                             <label
-                                                className="text-xl truncate"
+                                                title={s.server_id.toString()}
+                                                className="flex justify-center items-center text-2xl w-full text-pretty"
                                             >
                                                 {matchServer(s.server_id)}
                                             </label>
+                                            <label className="text-lg text-pretty">
+                                                {s.path && s.path !== "" ? s.path : ("*" + getDefaultPath(s.server_id))}
+                                            </label>    
+                                            <label className="text-lg text-pretty">
+                                                {s.format && s.format !== "" ? s.format  : ("*" + getDefaultFormat(s.server_id))}
+                                            </label>
                                         </div>
                                     </div>
+                                </div>
                                 ))}
                             </div>
                         </div>

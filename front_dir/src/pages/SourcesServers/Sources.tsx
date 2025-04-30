@@ -95,8 +95,7 @@ const SourcesPage = () => {
                 </div>
                 <div className="flex flex-grow w-full justify-center">
                     <div
-                        className={`flex lg:flex-col min-w-[80%] 
-                            ${!height ? "min-h-[10vh] max-h-[80vh]" : ""} 
+                        className={`flex lg flex-col min-w-[80%] 
                             justify-center items-center gap-2 overflow-y-auto`}
                     >
                         <>

@@ -6,8 +6,7 @@ import {
     TableCard,
 } from "@componentsReact";
 
-import useApi from "@hooks/useApi";
-import { useAuth } from "@hooks/useAuth";
+import { useAuth, useApi } from "@hooks";
 
 import { getStationRolesService } from "@services";
 import { showModal } from "@utils";
@@ -30,7 +29,7 @@ const StationRolesTable = () => {
         | undefined
     >(undefined);
 
-    const [loading, setLoading] = useState<boolean>(false);
+    const [loading, setLoading] = useState<boolean>(true);
     const [params, setParams] = useState<GetParams>(bParams);
 
     const [stationRoles, setStationRoles] = useState<StationStatus[]>([]);
@@ -51,11 +50,10 @@ const StationRolesTable = () => {
                 params,
             );
             setStationRoles(res.data);
-            if(bParams.limit){            
+            if (bParams.limit) {
                 setPages(Math.ceil(res.total_count / bParams.limit));
             }
             res.data && res.data.length === 0 && handlePage(1);
-
         } catch (err) {
             console.error(err);
         } finally {

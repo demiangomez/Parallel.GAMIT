@@ -30,7 +30,7 @@ const StationTypesTable = () => {
         | undefined
     >(undefined);
 
-    const [loading, setLoading] = useState<boolean>(false);
+    const [loading, setLoading] = useState<boolean>(true);
     const [params, setParams] = useState<GetParams>(bParams);
 
     const [stationTypes, setStationTypes] = useState<StationTypeData[]>([]);

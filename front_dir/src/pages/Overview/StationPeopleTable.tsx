@@ -7,8 +7,8 @@ import {
     TableCard,
 } from "@componentsReact";
 
-import useApi from "@hooks/useApi";
-import { useAuth } from "@hooks/useAuth";
+import { useAuth, useApi } from "@hooks";
+
 import { showModal } from "@utils";
 
 import { getPeopleService } from "@services";
@@ -32,7 +32,7 @@ const PeopleTable = () => {
         | undefined
     >(undefined);
 
-    const [loading, setLoading] = useState<boolean>(false);
+    const [loading, setLoading] = useState<boolean>(true);
     const [params, setParams] = useState<GetParams>(bParams);
 
     const [allPeople, setAllPeople] = useState<People[]>([]);
@@ -49,11 +49,10 @@ const PeopleTable = () => {
             setLoading(true);
             const res = await getPeopleService<PeopleServiceData>(api, params);
             setPeoples(res.data);
-            if(bParams.limit){
+            if (bParams.limit) {
                 setPages(Math.ceil(res.total_count / bParams.limit));
             }
             res.data && res.data.length === 0 && handlePage(1);
-
         } catch (err) {
             console.error(err);
         } finally {
@@ -71,7 +70,7 @@ const PeopleTable = () => {
         } finally {
             setLoading(false);
         }
-    }; 
+    };
 
     const paginatePeople = async (newParams: GetParams) => {
         try {
@@ -145,7 +144,6 @@ const PeopleTable = () => {
                     position: st.position,
                 }),
             );
-        
     }, [peoples]);
 
     useEffect(() => {
@@ -160,7 +158,7 @@ const PeopleTable = () => {
             modalTitle="EditPerson"
             setModals={setModals}
             addButton={true}
-            secondAddButton = {true}
+            secondAddButton={true}
             secondAddButtonTitle="Merge"
             secondModalTitle="MergePeople"
         >
@@ -197,15 +195,16 @@ const PeopleTable = () => {
                     reFetch={reFetch}
                 />
             )}
-            {
-                modals?.show && modals.title === "MergePeople" && body && body.length > 0 && (
+            {modals?.show &&
+                modals.title === "MergePeople" &&
+                body &&
+                body.length > 0 && (
                     <MergePeopleModal
                         setStateModal={setModals}
                         handleCloseModal={() => setModals(undefined)}
-                        body = {allPeople as People[]}
+                        body={allPeople as People[]}
                     />
-                )
-            }
+                )}
         </TableCard>
     );
 };

@@ -486,7 +486,7 @@ const MapMarkers = ({
             (156543.03392 * Math.cos((latitude * Math.PI) / 180)) /
             Math.pow(2, zoom);
         const scale = metersPerPixel * 96 * 39.37; // Convert to scale considering screen DPI
-        const VISUAL_ACUITY_MM = 1.8; // Increased from 0.2mm due to larger marker size
+        const VISUAL_ACUITY_MM = 3; // Increased from 0.2mm due to larger marker size
         const minDistanceMeters = (VISUAL_ACUITY_MM / 1000) * scale; // Convert mm to meters and apply scale
 
         if (
@@ -599,7 +599,7 @@ const MapMarkers = ({
                   )
                 : filtered;
 
-        if (map.getZoom() >= 14 && mainParams?.station_code === "") {
+        if (map.getZoom() >= 10 && mainParams?.station_code === "") {
             const nonOverlappedMarkers = filteredMarkers?.filter(
                 (station) =>
                     !stationsWithOverlap?.some(
@@ -817,7 +817,7 @@ const MapMarkers = ({
                         ) : null;
                     },
                 )}
-            {map.getZoom() >= 14 &&
+            {map.getZoom() >= 10 &&
                 mainParams?.station_code === "" &&
                 overlappedClusters &&
                 overlappedClusters.length > 0 &&

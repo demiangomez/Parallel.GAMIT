@@ -63,7 +63,7 @@ const SourcesServersPage = ({
 
     const titles: string[] =
         data.length > 0
-            ? ["username", "password", "format", "fqdn", "path", "protocol"]
+            ? [ "protocol","fqdn","username", "password",  "path" ,"format",]
             : [];
 
     const handleCloseModal = () => {
@@ -82,12 +82,12 @@ const SourcesServersPage = ({
                 })
                 .forEach((sourceServer: SourcesServerData) => {
                     body.push([
+                        sourceServer.protocol,
+                        sourceServer.fqdn,
                         sourceServer.username ?? "",
                         sourceServer.password,
-                        sourceServer.format,
-                        sourceServer.fqdn,
                         sourceServer.path ?? "",
-                        sourceServer.protocol,
+                        sourceServer.format,
                     ]);
                 });
             setData(body);
@@ -140,7 +140,7 @@ const SourcesServersPage = ({
             addButton={true}
             modalTitle="Sources Servers"
             secondAddButton={true}
-            secondAddButtonTitle="Merge Source Server"
+            secondAddButtonTitle="Transfer Stations"
             secondModalTitle="Merge Source Server"
         >
             <Table

@@ -185,7 +185,6 @@ const CampaignsTable = () => {
 
     const titles = [
         "Name",
-        "Visit",
         "Start Date",
         "End Date",
         "Default People",
@@ -193,18 +192,6 @@ const CampaignsTable = () => {
 
     const body = useMemo(() => {
         return campaigns?.map((campaign) => {
-            const visit = visits?.find(
-                (v) => Number(v.campaign) === campaign.id,
-            );
-            const visitRes = visit
-                ? "(" +
-                  visit?.station_network_code +
-                  "." +
-                  visit.station_station_code +
-                  ")" +
-                  " - " +
-                  visit?.date
-                : "";
             const defaultPeople = campaign.default_people
                 .map((person) => {
                     const personData = people?.find((p) => p.id === person);
@@ -213,13 +200,12 @@ const CampaignsTable = () => {
                 .join(", ");
             return Object.values({
                 name: campaign.name,
-                visit: visitRes,
                 start_date: campaign.start_date,
                 end_date: campaign.end_date,
                 default_people: defaultPeople,
             });
         });
-    }, [campaigns, visits, people]);
+    }, [campaigns, people]);
     useEffect(() => {
         modals?.show && showModal(modals.title);
     }, [modals]);
@@ -227,7 +213,7 @@ const CampaignsTable = () => {
     return (
         <TableCard
             title={"Campaigns"}
-            size={"800px"}
+            size={"80vw"}
             addButtonTitle="+ Campaign"
             modalTitle="EditCampaigns"
             setModals={setModals}

@@ -4,7 +4,12 @@ import { Spinner } from "@componentsReact";
 
 import { findFlagUrlByIso3Code } from "country-flags-svg-v2";
 
-import { BookOpenIcon, EyeIcon, EyeSlashIcon, TrashIcon } from "@heroicons/react/24/outline";
+import {
+    BookOpenIcon,
+    EyeIcon,
+    EyeSlashIcon,
+    TrashIcon,
+} from "@heroicons/react/24/outline";
 
 import { formattedDates } from "@utils";
 import { StationVisitsData } from "@types";
@@ -54,7 +59,6 @@ const Table = ({
 
     const [showPassword, setShowPassword] = useState<number | null>(null);
 
-
     return (
         <div
             className={
@@ -74,7 +78,7 @@ const Table = ({
                         {titles.length > 0 ? (
                             <>
                                 {!dataOnly && !deleteRegister && (
-                                    <th className="text-center text-neutral">
+                                    <th className="text-center text-neutral w-fit">
                                         Modify
                                     </th>
                                 )}
@@ -98,17 +102,25 @@ const Table = ({
                                 )}
                             </>
                         ) : (
-                            <th className="text-center text-neutral text-2xl">
-                                {table === "People"
-                                    ? "There are no people associated to this station"
-                                    : `There is no information for this ${table}`}
-                            </th>
+                            !loading &&
+                            body &&
+                            body.length === 0 && (
+                                <th className="text-center text-neutral text-2xl">
+                                    {table === "People"
+                                        ? "There are no people associated to this station"
+                                        : `There is no information for this ${table}`}
+                                </th>
+                            )
                         )}
-
 
                         {titles.map((title, index) => (
                             <th
-                                className="text-center text-neutral max-w-[200px]"
+                                className={`text-center text-neutral ${
+                                    title?.toLowerCase() === 'path' || 
+                                    title?.toLowerCase() === 'name'
+                                        ? 'max-w-lg w-full' 
+                                        : 'max-w-[200px]'
+                                }`}
                                 key={index}
                             >
                                 {title
@@ -175,26 +187,25 @@ const Table = ({
                                         </td>
                                     )
                                 )}
-                                {
-                                    viewRegister && (
-                                        <td
-                                            key={index + "view"}
-                                            className="text-center"
+                                {viewRegister && (
+                                    <td
+                                        key={index + "view"}
+                                        className="text-center"
+                                    >
+                                        <button
+                                            className="btn btn-sm btn-circle btn-ghost"
+                                            onClick={() => {
+                                                setState(state?.[index]);
+                                                onViewClickFunction?.();
+                                            }}
                                         >
-                                            <button
-                                                className="btn btn-sm btn-circle btn-ghost"
-                                                onClick={() => {
-                                                    setState(state?.[index]);
-                                                    onViewClickFunction?.();
-                                                }}
-                                            >
-                                                <BookOpenIcon className="size-6" 
-                                                    onClick={() => {}}
-                                                />
-                                            </button>
-                                        </td>
-                                    )
-                                }
+                                            <BookOpenIcon
+                                                className="size-6"
+                                                onClick={() => {}}
+                                            />
+                                        </button>
+                                    </td>
+                                )}
                                 {visitsRegister && (
                                     <td
                                         key={index + "visits"}
@@ -353,7 +364,7 @@ const Table = ({
                                                         </div>
                                                     )}
 
-                                                {val !== "" &&
+                                                {val !== "" && val != null &&
                                                 titles[idx] !== "Photo" &&
                                                 titles[idx] !== "Visit" &&
                                                 titles[idx] !== "comments" &&
@@ -390,12 +401,19 @@ const Table = ({
                                                                 }}
                                                             >
                                                                 {showPassword ===
-                                                                index
-                                                                    ? <EyeSlashIcon className="size-6 self-center"/>                                                                    
-                                                                    : <EyeIcon className="size-6 self-center"/>}
+                                                                index ? (
+                                                                    <EyeSlashIcon className="size-6 self-center" />
+                                                                ) : (
+                                                                    <EyeIcon className="size-6 self-center" />
+                                                                )}
                                                             </button>
-                                                        </div>
-                                                    ) : typeof val ===
+                                                        </div> 
+                                                    ) : (titles[idx] === "path" || titles[idx] === "server" || titles[idx] === "fqdn" || titles[idx] === "Name") ?
+                                                        <div className="w-full">
+                                                            {val}
+                                                        </div> 
+                                                    :
+                                                    typeof val ===
                                                           "string" &&
                                                       titles[idx] !== "Image" &&
                                                       titles[idx] !==
