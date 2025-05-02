@@ -44,6 +44,24 @@ interface Props {
     stationLocationDetailScreen: string;
 }
 
+Font.register({
+    family: "Lora",
+    fonts: [
+        {
+            src: "https://fonts.gstatic.com/s/lora/v35/0QI6MX1D_JOuGQbT0gvTJPa787weuyJGmKxemMeZ.ttf",
+            fontWeight: 400,
+        },
+        {
+            src: "https://fonts.gstatic.com/s/lora/v35/0QI6MX1D_JOuGQbT0gvTJPa787zAvCJGmKxemMeZ.ttf",
+            fontWeight: 600,
+        },
+        {
+            src: "https://fonts.gstatic.com/s/lora/v35/0QI6MX1D_JOuGQbT0gvTJPa787z5vCJGmKxemMeZ.ttf",
+            fontWeight: 700,
+        },
+    ],
+});
+
 const Pdf = ({
     stationInfo,
     monuments,
@@ -60,24 +78,6 @@ const Pdf = ({
     stationLocationScreen,
     stationLocationDetailScreen,
 }: Props) => {
-    Font.register({
-        family: "Lora",
-        fonts: [
-            {
-                src: "https://fonts.gstatic.com/s/lora/v35/0QI6MX1D_JOuGQbT0gvTJPa787weuyJGmKxemMeZ.ttf",
-                fontWeight: 400,
-            },
-            {
-                src: "https://fonts.gstatic.com/s/lora/v35/0QI6MX1D_JOuGQbT0gvTJPa787zAvCJGmKxemMeZ.ttf",
-                fontWeight: 600,
-            },
-            {
-                src: "https://fonts.gstatic.com/s/lora/v35/0QI6MX1D_JOuGQbT0gvTJPa787z5vCJGmKxemMeZ.ttf",
-                fontWeight: 700,
-            },
-        ],
-    });
-
     const styles = StyleSheet.create({
         locationScreen: {
             width: "100%",

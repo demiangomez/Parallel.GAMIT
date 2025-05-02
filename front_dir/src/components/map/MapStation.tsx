@@ -147,7 +147,7 @@ const LoadKmzFromBase64 = ({
 
                     if (geoJsonLayer.getBounds().isValid()) {
                         map.fitBounds(geoJsonLayer.getBounds());
-                        map.zoomOut(1);
+                        // map.zoomOut(1);
                         geoJsonLayer.setStyle({
                             color: color,
                         });
@@ -205,6 +205,9 @@ const MapStation = ({
 
     const [isMapReady, setIsMapReady] = useState(false);
 
+    const [zoom6Captured, setZoom6Captured] = useState(false);
+    const [zoom16Captured, setZoom16Captured] = useState(false);
+
     const MapEvents = ({
         setIsMapReady,
     }: {
@@ -260,15 +263,21 @@ const MapStation = ({
     useEffect(() => {
         const map = mapRef.current;
         const zoom = map?.getZoom();
-        if (isMapReady && loadPdf) {
-            if (zoom && zoom === 6) {
-                captureImage(1300, (dataUrl) => {
+
+        if (isMapReady && loadPdf && map) {
+            if (zoom === 6 && !zoom6Captured) {
+                setZoom6Captured(true);
+                // Mayor tiempo de espera para la captura
+                captureImage(5000, (dataUrl) => {
                     setStationLocationScreen &&
                         setStationLocationScreen(dataUrl);
                 });
             }
-            if (zoom && zoom === 16) {
-                captureImage(4300, (dataUrl) => {
+
+            if (zoom === 16 && !zoom16Captured) {
+                setZoom16Captured(true);
+                // Mayor tiempo de espera para la captura
+                captureImage(6000, (dataUrl) => {
                     setStationLocationDetailScreen &&
                         setStationLocationDetailScreen(dataUrl);
                 });
@@ -476,7 +485,7 @@ const MapStation = ({
 
                 <ChangeView
                     center={mapProps.center ?? [0, 0]}
-                    zoom={mapProps.zoom ?? 6}
+                    zoom={mapProps.zoom ?? 9}
                 />
                 {base64Data &&
                     (typeof base64Data !== "string" &&

@@ -196,19 +196,11 @@ const MapModal = ({
 
     const [rangeValue, setRangeValue] = useState(40);
 
-    useEffect(() => {}, [formState]);
-
-    useEffect(() => {}, [formState]);
-
     const memoizedEditControl = React.useMemo(
         () => (
             <EditControl
                 position="topright"
                 onCreated={(e) => {
-                    if (featureGroupRef.current) {
-                        // Remove any existing markers before adding a new one
-                        featureGroupRef.current.clearLayers();
-                    }
                     handleDrawPolygon(e);
                     setIsMarkerSelected(true);
                     setCurrentMarker({
