@@ -669,6 +669,7 @@ class SourcesServers(BaseModel):
     class Meta:
         managed = False
         db_table = 'sources_servers'
+        ordering = ["fqdn"]
 
 
 class SourcesStations(BaseModel):

@@ -90,7 +90,7 @@ const StationSourcesModel = ({
         try {
             setLoading(true);
             const server = sourcesServers?.find(
-                (s) => `${s.fqdn} ${s.protocol}` === formState.server_id,
+                (s) => `${s.fqdn} ${s.protocol} ${s.path} ${s.format}` === formState.server_id,
             );
 
             const params = {
@@ -129,7 +129,7 @@ const StationSourcesModel = ({
         try {
             setLoading(true);
             const server = sourcesServers?.find(
-                (s) => `${s.fqdn} ${s.protocol}` === formState.server_id,
+                (s) => `${s.fqdn} ${s.protocol} ${s.path} ${s.format}` === formState.server_id,
             );
             const params = {
                 try_order: formState.try_order,
@@ -207,8 +207,9 @@ const StationSourcesModel = ({
         if(server){
             const fqdn = server.fqdn
             const protocol = server.protocol
-
-            return `${fqdn} ${protocol}`
+            const path = server.path
+            const format = server.format
+            return `${fqdn} ${protocol} ${path} ${format}`
         }
         return ""
     }
@@ -327,11 +328,11 @@ const StationSourcesModel = ({
                                     value={
                                         camp === "default_path" ?
                                         getDefaultPath(sourcesServers?.find(
-                                            (s) => `${s.fqdn} ${s.protocol}` === formState.server_id
+                                            (s) => `${s.fqdn} ${s.protocol} ${s.path} ${s.format}` === formState.server_id
                                         )?.server_id as number) || "" :
                                         camp === "default_format" ?
                                         getDefaultFormat(sourcesServers?.find(
-                                            (s) => `${s.fqdn} ${s.protocol}` === formState.server_id
+                                            (s) => `${s.fqdn} ${s.protocol} ${s.path} ${s.format}` === formState.server_id
                                         )?.server_id as number)   || "" : formState[camp as keyof typeof formState] ?? ""
                                     }
                                     onChange={(e) => {

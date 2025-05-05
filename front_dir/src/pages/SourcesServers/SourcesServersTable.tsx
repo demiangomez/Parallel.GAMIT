@@ -75,11 +75,6 @@ const SourcesServersPage = ({
         if (sourcesServers && sourcesServers.length > 0) {
             const body: string[][] = [];
             sourcesServers
-                .sort((a, b) => {
-                    const usernameA = a.username ?? "";
-                    const usernameB = b.username ?? "";
-                    return usernameA.localeCompare(usernameB);
-                })
                 .forEach((sourceServer: SourcesServerData) => {
                     body.push([
                         sourceServer.protocol,

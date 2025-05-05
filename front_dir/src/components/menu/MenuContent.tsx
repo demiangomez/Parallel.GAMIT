@@ -79,16 +79,16 @@ const MenuContent = ({
             className={`py-2 px-4 font-semibold text-lg w-full ${disabled ? "disabled" : ""}`}
         >
             <button
-                className={`w-full flex flex-wrap items-start justify-between px-2 text-left ${disabled ? "btn-disabled" : ""}`}
-                type="button"
-                onClick={() => {
-                    dispatch ? handleClick() : alterFunction && alterFunction();
-                }}
+            className={`w-full flex flex-wrap items-start justify-between px-2 text-left ${disabled ? "btn-disabled" : ""}`}
+            type="button"
+            onClick={() => {
+                dispatch ? handleClick() : alterFunction && alterFunction();
+            }}
             >
-                <span className="flex-1 mr-2 break-words">{value}</span>
-                {multiple && multipleSelected.includes(value) && (
-                    <CheckIcon className="size-6 flex-shrink-0" />
-                )}
+            <span className="flex-1 mr-2 truncate">{value}</span>
+            {multiple && multipleSelected.includes(value) && (
+                <CheckIcon className="size-6 flex-shrink-0" />
+            )}
             </button>
         </li>
     );
