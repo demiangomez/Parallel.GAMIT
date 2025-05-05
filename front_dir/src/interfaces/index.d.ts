@@ -1,6 +1,7 @@
 declare module "@heroicons/*";
 
 export interface GetParams {
+    without_photo?:boolean;
     without_actual_files?: boolean;
     network_code?: string;
     thumbnail?: boolean;

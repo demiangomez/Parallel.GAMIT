@@ -587,6 +587,8 @@ const AddStationManual = ({
                 setShowMapModal={setShowMapModal}
                 handleDrawPolygon={handleDrawPolygon}
                 markerType="marker"
+                formState={formState}
+                
             />}
         </div>
     );

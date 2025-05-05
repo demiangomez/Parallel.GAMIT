@@ -77,7 +77,7 @@ const StationChangeTryOrderModal = ({sourcesStations, sourcesServers, handleClos
     }
 
     return (  
-        <Modal  close = {false} size="md" handleCloseModal={() =>{handleCloseModal(); setTo(undefined); setFrom(undefined); successText && refetch();}} modalId="Change Try Order">
+        <Modal  close = {false} size="lg" handleCloseModal={() =>{handleCloseModal(); setTo(undefined); setFrom(undefined); successText && refetch();}} modalId="Change Try Order">
             <div
                 className={
                     successText
@@ -98,7 +98,7 @@ const StationChangeTryOrderModal = ({sourcesStations, sourcesServers, handleClos
                     className="w-full flex justify-start items-center flex-col gap-4"
                 >
                     <div className="flex justify-center flex-row items-center border-b-2 mt-4 border-gray-300 w-full pb-6">
-                        <div className="flex flex-col gap-6 w-full max-w-[500px] pl-6">
+                        <div className="flex flex-col gap-6 w-full max-w-[50%] pl-6">
                             <h2 className="text-xl font-semibold">
                                 Swap From:
                             </h2>
@@ -133,7 +133,7 @@ const StationChangeTryOrderModal = ({sourcesStations, sourcesServers, handleClos
                                                 >
                                                     {matchServer(s.server_id)}
                                                 </label>
-                                                <label className="text-lg text-pretty w-full overflow-auto whitespace-normal break-all">
+                                                <label className="text-lg text-pretty w-full overflow-auto whitespace-normal break-all text-center">
                                                     {s.path && s.path !== "" ? s.path : ("*" + getDefaultPath(s.server_id))}
                                                 </label>    
                                                 <label className="text-lg text-pretty">
@@ -145,7 +145,7 @@ const StationChangeTryOrderModal = ({sourcesStations, sourcesServers, handleClos
                                 ))}
                             </div>
                         </div>
-                        <div className="flex flex-col gap-6 w-full max-w-[500px] pl-6">
+                        <div className="flex flex-col gap-6 w-full max-w-[50%] pl-6">
                             <h2 className="text-xl font-semibold">Swap To:</h2>
                             <div className="max-h-[20vh] flex flex-col gap-2 overflow-y-auto">
                                 {sourcesStations?.map((s, index) => (
@@ -178,7 +178,7 @@ const StationChangeTryOrderModal = ({sourcesStations, sourcesServers, handleClos
                                             >
                                                 {matchServer(s.server_id)}
                                             </label>
-                                            <label className="text-lg text-pretty w-full overflow-auto whitespace-normal break-all">
+                                            <label className="text-lg text-pretty w-full overflow-auto whitespace-normal break-all text-center">
                                                 {s.path && s.path !== "" ? s.path : ("*" + getDefaultPath(s.server_id))}
                                             </label>    
                                             <label className="text-lg text-pretty">

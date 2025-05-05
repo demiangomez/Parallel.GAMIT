@@ -1,4 +1,4 @@
-import L, { LatLngExpression } from "leaflet";
+import L, { LatLngExpression, MarkerCluster } from "leaflet";
 
 import * as toGeoJSON from "@tmcw/togeojson";
 import JSZip from "jszip";
@@ -710,6 +710,28 @@ const MapMarkers = ({
         }
     };
 
+    const createClusterWithProblem = function (cluster: MarkerCluster) {
+        return L.divIcon({
+            html: `<span>${cluster.getChildCount()}</span>`,
+            className: 'custom-marker-cluster-dangerous',
+            iconSize: L.point(30, 30, true),
+        })
+    }
+
+    const createClusterWithNoProblem = function (cluster: MarkerCluster) {
+        return L.divIcon({
+            html: `<span>${cluster.getChildCount()}</span>`,
+            className: 'custom-marker-cluster-normal',
+            iconSize: L.point(30, 30, true),
+        })
+    }
+    
+    const anyHasProblems = (stations: StationData[]) => {
+        return stations.some((station) => {
+            return station.has_gaps || !station.has_stationinfo
+        });
+    }
+
     useEffect(() => {
         if (isDangerousPopup) {
             map.setMinZoom(10);
@@ -718,11 +740,15 @@ const MapMarkers = ({
         }
     }, [isDangerousPopup]);
 
+
+
     const markerClusters = useMemo(() => {
         if (!map || !overlappedClusters) return null;
         return overlappedClusters.map((cluster, index) => {
             return (
-                <MarkerClusterGroup key={`cluster-${index}`}>
+                <MarkerClusterGroup key={`cluster-${index}`}
+                    iconCreateFunction={anyHasProblems(cluster) ? createClusterWithProblem : createClusterWithNoProblem}
+                >
                     {cluster.map((s) => {
                         const iconGaps = chosenIcon(
                             s as StationData,

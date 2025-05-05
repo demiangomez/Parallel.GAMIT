@@ -79,6 +79,28 @@
     display: none;
 }
 
+.custom-marker-cluster-dangerous{
+    background: #f00800;
+    border: 1px solid black;
+    border-radius: 50%;
+    color: #000000;
+    line-height: 30px; 
+    text-align: center;
+    font-weight: bold;
+    font-size: 16px;
+}
+
+.custom-marker-cluster-normal{
+    background: #06a700;
+    border: 1px solid black;
+    border-radius: 50%;
+    color: #000000;
+    line-height: 30px; 
+    text-align: center;
+    font-weight: bold;
+    font-size: 16px;
+}
+
 body {
     margin: 0 !important;
     display: flex;

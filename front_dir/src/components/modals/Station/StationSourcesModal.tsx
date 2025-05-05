@@ -77,7 +77,7 @@ const StationSourcesModel = ({
 
     const errorBadge = msg?.errors?.errors?.map((e) => e.attr);
 
-    const camps = ["try_order", "path", "format", "server_id"];
+    const camps = ["try_order", "path", "format", "server_id", "default_path", "default_format"];
 
     const handleCancel = () => {
         handleClose();
@@ -90,7 +90,7 @@ const StationSourcesModel = ({
         try {
             setLoading(true);
             const server = sourcesServers?.find(
-                (s) => `${s.fqdn} ${s.protocol} ${s.path} ${s.format}` === formState.server_id,
+                (s) => `${s.fqdn} ${s.protocol}` === formState.server_id,
             );
 
             const params = {
@@ -129,7 +129,7 @@ const StationSourcesModel = ({
         try {
             setLoading(true);
             const server = sourcesServers?.find(
-                (s) => `${s.fqdn} ${s.protocol} ${s.path} ${s.format}` === formState.server_id,
+                (s) => `${s.fqdn} ${s.protocol}` === formState.server_id,
             );
             const params = {
                 try_order: formState.try_order,
@@ -207,12 +207,30 @@ const StationSourcesModel = ({
         if(server){
             const fqdn = server.fqdn
             const protocol = server.protocol
-            const format = server.format
-            const path = server.path
 
-            return `${fqdn} ${protocol} ${path} ${format}`
+            return `${fqdn} ${protocol}`
         }
         return ""
+    }
+
+    const getDefaultFormat = (serverId: number) =>{
+        const server = sourcesServers?.find((sv) => sv.server_id === serverId)
+        if(server){
+            return server.format
+        }
+        else{
+            return ""
+        }
+    }
+
+    const getDefaultPath = (serverId: number) =>{
+        const server = sourcesServers?.find((sv) => sv.server_id === serverId)
+        if(server){
+            return server.path
+        }
+        else{
+            return ""
+        }
     }
 
     useEffect(() => {
@@ -242,7 +260,6 @@ const StationSourcesModel = ({
         }
     }, [sourceStation]);
 
-
     useEffect(() => {
         deleteModals?.show && showModal(deleteModals.title);
     }, [deleteModals]);
@@ -250,7 +267,7 @@ const StationSourcesModel = ({
         <Modal
             modalId="Station Sources"
             close={false}
-            size="sm"
+            size="md"
             handleCloseModal={() => {
                 handleClose();
                 success && refetch();
@@ -306,10 +323,16 @@ const StationSourcesModel = ({
                                     }}
                                     className="grow"
                                     type="text"
+                                    disabled={camp.includes("default")}
                                     value={
-                                        formState[
-                                            camp as keyof typeof formState
-                                        ] ?? ""
+                                        camp === "default_path" ?
+                                        getDefaultPath(sourcesServers?.find(
+                                            (s) => `${s.fqdn} ${s.protocol}` === formState.server_id
+                                        )?.server_id as number) || "" :
+                                        camp === "default_format" ?
+                                        getDefaultFormat(sourcesServers?.find(
+                                            (s) => `${s.fqdn} ${s.protocol}` === formState.server_id
+                                        )?.server_id as number)   || "" : formState[camp as keyof typeof formState] ?? ""
                                     }
                                     onChange={(e) => {
                                         dispatch({

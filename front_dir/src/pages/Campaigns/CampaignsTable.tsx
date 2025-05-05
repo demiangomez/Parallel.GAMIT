@@ -72,7 +72,7 @@ const CampaignsTable = () => {
     const getPeople = async () => {
         try {
             setLoading(true);
-            const res = await getPeopleService<PeopleServiceData>(api);
+            const res = await getPeopleService<PeopleServiceData>(api, {"without_photo":true});
             setPeople(res.data);
         } catch (err) {
             console.error(err);
@@ -209,6 +209,7 @@ const CampaignsTable = () => {
     useEffect(() => {
         modals?.show && showModal(modals.title);
     }, [modals]);
+
 
     return (
         <TableCard
