@@ -14,7 +14,9 @@ import {
 } from "@services";
 
 import { useAuth, useApi, useLocalStorage } from "@hooks";
+
 import { METADATA_STATE } from "@utils/reducerFormStates";
+
 import {
     MyMapContainerProps,
     StationStatusServiceData,
@@ -112,7 +114,7 @@ const MapModal = ({
     const addManualMarker = (lat: number, lng: number) => {
         if (featureGroupRef.current) {
             const newMarker = L.marker([lat, lng], {
-                draggable: true, // Hacerlo editable
+                draggable: false,
             });
             featureGroupRef.current.addLayer(newMarker);
         }
@@ -170,6 +172,8 @@ const MapModal = ({
     const [stations, setStations] = useState<StationData[] | undefined>(
         undefined,
     );
+
+    const [disableButton, setDisableButton] = useState(false);
 
     const [refMap, setRefMap] = useState<any>(null);
 
@@ -255,6 +259,18 @@ const MapModal = ({
                         lng: layer._latlng.lng,
                     });
                 }}
+                onEditStart={() => {
+                    setDisableButton(true);
+                }}
+                onEditStop={() => {
+                    setDisableButton(false);
+                }}
+                onDeleteStart={() => {
+                    setDisableButton(true);
+                }}
+                onDeleteStop={() => {
+                    setDisableButton(false);
+                }}
                 draw={{
                     rectangle: false,
                     polyline: false,
@@ -293,6 +309,13 @@ const MapModal = ({
             zoom: savedZoomLevel ? parseInt(savedZoomLevel) : 4,
             center: pos,
         }));
+
+        const drawLocal = (L as any).drawLocal;
+
+        if (drawLocal && drawLocal.edit) {
+            drawLocal.edit.toolbar.actions.save.text = "Apply";
+            drawLocal.edit.toolbar.actions.save.title = "Apply";
+        }
     }, []);
 
     useEffect(() => {
@@ -307,6 +330,22 @@ const MapModal = ({
             });
         }
     }, [markerType]);
+
+    // set the map center when lat and lon are setted
+
+    useEffect(() => {
+        if (formState && formState.station) {
+            const station = formState.station;
+            if (station.lat && station.lon) {
+                setMapProps((prevProps) => ({
+                    ...prevProps,
+                    center: [parseFloat(station.lat), parseFloat(station.lon)],
+                }));
+            }
+        }
+    }, [formState]);
+
+    // icon config for leaflet issues
 
     delete (L.Icon.Default.prototype as any)._getIconUrl;
 
@@ -399,6 +438,7 @@ const MapModal = ({
                     </MapContainer>
                     <button
                         className="btn btn-success btn-md w-32"
+                        disabled={disableButton}
                         onClick={() => {
                             handleCloseModal();
                             setShowMapModal({
