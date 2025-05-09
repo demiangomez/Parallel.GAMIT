@@ -14,6 +14,7 @@ import numpy as np
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
+from pgamit.pyDate import Date
 from pgamit import dbConnection
 from pgamit.pyDate import Date
 from pgamit.cluster import BisectingQMeans, select_central_point, over_cluster, prune, DeterministicClustering
@@ -89,6 +90,9 @@ def main():
                         help='''Date range filter. Can be specified in
                             yyyy/mm/dd yyyy_doy  wwww-d format''')
 
+    parser.add_argument('-yr', '--year', nargs=1, metavar='year', type=int,
+                        help='''Instead of date range, provide year to filter, from the first to the last day.''')
+
     parser.add_argument('-tol', '--tolerance', nargs=1, type=int,
                         metavar='{max size}', default=[4],
                         help="The value of maximum network size. This is without overlap (tie) stations. "
@@ -115,6 +119,15 @@ def main():
     parser.add_argument('-det', '--deterministic', action='store_true', default=False,
                         help="Switch to deterministic clustering. Default is qmeans.")
 
+    parser.add_argument('-plots', '--plots', action='store_true', default=False,
+                        help="Produce plots with stats at the end of the run.")
+
+    parser.add_argument('-tc', '--ties_classic', action='store_true', default=False,
+                        help="Classic ties. Default is qmeans.")
+
+    parser.add_argument('-v', '--verbose', action='store_true', default=False,
+                        help="Verbose mode.")
+
     args = parser.parse_args()
 
     cnn = dbConnection.Cnn("gnss_data.cfg")
@@ -122,7 +135,12 @@ def main():
     stnlist = process_stnlist(cnn, args.stnlist, print_summary=False)
 
     try:
-        dates = process_date(args.date_filter)
+        if args.date_filter:
+            dates = process_date(args.date_filter)
+        elif args.year:
+            dates = [Date(year=args.year[0], doy=1), Date(year=args.year[0]+1, doy=1) - 1]
+        else:
+            parser.error('At least date range or year need to be provided.')
     except ValueError as e:
         parser.error(str(e))
 
@@ -157,6 +175,8 @@ def main():
     clusters = []
     stations = []
     u_stations = []
+    ties_count = []
+    cluster_count = []
 
     for mjd in tqdm(mjds, ncols=120):
         date = Date(mjd=mjd)
@@ -170,34 +190,49 @@ def main():
         stnm = np.array([stn['station'] for stn in rs
                         if stn['ObservationYear'] == date.year and stn['ObservationDOY'] == date.doy])
 
-        if not args.deterministic:
-            qmean = BisectingQMeans(random_state=42, max_size=args.target_size[0])
-            qmean.fit(points)
-            # snap centroids to closest station coordinate
-            central_points_ids = select_central_point(points, qmean.cluster_centers_)
-            #  expand the initial clusters to overlap stations with neighbors
-            OC = over_cluster(qmean.labels_, points, metric='euclidean',
-                              neighbors=args.tie_count[0], overlap_points=2)
-            #  set 'method=None' to disable
-            OC, central_points_ids = prune(OC, central_points_ids, method='minsize')
+        if points.shape[0] > 50:
+            if not args.deterministic:
+                qmean = BisectingQMeans(random_state=42, max_size=args.target_size[0])
+                qmean.fit(points)
+                # snap centroids to closest station coordinate
+                central_points_ids = select_central_point(points, qmean.cluster_centers_)
 
-            cluster_ids = [[] for _ in np.arange(OC.shape[0])]
-            tie_ids    = [[] for _ in np.arange(OC.shape[0])]
-            ties        = np.where(np.sum(OC, axis=0) > 1)[0]
-            for i in np.arange(OC.shape[0]):
-                for j in np.arange(OC.shape[1]):
-                    if OC[i, j]:
-                        cluster_ids[i].append(j)
-                        if np.isin(j, ties):
-                            tie_ids[i].append(j)
+                dc = DeterministicClustering(target_size=args.target_size[0], tolerance=args.tolerance[0],
+                                             num_tie_points=args.tie_count[0])
+                if args.ties_classic:
+                    dc.points = points
+                    dc.centroid_ids = central_points_ids
+                    dc.add_tie_points(qmean.labels_, args.tie_count[0])
+                    OC = dc.OC
+                else:
+                    #  expand the initial clusters to overlap stations with neighbors
+                    OC = over_cluster(qmean.labels_, points, metric='euclidean',
+                                      neighbors=args.tie_count[0], overlap_points=2)
+                #  set 'method=None' to disable
+                OC, central_points_ids = prune(OC, central_points_ids, method='minsize')
+
+                cluster_ids = [[] for _ in np.arange(OC.shape[0])]
+                tie_ids    = [[] for _ in np.arange(OC.shape[0])]
+                ties        = np.where(np.sum(OC, axis=0) > 1)[0]
+                for i in np.arange(OC.shape[0]):
+                    for j in np.arange(OC.shape[1]):
+                        if OC[i, j]:
+                            cluster_ids[i].append(j)
+                            if np.isin(j, ties):
+                                tie_ids[i].append(j)
+            else:
+                dc = DeterministicClustering(target_size=args.target_size[0], tolerance=args.tolerance[0],
+                                             num_tie_points=args.tie_count[0])
+                dc.constrained_agglomerative(points)
+                central_points_ids = dc.centroid_ids
+                cluster_ids = dc.clustered_ids
+                tie_ids = dc.tie_ids
+                OC = dc.OC
         else:
-            dc = DeterministicClustering(target_size=args.target_size[0], tolerance=args.tolerance[0],
-                                         num_tie_points=args.tie_count[0])
-            dc.constrained_agglomerative(points)
-            central_points_ids = dc.centroid_ids
-            cluster_ids = dc.clustered_ids
-            tie_ids = dc.tie_ids
-            OC = dc.OC
+            OC = np.ones((1, points.shape[0]), dtype=np.bool_)
+            tie_ids = []
+            central_points_ids = []
+            cluster_ids = []
 
         cluster_sizes = OC.sum(axis=1)  # array of shape (num_clusters,)
         x.extend([mjd] * len(cluster_sizes))  # repeat day for each cluster
@@ -213,55 +248,82 @@ def main():
         stations.append(np.sum(OC.flatten()))
         u_stations.append(OC.shape[1])
 
-        tqdm.write(' -- %s C %3i - S: %4i - US: %4i - RT: %.1f'
-                   % (date.yyyyddd(), OC.shape[0], np.sum(OC.flatten()), OC.shape[1], T.sum()))
+        tc = [len(t) for t in tie_ids]
+        ties_count += tc
+        cs = [i for i in cluster_sizes]
+        cluster_count += cs
+
+        if args.verbose:
+            R = (int(np.sum(OC.flatten())) - OC.shape[1]) / OC.shape[1]
+
+            tqdm.write(' -- %s C %3i - S: %4i - US: %4i - avg R: %5.3f - ties: [%2i %4.1f %2i] - T: %.1f'
+                       % (date.yyyyddd(), OC.shape[0], int(np.sum(OC.flatten())), OC.shape[1], R,
+                          np.min(tc), np.mean(tc, dtype=float), np.max(tc), T.sum()))
 
         # Plot each cluster with a different color
-        if date in plot_dates:
+        if date in plot_dates and points.shape[0] > 50:
             generate_kmz(OC, lla, stnm, central_points_ids, date.yyyyddd().replace(' ', '_'))
             plot_geographic_cluster_graph(points[central_points_ids], cluster_ids, tie_ids, stnm, points)
-            # plot_global_network(central_points_ids, OC, np.arange(0, OC.shape[0] - 1, 1), points, './map.png')
 
     # estimate the runtime
     tqdm.write(' >> Total estimated time:')
-    tqdm.write(' -- Processing time: %.1f hours' % (np.sum(np.array(t)) / 60.))
+    tqdm.write(' -- %s - %s processing time: %.1f hours'
+               % (dates[0].yyyyddd(), dates[1].yyyyddd(), np.sum(np.array(t)) / 60.))
     tqdm.write(' -- Wall time using %i cores: %.1f hours' % (args.core_count[0],
                                                              np.sum(np.array(t))/args.core_count[0] / 60.))
-    fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(14, 8))
 
-    counts, xedges, yedges, im = axs[0, 0].hist2d(x, y, bins=[np.arange(dates[0].mjd, dates[1].mjd + 2, 1),
-                                                              np.arange(5, 60)], cmap='viridis')
-    cbar = fig.colorbar(im, ax=axs[0, 0])
-    cbar.set_label('Cluster count')
+    if args.plots:
+        fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(14, 8))
 
-    axs[0, 0].set_ylabel('Stations per cluster')
-    axs[0, 0].set_title(r'(a) Cluster size per day', fontsize=14, fontweight='bold')
+        counts, xedges, yedges, im = axs[0, 0].hist2d(x, y, bins=[np.arange(dates[0].mjd, dates[1].mjd + 2, 1),
+                                                                  np.arange(5, 60)], cmap='viridis')
+        cbar = fig.colorbar(im, ax=axs[0, 0])
+        cbar.set_label('Cluster count')
 
-    # --- 2. Plot the runtime below ---
-    # Assuming you have `runtime_per_day` and `day_indices`:
-    axs[0, 1].plot(mjds, t, color='tab:red')
-    axs[0, 1].grid(True, linestyle='--', linewidth=0.5, alpha=0.7)
-    axs[0, 1].set_xlabel('Modified Julian Date')
-    axs[0, 1].set_ylabel('Runtime (minutes)')
-    axs[0, 1].set_title('(b) Total runtime per day', fontsize=14, fontweight='bold')
+        axs[0, 0].set_ylabel('Stations per cluster')
+        axs[0, 0].set_title(r'(a) Cluster size per day', fontsize=14, fontweight='bold')
 
-    axs[1, 0].plot(mjds, clusters, color='tab:red')
-    axs[1, 0].grid(True, linestyle='--', linewidth=0.5, alpha=0.7)
-    axs[1, 0].set_xlabel('Modified Julian Date')
-    axs[1, 0].set_ylabel('Clusters')
-    axs[1, 0].set_title('(c) Number of clusters', fontsize=14, fontweight='bold')
+        # --- 2. Plot the runtime below ---
+        # Assuming you have `runtime_per_day` and `day_indices`:
+        axs[0, 1].plot(mjds, t, color='tab:red')
+        axs[0, 1].grid(True, linestyle='--', linewidth=0.5, alpha=0.7)
+        axs[0, 1].set_xlabel('Modified Julian Date')
+        axs[0, 1].set_ylabel('Runtime (minutes)')
+        axs[0, 1].set_title('(b) Total runtime per day', fontsize=14, fontweight='bold')
 
-    axs[1, 1].plot(mjds, stations, color='tab:red')
-    axs[1, 1].plot(mjds, u_stations, color='tab:blue')
-    axs[1, 1].grid(True, linestyle='--', linewidth=0.5, alpha=0.7)
-    axs[1, 1].set_xlabel('Modified Julian Date')
-    axs[1, 1].set_ylabel('Stations')
-    axs[1, 1].set_title('(d) Number of stations / unique', fontsize=14, fontweight='bold')
+        axs[1, 0].plot(mjds, clusters, color='tab:red')
+        axs[1, 0].grid(True, linestyle='--', linewidth=0.5, alpha=0.7)
+        axs[1, 0].set_xlabel('Modified Julian Date')
+        axs[1, 0].set_ylabel('Clusters')
+        axs[1, 0].set_title('(c) Number of clusters', fontsize=14, fontweight='bold')
 
-    # Layout
-    plt.suptitle('Target size: %i ties: %i' % (args.target_size[0], args.tie_count[0]))
-    plt.tight_layout()
-    plt.show()
+        axs[1, 1].plot(mjds, stations, color='tab:red')
+        axs[1, 1].plot(mjds, u_stations, color='tab:blue')
+        axs[1, 1].grid(True, linestyle='--', linewidth=0.5, alpha=0.7)
+        axs[1, 1].set_xlabel('Modified Julian Date')
+        axs[1, 1].set_ylabel('Stations')
+        axs[1, 1].set_title('(d) Number of stations / unique', fontsize=14, fontweight='bold')
+
+        # Layout
+        plt.suptitle('Target size: %i ties: %i' % (args.target_size[0], args.tie_count[0]))
+        plt.tight_layout()
+        plt.show()
+
+        fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(14, 8))
+        axs[1].hist(ties_count)
+        axs[1].grid(True, linestyle='--', linewidth=0.5, alpha=0.7)
+        axs[1].set_xlabel('Ties per cluster')
+        axs[1].set_ylabel('Frequency')
+        axs[1].set_title('Ties histogram', fontsize=14, fontweight='bold')
+
+        axs[0].hist(cluster_count)
+        axs[0].grid(True, linestyle='--', linewidth=0.5, alpha=0.7)
+        axs[0].set_xlabel('Stations per cluster')
+        axs[0].set_ylabel('Frequency')
+        axs[0].set_title('Cluster size histogram', fontsize=14, fontweight='bold')
+        plt.tight_layout()
+        plt.show()
+        # plot_global_network(central_points_ids, OC, np.arange(0, OC.shape[0] - 1, 1), points, './map.png')
 
 
 if __name__ == '__main__':

@@ -56,8 +56,7 @@ DEBUG = True
 
 CONFIG_FILE = 'gnss_data.cfg'
 
-PBAR_FORMAT = '''{l_bar}{bar}| {n_fmt}/{total_fmt}
-              {elapsed}<{remaining} {postfix}'''
+PBAR_FORMAT = "{l_bar}{bar}| {n_fmt}/{total_fmt} {elapsed}<{remaining} {postfix}"
 
 ###############################################################################
 # Model
@@ -473,8 +472,7 @@ class JobsManager:
         """ called by dispy """
         with self.jobs_lock:
             self.cpus_qty = sum(n.avail_cpus for n in nodes)
-            tqdm.write(''' >> %d Cluster Nodes with %d CPUs
-                       will be used for File Processing'''
+            tqdm.write(" >> %d Cluster Nodes with %d CPUs will be used for File Processing"
                        % (len(nodes), self.cpus_qty))
             self._submit_pending()
 
@@ -607,8 +605,7 @@ def download_all_stations_data(cnn: dbConnection.Cnn,
                 s_idle += 1
 
         pbar.set_postfix(
-            files='''[db_no_info=%d db_exists=%d not_found=%d
-                  process_ok=%d process_error=%d ok=%d]'''
+            files="[db_no_info=%d db_exists=%d not_found=%d process_ok=%d process_error=%d ok=%d]"
                   % (stats.db_no_info, stats.db_exists, stats.not_found,
                      stats.process_ok, stats.process_error, stats.ok),
             servers="[active=%d idle=%d stopped=%d]"
@@ -738,8 +735,7 @@ def download_all_stations_data(cnn: dbConnection.Cnn,
             elif isinstance(msg, Msg.FILE_SKIPPED_INACTIVE_STATION):
                 f = File.from_descriptor(stations, msg.file)
                 stats.db_no_info += 1
-                file_finished(f, '''FILE SKIPPED: No Station info in DB -
-                                 assume Station is inactive for this date''')
+                file_finished(f, "FILE SKIPPED: No Station info in DB - assume Station is inactive for this date")
 
             elif isinstance(msg, Msg.FILE_IGNORED_EXISTS_IN_DB):
                 f = File.from_descriptor(stations, msg.file)
@@ -861,8 +857,7 @@ def process_file(abspath_scripts_dir: str,
                                         % (abspath_script_file, cmd.stdout))
                     break
             else:
-                raise Exception('''No script for format %r: %s
-                                not found in current node'''
+                raise Exception("No script for format %r: %s not found in current node"
                                 % (src_format, abspath_script_file))
 
         # @TODO: this only works for RINEX 2, needs to work for RINEX 3 as well
@@ -1219,7 +1214,7 @@ class ProtocolHTTP(IProtocol):
                             raise Exception(error)
                     else:
                         return error
-
+        return None
 
     def list_dir(self, server_path: str):
         r = self.session.get(self.base_url + server_path)
@@ -1398,8 +1393,7 @@ class Client:
                                 pass
 
                 except Exception:
-                    tqdm.write('''%s CONNECTION ERROR (try #%d/%d)
-                               to %s:\n%s\n %s%s'''
+                    tqdm.write("%s CONNECTION ERROR (try #%d/%d) to %s:\n%s\n %s%s"
                                % (prefix, conn_retries,
                                   SERVER_MAX_RECONNECTIONS, self.proto.desc(),
                                   '~'*70, traceback.format_exc(), '~'*70))
