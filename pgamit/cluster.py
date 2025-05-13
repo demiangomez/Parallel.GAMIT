@@ -9,11 +9,11 @@ import pandas as pd
 import scipy.sparse as sp
 import heapq
 import networkx as nx
-from tqdm import tqdm
 
 from scipy.spatial.distance import pdist, squareform
 
 from sklearn.neighbors import NearestNeighbors
+from sklearn.metrics import pairwise_distances
 from sklearn.base import _fit_context
 from sklearn.utils._openmp_helpers import _openmp_effective_n_threads
 from sklearn.utils._param_validation import Integral, Interval, StrOptions
@@ -41,7 +41,7 @@ def prune(OC, central_points, method='minsize'):
     central_points : Pruned int array of shape (n_clusters -N,)
     """
     subset = []
-    rowlength = len(OC[0,:])
+    rowlength = len(OC[0, :])
     if method == "linear":
         indices = list(range(len(OC)))
     elif method == "minsize":
@@ -106,13 +106,13 @@ def select_central_point(coordinates, centroids, metric='euclidean'):
 
 
 def over_cluster(labels, coordinates, metric='haversine', neighbors=5,
-                 overlap_points=2, rejection_threshold=5e6, method='static'):
+                 overlap=2, rejection_threshold=5e6, method='static'):
     """Expand cluster membership to include edge points of neighbor clusters
 
     Expands an existing clustering to create overlapping membership between
     clusters. Existing clusters are processed sequentially by looking up
     nearest neighbors as an intersection of the current cluster membership and
-    all cluster's point membership.  Once the `overlap_points` for a given
+    all cluster's point membership.  Once the `overlap` for a given
     neighbor cluster have been determined and added to current cluster, the
     remainder of that neighboring cluster is removed from consideration and
     distance query is rerun, with the process repeating until a number of
@@ -172,7 +172,7 @@ def over_cluster(labels, coordinates, metric='haversine', neighbors=5,
         clusters to include when adding cluster membership overlap. Should be
         less than the number of unique cluster labels - 1.
 
-    overlap_points : int greater than or equal to 1, default=2
+    overlap : int greater than or equal to 1, default=2
         Should not exceed the size of the smallest cluster in `labels`.
 
     rejection_threshold : float, default=None
@@ -220,31 +220,40 @@ def over_cluster(labels, coordinates, metric='haversine', neighbors=5,
                                 metric=metric).fit(coordinates[members])
         if method == 'dynamic':
             coverage = len(np.unique(labels[output[cluster, :]]))
-        elif method == 'static':
+        else:  # method == 'static' or 'paired'
             coverage = 0
-        
-        if method == 'paired':    
-            D, _ = nbrs.kneighbors(coordinates[nonmembers, :])
-            new_member = ridx[nonmembers][np.argmin(D)]
-            cluster_label = labels[new_member]
-            cloc = labels == cluster_label
-            nonmembers[~cloc] = 0
-            rdists, _ = nbrs.radius_neighbors(coordinates[nonmembers, :],
-                                              radius=rejection_threshold,
-                                              return_distance=True)
-            far_member = ridx[nonmembers][np.argmax(rdists)]
-            output[cluster, new_member] = 1
-            output[cluster, far_member] = 1
-        else:
-            while coverage <= neighbors:
-                # intersect search tree with non-members
-                D, _ = nbrs.kneighbors(coordinates[nonmembers, :])
+
+        while coverage <= neighbors:
+            # intersect search tree with non-members
+            D, indx = nbrs.kneighbors(coordinates[nonmembers, :])
+            mindex = np.argmin(D)
+            # Select closest external point to add to member cluster
+            new_member = ridx[nonmembers][mindex]
+            # Grab label of new member for overlap and other checks
+            nm_label = labels[new_member]
+            # Paired method removes full cluster from consideration
+            if method == 'paired':
+                # 'remove' is the captured cluster, from which we select pairs
+                remove = nm_label == labels
+                # For simplicity, we use the single point defined my 'mindex'
+                # as the 'member point' to calculate max eligible distance
+                rdists = pairwise_distances(coordinates[members][indx[mindex]],
+                                            coordinates[remove])
+                # Filter too far points from argmax eligibility
+                rdists[rdists >= rejection_threshold] = 0
+                far_member = ridx[remove][np.argmax(rdists)]
+                # Add near / far points to cluster for overlap
+                output[cluster, new_member] = 1
+                output[cluster, far_member] = 1
+                # Remove captured cluster from further consideration
+                nonmembers[remove] = False
+                # Continue
+                coverage += 1
+            else:
                 # Rejection threshold is lightly tested...
                 if rejection_threshold:
                     if np.min(D) > rejection_threshold:
                         break
-                # Select closest external point to add to member cluster
-                new_member = ridx[nonmembers][np.argmin(D)]
                 # Remove point from future coordinate distance queries
                 nonmembers[new_member] = 0
                 # Add to member label array
@@ -255,10 +264,8 @@ def over_cluster(labels, coordinates, metric='haversine', neighbors=5,
                 elif method == 'static':
                     # Update current point expansion count
                     coverage += 1
-                # Grab label of new member for overlap check
-                nm_label = labels[new_member]
                 # Check if we've exceeded our overlap allotment...
-                if sum(labels[output[cluster, :]] == nm_label) >= overlap_points:
+                if sum(labels[output[cluster, :]] == nm_label) >= overlap:
                     # ...if so, remove entire neighboring cluster
                     remove = nm_label == labels
                     nonmembers[remove] = False
@@ -266,32 +273,37 @@ def over_cluster(labels, coordinates, metric='haversine', neighbors=5,
 
 
 class DeterministicClustering(object):
-    def __init__(self, target_size=15, tolerance=4, num_tie_points=4, max_dist_to_centroid=5_000_000):
-        self.target_size     = target_size
-        self.num_tie_points  = num_tie_points
-        self.tolerance       = tolerance
-        self.max_dist        = max_dist_to_centroid
-        self.points          = np.array([])
-        self.OC              = np.array([])
+    def __init__(self, target_size=15, tolerance=4,
+                 num_tie_points=4, max_dist_to_centroid=5_000_000):
+
+        self.target_size = target_size
+        self.num_tie_points = num_tie_points
+        self.tolerance = tolerance
+        self.max_dist = max_dist_to_centroid
+        self.points = np.array([])
+        self.OC = np.array([])
         # variables to store results
-        self.centroid_ids    = []
-        self.clustered_ids   = []
-        self.tie_ids         = []
+        self.centroid_ids = []
+        self.clustered_ids = []
+        self.tie_ids = []
 
     def constrained_agglomerative(self, points, tie_clusters=True):
         """
-        Perform spatially-constrained agglomerative clustering with centroid snapping.
+        Spatially-constrained agglomerative clustering with centroid snapping.
+
         Parameters:
             points (np.ndarray): Nx3 ECEF coordinates.
-            tie_clusters (bool): to tie clusters together using neighbors, pass True
+            tie_clusters (bool): to tie clusters together using neighbors,
+                                 pass True
 
         Returns:
             clustered_points (List[List[np.ndarray]]): Points per cluster.
             labels (np.ndarray): Cluster label for each point.
-            final_centroids (List[np.ndarray]): Snapped centroids from points for each cluster.
+            final_centroids (List[np.ndarray]): Snapped centroids from points
+                                                for each cluster.
         """
         target_size = self.target_size
-        margin      = self.tolerance
+        margin = self.tolerance
         max_dist_to_centroid = self.max_dist
 
         points = np.array(points)
@@ -327,17 +339,20 @@ class DeterministicClustering(object):
 
             merged_points = points[merged_cluster]
             centroid = merged_points.mean(axis=0)
-            # compare to square distance to avoid computing the sqrt and save some computation time
+            # compare to square distance to avoid computing the sqrt
+            # and save some computation time
             if np.any(np.einsum('ij,ij->i', merged_points - centroid,
-                                merged_points - centroid) > max_dist_to_centroid ** 2):
+                                merged_points -
+                                centroid) > max_dist_to_centroid ** 2):
                 continue
 
             clusters[next_cluster_id] = merged_cluster
             centroids[next_cluster_id] = centroid
             del clusters[ci], clusters[cj]
             del centroids[ci], centroids[cj]
-            self.update_heap_vectorized(heap, clusters, centroids, centroid, merged_cluster,
-                                        next_cluster_id, max_size, max_dist_to_centroid)
+            self.update_heap_vectorized(heap, clusters, centroids, centroid,
+                                        merged_cluster, next_cluster_id,
+                                        max_size, max_dist_to_centroid)
 
             next_cluster_id += 1
 
@@ -347,11 +362,14 @@ class DeterministicClustering(object):
         is_final = cluster_lens >= min_size
 
         # Split clusters
-        final_clusters = [cluster_items[i] for i in range(len(cluster_items)) if is_final[i]]
-        leftovers = [cluster_items[i] for i in range(len(cluster_items)) if not is_final[i]]
+        final_clusters = [cluster_items[i] for i in
+                          range(len(cluster_items)) if is_final[i]]
+        leftovers = [cluster_items[i] for i in
+                     range(len(cluster_items)) if not is_final[i]]
 
         # Compute centroids for final clusters
-        centroids_arr = np.array([points[c].mean(axis=0) for c in final_clusters])
+        centroids_arr = np.array([points[c].mean(axis=0) for c in
+                                  final_clusters])
         # Snap to closest input point in cluster
         snapped_idxs = [
             c[np.argmin(np.linalg.norm(points[c] - centroid, axis=1))]
@@ -364,9 +382,11 @@ class DeterministicClustering(object):
             if len(cluster) == 1:
                 idx = cluster[0]
                 point = points[idx]
-                dists = np.linalg.norm(np.array(final_centroids) - point, axis=1)
+                dists = np.linalg.norm(np.array(final_centroids) - point,
+                                       axis=1)
                 valid = [i for i in range(len(final_clusters)) if
-                         len(final_clusters[i]) < max_size and dists[i] <= max_dist_to_centroid]
+                         len(final_clusters[i]) < max_size and
+                         dists[i] <= max_dist_to_centroid]
                 if valid:
                     best_fit = valid[np.argmin(dists[valid])]
                 else:
@@ -374,33 +394,38 @@ class DeterministicClustering(object):
                 final_clusters[best_fit].append(idx)
                 cluster_points = points[final_clusters[best_fit]]
                 centroid = cluster_points.mean(axis=0)
-                snapped_idx = final_clusters[best_fit][np.argmin(np.linalg.norm(cluster_points - centroid, axis=1))]
+                snapped_idx = final_clusters[best_fit][np.argmin(
+                    np.linalg.norm(cluster_points - centroid, axis=1))]
                 final_centroids[best_fit] = points[snapped_idx]
-                centroid_ids[best_fit]  = snapped_idx
+                centroid_ids[best_fit] = snapped_idx
             else:
                 centroid = points[cluster].mean(axis=0)
-                dists = np.linalg.norm(np.array(final_centroids) - centroid, axis=1)
+                dists = np.linalg.norm(np.array(final_centroids) - centroid,
+                                       axis=1)
                 best_fit = None
                 for i in np.argsort(dists):
                     potential = final_clusters[i] + cluster
                     if len(potential) <= max_size:
                         test_points = points[potential]
                         test_centroid = test_points.mean(axis=0)
-                        if np.all(np.linalg.norm(test_points - test_centroid, axis=1) <= max_dist_to_centroid):
+                        if np.all(np.linalg.norm(test_points -
+                                                 test_centroid,
+                                                 axis=1) <=
+                                  max_dist_to_centroid):
                             best_fit = i
                             break
                 if best_fit is not None:
                     final_clusters[best_fit].extend(cluster)
                     cluster_points = points[final_clusters[best_fit]]
                     centroid = cluster_points.mean(axis=0)
-                    snapped_idx = final_clusters[best_fit][np.argmin(np.linalg.norm(cluster_points - centroid, axis=1))]
+                    snapped_idx = final_clusters[best_fit][np.argmin(
+                        np.linalg.norm(cluster_points - centroid, axis=1))]
                     final_centroids[best_fit] = points[snapped_idx]
-                    centroid_ids[best_fit]  = snapped_idx
+                    centroid_ids[best_fit] = snapped_idx
                 else:
-                    # tqdm.write(' -- cluster %i ended up with %i stations (min was %i)' % (len(final_clusters),
-                    #                                                                 len(cluster), min_size))
                     final_clusters.append(cluster)
-                    snapped_idx = cluster[np.argmin(np.linalg.norm(points[cluster] - centroid, axis=1))]
+                    snapped_idx = cluster[np.argmin(np.linalg.norm(
+                        points[cluster] - centroid, axis=1))]
                     final_centroids.append(points[snapped_idx])
                     centroid_ids.append(snapped_idx)
 
@@ -409,8 +434,8 @@ class DeterministicClustering(object):
             for i in cluster:
                 labels[i] = idx
 
-        self.clustered_ids  = final_clusters
-        self.centroid_ids   = centroid_ids
+        self.clustered_ids = final_clusters
+        self.centroid_ids = centroid_ids
 
         # ties clusters together
         if tie_clusters:
@@ -418,20 +443,24 @@ class DeterministicClustering(object):
 
         return final_clusters, labels, centroid_ids
 
-    def update_heap_vectorized(self, heap, clusters, centroids, centroid, merged_cluster, next_cluster_id, max_size,
+    def update_heap_vectorized(self, heap, clusters, centroids, centroid,
+                               merged_cluster, next_cluster_id, max_size,
                                max_dist_to_centroid):
         """
         Vectorized version to update the heap with valid cluster pairs after a merge.
 
         Parameters:
             heap (List[Tuple[float, int, int]]): The heap to update.
-            clusters (Dict[int, List[int]]): Dictionary of cluster_id -> list of point indices.
-            centroids (Dict[int, np.ndarray]): Dictionary of cluster_id -> centroid coordinates.
+            clusters (Dict[int, List[int]]): Dictionary of cluster_id -> list
+                                             of point indices.
+            centroids (Dict[int, np.ndarray]): Dictionary of cluster_id ->
+                                               centroid coordinates.
             centroid (np.ndarray): The centroid of the newly merged cluster.
             merged_cluster (List[int]): Indices of points in the new cluster.
             next_cluster_id (int): The ID of the new cluster.
             max_size (int): Maximum allowed cluster size.
-            max_dist_to_centroid (float): Maximum allowed distance for a valid connection.
+            max_dist_to_centroid (float): Maximum allowed distance for a valid
+                                          connection.
         """
         # Extract existing cluster IDs and their centroids
         existing_ids = np.array(list(clusters.keys()))
@@ -456,13 +485,17 @@ class DeterministicClustering(object):
         to at least `num_neighbors` external clusters.
 
         Parameters:
-            cluster_labels (np.ndarray): Cluster index (0..K-1) for each station.
-            num_neighbors (int): Minimum number of external links each island must have.
+            cluster_labels (np.ndarray): Cluster index (0..K-1) for each
+                                         station.
+            num_neighbors (int): Minimum number of external links each island
+                                 must have.
             max_tie_distance (float): Max allowable tie distance in meters.
 
         Returns:
-            new_clusters (List[List[int]]): Cluster station indices including added tie points.
-            tie_points (List[List[int]]): Tie point indices added to each cluster.
+            new_clusters (List[List[int]]): Cluster station indices including
+                                            added tie points.
+            tie_points (List[List[int]]): Tie point indices added to each
+                                          cluster.
         """
 
         points = self.points
@@ -503,12 +536,12 @@ class DeterministicClustering(object):
                 pj = [idx for idx in clusters[j] if idx not in used_points]
                 if not pi or not pj:
                     continue
-                dist_matrix = np.linalg.norm(points[pi][:, None, :] - points[pj][None, :, :], axis=2)
+                dist_matrix = np.linalg.norm(points[pi][:, None, :] -
+                                             points[pj][None, :, :], axis=2)
                 min_idx = np.unravel_index(np.argmin(dist_matrix), dist_matrix.shape)
                 min_dist = dist_matrix[min_idx]
                 if min_dist <= max_tie_distance:
                     add_reciprocal_tie(i, j, pi[min_idx[0]], pj[min_idx[1]])
-
 
         # === Step 3: Build the graph from current tie connections ===
         G = nx.Graph()
@@ -536,11 +569,16 @@ class DeterministicClustering(object):
                         pj = [idx for idx in clusters[j] if idx not in used_points]
                         if not pi or not pj:
                             continue
-                        dist_matrix = np.linalg.norm(points[pi][:, None, :] - points[pj][None, :, :], axis=2)
-                        min_idx = np.unravel_index(np.argmin(dist_matrix), dist_matrix.shape)
+                        dist_matrix = np.linalg.norm(points[pi][:, None, :] -
+                                                     points[pj][None, :, :],
+                                                     axis=2)
+                        min_idx = np.unravel_index(np.argmin(dist_matrix),
+                                                   dist_matrix.shape)
                         dist = dist_matrix[min_idx]
                         if dist <= max_tie_distance:
-                            connection_candidates.append((dist, i, j, pi[min_idx[0]], pj[min_idx[1]]))
+                            connection_candidates.append((dist, i, j,
+                                                          pi[min_idx[0]],
+                                                          pj[min_idx[1]]))
 
                 # Sort connections by shortest distance
                 connection_candidates.sort()
@@ -574,18 +612,20 @@ class DeterministicClustering(object):
         self.OC = np.array(matrix)
 
         self.clustered_ids = new_clusters
-        self.tie_ids       = tie_points
+        self.tie_ids = tie_points
 
         return new_clusters, tie_points
 
     def get_cluster_coordinates(self):
-        return [[self.points[i] for i in cluster] for cluster in self.clustered_ids]
+        return [[self.points[i] for i in cluster]
+                for cluster in self.clustered_ids]
 
     def get_centroid_coordinates(self):
         return [self.points[i] for i in self.centroid_ids]
 
     def get_tie_coordinates(self):
-        return [[self.points[i] for i in cluster] for cluster in self.tie_ids]
+        return [[self.points[i] for i in cluster]
+                for cluster in self.tie_ids]
 
 
 """Bisecting Q-means clustering."""
@@ -879,7 +919,7 @@ class BisectingQMeans(_BaseKMeans):
             cluster_to_bisect = self._bisecting_tree.get_cluster_to_bisect()
 
             # Split this cluster into 2 subclusters
-            #if cluster_to_bisect is not None:
+            # if cluster_to_bisect is not None:
             if cluster_to_bisect.score > self.max_size:
                 self._bisect(X, x_squared_norms, sample_weight,
                              cluster_to_bisect)
@@ -961,7 +1001,7 @@ class _BisectingTree:
                 max_score = cluster_leaf.score
                 best_cluster_leaf = cluster_leaf
 
-        #if max_score >= self.opt_size: 
+        # if max_score >= self.opt_size:
         if np.isneginf(max_score):
             self.bisect = False
         else:
