@@ -106,7 +106,7 @@ def select_central_point(coordinates, centroids, metric='euclidean'):
 
 
 def over_cluster(labels, coordinates, metric='haversine', neighbors=5,
-                 overlap_points=2, rejection_threshold=None, method='static'):
+                 overlap_points=2, rejection_threshold=5e6, method='static'):
     """Expand cluster membership to include edge points of neighbor clusters
 
     Expands an existing clustering to create overlapping membership between
@@ -222,33 +222,46 @@ def over_cluster(labels, coordinates, metric='haversine', neighbors=5,
             coverage = len(np.unique(labels[output[cluster, :]]))
         elif method == 'static':
             coverage = 0
-        while coverage <= neighbors:
-            # intersect search tree with non-members
+        
+        if method == 'paired':    
             D, _ = nbrs.kneighbors(coordinates[nonmembers, :])
-            # Rejection threshold is lightly tested...
-            if rejection_threshold:
-                if np.min(D) > rejection_threshold:
-                    break
-            # Select closest external point to add to member cluster
             new_member = ridx[nonmembers][np.argmin(D)]
-            # Remove point from future coordinate distance queries
-            nonmembers[new_member] = 0
-            # Add to member label array
+            cluster_label = labels[new_member]
+            cloc = labels == cluster_label
+            nonmembers[~cloc] = 0
+            rdists, _ = nbrs.radius_neighbors(coordinates[nonmembers, :],
+                                              radius=rejection_threshold,
+                                              return_distance=True)
+            far_member = ridx[nonmembers][np.argmax(rdists)]
             output[cluster, new_member] = 1
-            if method == 'dynamic':
-                # Update current count of over-clustered neighbors
-                coverage = len(np.unique(labels[output[cluster, :]]))
-            elif method == 'static':
-                # Update current point expansion count
-                coverage += 1
-            # Grab label of new member for overlap check
-            nm_label = labels[new_member]
-            # Check if we've exceeded our overlap allotment...
-            if sum(labels[output[cluster, :]] == nm_label) >= overlap_points:
-                # ...if so, remove entire neighboring cluster
-                remove = nm_label == labels
-                nonmembers[remove] = False
-
+            output[cluster, far_member] = 1
+        else:
+            while coverage <= neighbors:
+                # intersect search tree with non-members
+                D, _ = nbrs.kneighbors(coordinates[nonmembers, :])
+                # Rejection threshold is lightly tested...
+                if rejection_threshold:
+                    if np.min(D) > rejection_threshold:
+                        break
+                # Select closest external point to add to member cluster
+                new_member = ridx[nonmembers][np.argmin(D)]
+                # Remove point from future coordinate distance queries
+                nonmembers[new_member] = 0
+                # Add to member label array
+                output[cluster, new_member] = 1
+                if method == 'dynamic':
+                    # Update current count of over-clustered neighbors
+                    coverage = len(np.unique(labels[output[cluster, :]]))
+                elif method == 'static':
+                    # Update current point expansion count
+                    coverage += 1
+                # Grab label of new member for overlap check
+                nm_label = labels[new_member]
+                # Check if we've exceeded our overlap allotment...
+                if sum(labels[output[cluster, :]] == nm_label) >= overlap_points:
+                    # ...if so, remove entire neighboring cluster
+                    remove = nm_label == labels
+                    nonmembers[remove] = False
     return output
 
 
