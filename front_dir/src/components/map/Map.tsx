@@ -732,6 +732,47 @@ const MapMarkers = ({
         });
     };
 
+    // Versión optimizada de adjustPopupPosition
+    const adjustPopupPosition = (popup: L.Popup) => {
+        // Programa el ajuste para el próximo frame usando requestAnimationFrame
+        requestAnimationFrame(() => {
+            const map = (popup as any)._map as L.Map;
+            if (!map) return;
+
+            const latLng = popup.getLatLng();
+            if (!latLng) return;
+
+            const popupPos = map.latLngToContainerPoint(latLng);
+            const topOffset = 570; // ESTIMATED HEIGHT
+
+            if (popupPos.y < topOffset) {
+                const panDistance = topOffset - popupPos.y;
+
+                let adjustedOffset: number;
+
+                if (panDistance > 400) {
+                    adjustedOffset = panDistance + 300;
+                } else if (panDistance > 300) {
+                    adjustedOffset = panDistance + 200;
+                } else if (panDistance > 200) {
+                    adjustedOffset = panDistance + 170;
+                } else if (panDistance > 100) {
+                    adjustedOffset = panDistance + 100;
+                } else if (panDistance > 60) {
+                    adjustedOffset = panDistance + 50;
+                } else {
+                    return;
+                }
+
+                // Limita el ajuste máximo
+                adjustedOffset = Math.min(adjustedOffset, 600);
+
+                // PAN MAP DOWN - Usa valores calculados directamente
+                map.panBy([0, -adjustedOffset]);
+            }
+        });
+    };
+
     useEffect(() => {
         if (isDangerousPopup) {
             map.setMinZoom(10);
@@ -926,6 +967,9 @@ const MapMarkers = ({
                                         click: () => {
                                             isNearTop(s as StationData);
                                         },
+                                        popupopen: (e) => {
+                                            adjustPopupPosition(e.popup);
+                                        },
                                         popupclose: () => {
                                             setIsDaangerousPopup(false);
                                         },
@@ -939,7 +983,7 @@ const MapMarkers = ({
                                     <Popup
                                         maxWidth={600}
                                         minWidth={400}
-                                        eventHandlers={{}}
+                                        interactive={true}
                                     >
                                         <PopupChildren
                                             station={s as StationData}

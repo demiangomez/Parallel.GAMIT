@@ -745,7 +745,10 @@ const MainPage = () => {
                                 </button>
                             )}
                         </div>
-                        <div className="flex justify-center flex-wrap items-center absolute z-[12] w-full top-8">
+                        <div
+                            id="search-input"
+                            className="flex justify-center flex-wrap items-center absolute z-[12] w-full top-8"
+                        >
                             {!mapState && (
                                 <SearchInput
                                     params={params}

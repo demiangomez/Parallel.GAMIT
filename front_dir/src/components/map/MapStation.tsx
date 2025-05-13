@@ -384,35 +384,49 @@ const MapStation = ({
     //--------------------------------------------------UseEffect--------------------------------------------------
 
     useEffect(() => {
-        if (mapRef.current && loadPdf) {
+        // Comprueba que loadPdf sea true y espera a que el mapa esté realmente disponible
+        if (loadPdf) {
             setLoadedMap(false);
 
-            setTimeout(() => {
-                setMapProps((prevProps) => ({
-                    ...prevProps,
-                    center: [station?.lat ?? 0, station?.lon ?? 0],
-                    zoom: 6,
-                }));
-            }, 50);
+            // Dale tiempo al mapa para inicializarse completamente
+            const initialTimeout = setTimeout(() => {
+                if (mapRef.current) {
+                    // Primer zoom (6) - Espera un poco más para asegurar que el mapa esté listo
+                    setTimeout(() => {
+                        setMapProps((prevProps) => ({
+                            ...prevProps,
+                            center: [station?.lat ?? 0, station?.lon ?? 0],
+                            zoom: 6,
+                            zoomAnimation: false, // Deshabilitar animación durante captura
+                        }));
+                    }, 1000);
 
-            setTimeout(() => {
-                setMapProps((prevProps) => ({
-                    ...prevProps,
-                    center: [station?.lat ?? 0, station?.lon ?? 0],
-                    zoom: 16,
-                }));
-            }, 6000);
+                    // Segundo zoom (16)
+                    setTimeout(() => {
+                        setMapProps((prevProps) => ({
+                            ...prevProps,
+                            center: [station?.lat ?? 0, station?.lon ?? 0],
+                            zoom: 16,
+                        }));
+                    }, 8000);
 
-            setTimeout(() => {
-                setMapProps((prevProps) => ({
-                    ...prevProps,
-                    zoom: 10,
-                }));
-                setLoadPdf(false);
-                setLoadedMap(true);
-            }, 15000);
+                    setTimeout(() => {
+                        setMapProps((prevProps) => ({
+                            ...prevProps,
+                            zoom: 10,
+                            zoomAnimation: true, // Reactivar animación
+                        }));
+                        setLoadPdf(false);
+                        setLoadedMap(true);
+                    }, 17000);
+                } else {
+                    console.warn("Map ref still not available after timeout");
+                }
+            }, 1000); // Espera 1 segundo para asegurar que el mapa esté montado
+
+            return () => clearTimeout(initialTimeout);
         }
-    }, [station, mapRef, loadPdf]);
+    }, [loadPdf, station]);
 
     useEffect(() => {
         const pos: LatLngExpression = station
