@@ -27,33 +27,34 @@ def test_ceiling_variable_density(max_size, clust_size):
     under (<, less than) what parameter `opt_cluster_size` is set to"""
 
     data = gen_variable_density_clusters(clust_size)
-    clust = BisectingQMeans(min_size=1, opt_size=max_size,
+    clust = BisectingQMeans(max_size=max_size,
                             init='random', n_init=50, algorithm='lloyd',
                             max_iter=8000, random_state=42)
     clust.fit(data)
 
     _, counts = np.unique(clust.labels_, return_counts=True)
-    assert np.max(counts) < max_size
+    assert np.max(counts) <= max_size
+
 
 @pytest.mark.parametrize(
-    ("min_clust", "max_clust", "neighbors", "overlap"),
+    ("max_clust", "neighbors", "overlap"),
     [
-        [1, 5, 5, 2],
-        [1, 10, 2, 5],
-        [1, 10, 5, 2],
-        [3, 15, 2, 5],
-        [3, 20, 1, 10],
-        [2, 17, 10, 1],
+        [5, 5, 2],
+        [10, 2, 5],
+        [10, 5, 2],
+        [15, 2, 5],
+        [20, 1, 10],
+        [17, 10, 1],
     ],
 )
-def test_max_clust_expansion(min_clust, max_clust, neighbors, overlap):
+def test_max_clust_expansion(max_clust, neighbors, overlap):
     """Test algorithmic guarantee of `over_cluster`
 
     Verify that expanded cluster size is under (<=, less than or equal to):
     [initial cluster size + (neighbors * overlap)]"""
     
     data = gen_variable_density_clusters()
-    clust = BisectingQMeans(min_size=min_clust, opt_size=max_clust,
+    clust = BisectingQMeans(max_size=max_clust,
                             init='random', n_init=50, algorithm='lloyd',
                             max_iter=8000, random_state=42)
     clust.fit(data)

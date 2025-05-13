@@ -15,6 +15,8 @@ import argparse
 import errno
 import ftplib
 import glob
+import re
+import hashlib
 # py
 import os
 import queue
@@ -54,8 +56,7 @@ DEBUG = True
 
 CONFIG_FILE = 'gnss_data.cfg'
 
-PBAR_FORMAT = '''{l_bar}{bar}| {n_fmt}/{total_fmt}
-              {elapsed}<{remaining} {postfix}'''
+PBAR_FORMAT = "{l_bar}{bar}| {n_fmt}/{total_fmt} {elapsed}<{remaining} {postfix}"
 
 ###############################################################################
 # Model
@@ -471,8 +472,7 @@ class JobsManager:
         """ called by dispy """
         with self.jobs_lock:
             self.cpus_qty = sum(n.avail_cpus for n in nodes)
-            tqdm.write(''' >> %d Cluster Nodes with %d CPUs
-                       will be used for File Processing'''
+            tqdm.write(" >> %d Cluster Nodes with %d CPUs will be used for File Processing"
                        % (len(nodes), self.cpus_qty))
             self._submit_pending()
 
@@ -605,8 +605,7 @@ def download_all_stations_data(cnn: dbConnection.Cnn,
                 s_idle += 1
 
         pbar.set_postfix(
-            files='''[db_no_info=%d db_exists=%d not_found=%d
-                  process_ok=%d process_error=%d ok=%d]'''
+            files="[db_no_info=%d db_exists=%d not_found=%d process_ok=%d process_error=%d ok=%d]"
                   % (stats.db_no_info, stats.db_exists, stats.not_found,
                      stats.process_ok, stats.process_error, stats.ok),
             servers="[active=%d idle=%d stopped=%d]"
@@ -626,7 +625,7 @@ def download_all_stations_data(cnn: dbConnection.Cnn,
 
                 client = Client(on_download_result, on_client_stopped,
                                 src.server_id,
-                                src.protocol, host, port,
+                                src.protocol.upper(), host, port,
                                 src.username, src.password)
                 server = Server(client)
                 servers[src.server_id] = server
@@ -736,8 +735,7 @@ def download_all_stations_data(cnn: dbConnection.Cnn,
             elif isinstance(msg, Msg.FILE_SKIPPED_INACTIVE_STATION):
                 f = File.from_descriptor(stations, msg.file)
                 stats.db_no_info += 1
-                file_finished(f, '''FILE SKIPPED: No Station info in DB -
-                                 assume Station is inactive for this date''')
+                file_finished(f, "FILE SKIPPED: No Station info in DB - assume Station is inactive for this date")
 
             elif isinstance(msg, Msg.FILE_IGNORED_EXISTS_IN_DB):
                 f = File.from_descriptor(stations, msg.file)
@@ -859,8 +857,7 @@ def process_file(abspath_scripts_dir: str,
                                         % (abspath_script_file, cmd.stdout))
                     break
             else:
-                raise Exception('''No script for format %r: %s
-                                not found in current node'''
+                raise Exception("No script for format %r: %s not found in current node"
                                 % (src_format, abspath_script_file))
 
         # @TODO: this only works for RINEX 2, needs to work for RINEX 3 as well
@@ -1123,29 +1120,101 @@ class ProtocolHTTP(IProtocol):
 
     def download(self, server_path: str, dest_path: str):
 
+        def csn_hash_token(token_parts):
+            # Deobfuscated equivalent of the JavaScript a0_0x2a54 array
+
+            # Simulate the rotation
+            def rotate_array(arr, count):
+                return arr[count:] + arr[:count]
+
+            token_parts = rotate_array(token_parts,
+                                       0x178)  # 376 decimal, results in full cycle rotation (no effect in this case)
+
+            # Map the indices used in the code
+            def a0_0x4457(index):
+                return token_parts[index]
+
+            # Extracted values
+            challenge_prefix = a0_0x4457(0)  # '5523FAE9D93BF649CCB8FBE324DE72E60B419BE9'
+            token_key = a0_0x4457(1)  # 'challenge_token='
+
+            # Start with i = 0
+            i = 0
+            n1 = int(challenge_prefix[0], 16)  # First hex digit converted to int
+
+            # Custom function simulating the SHA1().digest() behavior
+            def sha1_array(s):
+                return list(hashlib.sha1(s.encode('utf-8')).digest())
+
+            # Search for correct i such that s[n1] == 0xb0 and s[n1+1] == 0x0b
+            while True:
+                combined = challenge_prefix + str(i)
+                sha1_bytes = sha1_array(combined)
+
+                if sha1_bytes[n1] == 0xb0 and sha1_bytes[n1 + 1] == 0x0b:
+                    break
+
+                i += 1
+
+            return combined
+
+        token = None
         if 'gage' in self.base_url:
             result = subprocess.run(['es', 'sso', 'access', '--token'],
                                     stdout=subprocess.PIPE)
-            gage_token = {'Authorization': 'Bearer '
+            token = {'Authorization': 'Bearer '
                           + result.stdout.decode('utf-8').strip()}
             # print(result.stdout.decode('utf-8'))
-        else:
-            gage_token = None
+        elif 'csn' in self.base_url:
+            token = {"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,"
+                               "image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+                     "Accept-Encoding": "gzip, deflate, br, zstd",
+                     "Accept-Language": "en-US,en;q=0.9",
+                     "Priority": "u=0, i",
+                     "Sec-Ch-Ua": '"Google Chrome";v="135", "Not-A.Brand";v="8", "Chromium";v="135"',
+                     "Sec-Ch-Ua-Mobile": "20",
+                     "Sec-Ch-Ua-Platform": '"Linux"',
+                     "Sec-Fetch-Dest": "document",
+                     "Sec-Fetch-Mode": "navigate",
+                     "Sec-Fetch-Site": "none",
+                     "Sec-Fetch-User": "?1",
+                     "Upgrade-Insecure-Requests": "1",
+                     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
+                                   "Chrome/135.0.0.0 Safari/537.36",
+                     "referer": self.base_url + server_path}
 
-        with self.session.get(self.base_url + server_path,
-                              stream=True,
-                              timeout=SERVER_CONNECTION_TIMEOUT,
-                              headers=gage_token) as r:
-            if 200 <= r.status_code <= 299:
-                with open(dest_path, 'wb') as f:
-                    shutil.copyfileobj(r.raw, f)
-                return None
-            else:
-                error = "%d %s" % (r.status_code, r.reason)
-                if 500 <= r.status_code <= 599:
-                    raise Exception(error)
+        for attempt in range(3):
+            with self.session.get(self.base_url + server_path,
+                                  stream=True,
+                                  timeout=SERVER_CONNECTION_TIMEOUT,
+                                  headers=token,
+                                  allow_redirects=True) as r:
+                if 200 <= r.status_code <= 299:
+                    with open(dest_path, 'wb') as f:
+                        shutil.copyfileobj(r.raw, f)
+                    return None
                 else:
-                    return error
+                    error = "%d %s" % (r.status_code, r.reason)
+                    if 500 <= r.status_code <= 599:
+                        if attempt < 2:
+                            if 'csn' in self.base_url:
+                                html_content = r.text
+                                pattern = r"'\s*([^']+)'\s*,\s*'challenge_token='"
+                                # Search for the challenge_token in the HTML content
+                                match = re.search(pattern, html_content)
+                                challenge_token = match.group(1)
+                                token_parts = [
+                                    challenge_token,  # Presumably a SHA1 hash string
+                                    'challenge_token=',
+                                    'array'
+                                ]
+                                self.session.cookies.set("challenge_token", csn_hash_token(token_parts))
+                            time.sleep(3)
+                        else:
+                            raise Exception(error)
+                    else:
+                        return error
+        return None
 
     def list_dir(self, server_path: str):
         r = self.session.get(self.base_url + server_path)
@@ -1324,8 +1393,7 @@ class Client:
                                 pass
 
                 except Exception:
-                    tqdm.write('''%s CONNECTION ERROR (try #%d/%d)
-                               to %s:\n%s\n %s%s'''
+                    tqdm.write("%s CONNECTION ERROR (try #%d/%d) to %s:\n%s\n %s%s"
                                % (prefix, conn_retries,
                                   SERVER_MAX_RECONNECTIONS, self.proto.desc(),
                                   '~'*70, traceback.format_exc(), '~'*70))
@@ -1453,7 +1521,9 @@ def main():
             tqdm.write(" ** DB MIGRATED TO NEW VERSION ** ")
 
         # Cluster Job Server
-        job_server = pyJobServer.JobServer(Config,
+        job_server = pyJobServer.JobServer(Config, check_atx=False,
+                                           check_executables=False,
+                                           check_archive=False,
                                            run_parallel=not args.noparallel)
 
         # process_file dependencies:

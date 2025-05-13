@@ -52,7 +52,7 @@ def plot_global_network(central_points, OC, labels, points,
     if lat_lon:
         LL = points
     else:
-        LL = np.zeros((len(labels), 2))
+        LL = np.zeros((points.shape[0], 2))
         lat, lon, _ = ecef2lla(points)
         LL[:, 0], LL[:, 1] = lon, lat  # x,y ordering for plotting convention
 
@@ -124,3 +124,57 @@ def plot_global_network(central_points, OC, labels, points,
     plt.close()
 
     return central_points
+
+
+def plot_geographic_cluster_graph(centroids, cluster_ids, tie_labels, stnm, points_xyz):
+    """
+    Plot a geographic network of clusters with nodes at centroid locations and edges
+    representing reciprocal tie point connections.
+
+    Parameters:
+        centroids (List[np.ndarray]): ECEF coordinates of snapped cluster centroids.
+        cluster_ids (List[List[int]]): List of station indices (original + tie) per cluster.
+        tie_labels (List[List[int]]): List of tie point indices per cluster.
+        stnm (np.ndarray): Station name array aligned with points_xyz.
+        points_xyz (np.ndarray): Nx3 array of ECEF station coordinates.
+    """
+
+    # Convert centroid coordinates to lat/lon
+    centroids_array = np.array(centroids)
+    lat_cent, lon_cent, _ = ecef2lla(centroids_array)
+
+    # Determine cluster sizes and nearest station names
+    cluster_sizes = [len(cluster) for cluster in cluster_ids]
+    centroid_station_names = []
+    for centroid in centroids:
+        distances = np.linalg.norm(points_xyz - centroid, axis=1)
+        closest_index = np.argmin(distances)
+        centroid_station_names.append(stnm[closest_index])
+
+    # Construct edges based on shared tie points
+    edges = []
+    for i in range(len(cluster_ids)):
+        for j in range(i + 1, len(cluster_ids)):
+            shared = set(tie_labels[i]) & set(cluster_ids[j]) | set(tie_labels[j]) & set(cluster_ids[i])
+            if shared:
+                edges.append((i, j, len(shared)))
+
+    # Plot
+    plt.figure(figsize=(14, 10))
+    plt.scatter(lon_cent, lat_cent, s=np.array(cluster_sizes) * 10,
+                color='cornflowerblue', edgecolor='black', alpha=0.8, zorder=3, marker='o')
+
+    for i, j, w in edges:
+        plt.plot([lon_cent[i], lon_cent[j]], [lat_cent[i], lat_cent[j]],
+                 'k-', lw=0.5 + 0.2 * w, alpha=0.4, zorder=2)
+
+    for lon, lat, label in zip(lon_cent, lat_cent, centroid_station_names):
+        plt.text(lon, lat, label, fontsize=7, ha='center', va='center', zorder=4)
+
+    plt.title("Geographic Cluster Graph (Labeled by Centroid Station)")
+    plt.xlabel("Longitude")
+    plt.ylabel("Latitude")
+    plt.grid(True)
+    plt.axis('equal')  # Ensure equal scaling for longitude and latitude
+    plt.tight_layout()
+    plt.show()

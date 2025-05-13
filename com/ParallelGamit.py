@@ -275,6 +275,29 @@ def check_station_alias(cnn):
                     cnn.update('stations', {'alias': stn_id}, StationCode=StationCode, NetworkCode=NetworkCode)
 
 
+def config_summary(GamitConfig, args):
+    print(' -- Summary of config file %s' % args.session_cfg[0])
+    for conf in GamitConfig.gamitopt.keys():
+        if type(GamitConfig.gamitopt[conf]) is int:
+            val = '%i'
+        elif type(GamitConfig.gamitopt[conf]) is float:
+            val = '%.1f'
+        else:
+            val = '%s'
+
+        print((' -- %s: ' + val) % (conf, GamitConfig.gamitopt[conf]))
+
+    for conf in GamitConfig.NetworkConfig.keys():
+        if type(GamitConfig.NetworkConfig[conf]) is int:
+            val = '%i'
+        elif type(GamitConfig.NetworkConfig[conf]) is float:
+            val = '%.1f'
+        else:
+            val = '%s'
+
+        print((' -- %s: ' + val) % (conf, GamitConfig.gamitopt[conf]))
+
+
 def main():
 
     parser = argparse.ArgumentParser(description='Parallel.GAMIT main execution program')
@@ -359,6 +382,9 @@ def main():
     print(' >> Reading configuration files and creating project network, please wait...')
 
     GamitConfig = pyGamitConfig.GamitConfiguration(args.session_cfg[0])  # type: pyGamitConfig.GamitConfiguration
+
+    # print the configuration used for this session
+    config_summary(GamitConfig, args)
 
     print(' >> Checking GAMIT tables for requested config and year, please wait...')
 

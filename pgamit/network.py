@@ -76,6 +76,8 @@ class Network(object):
         self.org = GamitConfig.gamitopt['org']
         self.GamitConfig = GamitConfig
         self.date = date
+        self.cluster_size = int(self.GamitConfig.NetworkConfig['cluster_size'])
+        self.ties = int(self.GamitConfig.NetworkConfig['ties'])
 
         # find out if this project-day has been processed before
         db_subnets = cnn.query_float('SELECT * FROM gamit_subnets '
@@ -179,13 +181,13 @@ class Network(object):
 
     def make_clusters(self, points, stations, net_limit=NET_LIMIT):
         # Run initial clustering using bisecting 'q-means'
-        qmean = BisectingQMeans(min_size=2, random_state=42)
+        qmean = BisectingQMeans(max_size=self.cluster_size, random_state=42)
         qmean.fit(points)
         # snap centroids to closest station coordinate
         central_points = select_central_point(points, qmean.cluster_centers_)
         # expand the initial clusters to overlap stations with neighbors
         OC = over_cluster(qmean.labels_, points, metric='euclidean',
-                          neighbors=16, overlap_points=4)
+                          neighbors=self.ties, overlap_points=2)
         # set 'method=None' to disable
         OC, central_points = prune(OC, central_points, method='minsize')
         # calculate all 'tie' stations

@@ -5,8 +5,6 @@ Date: 3/3/17 11:27 AM
 Author: Demian D. Gomez
 """
 import datetime
-from os.path import getmtime
-from pprint import pprint
 import traceback
 import warnings
 import sys
@@ -20,6 +18,8 @@ import copy
 import platform
 
 from importlib.metadata import version, PackageNotFoundError
+
+import numpy.linalg
 
 try:
     VERSION = str(version("pgamit"))
@@ -46,11 +46,10 @@ if not os.environ.get('DISPLAY', None):
 from matplotlib.widgets import Button
 
 # app
-import pgamit
 from pgamit import pyStationInfo
 from pgamit import pyDate
 from pgamit import pyEvents
-from pgamit.Utils import ct2lg, lg2ct, rotlg2ct, crc32, stationID
+from pgamit.Utils import ct2lg, lg2ct, rotlg2ct, crc32, stationID, lla2ecef
 from pgamit.pyBunch import Bunch
 from pgamit import pyOkada
 from pgamit import dbConnection
@@ -615,9 +614,89 @@ class GamitSoln:
 class ListSoln(GamitSoln):
     """"class to extract the polyhedrons from a list"""
 
-    def __init__(self, cnn, polyhedrons, NetworkCode, StationCode, stack_name='file-unknown'):
-        super(ListSoln, self).__init__(cnn=cnn, polyhedrons=polyhedrons, NetworkCode=NetworkCode,
-                                       StationCode=StationCode, stack_name=stack_name)
+    def __init__(self, cnn, polyhedrons, NetworkCode, StationCode, stack_name='file-unknown', station_metadata=None):
+
+        if not station_metadata:
+            # instance can use the database to initialize the object
+            logger.info('Solution from file for station %s.%s' % (NetworkCode, StationCode))
+            super(ListSoln, self).__init__(cnn=cnn, polyhedrons=polyhedrons, NetworkCode=NetworkCode,
+                                           StationCode=StationCode, stack_name=stack_name)
+        else:
+            logger.info('Solution from file, station metadata for %s.%s from external source'
+                        % (NetworkCode, StationCode))
+            # station metadata comes from a kmz/kml file
+            stnm, lla = station_metadata
+            self.NetworkCode = stnm.split('.')[0]
+            self.StationCode = stnm.split('.')[1]
+            self.stack_name = stack_name
+
+            self.lat = np.array([lla[1]])
+            self.lon = np.array([lla[0]])
+            self.height = np.array([lla[2]])
+            ecef = lla2ecef(np.array([self.lat[0], self.lon[0], self.height[0]]))
+            self.auto_x = ecef[0]
+            self.auto_y = ecef[1]
+            self.auto_z = ecef[2]
+            self.max_dist = 3000
+            self.solutions = len(polyhedrons)
+
+            # blunders
+            self.blunders = []
+            self.ts_blu = np.array([])
+
+            if self.solutions >= 1:
+                a = np.array(polyhedrons, dtype=float)
+
+                if np.sqrt(np.square(np.sum(np.square(a[0, 0:3])))) > 6.3e3:
+                    # coordinates given in XYZ
+                    nb = np.sqrt(np.square(np.sum(
+                        np.square(a[:, 0:3] - np.array([self.auto_x[0],
+                                                        self.auto_y[0],
+                                                        self.auto_z[0]])), axis=1))) \
+                         <= self.max_dist
+                else:
+                    # coordinates are differences
+                    nb = np.sqrt(np.square(np.sum(np.square(a[:, 0:3]), axis=1))) <= self.max_dist
+
+                if np.any(nb):
+                    self.x = a[nb, 0]
+                    self.y = a[nb, 1]
+                    self.z = a[nb, 2]
+                    self.t = np.array([pyDate.Date(year=item[0], doy=item[1]).fyear for item in a[nb, 3:5]])
+                    self.mjd = np.array([pyDate.Date(year=item[0], doy=item[1]).mjd for item in a[nb, 3:5]])
+
+                    self.date = [pyDate.Date(year=item[0], doy=item[1]) for item in a[nb, 3:5]]
+
+                    # continuous time vector for plots
+                    ts = np.arange(np.min(self.mjd), np.max(self.mjd) + 1, 1)
+                    self.mjds = ts
+                    self.ts = np.array([pyDate.Date(mjd=tts).fyear for tts in ts])
+
+                    # gaps: find all days without solutions which can be considered gaps in data
+                    self.gaps = np.setdiff1d(self.mjds, self.mjd)
+                else:
+                    dd = np.sqrt(np.square(np.sum(
+                        np.square(a[:, 0:3] - np.array([self.auto_x[0],
+                                                        self.auto_y[0],
+                                                        self.auto_z[0]])), axis=1)))
+
+                    raise pyETMException('No viable GAMIT solutions available for %s (all blunders!)\n'
+                                         '  -> min distance to station coordinate is %.1f meters'
+                                         % (StationCode, dd.min()))
+            else:
+                raise pyETMException('No GAMIT polyhedrons vertices available for %s' % StationCode)
+
+            self.rnx_no_ppp = []
+            self.ts_ns = np.array([])
+
+            self.completion = 100.
+
+            self.hash = crc32(str(len(self.t) + len(self.blunders)) + ' ' +
+                              str(ts[0]) + ' ' +
+                              str(ts[-1]) +
+                              str(0) +
+                              VERSION)
+
         self.rnx_no_ppp = []
         self.type = 'file'
 
@@ -1238,15 +1317,9 @@ class Earthquakes:
         self.StationCode = StationCode
         self.NetworkCode = NetworkCode
 
-        # station location
-        stn = cnn.query('SELECT * FROM stations WHERE "NetworkCode" = \'%s\' AND "StationCode" = \'%s\''
-                        % (NetworkCode, StationCode))
-
-        stn = stn.dictresult()[0]
-
         # load metadata
-        lat = float(stn['lat'])
-        lon = float(stn['lon'])
+        lat = soln.lat[0]
+        lon = soln.lon[0]
 
         # establish the limit dates. Ignore jumps before 5 years from the earthquake
         # sdate = pyDate.Date(fyear=t.min() - 5)
@@ -1411,36 +1484,40 @@ class GenericJumps:
         jp = jp.dictresult()
 
         # get station information
-        self.stninfo = pyStationInfo.StationInfo(cnn, NetworkCode, StationCode)
+        try:
+            self.stninfo = pyStationInfo.StationInfo(cnn, NetworkCode, StationCode)
 
-        # DDG new behavior: do not add a jump if the equipment is the same (only if antenna or equipment are different)
-        prev_red = self.stninfo.records[0]
-        for stninfo in self.stninfo.records[1:]:
-            date = stninfo['DateStart']
+            # DDG new behavior: do not add a jump if the equipment is the same (only if antenna or equipment are different)
+            prev_red = self.stninfo.records[0]
+            for stninfo in self.stninfo.records[1:]:
+                date = stninfo['DateStart']
 
-            table = [j['action'] for j in jp if j['Year'] == date.year and j['DOY'] == date.doy]
-            # there is an action, or action is automatic
-            action = table[0] if table else 'A'
+                table = [j['action'] for j in jp if j['Year'] == date.year and j['DOY'] == date.doy]
+                # there is an action, or action is automatic
+                action = table[0] if table else 'A'
 
-            if (prev_red['AntennaCode'] != stninfo['AntennaCode'] or prev_red['RadomeCode'] != stninfo['RadomeCode']
-                or action != 'A'):
+                if (prev_red['AntennaCode'] != stninfo['AntennaCode'] or prev_red['RadomeCode'] != stninfo['RadomeCode']
+                    or action != 'A'):
 
-                # add to list only if:
-                # 1) add_meta = True AND there is no '-' OR
-                # 2) add_meta = False AND there is a '+'
+                    # add to list only if:
+                    # 1) add_meta = True AND there is no '-' OR
+                    # 2) add_meta = False AND there is a '+'
 
-                self.table.append(Jump(NetworkCode, StationCode, soln, t, date,
-                                       'Antenna: %s->%s' % (prev_red['AntennaCode'] + ' ' +
-                                                            prev_red['RadomeCode'] if prev_red['RadomeCode'] else
-                                                            prev_red['AntennaCode'] + ' NONE',
-                                                            stninfo['AntennaCode']  + ' ' +
-                                                            stninfo['RadomeCode'] if stninfo['RadomeCode'] else
-                                                            stninfo['RadomeCode'] + ' NONE'),
-                                       dtype=ANTENNA_CHANGE,
-                                       action=action,
-                                       fit=('+' in table or (self.add_metadata_jumps and '-' not in table))
-                                       ))
-            prev_red = stninfo
+                    self.table.append(Jump(NetworkCode, StationCode, soln, t, date,
+                                           'Antenna: %s->%s' % (prev_red['AntennaCode'] + ' ' +
+                                                                prev_red['RadomeCode'] if prev_red['RadomeCode'] else
+                                                                prev_red['AntennaCode'] + ' NONE',
+                                                                stninfo['AntennaCode']  + ' ' +
+                                                                stninfo['RadomeCode'] if stninfo['RadomeCode'] else
+                                                                stninfo['RadomeCode'] + ' NONE'),
+                                           dtype=ANTENNA_CHANGE,
+                                           action=action,
+                                           fit=('+' in table or (self.add_metadata_jumps and '-' not in table))
+                                           ))
+                prev_red = stninfo
+        except pyStationInfo.pyStationInfoException:
+            logger.info('No station information found for %s.%s, mechanical jumps may be incomplete'
+                        % (NetworkCode, StationCode))
 
         # frame changes if ppp
         if self.solution_type == 'ppp':
@@ -3106,7 +3183,11 @@ class ETM:
         P[P < np.finfo(float).eps] = np.finfo(float).eps
 
         # some statistics
-        SS = np.linalg.inv(np.dot(A.transpose(), np.multiply(P[:, None], A)))
+        try:
+            SS = np.linalg.inv(np.dot(A.transpose(), np.multiply(P[:, None], A)))
+        except numpy.linalg.LinAlgError as e:
+            logger.info('np.linalg.inv failed in adjust_lsq: %s' % str(e))
+            SS = np.ones(A.shape)
 
         sigma = So * np.sqrt(np.diag(SS))
 
@@ -3288,7 +3369,7 @@ class ETM:
                 if 'relaxation' in params.keys():
                     if len(params['relaxation']):
                         for r in params['relaxation']:
-                            if type(r) is not float:
+                            if type(r) not in (float, int):
                                 raise pyETMException('Relaxation parameters must be float type')
                             if r <= 0:
                                 raise pyETMException('Relaxation parameters must be > 0')

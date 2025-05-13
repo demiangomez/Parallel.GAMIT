@@ -26,6 +26,7 @@ if __name__ == "__main__":
           'com/GenerateSinex.py',
           'com/IntegrityCheck.py',
           'com/LocateRinex.py',
+          'com/ModelProcessing.py',
           'com/NEQStack.py',
           'com/OTL_FES2014b.py',
           'com/ParallelGamit.py',

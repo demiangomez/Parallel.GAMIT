@@ -12,9 +12,7 @@ events (M >= 6)
 import re
 import calendar
 import xmltodict
-import datetime as dt
-from collections import OrderedDict
-from datetime import datetime
+from datetime import datetime, timezone
 from tqdm import tqdm
 
 # deps
@@ -89,7 +87,7 @@ class AddEarthquakes:
                 stime = rinex.dictresult()[0].get('mdate')
 
         if etime is None:
-            etime = datetime.now(dt.UTC)
+            etime = datetime.now(timezone.utc)
 
         # we used to do a count of how many events would be returned,
         # but it turns out that doing the count takes almost as much time

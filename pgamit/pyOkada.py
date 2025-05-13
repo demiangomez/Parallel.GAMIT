@@ -185,16 +185,18 @@ class ScoreTable(object):
                 # capture co-seismic and post-seismic scores
                 s_score, p_score = score.score(lat, lon)
                 # print(j['date'], s, s_score, p_score, dist)
+                link = ('<a href="https://earthquake.usgs.gov/earthquakes/eventpage/%s" target="_blank">%s</a>'
+                        % (j['id'], j['id']))
                 if s_score > 0:
                     # seismic score came back > 0, add jump
                     self.table.append([j['mag'], Date(datetime=j['date']), j['lon'], j['lat'],
                                        etm.CO_SEISMIC_JUMP_DECAY,
-                                       j['id'] + ': M%.1f' % j['mag'] + ' ' + j['location'] + ' -> %.0f km' % dist])
+                                       link + ': M%.1f' % j['mag'] + ' ' + j['location'] + ' -> %.0f km' % dist])
                 elif p_score > 0:
                     # seismic score came back == 0, but post-seismic score > 0 add jump
                     self.table.append([j['mag'], Date(datetime=j['date']), j['lon'], j['lat'],
                                        etm.CO_SEISMIC_DECAY,
-                                       j['id'] + ': M%.1f' % j['mag'] + ' ' + j['location'] + ' -> %.0f km' % dist])
+                                       link + ': M%.1f' % j['mag'] + ' ' + j['location'] + ' -> %.0f km' % dist])
 
 
 class Score(object):
