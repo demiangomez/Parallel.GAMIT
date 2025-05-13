@@ -110,15 +110,16 @@ const LoadKmzFromBase64 = ({
 
                     const geoJsonLayer = L.geoJSON(geojson, {
                         pointToLayer: (feature, latlng) => {
-                            if (feature.properties && feature.properties.icon) {
-                                const customIcon = L.icon({
-                                    iconUrl: feature.properties.icon,
-                                    iconSize: [32, 32],
-                                    iconAnchor: [16, 16],
-                                });
-                                return L.marker(latlng, { icon: customIcon });
+                            if (feature.properties) {
+                                return L.circleMarker(latlng, {
+                                    radius: 0,
+                                    opacity: 0,
+                                }); // Return invisible marker instead of null
                             }
-                            return L.marker(latlng);
+                            return L.circleMarker(latlng, {
+                                radius: 0,
+                                opacity: 0,
+                            }); // Return invisible marker instead of null
                         },
                         style: (feature) => {
                             return feature
