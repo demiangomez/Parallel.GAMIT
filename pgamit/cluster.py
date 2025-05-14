@@ -105,7 +105,7 @@ def select_central_point(coordinates, centroids, metric='euclidean'):
     return idxs.squeeze()
 
 
-def over_cluster(labels, coordinates, metric='haversine', neighbors=5,
+def over_cluster(labels, coordinates, metric='euclidean', neighbors=5,
                  overlap=2, rejection_threshold=5e6, method='static'):
     """Expand cluster membership to include edge points of neighbor clusters
 
@@ -137,11 +137,12 @@ def over_cluster(labels, coordinates, metric='haversine', neighbors=5,
         clustering in an X,Y,Z projection, those coordinates can be provided in
         spherical coordinates, provided that 'haversine' is selected for the
         `metric` parameter.
-    metric : str or callable, default='haversine'
+    metric : str or callable, default='euclidean'
         Metric to use for distance computation. Any metric from scikit-learn or
-        scipy.spatial.distance can be used. Note that latitude and longitude
-        values will need to be converted to radians if using the default
-        'haversine' distance metric.
+        scipy.spatial.distance can be used.
+
+        Note that latitude and longitude values will need to be converted to
+        radians if using the default 'haversine' distance metric.
 
         If metric is a callable function, it is called on each pair of
         instances (rows) and the resulting value recorded. The callable should
@@ -168,24 +169,31 @@ def over_cluster(labels, coordinates, metric='haversine', neighbors=5,
     neighbors: int greater than or equal to 1, default=3
         For method='static', this is total number of points that will be added
         to the seed clusters during cluster expansion.
+        For method='paired', this is the number of cluster that are used to
+        tie, with each cluster contributing exactly 2 points.
         For method='dynamic', this is the (zero-indexed) number of adjacent
         clusters to include when adding cluster membership overlap. Should be
         less than the number of unique cluster labels - 1.
 
     overlap : int greater than or equal to 1, default=2
-        Should not exceed the size of the smallest cluster in `labels`.
+        Should not exceed the size of the smallest cluster in `labels`. Note
+        that this parameter has no effect for method='paired'.
 
-    rejection_threshold : float, default=None
+    rejection_threshold : float, default=5e6
         Determines if any potential overlapping points should be rejected for
         being too far (from source centroid or nearest source edge point).
-        Default of 'None' is equivalent to setting the threshold to infinity.
+        Value of 'None' is equivalent to setting the threshold to infinity.
         Note that if value other than 'None' is used, there is no guarantee
-        that all clusters will have overlap points added.
+        that all clusters will have overlap points added. This parameter value
+        is required to be set when using method='paired'.
 
-    method : 'static' (default) or 'dynamic'
+    method : 'static' (default), 'paired', or 'dynamic'
         The 'static' method will always produce an overcluster equal to the
         `neighbors` parameter; 'dynamic' will produce an overcluster ceiling
-        of (neighbors - 1) * overlap_points, with a floor of neighbors.
+        of (neighbors - 1) * overlap_points, with a floor of neighbors. The
+        'paired' method will add 2 * `nieghbors` points per cluster, one
+        of which is the closest nieghbor and one which is the farthest point
+        within that same nieghboring cluster.
 
     Returns
     -------
@@ -221,7 +229,7 @@ def over_cluster(labels, coordinates, metric='haversine', neighbors=5,
         if method == 'dynamic':
             coverage = len(np.unique(labels[output[cluster, :]]))
         else:  # method == 'static' or 'paired'
-            coverage = 0
+            coverage = 1
 
         while coverage <= neighbors:
             # intersect search tree with non-members
