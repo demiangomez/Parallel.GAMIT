@@ -2072,6 +2072,7 @@ class StationinfoList(CustomListCreateAPIView):
 
 class InsertStationInfoByFile(APIView):
     parser_classes = [MultiPartParser]
+    serializer_class = serializers.DummySerializer
 
     def _station_info_pgamit_to_serializer(self, station_info_record_from_pgamit):
         station_info_instance = {
