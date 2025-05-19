@@ -684,6 +684,13 @@ class SourcesStations(BaseModel):
 
     api_id = models.AutoField(primary_key=True)
 
+    def save(self, *args, **kwargs):
+        if self.path == '':
+            self.path = None
+        if self.format == '':
+            self.format = None
+        super().save(*args, **kwargs)
+
     class Meta:
         managed = False
         db_table = 'sources_stations'
