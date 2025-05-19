@@ -160,6 +160,7 @@ const ImageModal = ({ photo, visit, closeModal, setStateModal, type, refetch }: 
             >
                 {originalPhoto?.name &&  (
                     <div className="space-y-4">
+
                         <img
                             className="w-full h-fit object-contain"
                             src={

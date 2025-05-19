@@ -69,6 +69,7 @@ interface MapProps {
         React.SetStateAction<StationData[] | EarthquakeData[] | undefined>
     >;
     setMainParams?: React.Dispatch<React.SetStateAction<GetParams>>;
+    setShowScroller: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 export const ChangeView = ({
@@ -253,6 +254,7 @@ const MapMarkers = ({
         "8",
     );
 
+
     const [, setLastPosition] = useLocalStorage("lastPosition", "[0,0]");
 
     //-------------------------------------------------------------------------------UseStates--------------------------------------------------------------------------------------
@@ -319,6 +321,7 @@ const MapMarkers = ({
             }, 2900);
         }
     }, [mapState]);
+
 
     // Updates markers when map moves
     useEffect(() => {
@@ -396,7 +399,7 @@ const MapMarkers = ({
     useEffect(() => {
         removeOldKmls();
         setForceRenderMarker((prev) => prev + 1);
-        removeAllStations();
+        // removeAllStations();
     }, [earthQuakeChosen]);
 
     useEffect(() => {
@@ -651,8 +654,8 @@ const MapMarkers = ({
 
     const removeOldKmls = () => {
         map.eachLayer((layer) => {
-            // Verifica si es una capa creada por omnivore
-            if (!(layer instanceof L.TileLayer)) {
+            // Remove all layers except TileLayer and Markers
+            if (!(layer instanceof L.TileLayer) && !(layer instanceof L.Marker)) {
                 map.removeLayer(layer);
             }
         });
@@ -694,13 +697,13 @@ const MapMarkers = ({
         }
     };
 
-    const removeAllStations = () => {
-        map.eachLayer((layer) => {
-            if (layer instanceof L.Marker) {
-                map.removeLayer(layer);
-            }
-        });
-    };
+    // const removeAllStations = () => {
+    //     map.eachLayer((layer) => {
+    //         if (layer instanceof L.Marker) {
+    //             map.removeLayer(layer);
+    //         }
+    //     });
+    // };
 
     const isNearTop = (station: StationData) => {
         const result = station.lat;
@@ -738,7 +741,7 @@ const MapMarkers = ({
         requestAnimationFrame(() => {
             const map = (popup as any)._map as L.Map;
             if (!map) return;
-
+            
             const latLng = popup.getLatLng();
             if (!latLng) return;
 
@@ -968,7 +971,9 @@ const MapMarkers = ({
                                             isNearTop(s as StationData);
                                         },
                                         popupopen: (e) => {
+                                            setTimeout(() => {
                                             adjustPopupPosition(e.popup);
+                                            }, 200);
                                         },
                                         popupclose: () => {
                                             setIsDaangerousPopup(false);
@@ -1019,6 +1024,7 @@ const Map = ({
     setEarthquakesFiltered,
     setMarkersByBounds,
     setMainParams,
+    setShowScroller,
 }: MapProps) => {
     //---------------------------------------------------------------------------UseStates--------------------------------------------------------------------------------------
 
@@ -1060,6 +1066,8 @@ const Map = ({
             zoom: savedZoomLevel ? parseInt(savedZoomLevel) : 8,
             center: pos,
         }));
+
+        setShowScroller(false);
     }, [mapState]);
 
     return (
@@ -1110,6 +1118,7 @@ const Map = ({
                     setEarthquakesFiltered={setEarthquakesFiltered}
                     setForceSyncScrollerMap={setForceSyncScrollerMap}
                     showEarthquakeList={showEarthquakeList}
+                    setShowScroller={setShowScroller}
                 />
                 <ScaleControl
                     metric={true}

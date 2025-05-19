@@ -498,7 +498,7 @@ const StationPhotoModal = ({ modalType, reFetch, setStateModal, photo ,edit }: P
                                         FILES
                                     </label>
                                     <div
-                                        className={`grid gap-4 grid-flow-dense w-full max-h-72 overflow-y-auto mt-6 pr-2 ${
+                                        className={`grid gap-4 grid-flow-dense w-full max-h-[48vh] overflow-y-auto mt-6 pr-2 ${
                                             files.length === 1
                                                 ? "grid-cols-1"
                                                 : files.length === 2

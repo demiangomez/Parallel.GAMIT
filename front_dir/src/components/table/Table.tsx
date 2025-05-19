@@ -116,10 +116,14 @@ const Table = ({
                         {titles.map((title, index) => (
                             <th
                                 className={`text-center text-neutral ${
-                                    title?.toLowerCase() === 'path' || 
-                                    title?.toLowerCase() === 'name'
-                                        ? 'max-w-lg w-full'  
-                                        : 'max-w-[200px]'
+                                    title?.toLowerCase() === "path" ||
+                                    (title?.toLowerCase() === "name" &&
+                                        table !== "People")
+                                        ? "max-w-lg w-full"
+                                        : title?.toLowerCase() === "name" &&
+                                            table === "People"
+                                          ? "max-w-[200px] w-[20%]"
+                                          : "max-w-[200px]"
                                 }`}
                                 key={index}
                             >
@@ -364,7 +368,8 @@ const Table = ({
                                                         </div>
                                                     )}
 
-                                                {val !== "" && val != null &&
+                                                {val !== "" &&
+                                                val != null &&
                                                 titles[idx] !== "Photo" &&
                                                 titles[idx] !== "Visit" &&
                                                 titles[idx] !== "comments" &&
@@ -407,13 +412,17 @@ const Table = ({
                                                                     <EyeIcon className="size-6 self-center" />
                                                                 )}
                                                             </button>
-                                                        </div> 
-                                                    ) : (titles[idx] === "path" || titles[idx] === "server" || titles[idx] === "fqdn" || titles[idx] === "Name") ?
+                                                        </div>
+                                                    ) : titles[idx] ===
+                                                          "path" ||
+                                                      titles[idx] ===
+                                                          "server" ||
+                                                      titles[idx] === "fqdn" ||
+                                                      titles[idx] === "Name" ? (
                                                         <div className="w-full  overflow-auto whitespace-wrap">
                                                             {val}
-                                                        </div> 
-                                                    :
-                                                    typeof val ===
+                                                        </div>
+                                                    ) : typeof val ===
                                                           "string" &&
                                                       titles[idx] !== "Image" &&
                                                       titles[idx] !==

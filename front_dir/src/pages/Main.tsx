@@ -787,6 +787,7 @@ const MainPage = () => {
                             earthquakeAffectedStations={
                                 earthQuakeAffectedStations
                             }
+                            setShowScroller={setShowScroller}
                             stations={stations ? stations : initialStations}
                             showEarthquakeList={showEarthQuakesList}
                             setMarkersByBounds={setMarkersByBounds}
