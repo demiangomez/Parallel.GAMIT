@@ -7,6 +7,6 @@ services:
             - .env:/app/.env
             - ./srv/nginx.conf:/etc/nginx/nginx.conf
         ports:
-            - "${APP_PORT}:80"
-        # depends_on:
-        #     - backend
+            - "${APP_PORT}:5100"
+        depends_on:
+            - backend
