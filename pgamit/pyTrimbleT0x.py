@@ -52,6 +52,8 @@ def convert_trimble(path, stnm, out_path, plain_path=False, antenna=None):
         ant = None
         ant_sn = None
 
+    date_dict = {}
+
     # do a for loop and runpk00 all the files in the path folder
     for ff in flist:
         t0_file = os.path.join(path, ff).replace(' ', '\\ ')
@@ -155,3 +157,5 @@ def convert_trimble(path, stnm, out_path, plain_path=False, antenna=None):
             del rx
             # delete temporary folders
             del rnx
+
+    return date_dict.values()

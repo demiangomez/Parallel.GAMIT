@@ -19,6 +19,7 @@ class ReadOptions:
     def __init__(self, configfile, write_cfg_file=False):
 
         self.options = {'path'                 : None,
+                        'media'                : None,
                         'repository'           : None,
                         'format_scripts_path'  : '/tmp', 
                         'parallel'             : False,
@@ -89,6 +90,7 @@ class ReadOptions:
         self.options['frames'] = self.Frames
 
         self.archive_path        = self.options['path']
+        self.media               = self.options['media']
         self.sp3_path            = self.options['sp3']
         self.brdc_path           = self.options['brdc']
         self.ionex_path          = self.options['ionex']

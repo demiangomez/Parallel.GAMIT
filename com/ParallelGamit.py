@@ -295,7 +295,7 @@ def config_summary(GamitConfig, args):
         else:
             val = '%s'
 
-        print((' -- %s: ' + val) % (conf, GamitConfig.gamitopt[conf]))
+        print((' -- %s: ' + val) % (conf, GamitConfig.NetworkConfig[conf]))
 
 
 def main():
