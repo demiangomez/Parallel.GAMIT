@@ -25,7 +25,7 @@ from sklearn.cluster._kmeans import (_BaseKMeans, _kmeans_single_elkan,
 
 
 def prune(OC, central_points, method='minsize'):
-    """Prune redundant clusters from over cluster (OC) and other arrays
+    """Prune redundant clusters from overcluster (OC) and other arrays
 
     Parameters
     ----------
@@ -105,7 +105,7 @@ def select_central_point(coordinates, centroids, metric='euclidean'):
     return idxs.squeeze()
 
 
-def over_cluster(labels, coordinates, metric='euclidean', neighbors=5,
+def overcluster(labels, coordinates, metric='euclidean', neighbors=5,
                  overlap=2, rejection_threshold=5e6, method='static'):
     """Expand cluster membership to include edge points of neighbor clusters
 
@@ -267,7 +267,7 @@ def over_cluster(labels, coordinates, metric='euclidean', neighbors=5,
                 # Add to member label array
                 output[cluster, new_member] = 1
                 if method == 'dynamic':
-                    # Update current count of over-clustered neighbors
+                    # Update current count of overclustered neighbors
                     coverage = len(np.unique(labels[output[cluster, :]]))
                 elif method == 'static':
                     # Update current point expansion count

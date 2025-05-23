@@ -5,7 +5,7 @@ import pytest
 import numpy as np
 
 from .common import gen_variable_density_clusters, generate_clustered_data
-from ..cluster import BisectingQMeans, over_cluster
+from ..cluster import BisectingQMeans, overcluster
 
 
 @pytest.mark.parametrize(
@@ -48,7 +48,7 @@ def test_ceiling_variable_density(max_size, clust_size):
     ],
 )
 def test_max_clust_expansion(max_clust, neighbors, overlap):
-    """Test algorithmic guarantee of `over_cluster`
+    """Test algorithmic guarantee of `overcluster`
 
     Verify that expanded cluster size is under (<=, less than or equal to):
     [initial cluster size + (neighbors * overlap)]"""
@@ -59,7 +59,7 @@ def test_max_clust_expansion(max_clust, neighbors, overlap):
                             max_iter=8000, random_state=42)
     clust.fit(data)
  
-    OC = over_cluster(clust.labels_, data, metric='euclidean', 
+    OC = overcluster(clust.labels_, data, metric='euclidean', 
                       neighbors=neighbors, overlap=overlap,
                       method='dynamic')
 
