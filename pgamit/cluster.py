@@ -105,18 +105,18 @@ def select_central_point(coordinates, centroids, metric='euclidean'):
     return idxs.squeeze()
 
 
-def overcluster(labels, coordinates, metric='euclidean', neighbors=5,
-                 overlap=2, rejection_threshold=5e6, method='static'):
+def overcluster(labels, coordinates, metric='euclidean', overlap=5,
+                nmax=2, rejection_threshold=5e6, method='static'):
     """Expand cluster membership to include edge points of neighbor clusters
 
     Expands an existing clustering to create overlapping membership between
     clusters. Existing clusters are processed sequentially by looking up
     nearest neighbors as an intersection of the current cluster membership and
-    all cluster's point membership.  Once the `overlap` for a given
+    all cluster's point membership.  Once the `nmax` for a given
     neighbor cluster have been determined and added to current cluster, the
     remainder of that neighboring cluster is removed from consideration and
     distance query is rerun, with the process repeating until a number of
-    clusters equal to the `neighborhood` parameter is reached. For stability,
+    clusters equal to the `overlap` parameter is reached. For stability,
     only original points are included for subsequent neighborhood searches;
     that is, Nearest neighbor distances are run as the shortest distance from
     all **original** members of the current cluster.
@@ -166,7 +166,7 @@ def overcluster(labels, coordinates, metric='euclidean', neighbors=5,
         Sparse matrices are only supported by scikit-learn metrics.  See the
         documentation for scipy.spatial.distance for details on these metrics.
 
-    neighbors: int greater than or equal to 1, default=3
+    overlap: int greater than or equal to 1, default=3
         For method='static', this is total number of points that will be added
         to the seed clusters during cluster expansion.
         For method='paired', this is the number of cluster that are used to
@@ -175,7 +175,7 @@ def overcluster(labels, coordinates, metric='euclidean', neighbors=5,
         clusters to include when adding cluster membership overlap. Should be
         less than the number of unique cluster labels - 1.
 
-    overlap : int greater than or equal to 1, default=2
+    nmax : int greater than or equal to 1, default=2
         Should not exceed the size of the smallest cluster in `labels`. Note
         that this parameter has no effect for method='paired'.
 
@@ -189,8 +189,8 @@ def overcluster(labels, coordinates, metric='euclidean', neighbors=5,
 
     method : 'static' (default), 'paired', or 'dynamic'
         The 'static' method will always produce an overcluster equal to the
-        `neighbors` parameter; 'dynamic' will produce an overcluster ceiling
-        of (neighbors - 1) * overlap_points, with a floor of neighbors. The
+        `overlap` parameter; 'dynamic' will produce an overcluster ceiling
+        of (overlap - 1) * overlap_points, with a floor of overlap. The
         'paired' method will add 2 * `nieghbors` points per cluster, one
         of which is the closest nieghbor and one which is the farthest point
         within that same nieghboring cluster.
@@ -209,8 +209,8 @@ def overcluster(labels, coordinates, metric='euclidean', neighbors=5,
     clusters = np.unique(labels)
     n_clusters = len(clusters)
 
-    if (n_clusters - 1) < neighbors:
-        neighbors = (n_clusters - 1)
+    if (n_clusters - 1) < overlap:
+        overlap = (n_clusters - 1)
 
     # reference index for reverse lookups
     ridx = np.array(list(range(len(labels))))
@@ -231,7 +231,7 @@ def overcluster(labels, coordinates, metric='euclidean', neighbors=5,
         else:  # method == 'static' or 'paired'
             coverage = 1
 
-        while coverage <= neighbors:
+        while coverage <= overlap:
             # intersect search tree with non-members
             D, indx = nbrs.kneighbors(coordinates[nonmembers, :])
             mindex = np.argmin(D)
@@ -273,7 +273,7 @@ def overcluster(labels, coordinates, metric='euclidean', neighbors=5,
                     # Update current point expansion count
                     coverage += 1
                 # Check if we've exceeded our overlap allotment...
-                if sum(labels[output[cluster, :]] == nm_label) >= overlap:
+                if sum(labels[output[cluster, :]] == nm_label) >= nmax:
                     # ...if so, remove entire neighboring cluster
                     remove = nm_label == labels
                     nonmembers[remove] = False
@@ -659,7 +659,7 @@ class BisectingQMeans(_BaseKMeans):
 
     Parameters
     ----------
-    max_size: int, default=25
+    qmax: int, default=25
         Hard cutoff to bypass the heuristic when bisecting clusters; no
         clusters greater than this size will be produced.
 
@@ -759,7 +759,7 @@ class BisectingQMeans(_BaseKMeans):
 
     def __init__(
         self,
-        max_size=25,
+        qmax=25,
         *,
         init="random",
         n_init=1,
@@ -781,7 +781,7 @@ class BisectingQMeans(_BaseKMeans):
             n_init=n_init,
         )
 
-        self.max_size = max_size
+        self.max_size = qmax
         self.copy_x = copy_x
         self.algorithm = algorithm
         self.bisect = True

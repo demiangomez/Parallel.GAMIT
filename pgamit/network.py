@@ -181,13 +181,13 @@ class Network(object):
 
     def make_clusters(self, points, stations, net_limit=NET_LIMIT):
         # Run initial clustering using bisecting 'q-means'
-        qmean = BisectingQMeans(max_size=self.cluster_size, random_state=42)
+        qmean = BisectingQMeans(qmax=self.cluster_size, random_state=42)
         qmean.fit(points)
         # snap centroids to closest station coordinate
         central_points = select_central_point(points, qmean.cluster_centers_)
         # expand the initial clusters to overlap stations with neighbors
         OC = overcluster(qmean.labels_, points, metric='euclidean',
-                         neighbors=self.ties, overlap=2)
+                         overlap=self.ties, nmax=2)
         # set 'method=None' to disable
         OC, central_points = prune(OC, central_points, method='minsize')
         # calculate all 'tie' stations
