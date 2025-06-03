@@ -493,47 +493,47 @@ const StationMetadataModal = ({
     const formattedData = useMemo(() => {
         return {
             equipment: {
-            antenna_code: stationInfo?.antenna_code ?? "",
-            antenna_serial: stationInfo?.antenna_serial ?? "",
-            height_code: stationInfo?.height_code ?? "",
-            receiver_code: stationInfo?.receiver_code ?? "",
-            receiver_serial: stationInfo?.receiver_serial ?? "",
-            receiver_version: stationInfo?.receiver_vers ?? "",
-            radome_code: stationInfo?.radome_code ?? "",
+                antenna_code: stationInfo?.antenna_code ?? "",
+                antenna_serial: stationInfo?.antenna_serial ?? "",
+                height_code: stationInfo?.height_code ?? "",
+                receiver_code: stationInfo?.receiver_code ?? "",
+                receiver_serial: stationInfo?.receiver_serial ?? "",
+                receiver_version: stationInfo?.receiver_vers ?? "",
+                radome_code: stationInfo?.radome_code ?? "",
             },
             rinex: {
-            first_rinex: firstRinex?.observation_e_time ?? "",
-            last_rinex: lastRinex?.observation_e_time ?? "",
-            comments: stationMeta?.comments ?? "",
-            navigation_file: stationMeta?.navigation_filename ?? "",
+                first_rinex: firstRinex?.observation_e_time ?? "",
+                last_rinex: lastRinex?.observation_e_time ?? "",
+                comments: stationMeta?.comments ?? "",
+                navigation_file: stationMeta?.navigation_filename ?? "",
             },
             booleans: {
-            has_battery: stationMeta?.has_battery ?? false,
-            has_communications: stationMeta?.has_communications ?? false,
+                has_battery: stationMeta?.has_battery ?? false,
+                has_communications: stationMeta?.has_communications ?? false,
             },
             booleansDesc: {
-            battery_description: stationMeta?.battery_description ?? "",
-            communications_description:
-                stationMeta?.communications_description ?? "",
+                battery_description: stationMeta?.battery_description ?? "",
+                communications_description:
+                    stationMeta?.communications_description ?? "",
             },
             stationMeta: {
-            station_type:
-                stationType.find(
-                (st) => st.id === Number(stationMeta?.station_type),
-                )?.name ?? "",
-            monument_type:
-                monumentType.find(
-                (mt) => mt.id === Number(stationMeta?.monument_type),
-                )?.name ?? "",
-            status:
-                stationStatus.find(
-                (st) => st.id === Number(stationMeta?.status),
-                )?.name ?? "",
-            remote_access_link: stationMeta?.remote_access_link ?? "",
-            station_name: stationData?.station_name ?? "",
-            dome: stationData?.dome ?? "",
-            harpos_coeff_otl: stationData?.harpos_coeff_otl ?? "",
-            max_dist: String(stationData?.max_dist ?? ""),
+                station_type:
+                    stationType.find(
+                        (st) => st.id === Number(stationMeta?.station_type),
+                    )?.name ?? "",
+                monument_type:
+                    monumentType.find(
+                        (mt) => mt.id === Number(stationMeta?.monument_type),
+                    )?.name ?? "",
+                status:
+                    stationStatus.find(
+                        (st) => st.id === Number(stationMeta?.status),
+                    )?.name ?? "",
+                remote_access_link: stationMeta?.remote_access_link ?? "",
+                station_name: stationData?.station_name ?? "",
+                dome: stationData?.dome ?? "",
+                harpos_coeff_otl: stationData?.harpos_coeff_otl ?? "",
+                max_dist: String(stationData?.max_dist ?? ""),
             },
 
             station: {
@@ -1442,7 +1442,7 @@ const StationMetadataModal = ({
                                                 : richText
                                         }
                                         setValue={setRichText}
-                                        clase="h-48 pb-8"
+                                        clase="h-48 pb-12"
                                     />
                                 ) : formattedData.rinex.comments ? (
                                     <div

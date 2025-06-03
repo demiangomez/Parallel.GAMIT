@@ -763,6 +763,11 @@ const StationVisitDetailModal = ({
         speed: 500,
         slidesToShow: 1,
         slidesToScroll: 1,
+        appendDots: (dots: any) => (
+            <div>
+                <ul className="slick-dots">{dots}</ul>
+            </div>
+        ),
     };
 
     const errorBadge = commentsMsg?.errors?.errors?.find(
@@ -1174,7 +1179,7 @@ const StationVisitDetailModal = ({
                                                 <QuillText
                                                     value={richText}
                                                     setValue={setRichText}
-                                                    clase="min-h-32 max-h-32"
+                                                    clase="h-32 pb-8"
                                                 />
                                             ) : richText ? (
                                                 <div
@@ -1296,7 +1301,7 @@ const StationVisitDetailModal = ({
                                 ) : null}
                             </div>
                         ) : (
-                            <div className="w-[400px] ">
+                            <div className="w-[400px]">
                                 <Slider {...settings}>
                                     {images &&
                                         images.map((img) => {

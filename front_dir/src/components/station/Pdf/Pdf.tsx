@@ -129,7 +129,6 @@ const Pdf = ({
         },
     });
 
-    // Create styles for your HTML content
     const reactPdfStyles: Record<string, { fontSize: number }> =
         StyleSheet.create({
             "ql-size-small": {
@@ -1224,28 +1223,55 @@ const Pdf = ({
                                                 {images && images.length > 0 ? (
                                                     images?.map((img, idx) => {
                                                         return (
-                                                            <Image
+                                                            <View
                                                                 key={
-                                                                    img.id +
-                                                                    String(idx)
+                                                                    img.id ??
+                                                                    idx
                                                                 }
-                                                                style={{
-                                                                    width: "auto",
-                                                                    height: 300,
-                                                                    marginVertical: 15,
-                                                                    objectFit:
-                                                                        "scale-down",
-                                                                }}
-                                                                src={{
-                                                                    uri: `${img.actual_image}`,
-                                                                    method: "GET",
-                                                                    headers: {
-                                                                        "Cache-Control":
-                                                                            "no-cache",
-                                                                    },
-                                                                    body: "",
-                                                                }}
-                                                            />
+                                                                // style={{ alignItems: "center" }}
+                                                            >
+                                                                <Image
+                                                                    key={
+                                                                        img.id +
+                                                                        String(
+                                                                            idx,
+                                                                        )
+                                                                    }
+                                                                    style={{
+                                                                        width: "auto",
+                                                                        height: 300,
+                                                                        marginVertical: 15,
+                                                                        objectFit:
+                                                                            "scale-down",
+                                                                    }}
+                                                                    src={{
+                                                                        uri: `${img.actual_image}`,
+                                                                        method: "GET",
+                                                                        headers:
+                                                                            {
+                                                                                "Cache-Control":
+                                                                                    "no-cache",
+                                                                            },
+                                                                        body: "",
+                                                                    }}
+                                                                />
+
+                                                                <Text
+                                                                    style={{
+                                                                        fontSize: 10,
+                                                                        textAlign:
+                                                                            "center",
+                                                                        width: "100%",
+                                                                        margin: 1,
+                                                                    }}
+                                                                >
+                                                                    {img.description &&
+                                                                    img.description.trim() !==
+                                                                        ""
+                                                                        ? img.description
+                                                                        : ""}
+                                                                </Text>
+                                                            </View>
                                                         );
                                                     })
                                                 ) : (
