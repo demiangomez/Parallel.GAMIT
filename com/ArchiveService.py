@@ -37,10 +37,9 @@ import argparse
 # deps
 from tqdm import tqdm
 
-from network import Network
 # app
-from pgamit.Utils import file_append, file_try_remove, file_open, dir_try_remove, stationID
-from pgamit.pyTrimbleT0x import convert_trimble
+from pgamit.Utils import file_append, file_try_remove, file_open, dir_try_remove, stationID, get_field_or_attr
+from pgamit import ConvertRaw
 from pgamit import pyJobServer
 from pgamit import pyEvents
 from pgamit import pyOptions
@@ -740,33 +739,40 @@ def print_archive_service_summary():
 
 def process_visit_file(Config, record):
 
-    cnn = dbConnection.Cnn('gnss_data.cfg')
-    data_in = os.path.join(Config.repository, 'data_in/%s' % stationID(record))
+    # import raw file processing functions
 
-    # get a hold of the file and make sure it exists
-    filename = os.path.join(Config.media, record['filename'])
+    try:
+        cnn = dbConnection.Cnn('gnss_data.cfg')
+        data_in = os.path.join(Config.repository, 'data_in/%s' % stationID(record))
 
-    if record['filename'][-3:].upper() in ('T00', 'T01', 'T02'):
-        rnx = convert_trimble(filename, record['StationCode'], data_in, plain_path=True)
+        # get a hold of the file and make sure it exists
+        filename = os.path.join(Config.media, record['file'])
 
-        if rnx:
+        convert = ConvertRaw.ConvertRaw(record['StationCode'], filename, data_in)
+
+        result = convert.process_files()
+
+        if result:
             event = pyEvents.Event(NetworkCode=record['NetworkCode'],
                                    StationCode=record['StationCode'],
-                                   Description='Visit file %s has been converted to '
+                                   Description='Visit GNSS file %s has been converted to '
                                                'RINEX and left in the repository'
                                                % record['filename'])
             cnn.insert_event(event)
             # mark the file as done
-            # cnn.update('api_visitgnssdatafiles', {'rinexed': True}, id=record['id'])
+            cnn.update('api_visitgnssdatafiles', {'rinexed': True}, id=record['file_id'])
 
-    # return '', False to use the same callback_handle
-    return '', False
+        # return '', False to use the same callback_handle
+        return None, False
+    except Exception as e:
+        return str(e), False
 
 
 def process_visits(JobServer):
     # function to process visit files and add them to the repository
 
     cnn = dbConnection.Cnn("gnss_data.cfg")
+
     Config = pyOptions.ReadOptions("gnss_data.cfg")
     data_in = os.path.join(Config.repository, 'data_in')
 
@@ -778,9 +784,9 @@ def process_visits(JobServer):
                                          """, as_dict=True)
 
     # now get visit files
-    rs = cnn.query_float("""SELECT * FROM api_visitgnssdatafiles 
+    rs = cnn.query_float("""SELECT api_visitgnssdatafiles.id as file_id, * FROM api_visitgnssdatafiles 
                                      LEFT JOIN api_visits ON visit_id = api_visits.id 
-                                     LEFT JOIN stations   ON station_id = stations.api_id
+                                     LEFT JOIN stations   ON station_id = stations.api_id 
                                      WHERE rinexed = False
                                      """, as_dict=True)
 
@@ -795,17 +801,25 @@ def process_visits(JobServer):
                 total=len(rs), ncols=160, disable=None)
 
     # dependency functions
-    depfuncs = (stationID, convert_trimble)
+    depfuncs = (get_field_or_attr, stationID)
 
     # import modules
     JobServer.create_cluster(process_visit_file, depfuncs,
                              callback_handle, pbar,
                              modules=('pgamit.pyRinex',
-                                      'pgamit.pyTrimbleT0x',
+                                      'pgamit.ConvertRaw',
+                                      'pgamit.pyEvents',
+                                      'pgamit.dbConnection',
+                                      'pgamit.pyRunWithRetry',
+                                      'pgamit.Utils',
+                                      'pgamit.pyRinexName',
                                       'platform', 'os'))
 
     for record in rs:
         JobServer.submit(Config, record)
+
+    JobServer.wait()
+    tqdm.write(' >> Done processing visits')
 
 
 def db_checks():
@@ -817,7 +831,7 @@ def db_checks():
     cnn.query("""
     ALTER TABLE api_visitgnssdatafiles
     ADD COLUMN rinexed BOOLEAN DEFAULT FALSE;
-    );""")
+    """)
     cnn.commit_transac()
 
 

@@ -11,6 +11,8 @@ import re
 import shutil
 import tempfile
 
+from tqdm import tqdm
+
 # app
 from pgamit import Utils
 from pgamit import pyRinex
@@ -36,7 +38,7 @@ class ConvertRaw(object):
         self.path_to_raw = path_to_raw
         self.out_path = out_path
 
-        self.logger.append(Event(Description='initialized ConvertRaw for station code %s with path %s '
+        self.logger.append(Event(Description='Initialized ConvertRaw for station code %s with path %s '
                                              'and output path %s' % (station_code, path_to_raw, out_path)))
 
         if not os.path.isdir(out_path):
@@ -45,10 +47,12 @@ class ConvertRaw(object):
         # if a single file is passed, then just work with that file. If a path, then do a search
         if os.path.isdir(path_to_raw):
             # a directory was passed
-            self.file_list = glob.iglob('**/*.*', root_dir=path_to_raw, recursive=True)
+            self.file_list = list(glob.iglob('**/*.*', root_dir=path_to_raw, recursive=True))
         else:
             # single file
             self.file_list = [path_to_raw]
+
+        self.logger.append(Event(Description='List of files to process: ' + ', '.join(self.file_list)))
 
         # if antenna is not none, then parse ATX and find provided antenna to replace in RINEX
         if atx_file is not None and antenna is not None:
@@ -69,18 +73,28 @@ class ConvertRaw(object):
             self.antenna = None
             self.antenna_serial = None
 
+    def print_events(self):
+        for event in self.logger:
+            tqdm.write(' -- ' + str(event))
+
     def process_files(self):
+        result = False
 
         for file in self.file_list:
             # TRIMBLE CONVERSION
             if file[-3:].upper() in ('T00', 'T01', 'T02'):
-                self.convert_trimble(file)
+                self.logger.append(Event(Description='Invoking Trimble Conversion'))
+                result = self.convert_trimble(file)
             # OTHER CONVERSIONS COMING SOON
+
+        return result
 
     def merge_rinex(self):
 
         # go through the output folder and find all RINEX files to see if more than one file per day
-        file_list = glob.iglob('*.Z|*.gz', root_dir=self.out_path, recursive=False)
+        file_list = []
+        for ft in ('*d.Z', '*.gz', '*d.z'):
+            file_list += list(glob.iglob(ft, root_dir=self.out_path, recursive=False))
 
         date_dict = {}
 
@@ -99,41 +113,31 @@ class ConvertRaw(object):
             if len(files) > 1:
 
                 rnx = []
-                print('Processing %s' % d)
+                self.logger.append(Event(Description='Processing date / interval %s' % d))
                 for frnx in files:
-                    print(' -- Uncompressing %s' % frnx)
+                    self.logger.append(Event(Description='Uncompressing %s' % frnx))
                     # do the same for the rest
-                    rnx.append(pyRinex.ReadRinex('???', stnm, frnx, min_time_seconds=300))
+                    rnx.append(pyRinex.ReadRinex('???', self.station_code, frnx, min_time_seconds=300))
                     os.remove(frnx)
 
-                # determine the destiny folder
-                dir_w_year = os.path.join(os.path.join(out, f'{rnx[0].interval:>02.0f}' + '_SEC'),
-                                          rnx[0].date.yyyy())
-
-                if not os.path.isdir(dir_w_year):
-                    os.makedirs(dir_w_year)
-
-                spliced_rnx = os.path.join(dir_w_year, rnx[0].rinex)
+                spliced_rnx = os.path.join(self.out_path, rnx[0].rinex)
 
                 fs = ' '.join([rx.rinex_path for rx in rnx])
 
                 cmd = pyRunWithRetry.RunCommand('gfzrnx_lx -finp %s -fout %s -vo %i'
                                                 % (fs, spliced_rnx, 2), 300)
-                pout, perr = cmd.run_shell()
-                # print(err)
-                # print(out)
+                _, _ = cmd.run_shell()
 
-                rx = pyRinex.ReadRinex('???', stnm, spliced_rnx, min_time_seconds=300)
+                rx = pyRinex.ReadRinex('???', self.station_code, spliced_rnx, min_time_seconds=300)
 
                 # compress
-                rx.compress_local_copyto(dir_w_year)
+                rx.compress_local_copyto(self.out_path)
                 os.remove(spliced_rnx)
-                del rx
-                # delete temporary folders
-                del rnx
 
     def convert_trimble(self, filename):
         # create a dictionary to save how many files there are for each date
+
+        result = True
 
         tmp_dir = tempfile.mkdtemp(suffix='.tmp', prefix=os.path.join(self.out_path, 'process.'))
 
@@ -142,9 +146,10 @@ class ConvertRaw(object):
         self.logger.append(Event(Description='Processing file %s' % t0_file))
 
         # use runpkr00 to convert to tgd
-        cmd = pyRunWithRetry.RunCommand('runpkr00 -g -d %s %s' % (t0_file, tmp_dir), 10)
-        cmd.run_shell()
-        self.logger.append(Event(Description='Executed runpkr00 -g -d %s %s' % (t0_file, tmp_dir)))
+        os.system('runpkr00 -g -d %s %s' % (t0_file, tmp_dir))
+        # stdout, stderr = cmd.run_shell()
+        self.logger.append(Event(Description='Executed runpkr00 -g -d %s %s'
+                                             % (t0_file, tmp_dir)))
 
         file = os.path.basename(filename)
 
@@ -182,6 +187,7 @@ class ConvertRaw(object):
 
         except pyRinex.pyRinexException as e:
             self.logger.append(Event(Description=str(e), EventType='error'))
+            result = False
 
         # cleanup
         try:
@@ -189,4 +195,4 @@ class ConvertRaw(object):
         except Exception as e:
             self.logger.append(Event(Description=str(e), EventType='error'))
 
-        return
+        return result

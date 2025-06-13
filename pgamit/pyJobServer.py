@@ -18,8 +18,6 @@ from tqdm import tqdm
 import dispy
 import dispy.httpd
 
-DELAY = 90
-
 
 def test_node(check_gamit_tables=None, check_archive=True, check_executables=True, check_atx=True, software_sync=()):
     # test node: function that makes sure that all required packages and tools are present in the nodes
@@ -264,7 +262,7 @@ class JobServer:
             # <nah> @todo aca si job es None bug, y no está claro si con el wait() el
             # delay es realmente necesario / delay arbitrario sin reintentos?
             start_t = time.time()
-            while job is None and (time.time() - start_t) < DELAY:
+            while job is None and (time.time() - start_t) < self.delay:
                 time.sleep(1)
 
             self.result.append(job.result)
@@ -291,6 +289,7 @@ class JobServer:
         self.result       = []
         self.jobs         = []
         self.run_parallel = Config.run_parallel and run_parallel
+        self.delay        = Config.cluster_delay
         self.verbose      = False
         self.close        = False
         # variable with ip address for multi-homed systems
@@ -333,8 +332,8 @@ class JobServer:
             self.cluster.discover_nodes(servers)
 
             # wait for all nodes
-            tqdm.write(" >> Waiting %d seconds to discover all nodes... " % DELAY)
-            time.sleep(DELAY)
+            tqdm.write(" >> Waiting %d seconds to discover all nodes... " % self.delay)
+            time.sleep(self.delay)
 
             # if no nodes were found, stop
             if not len(self.nodes):
@@ -406,8 +405,8 @@ class JobServer:
             self.http_server = dispy.httpd.DispyHTTPServer(self.cluster, poll_sec=2)
 
             # wait for all nodes to be created
-            tqdm.write(" >> Waiting %d seconds to initialize all nodes... " % DELAY)
-            time.sleep(DELAY)
+            tqdm.write(" >> Waiting %d seconds to initialize all nodes... " % self.delay)
+            time.sleep(self.delay)
 
         self.progress_bar = progress_bar
 
@@ -473,11 +472,11 @@ class JobServer:
         :return: none
         """
         if self.run_parallel:
-            tqdm.write(' -- Waiting for jobs to finish (no less than %d seconds)...' % DELAY)
+            tqdm.write(' -- Waiting for jobs to finish (no less than %d seconds)...' % self.delay)
             try:
                 self.cluster.wait()
                 # let the process trigger cluster_status before letting the calling proc close the progress bar
-                time.sleep(DELAY)
+                time.sleep(self.delay)
             except KeyboardInterrupt:
                 for job in self.jobs:
                     if job.status in (dispy.DispyJob.Running,

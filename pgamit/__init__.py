@@ -26,7 +26,7 @@ __all__ = [
     'pyTerminal',
     'pyArchiveStruct',
     'pyOkada',
-    'pyTrimbleT0x',
+    'ConvertRaw',
     'pyETM',
     'pyOptions',
     'pyRunWithRetry',
