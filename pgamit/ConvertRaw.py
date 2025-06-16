@@ -86,6 +86,8 @@ class ConvertRaw(object):
                 self.logger.append(Event(Description='Invoking Trimble Conversion'))
                 result = self.convert_trimble(file)
             # OTHER CONVERSIONS COMING SOON
+            else:
+                self.logger.append(Event(Description='Raw format not supported: %s' % file[-3:].upper()))
 
         return result
 
@@ -120,6 +122,7 @@ class ConvertRaw(object):
                     rnx.append(pyRinex.ReadRinex('???', self.station_code, frnx, min_time_seconds=300))
                     os.remove(frnx)
 
+                # use a file name that we know has been deleted already
                 spliced_rnx = os.path.join(self.out_path, rnx[0].rinex)
 
                 fs = ' '.join([rx.rinex_path for rx in rnx])

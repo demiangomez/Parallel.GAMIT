@@ -761,6 +761,33 @@ def process_visit_file(Config, record):
             cnn.insert_event(event)
             # mark the file as done
             cnn.update('api_visitgnssdatafiles', {'rinexed': True}, id=record['file_id'])
+        else:
+            event = pyEvents.Event(NetworkCode=record['NetworkCode'],
+                                   StationCode=record['StationCode'],
+                                   EventType='warn',
+                                   Description='Visit GNSS file %s could not be converted to '
+                                               'RINEX. Log from ConvertRaw follows:\n%s'
+                                               % (record['filename'],
+                                                  '\n'.join(['- ' + str(event) for event in convert.logger])))
+            cnn.insert_event(event)
+
+        # return '', False to use the same callback_handle
+        return None, False
+    except Exception as e:
+        return str(e), False
+
+
+def merge_rinex_files(Config, record):
+
+    # import raw file processing functions
+
+    try:
+        data_in = os.path.join(Config.repository, 'data_in/%s' % stationID(record))
+
+        # invoke the convert object with no path_to_raw: will be used just to merge
+        convert = ConvertRaw.ConvertRaw(record['StationCode'], '', data_in)
+        # loops through the folder attempting to merge RINEX files from the same day, same interval
+        convert.merge_rinex()
 
         # return '', False to use the same callback_handle
         return None, False
@@ -819,7 +846,36 @@ def process_visits(JobServer):
         JobServer.submit(Config, record)
 
     JobServer.wait()
+    pbar.close()
+
     tqdm.write(' >> Done processing visits')
+    JobServer.close_cluster()
+
+    # =============================================================
+    # now try to merge RINEX files from the same day, same interval
+
+    pbar = tqdm(desc='%-30s' % ' >> Merging RINEX files (same day, same interval, may take a while!)',
+                total=len(stns), ncols=160, disable=None)
+
+    # import modules
+    JobServer.create_cluster(merge_rinex_files, depfuncs,
+                             callback_handle, pbar,
+                             modules=('pgamit.pyRinex',
+                                      'pgamit.ConvertRaw',
+                                      'pgamit.pyEvents',
+                                      'pgamit.dbConnection',
+                                      'pgamit.pyRunWithRetry',
+                                      'pgamit.Utils',
+                                      'pgamit.pyRinexName',
+                                      'platform', 'os'))
+    for record in stns:
+        JobServer.submit(Config, record)
+
+    JobServer.wait()
+    pbar.close()
+
+    tqdm.write(' >> Done merging RINEX files')
+    JobServer.close_cluster()
 
 
 def db_checks():
@@ -977,8 +1033,7 @@ def main():
     pbar.close()
 
     tqdm.write(" -- Found %i files in the lock list..." % len(locks))
-    tqdm.write(""" -- Found %i files (matching RINEX 2/3 format)
-               to process...""" % len(files_list))
+    tqdm.write(" -- Found %i files (matching RINEX 2/3 format) to process..." % len(files_list))
 
     pbar = tqdm(desc='%-30s' % ' >> Processing repository',
                 total=len(files_list), ncols=160, unit='crz',

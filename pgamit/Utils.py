@@ -195,7 +195,8 @@ def _increment_filename(filename):
     #  2) a "counter" - the integer which is incremented
     #  3) an "extension" - the file extension
 
-    sessions = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] + [chr(x) for x in range(ord('a'), ord('z')+1)]
+    sessions = ([0, 1, 2, 3, 4, 5, 6, 7, 8, 9] + [chr(x) for x in range(ord('a'), ord('x')+1)] +
+                [chr(x) for x in range(ord('A'), ord('X')+1)])
 
     path      = os.path.dirname(filename)
     filename  = os.path.basename(filename)
