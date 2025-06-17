@@ -3,7 +3,7 @@ channels:
   - defaults
   - conda-forge
 dependencies:
-  - python>=3.10
+  - python==3.10
   - basemap
   - geopy
   - h5py
