@@ -196,7 +196,7 @@ def main():
 
         if points.shape[0] > 50:
             if not args.deterministic:
-                qmean = BisectingQMeans(random_state=42, qmax=args.target_size[0])
+                qmean = BisectingQMeans(qmax=args.target_size[0], random_state=42)
                 qmean.fit(points)
                 # snap centroids to closest station coordinate
                 central_points_ids = select_central_point(points, qmean.cluster_centers_)

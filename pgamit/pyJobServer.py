@@ -16,7 +16,8 @@ import traceback
 # deps
 from tqdm import tqdm
 import dispy
-import dispy.httpd
+# removed because it uses cgi
+# import dispy.httpd
 
 
 def test_node(check_gamit_tables=None, check_archive=True, check_executables=True, check_atx=True, software_sync=()):
@@ -402,7 +403,7 @@ class JobServer:
                                             reentrant      = True,
                                             host           = self.ip_address)
 
-            self.http_server = dispy.httpd.DispyHTTPServer(self.cluster, poll_sec=2)
+            # self.http_server = dispy.httpd.DispyHTTPServer(self.cluster, poll_sec=2)
 
             # wait for all nodes to be created
             tqdm.write(" >> Waiting %d seconds to initialize all nodes... " % self.delay)
