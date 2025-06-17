@@ -17,7 +17,8 @@ import matplotlib.pyplot as plt
 from pgamit.pyDate import Date
 from pgamit import dbConnection
 from pgamit.pyDate import Date
-from pgamit.cluster import BisectingQMeans, select_central_point, over_cluster, prune, DeterministicClustering
+from pgamit.cluster import BisectingQMeans, select_central_point, overcluster, prune
+from pgamit.agglomerative import DeterministicClustering
 from pgamit.Utils import station_list_help, process_date, process_stnlist, stationID, add_version_argument
 from pgamit.plots import plot_global_network, plot_geographic_cluster_graph
 
@@ -194,7 +195,7 @@ def main():
 
         if points.shape[0] > 50:
             if not args.deterministic:
-                qmean = BisectingQMeans(random_state=42, max_size=args.target_size[0])
+                qmean = BisectingQMeans(random_state=42, qmax=args.target_size[0])
                 qmean.fit(points)
                 # snap centroids to closest station coordinate
                 central_points_ids = select_central_point(points, qmean.cluster_centers_)
@@ -208,8 +209,7 @@ def main():
                     OC = dc.OC
                 else:
                     #  expand the initial clusters to overlap stations with neighbors
-                    OC = over_cluster(qmean.labels_, points, metric='euclidean',
-                                      neighbors=args.tie_count[0], overlap_points=2)
+                    OC = overcluster(qmean.labels_, points, metric='euclidean', overlap=args.tie_count[0], nmax=2)
                 #  set 'method=None' to disable
                 OC, central_points_ids = prune(OC, central_points_ids, method='minsize')
 
@@ -242,6 +242,7 @@ def main():
 
         # compute the time that would take these clusters to run
         A = np.column_stack((np.ones_like(cluster_sizes), cluster_sizes, cluster_sizes**2))
+        # from Grigsby et al 2025
         T = A @ [6.04370855910554, -0.102313555237178, 0.0206316702864554]
         t.append(T.sum())
 

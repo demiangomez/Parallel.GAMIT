@@ -17,11 +17,11 @@ from pathlib import Path
 # deps
 import numpy
 import numpy as np
+from importlib.metadata import version
 
 # app
 from pgamit import pyRinexName
 from pgamit import pyDate
-from pgamit import __version__
 
 
 class UtilsException(Exception):
@@ -33,6 +33,7 @@ class UtilsException(Exception):
 
 
 def add_version_argument(parser):
+    __version__ = version('pgamit')
     parser.add_argument('-v', '--version', action='version', version=f'%(prog)s {__version__}')
     return parser
 
