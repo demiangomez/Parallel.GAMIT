@@ -16,7 +16,7 @@ import base64
 # app
 from pgamit.pyETM import CO_SEISMIC_JUMP_DECAY, CO_SEISMIC_DECAY, LABEL
 from pgamit import Utils
-from pgamit.Utils import stationID
+from pgamit.Utils import stationID, add_version_argument
 from scipy.interpolate import griddata
 from pgamit import pyETM
 from pgamit import dbConnection
@@ -163,6 +163,8 @@ def main():
     parser.add_argument('-missing', '--plot_missing_solutions', action='store_true', default=False,
                         help='Plot the missing solutions in the ETMs stored in the KMZ file (might take longer '
                              'to produce the file).')
+
+    add_version_argument(parser)
 
     args = parser.parse_args()
     cnn = dbConnection.Cnn('gnss_data.cfg')

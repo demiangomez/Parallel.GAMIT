@@ -14,7 +14,7 @@ import os
 from tqdm import tqdm
 
 # app
-from pgamit.Utils import required_length, process_date
+from pgamit.Utils import required_length, process_date, add_version_argument
 from pgamit import pyDate
 from pgamit import dbConnection
 
@@ -42,6 +42,8 @@ def main():
     parser.add_argument('-dir', '--directory', type=str,
                         help="Directory to save the resulting ZTD files. If not specified, assumed to be the "
                              "production directory")
+
+    add_version_argument(parser)
 
     args = parser.parse_args()
 

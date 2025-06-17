@@ -14,6 +14,7 @@ import math
 # app
 from pgamit import pyOkada
 from pgamit import dbConnection
+from pgamit.Utils import add_version_argument
 
 
 def main():
@@ -30,6 +31,8 @@ def main():
                         metavar='{mask_density}', default=[750],
                         help="A value to control the quality of the output mask. "
                              "Recommended for high quality is 1000. For low quality use 250. Default is 750.")
+
+    add_version_argument(parser)
 
     args = parser.parse_args()
 

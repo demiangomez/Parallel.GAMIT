@@ -27,7 +27,7 @@ from pgamit import pyETM
 from pgamit import pyDate
 from pgamit import pyJobServer
 from pgamit import pyOptions
-from pgamit.Utils import process_date, file_write, json_converter
+from pgamit.Utils import process_date, file_write, json_converter, add_version_argument
 from pgamit.pyStack import Polyhedron, np_array_vertices
 from pgamit.pyDate import Date
 
@@ -89,6 +89,10 @@ def compute_dra(ts, NetworkCode, StationCode,
     except Exception as e:
         raise Exception('While working on %s.%s' % (NetworkCode,
                                                     StationCode) + '\n') from e
+
+    return (None, None, None, '', '',
+            filename, NetworkCode,
+            StationCode, 0, 0, 0)
 
 
 class DRA(list):
@@ -274,6 +278,8 @@ def main():
 
     parser.add_argument('-np', '--noparallel', action='store_true',
                         help="Execute command without parallelization.")
+
+    add_version_argument(parser)
 
     args = parser.parse_args()
 

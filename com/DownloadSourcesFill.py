@@ -22,7 +22,7 @@ from pgamit import dbConnection, pyDate
 from pgamit.proto_download import Client
 from pgamit.pyRinexName import path_replace_tags
 from pgamit.Utils import (fqdn_parse, process_date, process_stnlist,
-                          required_length, station_list_help, stationID)
+                          required_length, station_list_help, stationID, add_version_argument)
 
 
 def query_yes_no(question, default="yes"):
@@ -96,6 +96,8 @@ def main():
                         action='store_true', default=False,
                         help='''Always accept a match
                              (without prompting yes/no).''')
+
+    add_version_argument(parser)
 
     args = parser.parse_args()
     cnn = dbConnection.Cnn("gnss_data.cfg")

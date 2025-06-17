@@ -20,7 +20,7 @@ from pgamit import pyOptions
 from pgamit import dbConnection
 from pgamit import pyStationInfo
 from pgamit import pyDate
-from pgamit.Utils import process_date
+from pgamit.Utils import process_date, add_version_argument
 
 
 cnn       = dbConnection.Cnn('gnss_data.cfg')
@@ -491,6 +491,8 @@ def main():
     parser = argparse.ArgumentParser(description='Edit Stations info in the database')
 
     parser.add_argument('stn', type=str, nargs=1, help="Station name given in net.stnm format.")
+
+    add_version_argument(parser)
 
     args = parser.parse_args()
 

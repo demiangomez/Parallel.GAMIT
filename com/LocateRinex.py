@@ -15,7 +15,7 @@ from pgamit import pyProducts
 from pgamit import pyStationInfo
 from pgamit import dbConnection
 from pgamit.pyPPP import PPPSpatialCheck
-from pgamit.Utils import file_readlines
+from pgamit.Utils import file_readlines, add_version_argument
 
 
 def main():
@@ -92,6 +92,8 @@ def main():
                              'appropriate values (based on the date in the RINEX file). Grdtab and otl_grid should '
                              'have the standard names if -otl is invoked and ppp should be in the PATH '
                              '(with executable name = ppp).')
+
+    add_version_argument(parser)
 
     args = parser.parse_args()
 

@@ -7,6 +7,7 @@ except PackageNotFoundError:
     pass
 
 __all__ = [
+    '__version__',
     'cluster',
     'network',
     'plots',

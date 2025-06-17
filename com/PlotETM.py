@@ -28,7 +28,8 @@ from pgamit.Utils import (process_date,
                           file_write,
                           station_list_help,
                           stationID,
-                          print_columns)
+                          print_columns,
+                          add_version_argument)
 
 
 def read_kml_or_kmz(file_path):
@@ -266,6 +267,8 @@ def main():
 
     parser.add_argument('-quiet', '--suppress_messages', action='store_true',
                         help="Quiet mode: suppress information messages")
+
+    add_version_argument(parser)
 
     args = parser.parse_args()
 

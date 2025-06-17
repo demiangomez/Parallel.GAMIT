@@ -19,7 +19,7 @@ import numpy as np
 # app
 from pgamit import pyDate
 from pgamit import Utils
-from pgamit.Utils import file_readlines
+from pgamit.Utils import file_readlines, add_version_argument
 from pgamit import dbConnection
 from pgamit import pyETM
 from pgamit import pyOptions
@@ -94,6 +94,8 @@ def main():
 
     parser.add_argument('-seasonal', '--seasonal_terms', action='store_true',
                         help="Output the seasonal terms in NEU.")
+
+    add_version_argument(parser)
 
     args = parser.parse_args()
 

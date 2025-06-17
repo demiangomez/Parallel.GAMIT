@@ -12,6 +12,7 @@ events (M >= 6)
 import re
 import calendar
 import xmltodict
+import argparse
 from datetime import datetime, timezone
 from tqdm import tqdm
 
@@ -21,6 +22,7 @@ import libcomcat.exceptions as libcome
 
 # app
 from pgamit import dbConnection
+from pgamit.Utils import add_version_argument
 
 TIMEFMT2 = '%Y-%m-%d %H:%M:%S.%f'
 
@@ -174,6 +176,10 @@ class AddEarthquakes:
 
 
 def main():
+    parser = argparse.ArgumentParser(description='Update earthquakes table')
+    add_version_argument(parser)
+    _ = parser.parse_args()
+
     cnn = dbConnection.Cnn('gnss_data.cfg')
     AddEarthquakes(cnn)
 

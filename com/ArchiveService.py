@@ -38,7 +38,8 @@ import argparse
 from tqdm import tqdm
 
 # app
-from pgamit.Utils import file_append, file_try_remove, file_open, dir_try_remove, stationID, get_field_or_attr
+from pgamit.Utils import (file_append, file_try_remove, file_open,
+                          dir_try_remove, stationID, get_field_or_attr, add_version_argument)
 from pgamit import ConvertRaw
 from pgamit import pyJobServer
 from pgamit import pyEvents
@@ -912,6 +913,8 @@ def main():
 
     parser.add_argument('-np', '--noparallel', action='store_true',
                         help="Execute command without parallelization.")
+
+    add_version_argument(parser)
 
     args = parser.parse_args()
 

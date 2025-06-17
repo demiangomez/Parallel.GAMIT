@@ -14,7 +14,7 @@ from pgamit import pyDate
 from pgamit import dbConnection
 from pgamit import pyStationInfo
 from pgamit import Utils
-from pgamit.Utils import stationID
+from pgamit.Utils import stationID, add_version_argument
 
 CONFIG_FILE = 'gnss_data.cfg'
 
@@ -36,6 +36,8 @@ def main():
                              network [net] will be processed.
                              Alternatively, a file with the station
                              list can be provided.''')
+
+    add_version_argument(parser)
 
     args = parser.parse_args()
 

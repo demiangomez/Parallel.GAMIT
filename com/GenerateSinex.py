@@ -16,9 +16,7 @@ from pgamit import pyOptions
 from pgamit import dbConnection
 from pgamit import pyDate
 from pgamit import snxParse
-from pgamit.Utils import (process_date,
-                   process_stnlist,
-                   file_open)
+from pgamit.Utils import (process_date, process_stnlist, file_open, add_version_argument)
 
 
 def replace_in_sinex(sinex, observations, unknowns, new_val):
@@ -106,6 +104,8 @@ def main():
 
     parser.add_argument('-d', '--date_filter', nargs='+', metavar='date',
                         help='Date range filter can be specified in yyyy/mm/dd yyyy_doy  wwww-d format')
+
+    add_version_argument(parser)
 
     args = parser.parse_args()
 

@@ -29,7 +29,7 @@ import re
 from pgamit import Utils
 # app
 from pgamit import dbConnection
-from pgamit.Utils import file_write, file_readlines, process_stnlist, stationID, import_blq
+from pgamit.Utils import file_write, file_readlines, process_stnlist, stationID, import_blq, add_version_argument
 
 
 def main():
@@ -40,6 +40,8 @@ def main():
 
     parser.add_argument('-stn', '--station_list', type=str, nargs='+',
                         help="Limit the output to the provided station list.")
+
+    add_version_argument(parser)
 
     args = parser.parse_args()
 

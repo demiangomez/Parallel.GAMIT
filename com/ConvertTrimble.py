@@ -11,7 +11,7 @@ import os
 
 # app
 from pgamit.ConvertRaw import ConvertRaw
-from pgamit.Utils import required_length
+from pgamit.Utils import required_length, add_version_argument
 
 
 def main():
@@ -39,6 +39,8 @@ def main():
                              a single match is expected (otherwise an
                              exception will be raised). Optionally,
                              provide the antenna serial number.''')
+
+    add_version_argument(parser)
 
     args = parser.parse_args()
     path = os.path.abspath(args.path[0])

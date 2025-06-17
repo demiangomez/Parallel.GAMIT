@@ -21,7 +21,7 @@ from tqdm import tqdm
 # app
 from pgamit import pyDate
 from pgamit import pyOptions
-from pgamit.Utils import required_length, process_date
+from pgamit.Utils import required_length, process_date, add_version_argument
 from pgamit import pyRunWithRetry
 
 # Old FTP server:
@@ -57,6 +57,8 @@ def main():
 
     parser.add_argument('-win', '--window', nargs=1, metavar='days', type=int,
                         help="Download data from a given time window determined by today - {days}.")
+
+    add_version_argument(parser)
 
     try:
         args   = parser.parse_args()
@@ -103,6 +105,8 @@ def main():
                 with open(down_path, 'wb') as f:
                     ftp.retrbinary("RETR " + ftp_filename, f.write)
                 return True
+            else:
+                return False
 
         def replace_vars(archive, date):
             return archive.replace('$year',     str(date.year)) \

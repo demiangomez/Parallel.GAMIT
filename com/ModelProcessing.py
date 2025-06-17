@@ -18,7 +18,7 @@ from pgamit.pyDate import Date
 from pgamit import dbConnection
 from pgamit.pyDate import Date
 from pgamit.cluster import BisectingQMeans, select_central_point, over_cluster, prune, DeterministicClustering
-from pgamit.Utils import station_list_help, process_date, process_stnlist, stationID
+from pgamit.Utils import station_list_help, process_date, process_stnlist, stationID, add_version_argument
 from pgamit.plots import plot_global_network, plot_geographic_cluster_graph
 
 
@@ -125,8 +125,10 @@ def main():
     parser.add_argument('-tc', '--ties_classic', action='store_true', default=False,
                         help="Classic ties. Default is qmeans.")
 
-    parser.add_argument('-v', '--verbose', action='store_true', default=False,
+    parser.add_argument('-vb', '--verbose', action='store_true', default=False,
                         help="Verbose mode.")
+
+    add_version_argument(parser)
 
     args = parser.parse_args()
 

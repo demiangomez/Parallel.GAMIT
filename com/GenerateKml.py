@@ -27,7 +27,7 @@ from tqdm import tqdm
 # app
 from pgamit import dbConnection, pyDate, pyJobServer, pyOptions, pyStationInfo
 from pgamit.pyGamitConfig import GamitConfiguration
-from pgamit.Utils import process_stnlist, stationID, plot_rinex_completion
+from pgamit.Utils import process_stnlist, stationID, plot_rinex_completion, add_version_argument
 
 global kml, folder_project, folder_allstns, stnlist
 
@@ -70,6 +70,8 @@ def main():
 
     parser.add_argument('-np', '--noparallel', action='store_true',
                         help="Execute command without parallelization.")
+
+    add_version_argument(parser)
 
     args = parser.parse_args()
 

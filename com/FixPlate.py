@@ -22,7 +22,7 @@ from pgamit import dbConnection, pyETM
 from pgamit.pyDate import Date
 from pgamit.pyLeastSquares import adjust_lsq
 from pgamit.pyOkada import ScoreTable
-from pgamit.Utils import (cart2euler, get_stack_stations, process_stnlist,
+from pgamit.Utils import (cart2euler, get_stack_stations, process_stnlist, add_version_argument,
                           stationID, file_write, xyz2sphere_lla, required_length, print_columns)
 
 
@@ -540,6 +540,8 @@ def main():
                         a list of station names and coordinates or, alternatively 
                         as a kmz file (if filename given as 6th argument, do not 
                         include extension).''')
+
+    add_version_argument(parser)
 
     args = parser.parse_args()
 

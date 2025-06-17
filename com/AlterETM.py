@@ -7,7 +7,7 @@ import copy
 # app
 from pgamit import dbConnection
 from pgamit import Utils
-from pgamit.Utils import required_length, process_date,station_list_help
+from pgamit.Utils import required_length, process_date, station_list_help, add_version_argument
 from pgamit.pyBunch import Bunch
 from pgamit import pyETM
 
@@ -67,6 +67,8 @@ def main():
 
     parser.add_argument('-print', '--print_params', action='store_true',
                         help="Print the parameters present in the database for the selected stations.")
+
+    add_version_argument(parser)
 
     args = parser.parse_args()
 

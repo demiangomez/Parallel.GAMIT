@@ -28,7 +28,7 @@ from pgamit.Utils import (process_date,
                           file_readlines,
                           file_open,
                           stationID,
-                          print_columns,
+                          add_version_argument,
                           process_stnlist)
 
 
@@ -152,6 +152,8 @@ def calculate_etms(cnn, stack, JobServer, iterations, create_target=True, exclud
                 target.append([])
 
         return target
+    else:
+        return None
 
 
 def load_periodic_space(periodic_file):
@@ -285,6 +287,8 @@ def main():
                              'or fyear format')
 
     parser.add_argument('-np', '--noparallel', action='store_true', help="Execute command without parallelization.")
+
+    add_version_argument(parser)
 
     args = parser.parse_args()
 

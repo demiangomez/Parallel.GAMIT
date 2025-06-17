@@ -8,7 +8,7 @@ Script to convert from one date type to others
 
 import argparse
 
-from pgamit.Utils import process_date
+from pgamit.Utils import process_date, add_version_argument
 
 
 def main():
@@ -18,6 +18,8 @@ def main():
     parser.add_argument('date', type=str, nargs=1, metavar='date to convert',
                         help='''Date to convert from. Allowable formats
                         are yyyy/mm/dd yyyy_doy wwww-d format''')
+
+    add_version_argument(parser)
 
     args = parser.parse_args()
 

@@ -8,7 +8,7 @@ import os
 
 # app
 from pgamit import pyStationInfo
-from pgamit.Utils import file_read_all
+from pgamit.Utils import file_read_all, add_version_argument
 
 
 def main():
@@ -25,6 +25,8 @@ def main():
 
     parser.add_argument('-ins', '--insert_sql', action='store_true',
                         help="Produce a SQL INSERT statement for this station including OTL and coordinates.")
+
+    add_version_argument(parser)
 
     args = parser.parse_args()
 

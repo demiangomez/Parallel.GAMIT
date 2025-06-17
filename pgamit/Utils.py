@@ -21,6 +21,7 @@ import numpy as np
 # app
 from pgamit import pyRinexName
 from pgamit import pyDate
+from pgamit import __version__
 
 
 class UtilsException(Exception):
@@ -29,6 +30,11 @@ class UtilsException(Exception):
         
     def __str__(self):
         return str(self.value)
+
+
+def add_version_argument(parser):
+    parser.add_argument('-v', '--version', action='version', version=f'%(prog)s {__version__}')
+    return parser
 
 
 def cart2euler(x, y, z):

@@ -22,7 +22,7 @@ from pgamit import Utils
 from pgamit import pyDate
 from pgamit import snxParse
 from pgamit import pyGamitConfig
-from pgamit.Utils import split_string, file_open, file_readlines, stationID, chmod_exec
+from pgamit.Utils import split_string, file_open, file_readlines, stationID, chmod_exec, add_version_argument
 
 
 def replace_in_sinex(sinex, observations, unknowns, new_val):
@@ -253,6 +253,8 @@ def main():
     parser.add_argument('-e', '--exclude', type=str, nargs='+', metavar='station',
                         help="List of stations to exclude (e.g. -e igm1 lpgs vbca)")
 
+    add_version_argument(parser)
+
     args = parser.parse_args()
 
     cnn = dbConnection.Cnn("gnss_data.cfg")
@@ -408,6 +410,7 @@ def main():
     print(' >> Formatting the SINEX file')
 
     process_sinex(cnn, project, [date_s, date_e], globk_pwd + '/' + org + date_s.wwww() + '7.snx')
+
 
 if __name__ == '__main__':
     main()

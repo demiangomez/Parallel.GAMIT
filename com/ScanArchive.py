@@ -96,7 +96,7 @@ from pgamit import pyOptions
 from pgamit import Utils
 from pgamit import pyJobServer
 from pgamit import pyEvents
-from pgamit.Utils import (print_columns,
+from pgamit.Utils import (add_version_argument,
                           process_date,
                           ecef2lla,
                           file_append,
@@ -1379,6 +1379,8 @@ def main():
                              "survey data). Default is zero.")
 
     parser.add_argument('-np', '--noparallel', action='store_true', help="Execute command without parallelization.")
+
+    add_version_argument(parser)
 
     args = parser.parse_args()
 

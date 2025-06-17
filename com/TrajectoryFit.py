@@ -28,7 +28,7 @@ from pgamit import dbConnection
 from pgamit import Utils
 from pgamit import pyETM
 from pgamit import pyDate
-from pgamit.Utils import stationID, file_write
+from pgamit.Utils import stationID, file_write, add_version_argument
 from pgamit.pyETM import CO_SEISMIC_JUMP_DECAY, CO_SEISMIC_DECAY
 
 
@@ -428,6 +428,8 @@ def main():
                              "{output_filename}. Additionally, provide [event_date_n] and [event_grid_n] if a previous "
                              "postsiesmic processes should be removed from the ETMs. If no [event_date_n] are given, "
                              "then any previous events are ignored (but they could still be present in the ETM fit).")
+
+    add_version_argument(parser)
 
     args = parser.parse_args()
 

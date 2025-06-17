@@ -45,7 +45,7 @@ from pgamit import (Utils, dbConnection, pyArchiveStruct, pyJobServer,
 from pgamit.pyDate import Date
 from pgamit.pyRinexName import path_replace_tags
 from pgamit.Utils import (dir_try_remove, file_try_remove, fqdn_parse,
-                          process_date, required_length, stationID)
+                          process_date, required_length, stationID, add_version_argument)
 
 SERVER_REFRESH_INTERVAL = 2   # in seconds
 SERVER_CONNECTION_TIMEOUT = 20  # in seconds
@@ -1470,6 +1470,8 @@ def main():
 
     parser.add_argument('-np', '--noparallel', action='store_true',
                         help="Execute command without parallelization.")
+
+    add_version_argument(parser)
 
     try:
         args = parser.parse_args()

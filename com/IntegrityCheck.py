@@ -33,7 +33,8 @@ from pgamit import pyStationInfo
 from pgamit import pyArchiveStruct
 from pgamit import pyPPP
 from pgamit import Utils
-from pgamit.Utils import process_date, ecef2lla, parse_atx_antennas, determine_frame, station_list_help
+from pgamit.Utils import (process_date, ecef2lla, parse_atx_antennas,
+                          determine_frame, station_list_help, add_version_argument)
 from pgamit import pyJobServer
 from pgamit import pyEvents
 
@@ -999,6 +1000,8 @@ def main():
 
     parser.add_argument('-np', '--noparallel', action='store_true',
                         help="Execute command without parallelization.")
+
+    add_version_argument(parser)
 
     args = parser.parse_args()
 

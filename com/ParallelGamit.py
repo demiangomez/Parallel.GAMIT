@@ -41,7 +41,8 @@ from pgamit.Utils import (process_date,
                           parseIntSet,
                           indent,
                           file_append,
-                          stationID)
+                          stationID,
+                          add_version_argument)
 
 
 def prYellow(skk):
@@ -341,6 +342,8 @@ def main():
 
     parser.add_argument('-np', '--noparallel', action='store_true',
                         help="Execute command without parallelization.")
+
+    add_version_argument(parser)
 
     args = parser.parse_args()
 
