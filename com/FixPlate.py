@@ -173,9 +173,10 @@ def analize_candidates(cnn, args):
             pt = folder_rejected.newpoint(name=stationID(stn), coords=[(stn['lon'], stn['lat'])])
             pt.stylemap = styles_nok
 
-        import cgi
-        import html
-        cgi.escape = html.escape
+        # DDG Jun 17 2025: the wrong version of simplekml was being used, now using latest
+        # import cgi
+        # import html
+        # cgi.escape = html.escape
 
         kml.savekmz(kmz_file + '.kmz')
 

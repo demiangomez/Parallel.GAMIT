@@ -353,9 +353,10 @@ class Score(object):
         """
         Exports coseismic mask as a KMZ file with proper polygon separation.
         """
-        import cgi
-        import html
-        cgi.escape = html.escape
+        # DDG Jun 17 2025: the wrong version of simplekml was being used, now using latest
+        # import cgi
+        # import html
+        # cgi.escape = html.escape
 
         # First, transform the scalar field coordinates using inv_azimuthal
         c_lon, c_lat = inv_azimuthal(self.c_mx, self.c_my, self.lon, self.lat)

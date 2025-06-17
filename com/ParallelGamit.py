@@ -491,12 +491,13 @@ def generate_kml(dates, sessions, GamitConfig):
     if not os.path.exists('production'):
         os.makedirs('production')
 
+    # DDG Jun 17 2025: the wrong version of simplekml was being used, now using latest
     # to fix the issue from simple kml
     # AttributeError: module 'cgi' has no attribute 'escape'
     # see: https://github.com/tjlang/simplekml/issues/38
-    import cgi
-    import html
-    cgi.escape = html.escape
+    # import cgi
+    # import html
+    # cgi.escape = html.escape
 
     kml.savekmz('production/' + GamitConfig.NetworkConfig.network_id.lower() + '.kmz')
 
