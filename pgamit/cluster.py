@@ -421,7 +421,7 @@ class BisectingQMeans(_BaseKMeans):
             n_init=n_init,
         )
 
-        self.max_size = qmax
+        self.qmax = qmax
         self.copy_x = copy_x
         self.algorithm = algorithm
         self.bisect = True
@@ -492,7 +492,7 @@ class BisectingQMeans(_BaseKMeans):
 
         counts = np.bincount(best_labels, minlength=2)
         scores = counts
-        if (counts[0] + counts[1] >= self.max_size):
+        if (counts[0] + counts[1] >= self.qmax):
             cluster_to_bisect.split(best_labels, best_centers, scores)
         else:
             self.bisect = False
@@ -568,7 +568,7 @@ class BisectingQMeans(_BaseKMeans):
 
             # Split this cluster into 2 subclusters
             # if cluster_to_bisect is not None:
-            if cluster_to_bisect.score > self.max_size:
+            if cluster_to_bisect.score > self.qmax:
                 self._bisect(X, x_squared_norms, sample_weight,
                              cluster_to_bisect)
             else:
