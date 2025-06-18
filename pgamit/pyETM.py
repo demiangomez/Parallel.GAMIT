@@ -25,6 +25,7 @@ try:
     VERSION = str(version("pgamit"))
 except PackageNotFoundError:
     # package is not installed
+    VERSION = 'NOT_AVAIL'
     pass
 
 # add to supper WARNING message: Warning: Ignoring XDG_SESSION_TYPE=wayland on Gnome.
@@ -1138,7 +1139,12 @@ class Jump(EtmFunction):
                     return True, jump
                 else:
                     return False, None
-        # @todo possible bug when returning None here?
+            else:
+                # @todo possible bug when falling in this case?
+                return False, None
+        else:
+            # @todo possible bug when falling in this case?
+            return False, None
 
     def __str__(self):
         return 'date=' + str(self.date) + \
@@ -1755,26 +1761,26 @@ class Polynomial(EtmFunction):
             elif self.terms == 2:
                 self.format_str = LABEL('position') + ' (%.3f' % t_ref + \
                                   ') X: {:.3f} Y: {:.3f} Z: {:.3f} [m]\n' \
-                                  + LABEL('velocity') + (' N: {:.2f} $\pm$ {:.2f} E: {:.2f} $\pm$ {:.2f} '
-                                                         'U: {:.2f} $\pm$ {:.2f} [mm/yr]')
+                                  + LABEL('velocity') + (r' N: {:.2f} $\pm$ {:.2f} E: {:.2f} $\pm$ {:.2f} '
+                                                         r'U: {:.2f} $\pm$ {:.2f} [mm/yr]')
                 self.p.metadata = '[[n:pos, n:vel],[e:pos, e:vel],[u:pos, u:vel]]'
 
             elif self.terms == 3:
                 self.format_str = LABEL('position') + ' (%.3f' % t_ref + \
                                   ') X: {:.3f} Y: {:.3f} Z: {:.3f} [m]\n' \
-                                  + LABEL('velocity') + (' N: {:.3f} $\pm$ {:.2f} E: {:.3f} $\pm$ {:.2f} '
-                                                         'U: {:.3f} $\pm$ {:.2f} [mm/yr]\n') \
-                                  + LABEL('acceleration') + (' N: {:.2f} $\pm$ {:.2f} E: {:.2f} $\pm$ {:.2f} '
-                                                             'U: {:.2f} $\pm$ {:.2f} [mm/yr**2]')
+                                  + LABEL('velocity') + (r' N: {:.3f} $\pm$ {:.2f} E: {:.3f} $\pm$ {:.2f} '
+                                                         r'U: {:.3f} $\pm$ {:.2f} [mm/yr]\n') \
+                                  + LABEL('acceleration') + (r' N: {:.2f} $\pm$ {:.2f} E: {:.2f} $\pm$ {:.2f} '
+                                                             r'U: {:.2f} $\pm$ {:.2f} [mm/yr**2]')
                 self.p.metadata = '[[n:pos, n:vel, n:acc],[e:pos, e:vel, e:acc],[u:pos, u:vel, u:acc]]'
 
             elif self.terms > 3:
                 self.format_str = LABEL('position') + ' (%.3f' % t_ref + \
                                   ') X: {:.3f} Y: {:.3f} Z: {:.3f} [m]\n' \
-                                  + LABEL('velocity') + (' N: {:.3f} $\pm$ {:.2f} E: {:.3f} $\pm$ {:.2f} '
-                                                         'U: {:.3f} $\pm$ {:.2f} [mm/yr]\n') \
-                                  + LABEL('acceleration') + (' N: {:.2f} $\pm$ {:.2f} E: {:.2f} $\pm$ {:.2f} '
-                                                             'U: {:.2f} $\pm$ {:.2f} [mm/yr**2] + ') \
+                                  + LABEL('velocity') + (r' N: {:.3f} $\pm$ {:.2f} E: {:.3f} $\pm$ {:.2f} '
+                                                         r'U: {:.3f} $\pm$ {:.2f} [mm/yr]\n') \
+                                  + LABEL('acceleration') + (r' N: {:.2f} $\pm$ {:.2f} E: {:.2f} $\pm$ {:.2f} '
+                                                             r'U: {:.2f} $\pm$ {:.2f} [mm/yr**2] + ') \
                                   + '%i ' % (self.terms - 3) + LABEL('other')
                 self.p.metadata = '[[n:pos, n:vel, n:acc, n:tx...],' \
                                   '[e:pos, e:vel, e:acc, e:tx...],' \

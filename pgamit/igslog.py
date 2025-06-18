@@ -7,7 +7,7 @@ https://github.com/GeoscienceAustralia/gnssanalysis/blob/main/gnssanalysis/gn_io
 Revisions by Patrick D Smith, Jan 2025
 """
 
-"""
+r"""
 notes from PDS Jan 2025
 
 _REGEX_ID_V1 appears to be missing the parenthesis between OR aka | operator:

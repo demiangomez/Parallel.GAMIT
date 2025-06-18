@@ -635,7 +635,7 @@ class GamitTask(object):
             oc_site_count = re.findall(r'WARNING: (\d+).*over constrained', summary)
             result['relaxed_constrains'] = []
             if oc_site_count:
-                p = 'WARNING: \d+.*over constrained.*(?:\n.*){%s}' % oc_site_count[0]
+                p = r'WARNING: \d+.*over constrained.*(?:\n.*){%s}' % oc_site_count[0]
                 match_sites  = re.findall(p, summary)[0]
                 # extract the sites and their over constrained parameters
                 oc_sites_vals  = re.findall(r'GCR APTOL (\w+).{10}\s+(-?\d+.\d+)', match_sites)

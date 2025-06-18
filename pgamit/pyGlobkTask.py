@@ -105,7 +105,7 @@ class Globk(object):
 
         with run_file:
             contents = \
-            """#!/bin/bash
+            r"""#!/bin/bash
 
             export INSTITUTE=%s
 
@@ -139,7 +139,7 @@ class Globk(object):
                 echo " apr_svs all 0.05 0.05 0.05 0.005 0.005 0.005 0.01 0.01 0.00 0.01 FR"  >> globk.cmd
                 """
             contents += \
-            """
+            r"""
             echo " max_chii  1. 0.6"                                                     >> globk.cmd
             echo " apr_neu  all 1 1 1 0 0 0"                                             >> globk.cmd
             echo "#apr_atm  all 1 1 1"                                                   >> globk.cmd

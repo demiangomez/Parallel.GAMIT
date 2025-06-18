@@ -13,13 +13,14 @@ import simplekml
 import numpy as np
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+import json
 
 from pgamit.pyDate import Date
 from pgamit import dbConnection
 from pgamit.pyDate import Date
 from pgamit.cluster import BisectingQMeans, select_central_point, overcluster, prune
 from pgamit.agglomerative import DeterministicClustering
-from pgamit.Utils import station_list_help, process_date, process_stnlist, stationID, add_version_argument
+from pgamit.Utils import station_list_help, process_date, process_stnlist, stationID, add_version_argument, file_write
 from pgamit.plots import plot_global_network, plot_geographic_cluster_graph
 
 
@@ -123,6 +124,10 @@ def main():
 
     parser.add_argument('-plots', '--plots', action='store_true', default=False,
                         help="Produce plots with stats at the end of the run.")
+
+    parser.add_argument('-json', '--export_json', nargs=1, type=str,
+                        metavar='{filename}', default=None,
+                        help="Export results (station count per cluster per day) in json format.")
 
     parser.add_argument('-tc', '--ties_classic', action='store_true', default=False,
                         help="Classic ties. Default is qmeans.")
@@ -238,8 +243,8 @@ def main():
             cluster_ids = []
 
         cluster_sizes = OC.sum(axis=1)  # array of shape (num_clusters,)
-        x.extend([mjd] * len(cluster_sizes))  # repeat day for each cluster
-        y.extend(cluster_sizes)  # add all cluster sizes for that day
+        x.extend([int(mjd)] * len(cluster_sizes))  # repeat day for each cluster
+        y.extend(cluster_sizes.tolist())  # add all cluster sizes for that day
 
         # compute the time that would take these clusters to run
         A = np.column_stack((np.ones_like(cluster_sizes), cluster_sizes, cluster_sizes**2))
@@ -275,6 +280,10 @@ def main():
                % (dates[0].yyyyddd(), dates[1].yyyyddd(), np.sum(np.array(t)) / 60.))
     tqdm.write(' -- Wall time using %i cores: %.1f hours' % (args.core_count[0],
                                                              np.sum(np.array(t))/args.core_count[0] / 60.))
+
+    if args.export_json:
+        file_write(args.export_json[0] + '.json',
+                   json.dumps({'mjd': x, 'station_per_clusters': y}, indent=4, sort_keys=False))
 
     if args.plots:
         fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(14, 8))
