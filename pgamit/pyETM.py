@@ -542,14 +542,14 @@ class GamitSoln:
             if self.solutions >= 1:
                 a = np.array(polyhedrons, dtype=float)
 
-                if np.sqrt(np.square(np.sum(np.square(a[0, 0:3])))) > 6.3e3:
+                if np.sqrt(np.sum(np.square(a[0, 0:3]))) > 6.3e3:
                     # coordinates given in XYZ
-                    nb = np.sqrt(np.square(np.sum(
-                        np.square(a[:, 0:3] - np.array([stn['auto_x'], stn['auto_y'], stn['auto_z']])), axis=1))) \
+                    nb = np.sqrt(np.sum(
+                        np.square(a[:, 0:3] - np.array([stn['auto_x'], stn['auto_y'], stn['auto_z']])), axis=1)) \
                          <= self.max_dist
                 else:
                     # coordinates are differences
-                    nb = np.sqrt(np.square(np.sum(np.square(a[:, 0:3]), axis=1))) <= self.max_dist
+                    nb = np.sqrt(np.sum(np.square(a[:, 0:3]), axis=1)) <= self.max_dist
 
                 if np.any(nb):
                     self.x = a[nb, 0]
@@ -568,8 +568,8 @@ class GamitSoln:
                     # gaps: find all days without solutions which can be considered gaps in data
                     self.gaps = np.setdiff1d(self.mjds, self.mjd)
                 else:
-                    dd = np.sqrt(np.square(np.sum(
-                        np.square(a[:, 0:3] - np.array([stn['auto_x'], stn['auto_y'], stn['auto_z']])), axis=1)))
+                    dd = np.sqrt(np.sum(
+                        np.square(a[:, 0:3] - np.array([stn['auto_x'], stn['auto_y'], stn['auto_z']])), axis=1))
 
                     raise pyETMException('No viable GAMIT solutions available for %s (all blunders!)\n'
                                          '  -> min distance to station coordinate is %.1f meters'
@@ -648,16 +648,16 @@ class ListSoln(GamitSoln):
             if self.solutions >= 1:
                 a = np.array(polyhedrons, dtype=float)
 
-                if np.sqrt(np.square(np.sum(np.square(a[0, 0:3])))) > 6.3e3:
+                if np.sqrt(np.sum(np.square(a[0, 0:3]))) > 6.3e3:
                     # coordinates given in XYZ
-                    nb = np.sqrt(np.square(np.sum(
-                        np.square(a[:, 0:3] - np.array([self.auto_x[0],
-                                                        self.auto_y[0],
-                                                        self.auto_z[0]])), axis=1))) \
+                    nb = np.sqrt(np.sum(np.square(a[:, 0:3] -
+                                                  np.array([self.auto_x[0],
+                                                            self.auto_y[0],
+                                                            self.auto_z[0]])), axis=1)) \
                          <= self.max_dist
                 else:
                     # coordinates are differences
-                    nb = np.sqrt(np.square(np.sum(np.square(a[:, 0:3]), axis=1))) <= self.max_dist
+                    nb = np.sqrt(np.sum(np.square(a[:, 0:3]), axis=1)) <= self.max_dist
 
                 if np.any(nb):
                     self.x = a[nb, 0]
@@ -676,10 +676,10 @@ class ListSoln(GamitSoln):
                     # gaps: find all days without solutions which can be considered gaps in data
                     self.gaps = np.setdiff1d(self.mjds, self.mjd)
                 else:
-                    dd = np.sqrt(np.square(np.sum(
-                        np.square(a[:, 0:3] - np.array([self.auto_x[0],
-                                                        self.auto_y[0],
-                                                        self.auto_z[0]])), axis=1)))
+                    dd = np.sqrt(np.sum(np.square(a[:, 0:3] -
+                                                  np.array([self.auto_x[0],
+                                                            self.auto_y[0],
+                                                            self.auto_z[0]])), axis=1))
 
                     raise pyETMException('No viable GAMIT solutions available for %s (all blunders!)\n'
                                          '  -> min distance to station coordinate is %.1f meters'
@@ -3497,6 +3497,10 @@ class DailyRep(ETM):
 
         ETM.__init__(self, cnn, self.soln, no_model, FitEarthquakes=False, FitGenericJumps=False,
                      FitPeriodic=False, plotit=plotit)
+
+        # @todo: add back the saving of excluded solutions for IGN
+        # if self.A is not None:
+        #   self.save_excluded_soln(cnn)
 
     def get_residuals_dict(self):
         # this function return the values of the ETM ONLY

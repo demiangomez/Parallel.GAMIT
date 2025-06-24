@@ -325,9 +325,9 @@ def main():
         fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(14, 8))
         axs[1].hist(ties_count)
         axs[1].grid(True, linestyle='--', linewidth=0.5, alpha=0.7)
-        axs[1].set_xlabel('Ties per cluster')
+        axs[1].set_xlabel('Overlaps per cluster')
         axs[1].set_ylabel('Frequency')
-        axs[1].set_title('Ties histogram', fontsize=14, fontweight='bold')
+        axs[1].set_title('Overlap histogram', fontsize=14, fontweight='bold')
 
         axs[0].hist(cluster_count)
         axs[0].grid(True, linestyle='--', linewidth=0.5, alpha=0.7)
