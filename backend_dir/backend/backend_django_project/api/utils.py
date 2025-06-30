@@ -78,9 +78,11 @@ class StationUtils:
 
         file_content = file.read()
         file_as_string = file_content.decode('utf-8')
-
         harpos_parsed = pyUtils.import_blq(
             file_as_string, network_code, station_code)
+
+        if len(harpos_parsed) > 0 and 'otl' in harpos_parsed[0]:
+            harpos_parsed = harpos_parsed[0]['otl']
 
         return harpos_parsed
 
