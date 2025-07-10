@@ -6,8 +6,6 @@ Author: Demian D. Gomez
 
 import struct
 import datetime
-import zlib
-import re
 from json import JSONEncoder
 import os
 
@@ -15,7 +13,6 @@ import os
 import numpy as np
 
 # app
-from pgamit import dbConnection
 from pgamit import pyDate
 from pgamit.pyBunch import Bunch
 from pgamit import pyEvents

@@ -242,7 +242,7 @@ class RunPPP(PPPSpatialCheck):
 
         fieldnames = ('NetworkCode', 'StationCode', 'X', 'Y', 'Z', 'Year', 'DOY',
                       'ReferenceFrame', 'sigmax', 'sigmay',
-                      'sigmaz', 'sigmaxy', 'sigmaxz', 'sigmayz', 'hash')
+                      'sigmaz', 'sigmaxy', 'sigmaxz', 'sigmayz', 'hash', 'orbit')
 
         self.record = dict.fromkeys(fieldnames)
 
@@ -417,6 +417,8 @@ class RunPPP(PPPSpatialCheck):
         self.eop_file   = eop_file
         # get the type of orbit
         self.orbit_type = orbits1.type
+        # DDG: new -> add the value of the orbit hash to the PPP hash to include the orbit type
+        self.hash += orbits1.hash
 
     def get_text(self, summary, start, end):
         copy = False
@@ -581,8 +583,8 @@ class RunPPP(PPPSpatialCheck):
             if not self.check_phase_center(self.proc_parameters):
                 raise pyRunPPPException(
                     'Error while running PPP: could not find the antenna and radome in antex file. '
-                    'Check RINEX header for formatting issues in the ANT # / TYPE field. RINEX header follows:\n' + ''.join(
-                        self.rinex.get_header()))
+                    'Check RINEX header for formatting issues in the ANT # / TYPE field. RINEX header follows:\n' +
+                    ''.join(self.rinex.get_header()))
 
             if not self.check_otl(self.proc_parameters):
                 raise pyRunPPPException(
@@ -744,6 +746,7 @@ class RunPPP(PPPSpatialCheck):
         self.record['sigmaxz']        = self.sigmaxz
         self.record['sigmayz']        = self.sigmayz
         self.record['hash']           = self.hash
+        self.record['orbit']          = self.orbits1.filename
 
     def cleanup(self):
         if os.path.isdir(self.rootdir) and self.erase:

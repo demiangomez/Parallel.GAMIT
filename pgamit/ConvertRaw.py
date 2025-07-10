@@ -167,7 +167,7 @@ class ConvertRaw(object):
 
         err = os.path.join(tmp_dir, 'err.txt')
 
-        os.system('teqc -tr d %s > %s 2> %s' % (tgd, rinex, err))
+        os.system('teqc +C2 +L5 +L8 -tr d %s > %s 2> %s' % (tgd, rinex, err))
 
         self.logger.append(Event(Description='Executed teqc -tr d %s > %s 2> %s' % (tgd, rinex, err)))
 

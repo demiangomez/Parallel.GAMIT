@@ -13,7 +13,7 @@ from datetime import datetime
 from pgamit import pyRunWithRetry
 from pgamit import pyEvents
 from pgamit import pyDate
-from pgamit.Utils import file_open, file_try_remove, indent
+from pgamit.Utils import file_open, file_try_remove, crc32
 
 
 class pyProductsException(Exception):
@@ -79,6 +79,7 @@ class OrbitalProduct:
         self.archive_filename = ''
         self.version  = 0
         self.interval = 0
+        self.hash     = 0
 
         # DDG: new behavior -> search for all available versions of a file and use largest one
         # first, check if letter is upper case, which means we are getting a long filename
@@ -166,6 +167,9 @@ class GetSp3Orbits(OrbitalProduct):
             except pyProductsException:
                 # if the file was not found, go to next
                 continue
+
+        # create a hash value with the name of the orbit file
+        self.hash = crc32(self.sp3_filename)
 
         # if we get here and self.sp3_path is still none, then no type of sp3 file was found
         if self.sp3_path is None:

@@ -855,7 +855,7 @@ def struct_unpack(fs, data):
 # also returns a positive int (ints are bignums on python 3)
 def crc32(s):
     x = zlib_crc32(bytes(s, 'utf-8'))
-    return x - ((x & 0x80000000) <<1)
+    return x - ((x & 0x80000000) << 1)
 
 
 # Text files

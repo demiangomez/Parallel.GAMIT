@@ -4,7 +4,7 @@ try:
     __version__ = version("pgamit")
 except PackageNotFoundError:
     # package is not installed
-    pass
+    __version__ = "0.0.0"
 
 __all__ = [
     'cluster',
@@ -45,4 +45,10 @@ __all__ = [
     'pyStation'
 ]
 
-from pgamit import *
+from importlib import import_module
+
+for _name in __all__:
+    try:
+        globals()[_name] = import_module(f'.{_name}', __name__)
+    except Exception:
+        pass
