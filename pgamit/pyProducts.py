@@ -169,7 +169,7 @@ class GetSp3Orbits(OrbitalProduct):
                 continue
 
         # create a hash value with the name of the orbit file
-        self.hash = crc32(self.sp3_filename)
+        self.hash = crc32(self.archive_filename)
 
         # if we get here and self.sp3_path is still none, then no type of sp3 file was found
         if self.sp3_path is None:

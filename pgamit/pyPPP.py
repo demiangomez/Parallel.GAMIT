@@ -746,7 +746,7 @@ class RunPPP(PPPSpatialCheck):
         self.record['sigmaxz']        = self.sigmaxz
         self.record['sigmayz']        = self.sigmayz
         self.record['hash']           = self.hash
-        self.record['orbit']          = self.orbits1.filename
+        self.record['orbit']          = self.orbits1.archive_filename
 
     def cleanup(self):
         if os.path.isdir(self.rootdir) and self.erase:
