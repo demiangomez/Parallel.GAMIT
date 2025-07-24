@@ -1769,7 +1769,7 @@ class Polynomial(EtmFunction):
                 self.format_str = LABEL('position') + ' (%.3f' % t_ref + \
                                   ') X: {:.3f} Y: {:.3f} Z: {:.3f} [m]\n' \
                                   + LABEL('velocity') + (r' N: {:.3f} $\pm$ {:.2f} E: {:.3f} $\pm$ {:.2f} '
-                                                         r'U: {:.3f} $\pm$ {:.2f} [mm/yr]\n') \
+                                                         r'U: {:.3f} $\pm$ {:.2f} [mm/yr]' + '\n') \
                                   + LABEL('acceleration') + (r' N: {:.2f} $\pm$ {:.2f} E: {:.2f} $\pm$ {:.2f} '
                                                              r'U: {:.2f} $\pm$ {:.2f} [mm/yr**2]')
                 self.p.metadata = '[[n:pos, n:vel, n:acc],[e:pos, e:vel, e:acc],[u:pos, u:vel, u:acc]]'
@@ -1778,7 +1778,7 @@ class Polynomial(EtmFunction):
                 self.format_str = LABEL('position') + ' (%.3f' % t_ref + \
                                   ') X: {:.3f} Y: {:.3f} Z: {:.3f} [m]\n' \
                                   + LABEL('velocity') + (r' N: {:.3f} $\pm$ {:.2f} E: {:.3f} $\pm$ {:.2f} '
-                                                         r'U: {:.3f} $\pm$ {:.2f} [mm/yr]\n') \
+                                                         r'U: {:.3f} $\pm$ {:.2f} [mm/yr]' + '\n') \
                                   + LABEL('acceleration') + (r' N: {:.2f} $\pm$ {:.2f} E: {:.2f} $\pm$ {:.2f} '
                                                              r'U: {:.2f} $\pm$ {:.2f} [mm/yr**2] + ') \
                                   + '%i ' % (self.terms - 3) + LABEL('other')

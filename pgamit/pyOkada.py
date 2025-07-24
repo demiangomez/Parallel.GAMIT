@@ -115,7 +115,7 @@ class EarthquakeTable(object):
     """
     Given a connection to the database and an earthquake id, find all stations affected by the given event
     """
-    def __init__(self, cnn, earthquake_id):
+    def __init__(self, cnn, earthquake_id, include_postseismic=True):
         self.stations = []
 
         # get the earthquakes based on Mike's expression
@@ -135,13 +135,16 @@ class EarthquakeTable(object):
 
             dist = distance(stn['lon'], stn['lat'], eq['lon'], eq['lat'])
             # Obtain level-1 s-score to make the process faster: do not use events outside of level-1 s-score
-            # inflate the score to also include postseismic events
-            s = a * eq['mag'] - np.log10(dist) + b + np.log10(POST_SEISMIC_SCALE_FACTOR)
+            # inflate the score to also include postseismic events if include_postseismic=True
+            if include_postseismic:
+                s = a * eq['mag'] - np.log10(dist) + b + np.log10(POST_SEISMIC_SCALE_FACTOR)
+            else:
+                s = a * eq['mag'] - np.log10(dist) + b
 
             if s > 0 and rake:
                 # check the actual score if rake, otherwise no need to check
                 sc, sp = score.score(stn['lat'], stn['lon'])
-                if sc > 0 or sp > 0:
+                if sc > 0 or (sp > 0 and include_postseismic):
                     self.stations.append(stn)
             elif s > 0:
                 # append the station because no L2 s-score
