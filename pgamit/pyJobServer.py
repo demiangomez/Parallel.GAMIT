@@ -320,12 +320,14 @@ class JobServer:
             # initialize the cluster
             # if explicitly declared, then we might have a multi-homed computer system
             self.cluster = dispy.JobCluster(test_node,
-                                            servers, 
+                                            servers,
                                             recover_file   = 'pg.dat',
                                             pulse_interval = 10,
                                             ping_interval  = 10,
                                             cluster_status = self.check_cluster,
-                                            host           = self.ip_address)
+                                            host           = self.ip_address
+                                                             if type(self.ip_address) is list or self.ip_address is None
+                                                             else [self.ip_address])
 
             # discover the available nodes
             self.cluster.discover_nodes(servers)

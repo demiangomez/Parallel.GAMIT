@@ -3471,7 +3471,7 @@ class GamitETM(ETM):
 class DailyRep(ETM):
 
     def __init__(self, cnn, NetworkCode, StationCode, plotit=False,
-                 no_model=False, gamit_soln=None, project=None):
+                 no_model=False, gamit_soln=None, project=None, save_excluded=False):
 
         if gamit_soln is None:
             # self.polyhedrons = cnn.query_float('SELECT "X", "Y", "Z", "Year", "DOY" FROM gamit_soln '
@@ -3499,8 +3499,8 @@ class DailyRep(ETM):
                      FitPeriodic=False, plotit=plotit)
 
         # @todo: add back the saving of excluded solutions for IGN
-        # if self.A is not None:
-        #   self.save_excluded_soln(cnn)
+        if self.A is not None and save_excluded:
+            self.save_excluded_soln(cnn)
 
     def get_residuals_dict(self):
         # this function return the values of the ETM ONLY

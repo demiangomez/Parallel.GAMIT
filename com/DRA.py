@@ -48,7 +48,7 @@ def sql_select(project, fields, date2):
 
 
 def compute_dra(ts, NetworkCode, StationCode,
-                pdates, project, histogram=False):
+                pdates, project, histogram=False, save_excluded=False):
     try:
         # load from the db
         cnn = dbConnection.Cnn('gnss_data.cfg')
@@ -65,7 +65,7 @@ def compute_dra(ts, NetworkCode, StationCode,
                                          StationCode, project)
 
                 etm = pyETM.DailyRep(cnn, NetworkCode, StationCode,
-                                     False, False, dra_ts)
+                                     False, False, dra_ts, save_excluded=save_excluded)
 
                 figfile = ''
                 hisfile = ''
@@ -257,24 +257,26 @@ def main():
     global stn_stats, wrms_n, wrms_e, wrms_u, project
 
     parser = argparse.ArgumentParser(
-        description='GNSS daily repetitivities analysis (DRA)')
+        description='GNSS daily repeatability analysis (DRA)')
 
     parser.add_argument('project', type=str, nargs=1, metavar='{project name}',
                         help='''Specify the project name used to process
                              the GAMIT solutions in Parallel.GAMIT.''')
 
     parser.add_argument('-d', '--date_filter', nargs='+', metavar='date',
-                        help='''Date range filter. Can be specified in
-                        yyyy/mm/dd yyyy_doy  wwww-d format''')
+                        help="Date range filter. Can be specified in yyyy/mm/dd yyyy_doy  wwww-d format")
 
     parser.add_argument('-w', '--plot_window', nargs='+', metavar='date',
-                        help='''Date window range to plot. Can be specified
-                        in yyyy/mm/dd yyyy_doy  wwww-d format''')
+                        help="Date window range to plot. Can be specified in yyyy/mm/dd yyyy_doy  wwww-d format")
+
     parser.add_argument('-hist', '--histogram', action='store_true',
-                        help="Plot a histogram of the daily repetitivities")
-    parser.add_argument('-v', '--verbose', action='store_true',
-                        help='''Provide additional information during the
-                        alignment process (for debugging purposes)''')
+                        help="Plot a histogram of the daily repeatabilities")
+
+    parser.add_argument('-se', '--save_excluded', action='store_true',
+                        help="Save the DRA outliers to gamit_soln_excl for use with WeeklyCombination")
+
+    parser.add_argument('-verb', '--verbose', action='store_true',
+                        help="Provide additional information during the alignment process (for debugging purposes)")
 
     parser.add_argument('-np', '--noparallel', action='store_true',
                         help="Execute command without parallelization.")
@@ -360,7 +362,7 @@ def main():
 
         ts = dra.get_station(NetworkCode, StationCode)
         JobServer.submit(ts, NetworkCode, StationCode, pdates,
-                         project, args.histogram)
+                         project, args.histogram, args.save_excluded)
 
     JobServer.wait()
     qbar.close()
