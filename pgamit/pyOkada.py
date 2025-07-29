@@ -55,10 +55,12 @@ version 1.0  (PYTHON) translated by Demian Gomez        15 May 24
 """
 import numpy as np
 import math
+
 from scipy.spatial     import KDTree
 from datetime          import timedelta
 import simplekml
 import io
+import zipfile
 import base64
 from skimage.measure import find_contours
 from shapely.geometry import Polygon
@@ -66,6 +68,7 @@ from obspy.imaging.beachball import beachball
 
 from pgamit.pyDate import Date
 from pgamit import pyETM as etm
+from pgamit import dbConnection
 
 cosd  = lambda x : np.cos(np.deg2rad(x))
 sind  = lambda x : np.sin(np.deg2rad(x))
@@ -121,7 +124,8 @@ class EarthquakeTable(object):
         # get the earthquakes based on Mike's expression
         # earthquakes before the start data: only magnitude 7+
         eq   = cnn.get('earthquakes', {'id': earthquake_id})
-        stns = cnn.query_float('SELECT * FROM stations WHERE "NetworkCode" NOT LIKE \'?%\' AND '
+        stns = cnn.query_float('SELECT "NetworkCode", "StationCode", lat, lon, height, auto_x, auto_y, auto_z '
+                               'FROM stations WHERE "NetworkCode" NOT LIKE \'?%\' AND '
                                'lat IS NOT NULL AND lon IS NOT NULL', as_dict=True)
 
         strike = [float(eq['strike1']), float(eq['strike2'])] if not math.isnan(eq['strike1']) else []
@@ -235,13 +239,16 @@ class Score(object):
         self.location = location
         self.event_id = event_id
 
+        # init variables
+        self.along_strike_l = None
+        self.downdip_l      = None
+        self.avg_disp       = None
+        self.rupture_area   = None
+        self.maximum_disp   = None
+
         # compute fault dimensions from Wells and Coppersmith 1994
         # all lengths and displacements reported in m
-        self.along_strike_l = 10. ** (-3.22 + 0.69 * self.mag) * 1000  # [m]
-        self.downdip_l      = 10. ** (-1.01 + 0.32 * self.mag) * 1000  # [m]
-        self.avg_disp       = 10. ** (-4.80 + 0.69 * self.mag)         # [m]
-        self.rupture_area   = 10. ** (-3.49 + 0.91 * self.mag)         # [km ** 2]
-        self.maximum_disp   = 10. ** (-5.46 + 0.82 * self.mag)         # [m]
+        self.fault_dims()
 
         # to compute okada
         self.c_mx = np.array([])
@@ -272,6 +279,15 @@ class Score(object):
         # save the interpolator to make the score response faster
         self.kd_c = KDTree(np.column_stack((self.c_mx.flatten(), self.c_my.flatten())))
         self.kd_p = KDTree(np.column_stack((self.p_mx.flatten(), self.p_my.flatten())))
+
+    def fault_dims(self):
+        # compute fault dimensions from Wells and Coppersmith 1994
+        # all lengths and displacements reported in m
+        self.along_strike_l = 10. ** (-3.22 + 0.69 * self.mag) * 1000  # [m]
+        self.downdip_l      = 10. ** (-1.01 + 0.32 * self.mag) * 1000  # [m]
+        self.avg_disp       = 10. ** (-4.80 + 0.69 * self.mag)         # [m]
+        self.rupture_area   = 10. ** (-3.49 + 0.91 * self.mag)         # [km ** 2]
+        self.maximum_disp   = 10. ** (-5.46 + 0.82 * self.mag)         # [m]
 
     def compute_disp_field(self, scale_factor=1., limit=1e-3):
         # source dimensions L is horizontal, and W is depth
@@ -495,6 +511,80 @@ class Score(object):
                 np.savetxt(txt_file, np.column_stack((c_lon, c_lat, self.c_mask.flatten())))
 
         return kml.kml()
+
+
+class Mask(Score):
+    """
+    A mask object takes an earthquake id as a parameter and calculates the mask or loads it from the database
+    """
+
+    def __init__(self, cnn: dbConnection, earthquake_id: str, density=750):
+        # first check that the new fields exist or create them
+        if 'density' not in cnn.get_columns('earthquakes').keys():
+            cnn.begin_transac()
+            cnn.query("""
+                    ALTER TABLE earthquakes
+                    ADD COLUMN density INTEGER   DEFAULT NULL,
+                    ADD COLUMN c_kml   TEXT      DEFAULT NULL,
+                    ADD COLUMN cp_kml  TEXT      DEFAULT NULL;
+                    """)
+            cnn.commit_transac()
+
+        # check that the index exists
+        idx = cnn.query("SELECT * FROM pg_indexes WHERE tablename = 'earthquakes' "
+                        "AND indexname = 'earthquake_id_key'")
+
+        if not len(idx):
+            cnn.begin_transac()
+            cnn.query("""CREATE UNIQUE INDEX earthquake_id_key ON earthquakes (id);""")
+            cnn.commit_transac()
+
+        eq = cnn.get('earthquakes', {'id': earthquake_id})
+
+        strike = [float(eq['strike1']), float(eq['strike2'])] if not math.isnan(eq['strike1']) else []
+        dip = [float(eq['dip1']), float(eq['dip2'])] if not math.isnan(eq['strike1']) else []
+        rake = [float(eq['rake1']), float(eq['rake2'])] if not math.isnan(eq['strike1']) else []
+
+        super().__init__(float(eq['lat']), float(eq['lon']), float(eq['depth']), float(eq['mag']),
+                         strike, dip, rake, eq['date'], density=density, location=eq['location'], event_id=eq['id'])
+
+        if eq['density'] is None:
+            # need to call super
+            self.c_kml = super().save_masks(include_postseismic=False)
+            self.cp_kml = super().save_masks(include_postseismic=True)
+
+            # save values to database only if density is 750 or above
+            if density >= 750:
+                cnn.update('earthquakes', {'density': density, 'c_kml'  : self.c_kml, 'cp_kml' : self.cp_kml},
+                           id=eq['id'])
+        else:
+            self.c_kml = eq['c_kml']
+            self.cp_kml = eq['cp_kml']
+
+    def save_masks(self, txt_file=None, kmz_file=None, include_postseismic=False):
+        """
+        Completely override the parent's save_mask method
+        """
+        if not include_postseismic:
+            kml_stream = io.BytesIO(self.c_kml.encode('utf-8'))
+        else:
+            kml_stream = io.BytesIO(self.cp_kml.encode('utf-8'))
+
+        # Create the KMZ file (a zip archive)
+        with zipfile.ZipFile(kmz_file, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
+            # Write the KML string into the KMZ file
+            zf.writestr('doc.kml', kml_stream.getvalue())
+
+        if txt_file is not None:
+            # First, transform the scalar field coordinates using inv_azimuthal
+            c_lon, c_lat = inv_azimuthal(self.c_mx, self.c_my, self.lon, self.lat)
+            # inverse azimuthal equidistant (coseismic)
+            if include_postseismic:
+                np.savetxt(txt_file, np.column_stack((c_lon, c_lat, self.c_mask.flatten(), self.p_mask.flatten())))
+            else:
+                np.savetxt(txt_file, np.column_stack((c_lon, c_lat, self.c_mask.flatten())))
+
+        return self.cp_kml if include_postseismic else self.c_kml
 
 
 def okada(alpha, x, y, d, L1, L2, W1, W2, snd, csd, B1, B2, B3):

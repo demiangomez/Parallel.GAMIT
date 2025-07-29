@@ -14,7 +14,7 @@ import math
 # app
 from pgamit import pyOkada
 from pgamit import dbConnection
-from pgamit.Utils import add_version_argument
+from pgamit.Utils import add_version_argument, stationID
 
 
 def main():
@@ -26,6 +26,9 @@ def main():
 
     parser.add_argument('-post', '--postseismic', action='store_true',
                         help="Include the postseismic S-score", default=False)
+
+    parser.add_argument('-table', '--output_table', action='store_true',
+                        help="Output the list of stations affected by the requested earthquake", default=False)
 
     parser.add_argument('-density', '--mask_density', nargs=1, type=int,
                         metavar='{mask_density}', default=[750],
@@ -43,15 +46,14 @@ def main():
         if len(event):
             event = event.dictresult()[0]
 
-            strike = [float(event['strike1']), float(event['strike2'])] if not math.isnan(event['strike1']) else []
-            dip = [float(event['dip1']), float(event['dip2'])] if not math.isnan(event['strike1']) else []
-            rake = [float(event['rake1']), float(event['rake2'])] if not math.isnan(event['strike1']) else []
+            mask = pyOkada.Mask(cnn, event['id'])
+            mask.save_masks(kmz_file=eq + '.kmz', include_postseismic=args.postseismic)
 
-            score = pyOkada.Score(event['lat'], event['lon'], event['depth'], event['mag'], strike, dip, rake,
-                                  event['date'], density=args.mask_density[0], location=event['location'],
-                                  event_id=event['id'])
-
-            score.save_masks(kmz_file=eq + '.kmz', include_postseismic=args.postseismic)
+            if args.output_table:
+                table = pyOkada.EarthquakeTable(cnn, event['id'], args.postseismic)
+                print('Affected stations for %s' % event['id'])
+                for stn in table.stations:
+                    print(stationID(stn))
         else:
             print(' -- Event %s not found' % eq)
 
