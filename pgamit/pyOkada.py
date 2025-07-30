@@ -119,7 +119,8 @@ class EarthquakeTable(object):
     Given a connection to the database and an earthquake id, find all stations affected by the given event
     """
     def __init__(self, cnn, earthquake_id, include_postseismic=True):
-        self.stations = []
+        self.c_stations = []
+        self.p_stations = []
 
         # get the earthquakes based on Mike's expression
         # earthquakes before the start data: only magnitude 7+
@@ -140,19 +141,24 @@ class EarthquakeTable(object):
             dist = distance(stn['lon'], stn['lat'], eq['lon'], eq['lat'])
             # Obtain level-1 s-score to make the process faster: do not use events outside of level-1 s-score
             # inflate the score to also include postseismic events if include_postseismic=True
-            if include_postseismic:
-                s = a * eq['mag'] - np.log10(dist) + b + np.log10(POST_SEISMIC_SCALE_FACTOR)
-            else:
-                s = a * eq['mag'] - np.log10(dist) + b
+            sp = a * eq['mag'] - np.log10(dist) + b + np.log10(POST_SEISMIC_SCALE_FACTOR)
+            sc = a * eq['mag'] - np.log10(dist) + b
 
-            if s > 0 and rake:
+            if (sc > 0 or sp > 0) and rake:
                 # check the actual score if rake, otherwise no need to check
                 sc, sp = score.score(stn['lat'], stn['lon'])
-                if sc > 0 or (sp > 0 and include_postseismic):
-                    self.stations.append(stn)
-            elif s > 0:
+                if sc > 0:
+                    self.c_stations.append(dict(stn))
+                elif sp > 0 and include_postseismic:
+                    self.p_stations.append(dict(stn))
+            elif sc > 0:
                 # append the station because no L2 s-score
-                self.stations.append(stn)
+                self.c_stations.append(dict(stn))
+            elif sp > 0 and include_postseismic:
+                self.p_stations.append(dict(stn))
+
+        self.c_stations = sorted(self.c_stations, key=lambda x: x['StationCode'])
+        self.p_stations = sorted(self.p_stations, key=lambda x: x['StationCode'])
 
 
 class ScoreTable(object):
@@ -565,17 +571,18 @@ class Mask(Score):
         """
         Completely override the parent's save_mask method
         """
-        if not include_postseismic:
-            kml_stream = io.BytesIO(self.c_kml.encode('utf-8'))
-        else:
-            kml_stream = io.BytesIO(self.cp_kml.encode('utf-8'))
+        if kmz_file:
+            if not include_postseismic:
+                kml_stream = io.BytesIO(self.c_kml.encode('utf-8'))
+            else:
+                kml_stream = io.BytesIO(self.cp_kml.encode('utf-8'))
 
-        # Create the KMZ file (a zip archive)
-        with zipfile.ZipFile(kmz_file, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
-            # Write the KML string into the KMZ file
-            zf.writestr('doc.kml', kml_stream.getvalue())
+            # Create the KMZ file (a zip archive)
+            with zipfile.ZipFile(kmz_file, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
+                # Write the KML string into the KMZ file
+                zf.writestr('doc.kml', kml_stream.getvalue())
 
-        if txt_file is not None:
+        if txt_file:
             # First, transform the scalar field coordinates using inv_azimuthal
             c_lon, c_lat = inv_azimuthal(self.c_mx, self.c_my, self.lon, self.lat)
             # inverse azimuthal equidistant (coseismic)

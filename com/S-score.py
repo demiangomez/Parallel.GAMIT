@@ -14,7 +14,7 @@ import math
 # app
 from pgamit import pyOkada
 from pgamit import dbConnection
-from pgamit.Utils import add_version_argument, stationID
+from pgamit.Utils import add_version_argument, stationID, print_columns
 
 
 def main():
@@ -51,9 +51,14 @@ def main():
 
             if args.output_table:
                 table = pyOkada.EarthquakeTable(cnn, event['id'], args.postseismic)
-                print('Affected stations for %s' % event['id'])
-                for stn in table.stations:
-                    print(stationID(stn))
+                print(' >> Stations affected by %s (co+post-seismic)' % event['id'])
+                print_columns([stationID(stn) for stn in table.c_stations])
+
+                if args.postseismic:
+                    print(' >> Stations affected by %s (post-seismic only)' % event['id'])
+                    print_columns([stationID(stn) for stn in table.p_stations])
+                else:
+                    print(' >> Post-seismic affected stations not requested')
         else:
             print(' -- Event %s not found' % eq)
 
