@@ -119,8 +119,10 @@ class EarthquakeTable(object):
     Given a connection to the database and an earthquake id, find all stations affected by the given event
     """
     def __init__(self, cnn, earthquake_id, include_postseismic=True):
+        self.earthquake_id = earthquake_id
         self.c_stations = []
         self.p_stations = []
+        self.cnn = cnn
 
         # get the earthquakes based on Mike's expression
         # earthquakes before the start data: only magnitude 7+
@@ -159,6 +161,31 @@ class EarthquakeTable(object):
 
         self.c_stations = sorted(self.c_stations, key=lambda x: x['StationCode'])
         self.p_stations = sorted(self.p_stations, key=lambda x: x['StationCode'])
+
+    def get_coseismic_displacements(self, stack='ppp'):
+        # find co-seismic only and co+post-seismic
+        etms = self.cnn.query_float(f"SELECT \"NetworkCode\", \"StationCode\", params, relaxation, "
+                                    f"ARRAY_LENGTH(relaxation,1) as len, jump_type FROM etms "
+                                    f"WHERE jump_type in (10, 15) "
+                                    f"AND metadata like '%{self.earthquake_id}%' and stack = '{stack}'", as_dict=True)
+
+        displacements = []
+
+        for etm in etms:
+            if etm['jump_type'] == 15:
+                displacements.append({"NetworkCode": etm['NetworkCode'],
+                                      "StationCode": etm['StationCode'],
+                                      "n"          : etm['params'][0],
+                                      "e"          : etm['params'][1],
+                                      "u"          : etm['params'][2]})
+            else:
+                displacements.append({"NetworkCode": etm['NetworkCode'],
+                                      "StationCode": etm['StationCode'],
+                                      "n": etm['params'][0],
+                                      "e": etm['params'][1 + etm['len']],
+                                      "u": etm['params'][2 + 2*etm['len']]})
+
+        return sorted(displacements, key=lambda x: x['StationCode'])
 
 
 class ScoreTable(object):

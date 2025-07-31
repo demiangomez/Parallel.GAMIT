@@ -27,8 +27,14 @@ def main():
     parser.add_argument('-post', '--postseismic', action='store_true',
                         help="Include the postseismic S-score", default=False)
 
+    parser.add_argument('-disp', '--output_displacements', nargs='?', type=str,
+                        metavar='[stack_name]', const='ppp',
+                        help="Output the displacements produced by the requested earthquake. "
+                             "By default, the ppp ETM solution is printed. To output another stack ETM, specify "
+                             "provide a stack_name.")
+
     parser.add_argument('-table', '--output_table', action='store_true',
-                        help="Output the list of stations affected by the requested earthquake", default=False)
+                        help="Output the list of stations affected by the requested earthquake.", default=False)
 
     parser.add_argument('-density', '--mask_density', nargs=1, type=int,
                         metavar='{mask_density}', default=[750],
@@ -51,14 +57,23 @@ def main():
 
             if args.output_table:
                 table = pyOkada.EarthquakeTable(cnn, event['id'], args.postseismic)
-                print(' >> Stations affected by %s (co+post-seismic)' % event['id'])
+                print(' >> Stations affected by %s (id %s, co+post-seismic)' % (event['location'], event['id']))
                 print_columns([stationID(stn) for stn in table.c_stations])
 
                 if args.postseismic:
-                    print(' >> Stations affected by %s (post-seismic only)' % event['id'])
+                    print(' >> Stations affected by %s (id %s, post-seismic only)' % (event['location'], event['id']))
                     print_columns([stationID(stn) for stn in table.p_stations])
                 else:
                     print(' >> Post-seismic affected stations not requested')
+
+            if args.output_displacements:
+                table = pyOkada.EarthquakeTable(cnn, event['id'], args.postseismic)
+                print(' >> Co-seismic displacements produced by %s '
+                      '(id %s, NEU, stack name %s)' % (event['location'], event['id'], args.output_displacements))
+
+                for stn in table.get_coseismic_displacements(args.output_displacements):
+                    print('%s : %6.3f %6.3f %6.3f' % (stationID(stn), stn['n'], stn['e'], stn['u']))
+
         else:
             print(' -- Event %s not found' % eq)
 
