@@ -1,0 +1,60 @@
+[workspace]
+preview = ["pixi-build"]
+channels = ["conda-forge"]
+platforms = ["osx-arm64", "linux-64"]
+
+[package]
+name = "pgamit"
+version = "1.2.36"
+description = "Parallel.GAMIT"
+repository = "https://github.com/demiangomez/Parallel.GAMIT"
+authors = ["Demian Gomez"]
+
+[package.build]
+backend = { name = "pixi-build-python", version = "*" }
+
+[package.host-dependencies]
+python     = "==3.10"     # keep host Python in line with run-time Python
+setuptools = "*"          # required by pgamit’s build backend
+wheel      = "*"          # best practice with setuptools
+pip        = "*"          # already implicitly present, declare explicitly
+
+[dependencies]
+python = "==3.10"
+pgamit = { path = "." }
+basemap = "*"
+geopy = "*"
+h5py = "*"
+matplotlib = "*"
+networkx = "*"
+numpy = ">=1.19.5"
+pandas = "*"
+paramiko = "*"
+psycopg2-binary = "*"
+scandir = ">=1.6"
+scikit-learn = ">=1.1"
+scipy = "*"
+tqdm = "*"
+pytest = "*"
+xmltodict = "*"
+scikit-image = "*"
+shapely = "*"
+obspy = "*"
+pip = "*"
+
+[pypi-dependencies]
+country-converter = "*"
+dispy = "*"
+hdf5storage = "*"
+simplekml = "*"
+usgs-libcomcat = "*"
+
+[pypi-options]
+# avoid pip-bin isolation for local editable install
+no-build-isolation = ["pgamit"]
+
+[tasks]
+# check-external = "which gfzrnx && which crx2rnx && which gpspace && which sh_gamit"
+# pgamit = "pgamit --help"
+# plot = "PlotETM.py <sitecode>"
+

@@ -4,8 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pgamit"
-dynamic = ["version", "keywords"]
 description = "A Python wrapper to parallelize GAMIT executions"
+readme = "README.md"
+license = { file = "LICENSE" }
+dynamic = ["version"]
 authors = [
   { name = "Demián D. Gómez", email = "demiang@gmail.com"},
 ]
@@ -13,13 +15,13 @@ maintainers = [
   { name = "Demián D. Gómez", email = "demiang@gmail.com"},
   { name = "Shane Grigsby (espg)", email = "refuge@rocktalus.com" },
 ]
-license = { file = "LICENSE" }
-readme = "README.md"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
+keywords = ["GAMIT", "GNSS", "geodesy", "parallel"]
+
 requires-python = ">=3.10"
 dependencies = [
     "numpy",

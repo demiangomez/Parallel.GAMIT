@@ -102,3 +102,6 @@ parallel_gamit/gnss_data.cfg
 parallel_gamit/link_tables.sh
 
 reinstall_pgamit.sh
+# pixi environments
+.pixi/*
+!.pixi/config.toml
