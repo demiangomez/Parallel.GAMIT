@@ -320,6 +320,9 @@ def main():
                 glx = glob.glob(os.path.join(soln_dir, '*.glx'))
                 
             glx_list.append({'file': glx[0], 'gpsweek': date.wwwwd()})
+            print(' -- Found GLX %s for gps week %i day %i' % (glx[0], date.gpsWeek, date.gpsWeekDay))
+        else:
+            print(' -- WARNING: Could not find GLX for gps week %i day %i' % (date.gpsWeek, date.gpsWeekDay))
 
     # create the earthquakes.txt file to remove outliers
     with file_open(globk_pwd + '/eq_rename.txt', 'w') as fd:
