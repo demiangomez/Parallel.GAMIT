@@ -122,7 +122,7 @@ class Globk:
         for glx in glx_list:
             dst_filename = pwd_comb + '/' + org + glx['gpsweek'] + '.GLX'
             if glx['file'].endswith('gz'):
-                os.system('gunzip -k -c ' + glx['file'] + ' > ' + dst_filename)
+                os.system('gunzip -c ' + glx['file'] + ' > ' + dst_filename)
             else:
                 copyfile(glx['file'], dst_filename)
 
