@@ -1,6 +1,9 @@
 # Automated versioning files
 _version.py
 
+# JetBrains IDE files
+.idea/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -26,6 +29,7 @@ var/
 *.egg-info/
 .installed.cfg
 *.egg
+.mypy_cache/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template

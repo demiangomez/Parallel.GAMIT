@@ -53,8 +53,20 @@ usgs-libcomcat = "*"
 # avoid pip-bin isolation for local editable install
 no-build-isolation = ["pgamit"]
 
+[environments.docs]
+features = ["docs"]
+
+[feature.docs.pypi-dependencies]
+sphinx = "*"
+myst-parser = "*"
+furo = "*"
+sphinx-copybutton = "*"
+sphinx-autobuild = "*"
+sphinx-autodoc-typehints = "*"
+sphinx-argparse-cli = "*"
+
 [tasks]
 # check-external = "which gfzrnx && which crx2rnx && which gpspace && which sh_gamit"
-# pgamit = "pgamit --help"
-# plot = "PlotETM.py <sitecode>"
-
+"docs:serve"     = { cmd = "sphinx-autobuild -b html docs docs/_build/html" }
+"docs:build"     = { cmd = "sphinx-build -b html docs docs/_build/html" }
+"docs:linkcheck" = { cmd = "sphinx-build -b linkcheck docs docs/_build/linkcheck" }
