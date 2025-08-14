@@ -856,12 +856,12 @@ def db_checks(cnn):
                 """)
         cnn.commit_transac()
 
-    if fields['hash'] != 'bigint':
+    if fields['hash'].lower() != 'bigint':
         # check the database to modify the ppp_soln table hash column from integer to bigint
         cnn.begin_transac()
         cnn.query("""
                 ALTER TABLE ppp_soln
-                ALTER COLUMN hash BIGINT;
+                ALTER COLUMN hash TYPE BIGINT;
                 """)
         cnn.commit_transac()
 
