@@ -5,13 +5,16 @@ import { Spinner } from "@componentsReact";
 
 import { formattedDates } from "@utils";
 
-import { EarthquakeData, StationsAffectedServiceData } from "@types";
+import {
+    EarthquakeData,
+    StationsAffectedServiceData,
+    ErrorResponse,
+} from "@types";
 import { ArrowDownTrayIcon, ClipboardIcon } from "@heroicons/react/24/outline";
 import { removeEarthquakesAffectedStationsCache } from "@services";
 import { useAuth } from "@hooks/useAuth";
 import useApi from "@hooks/useApi";
 import { Toast } from "@componentsReact";
-import { ErrorResponse } from "react-router-dom";
 
 interface EarthQuakeScrollerProps {
     forceSyncMapScroller: number;

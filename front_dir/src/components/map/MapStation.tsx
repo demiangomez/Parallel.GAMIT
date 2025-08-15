@@ -112,7 +112,7 @@ const LoadKmzFromBase64 = ({
                     const geojson = toGeoJSON.kml(dom);
 
                     const geoJsonLayer = L.geoJSON(geojson, {
-                        pointToLayer: (feature, latlng) =>
+                        pointToLayer: (_, latlng) =>
                             L.circleMarker(latlng, { radius: 0, opacity: 0 }),
                         style: (feature) => ({
                             color: feature?.properties?.stroke || color,
