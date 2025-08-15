@@ -1,20 +1,46 @@
 import { useEffect, useRef, useState } from "react";
-import { Alert, ConfirmDeleteModal, MenuButton, Menu, MenuContent, Modal} from "@componentsReact";
-import { delPeopleService, getUsersService, patchPeopleService, postPeopleService} from "@services";
+import {
+    Alert,
+    ConfirmDeleteModal,
+    MenuButton,
+    Menu,
+    MenuContent,
+    Modal,
+} from "@componentsReact";
+import {
+    delPeopleService,
+    getUsersService,
+    patchPeopleService,
+    postPeopleService,
+} from "@services";
 import { useAuth, useApi, useFormReducer } from "@hooks";
 import { apiOkStatuses, showModal } from "@utils";
-import { Errors, ErrorResponse, People, ExtendedPeople, UsersData, UsersServiceData} from "@types";
+import {
+    Errors,
+    ErrorResponse,
+    People,
+    ExtendedPeople,
+    UsersData,
+    UsersServiceData,
+} from "@types";
 
 interface Props {
     Person: People | undefined;
+    people?: People[];
     modalType: string;
     reFetch: () => void;
-    setStateModal: React.Dispatch<React.SetStateAction<| { show: boolean; title: string; type: "add" | "edit" | "none" }| undefined>>;
-    setPerson: React.Dispatch<React.SetStateAction<People | undefined>>;
+    setStateModal?: React.Dispatch<
+        React.SetStateAction<
+            | { show: boolean; title: string; type: "add" | "edit" | "none" }
+            | undefined
+        >
+    >;
+    setPerson?: React.Dispatch<React.SetStateAction<People | undefined>>;
 }
 
 const StationPeopleModal = ({
     Person,
+    people,
     modalType,
     reFetch,
     setStateModal,
@@ -23,13 +49,35 @@ const StationPeopleModal = ({
     const { token, logout } = useAuth();
     const api = useApi(token, logout);
 
+    const [duplicateError, setDuplicateError] = useState<string | undefined>(
+        undefined,
+    );
+
     const [matchingUsers, setMatchingUsers] = useState<UsersData[] | undefined>(
         undefined,
     );
 
+    const isDuplicate = (first: string, last: string) => {
+        if (!people || people.length === 0) return false;
+        const f = (first ?? "").trim().toLowerCase();
+        const l = (last ?? "").trim().toLowerCase();
+        return people.some((p) => {
+            const pf = (p.first_name ?? "").trim().toLowerCase();
+            const pl = (p.last_name ?? "").trim().toLowerCase();
+            const samePerson = Person && Number(Person.id) === Number(p.id);
+            return pf === f && pl === l && !samePerson;
+        });
+    };
+
     const [loading, setLoading] = useState<boolean>(false);
     const [msg, setMsg] = useState<
-        { status: number; msg: string; errors?: Errors } | undefined
+        | {
+              status: number;
+              msg: string;
+              errors?: Errors;
+              rinex_other_errors?: { [key: string]: string[] } | undefined;
+          }
+        | undefined
     >(undefined);
 
     const [users, setUsers] = useState<UsersData[]>([]);
@@ -199,8 +247,10 @@ const StationPeopleModal = ({
         }
     };
 
+    //
+
     const handleCloseModal = () => {
-        setPerson(undefined);
+        setPerson?.(undefined);
         reFetch();
     };
 
@@ -226,10 +276,35 @@ const StationPeopleModal = ({
             });
         }
 
+        // check duplicate when first_name or last_name changes
+        if (name === "first_name" || name === "last_name") {
+            const newFirst =
+                name === "first_name"
+                    ? value
+                    : ((formState.first_name as string) ?? "");
+            const newLast =
+                name === "last_name"
+                    ? value
+                    : ((formState.last_name as string) ?? "");
+
+            // mensaje más descriptivo para mostrar en el badge y en el modal de confirmación
+            setDuplicateError(
+                isDuplicate(newFirst, newLast) ? "Warning" : undefined,
+            );
+        }
     };
 
     const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
+        if (duplicateError) {
+            setModals({
+                show: true,
+                title: "ConfirmDuplicate",
+                type: modalType === "edit" ? "edit" : "add",
+            });
+            return;
+        }
+
         if (modalType === "edit") {
             patchPerson();
         } else if (modalType === "add") {
@@ -246,16 +321,16 @@ const StationPeopleModal = ({
     }, []);
 
     const inputRef = useRef<HTMLInputElement>(null);
-    
+
     useEffect(() => {
-        if(showMenu){    
+        if (showMenu) {
             inputRef.current?.focus();
         }
-    },[showMenu])
+    }, [showMenu]);
 
     return (
         <Modal
-            close={false}
+            close={true}
             modalId={"EditPerson"}
             size={"smPlus"}
             handleCloseModal={() => handleCloseModal()}
@@ -276,6 +351,10 @@ const StationPeopleModal = ({
                             "photo_actual_file",
                             "user",
                         ];
+
+                        const isNameDup =
+                            !!duplicateError &&
+                            (key === "first_name" || key === "last_name");
                         return (
                             <div className="flex flex-col" key={key + index}>
                                 {key === "photo_actual_file" ? (
@@ -346,7 +425,11 @@ const StationPeopleModal = ({
                                             </div>
                                             <input
                                                 type="text"
-                                                ref={key === "user" ? inputRef :null}
+                                                ref={
+                                                    key === "user"
+                                                        ? inputRef
+                                                        : null
+                                                }
                                                 name={key}
                                                 value={
                                                     formState[
@@ -355,6 +438,16 @@ const StationPeopleModal = ({
                                                 }
                                                 onChange={(e) => {
                                                     handleChange(e.target);
+                                                }}
+                                                onClick={() => {
+                                                    if (key === "user") {
+                                                        setShowMenu({
+                                                            type: key,
+                                                            show: true,
+                                                        });
+                                                    } else {
+                                                        setShowMenu(undefined);
+                                                    }
                                                 }}
                                                 className="grow"
                                                 autoComplete="off"
@@ -365,9 +458,32 @@ const StationPeopleModal = ({
                                                     {errorBadge.code}
                                                 </span>
                                             )}
+                                            {isNameDup && (
+                                                <span
+                                                    className="badge badge-warning ml-2 text-warning-content"
+                                                    title="A person with that first and last name is already registered."
+                                                    role="status"
+                                                    aria-label="Advertencia: nombre duplicado"
+                                                >
+                                                    {duplicateError}
+                                                </span>
+                                            )}
                                             {key === "user" && (
                                                 <MenuButton
-                                                    setShowMenu={setShowMenu}
+                                                    setShowMenu={() =>
+                                                        setShowMenu((prev) =>
+                                                            prev?.show &&
+                                                            prev.type === key
+                                                                ? {
+                                                                      type: key,
+                                                                      show: false,
+                                                                  }
+                                                                : {
+                                                                      type: key,
+                                                                      show: true,
+                                                                  },
+                                                        )
+                                                    }
                                                     showMenu={showMenu}
                                                     typeKey={key}
                                                 />
@@ -399,7 +515,6 @@ const StationPeopleModal = ({
                                                 ))}
                                             </Menu>
                                         ) : null}
-
                                     </>
                                 )}
                             </div>
@@ -407,6 +522,7 @@ const StationPeopleModal = ({
                     })}
                 </div>
                 <Alert msg={msg} />
+
                 {loading && (
                     <div className="w-full text-center">
                         <span className="loading loading-spinner loading-lg self-center"></span>
@@ -444,6 +560,7 @@ const StationPeopleModal = ({
                     </button>
                 </div>
             </form>
+
             {modals && modals?.title === "ConfirmDelete" && (
                 <ConfirmDeleteModal
                     msg={msg}
@@ -457,6 +574,64 @@ const StationPeopleModal = ({
                         });
                     }}
                 />
+            )}
+            {modals && modals?.title === "ConfirmDuplicate" && (
+                <Modal
+                    close={true}
+                    modalId={"ConfirmDuplicate"}
+                    size={"sm"}
+                    handleCloseModal={() =>
+                        setModals({ show: false, title: "", type: "edit" })
+                    }
+                    setModalState={setModals}
+                >
+                    <div className="w-full">
+                        <h3 className="font-bold text-xl mb-2 text-center">
+                            Duplicated
+                        </h3>
+                        <p className="text-md">
+                            A user with that name is already in our system.
+                        </p>
+                        <p className="text-md mt-2">
+                            Would you like to proceed anyway?
+                        </p>
+                        <div className="flex justify-end gap-2 mt-4">
+                            <button
+                                type="button"
+                                className="btn"
+                                onClick={() =>
+                                    setModals({
+                                        show: false,
+                                        title: "",
+                                        type: "edit",
+                                    })
+                                }
+                                disabled={loading}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                className="btn btn-warning"
+                                onClick={async () => {
+                                    setModals({
+                                        show: false,
+                                        title: "",
+                                        type: "edit",
+                                    });
+                                    if (modalType === "edit") {
+                                        await patchPerson();
+                                    } else {
+                                        await postPerson();
+                                    }
+                                }}
+                                disabled={loading}
+                            >
+                                Confirm
+                            </button>
+                        </div>
+                    </div>
+                </Modal>
             )}
         </Modal>
     );

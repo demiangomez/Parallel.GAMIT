@@ -883,6 +883,8 @@ const Rinex = () => {
                 <StatsModal
                     stationInfo={stationInfoByRinex}
                     modalType={modals.type}
+                    typeAddition={"none-clear"}
+                    setTypeAddition={() => undefined}
                     reFetch={() => {
                         // setActivePage(1);
                         rinexFilter ? getRinexFiltered(filters) : getRinex();
@@ -891,7 +893,6 @@ const Rinex = () => {
                         setRinexGroup(undefined);
                     }}
                     setStateModal={setModals}
-                    typeAddition={"none-clear"}
                 />
             )}
         </div>

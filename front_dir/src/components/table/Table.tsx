@@ -11,7 +11,7 @@ import {
     TrashIcon,
 } from "@heroicons/react/24/outline";
 
-import { formattedDates } from "@utils";
+import { dateFromDay, formattedDates } from "@utils";
 import { StationVisitsData } from "@types";
 
 interface TableProps {
@@ -22,6 +22,7 @@ interface TableProps {
     visitsRegister?: boolean;
     deleteRegister?: boolean;
     viewRegister?: boolean;
+    multipleSelect?: boolean;
     titles: string[];
     body: any[][] | undefined;
     alterInfo?: any;
@@ -31,6 +32,8 @@ interface TableProps {
     onClickFunction: () => void;
     onVisitsClickFunction?: () => void;
     onViewClickFunction?: () => void;
+    onClickFunctionWithValue?: (value: any) => void;
+    selectAction?: (rowData: any[]) => void;
 }
 
 const Table = ({
@@ -46,10 +49,13 @@ const Table = ({
     onClickFunction,
     onAlterClickFunction,
     onVisitsClickFunction,
+    onClickFunctionWithValue,
     setState,
     visitsRegister,
     viewRegister,
+    multipleSelect,
     onViewClickFunction,
+    selectAction,
 }: TableProps) => {
     const navigate = useNavigate();
 
@@ -58,6 +64,8 @@ const Table = ({
     >(null);
 
     const [showPassword, setShowPassword] = useState<number | null>(null);
+
+    const [indexCheked, setIndexCheked] = useState<number[]>([]);
 
     return (
         <div
@@ -72,7 +80,6 @@ const Table = ({
                         as Radome Code
                     </caption>
                 )}
-
                 <thead className="">
                     <tr>
                         {titles.length > 0 ? (
@@ -97,7 +104,47 @@ const Table = ({
                                 )}
                                 {viewRegister && (
                                     <th className="text-center text-neutral">
-                                        View
+                                        {table === "people" ? "Detail" : "View"}
+                                    </th>
+                                )}
+                                {multipleSelect && (
+                                    <th className="text-center text-neutral">
+                                        <label className="label">
+                                            Check All
+                                            <input
+                                                type="checkbox"
+                                                checked={
+                                                    indexCheked.length ===
+                                                    body?.length
+                                                }
+                                                onClick={() => {
+                                                    if (
+                                                        onAlterClickFunction !==
+                                                        undefined
+                                                    ) {
+                                                        onAlterClickFunction();
+                                                        if (
+                                                            indexCheked.length !==
+                                                            body?.length
+                                                        ) {
+                                                            const all =
+                                                                Array.from(
+                                                                    {
+                                                                        length:
+                                                                            body?.length ??
+                                                                            0,
+                                                                    },
+                                                                    (_, i) => i,
+                                                                );
+                                                            setIndexCheked(all);
+                                                        } else {
+                                                            setIndexCheked([]);
+                                                        }
+                                                    }
+                                                }}
+                                                className="checkbox ml-2"
+                                            />
+                                        </label>
                                     </th>
                                 )}
                             </>
@@ -163,6 +210,22 @@ const Table = ({
                                 key={index + 1}
                                 className={`${dataOnly && "cursor-pointer hover"}`}
                             >
+                                {selectAction && (
+                                    <td
+                                        key={`select-${index}`}
+                                        className="text-center"
+                                    >
+                                        <button
+                                            className="btn btn-sm btn-circle btn-ghost text-success"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                selectAction(row);
+                                            }}
+                                        >
+                                            ✓
+                                        </button>
+                                    </td>
+                                )}
                                 {!dataOnly && !deleteRegister ? (
                                     <td key={index} className="text-center">
                                         <button
@@ -175,19 +238,61 @@ const Table = ({
                                             📝
                                         </button>
                                     </td>
+                                ) : dataOnly && deleteRegister ? (
+                                    <td key={index} className="text-center">
+                                        <button
+                                            className="btn btn-sm btn-square btn-ghost"
+                                            onClick={() => {
+                                                onClickFunction();
+                                                setState(state?.[index]);
+                                            }}
+                                        >
+                                            <TrashIcon className="size-6 text-red-600" />
+                                        </button>
+                                    </td>
                                 ) : (
                                     dataOnly &&
-                                    deleteRegister && (
+                                    multipleSelect && (
                                         <td key={index} className="text-center">
-                                            <button
-                                                className="btn btn-sm btn-square btn-ghost"
+                                            <input
+                                                type="checkbox"
+                                                className="checkbox"
+                                                checked={indexCheked.includes(
+                                                    index,
+                                                )}
                                                 onClick={() => {
-                                                    onClickFunction();
-                                                    setState(state?.[index]);
+                                                    if (
+                                                        row !== undefined &&
+                                                        onClickFunctionWithValue
+                                                    ) {
+                                                        onClickFunctionWithValue(
+                                                            row,
+                                                        );
+                                                    }
+                                                    setIndexCheked(
+                                                        (prev: number[]) => {
+                                                            if (
+                                                                prev.includes(
+                                                                    index,
+                                                                )
+                                                            ) {
+                                                                return prev.filter(
+                                                                    (
+                                                                        i: number,
+                                                                    ) =>
+                                                                        i !==
+                                                                        index,
+                                                                );
+                                                            } else {
+                                                                return [
+                                                                    ...prev,
+                                                                    index,
+                                                                ];
+                                                            }
+                                                        },
+                                                    );
                                                 }}
-                                            >
-                                                <TrashIcon className="size-6 text-red-600" />
-                                            </button>
+                                            />
                                         </td>
                                     )
                                 )}
@@ -256,8 +361,35 @@ const Table = ({
                                                 isoDateRegex.test(val)
                                             );
                                         };
+
+                                        const isDoyFormat = (val: any) => {
+                                            // Regex para formato DOY: YYYY DDD HH MM SS
+                                            const doyRegex =
+                                                /^\d{4}\s+\d{1,3}\s+\d{2}\s+\d{2}\s+\d{2}$/;
+                                            return (
+                                                typeof val === "string" &&
+                                                doyRegex.test(val.trim())
+                                            );
+                                        };
+
+                                        const formatDoyDate = (
+                                            doyString: string,
+                                        ) => {
+                                            try {
+                                                const date =
+                                                    dateFromDay(doyString);
+                                                return date
+                                                    ? formattedDates(date)
+                                                    : doyString;
+                                            } catch {
+                                                return doyString;
+                                            }
+                                        };
+
                                         const isDate =
                                             isDateFunc(val) && val !== "";
+                                        const isDoy =
+                                            isDoyFormat(val) && val !== "";
 
                                         const flag =
                                             titles[idx] === "country_code" &&
@@ -280,24 +412,18 @@ const Table = ({
                                                                       val as string,
                                                                   ),
                                                               )
-                                                            : (String(val) ??
-                                                              "")
+                                                            : isDoy
+                                                              ? formatDoyDate(
+                                                                    val as string,
+                                                                )
+                                                              : (String(val) ??
+                                                                "")
                                                         : ""
                                                 }
                                                 className={`text-center max-w-[200px] overflow-visible text-ellipsis whitespace-nowrap
-                                                    ${
-                                                        titles[idx] ===
-                                                            "country_code" &&
-                                                        "flex justify-center"
-                                                    }
-                                                    ${
-                                                        row?.[idx] === false
-                                                            ? "text-red-600"
-                                                            : row?.[idx] ===
-                                                                  true &&
-                                                              "text-green-600"
-                                                    }
-                                                        `}
+                    ${titles[idx] === "country_code" && "flex justify-center"}
+                    ${row?.[idx] === false ? "text-red-600" : row?.[idx] === true && "text-green-600"}
+                        `}
                                                 onClick={() => {
                                                     dataOnly &&
                                                         table === "Stations" &&
@@ -429,7 +555,8 @@ const Table = ({
                                                           "Color" ? (
                                                         <div className="overflow-hidden text-ellipsis">
                                                             {val?.length > 15 &&
-                                                            !isDate
+                                                            !isDate &&
+                                                            !isDoy
                                                                 ? val?.substring(
                                                                       0,
                                                                       15,
@@ -440,7 +567,11 @@ const Table = ({
                                                                             val,
                                                                         ),
                                                                     )
-                                                                  : val}
+                                                                  : isDoy
+                                                                    ? formatDoyDate(
+                                                                          val as string,
+                                                                      )
+                                                                    : val}
                                                         </div>
                                                     ) : typeof val ===
                                                       "boolean" ? (
@@ -487,24 +618,30 @@ const Table = ({
                                                     >
                                                         <div>
                                                             {val?.length > 15 &&
-                                                            !isDate
+                                                            !isDate &&
+                                                            !isDoy
                                                                 ? val?.substring(
                                                                       0,
                                                                       15,
                                                                   ) + "..."
-                                                                : val}
+                                                                : isDate
+                                                                  ? formattedDates(
+                                                                        new Date(
+                                                                            val,
+                                                                        ),
+                                                                    )
+                                                                  : isDoy
+                                                                    ? formatDoyDate(
+                                                                          val,
+                                                                      )
+                                                                    : val}
                                                         </div>
                                                         {alterInfo &&
                                                             table !==
                                                                 "Stations" && (
                                                                 <div
-                                                                    className={`absolute -translate-x-2/4 left-[50%] top-auto bottom-6 ${
-                                                                        visibleTooltipIndex ===
-                                                                        index
-                                                                            ? "block"
-                                                                            : "hidden"
-                                                                    } bg-gray-800 text-white p-2 rounded 
-                                                            text-pretty whitespace-nowrap w-[200px] z-50 max-h-[200px] overflow-y-auto`}
+                                                                    className={`absolute -translate-x-2/4 left-[50%] top-auto bottom-6 ${visibleTooltipIndex === index ? "block" : "hidden"}
+                                                                 bg-gray-800 text-white p-2 rounded text-pretty whitespace-nowrap w-[200px] z-50 max-h-[200px] overflow-y-auto`}
                                                                     onMouseEnter={() =>
                                                                         setVisibleTooltipIndex(
                                                                             index,
@@ -554,12 +691,7 @@ const Table = ({
                                                                             );
                                                                         },
                                                                     )}
-                                                                    <div
-                                                                        className="absolute top-[100%] left-2/4 w-0 
-                                                                        -translate-x-2/4 h-0 border-l-8 border-l-transparent 
-                                                                        border-r-8 border-r-transparent border-t-8
-                                                                        border-t-gray-800"
-                                                                    />
+                                                                    <div className="absolute top-[100%] left-2/4 w-0 -translate-x-2/4 h-0 border-l-8 border-l-transparent border-r-8 border-r-transparent border-t-8 border-t-gray-800" />
                                                                 </div>
                                                             )}
                                                     </div>

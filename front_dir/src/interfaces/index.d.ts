@@ -1,7 +1,9 @@
+import { User } from "./index.d";
 declare module "@heroicons/*";
 
 export interface GetParams {
-    without_photo?:boolean;
+    with_people?: boolean;
+    without_photo?: boolean;
     without_actual_files?: boolean;
     network_code?: string;
     thumbnail?: boolean;
@@ -59,6 +61,7 @@ export interface MyMapContainerProps {
     zoom: number;
     scrollWheelZoom: boolean;
     style?: React.CSSProperties;
+    minZoom?: number;
 }
 
 export interface TokenPayload {
@@ -184,8 +187,21 @@ export interface StationServiceData {
 }
 
 export interface StationsAffectedServiceData {
-    affected_stations: StationAffectedInfo[];
-    kml: string;
+    affected_stations_including_postseismic: StationAffectedInfo[];
+    affected_stations_without_postseismic: StationAffectedInfo[];
+    csv_including_postseismic: string;
+    csv_without_postseismic: string;
+    kml_including_postseismic: string;
+    kml_without_postseismic: string;
+    coseismic_displacements: CoseismicDisplacement[];
+}
+
+export interface CoseismicDisplacement {
+    NetworkCode: string;
+    StationCode: string;
+    n: number;
+    e: number;
+    u: number;
 }
 
 export interface StationAffectedInfo {
@@ -407,20 +423,6 @@ export interface CampaignsData {
     statusCode: number;
 }
 
-export interface UsersData {
-    address: string;
-    email: string;
-    first_name: string;
-    id: number | null;
-    is_active: boolean | null;
-    last_name: string;
-    phone: string;
-    photo: string | null;
-    role: { id: number | null; name: string };
-    username: string;
-    passsword?: string;
-}
-
 export interface ExtendedUsersData extends UsersData {
     statusCode: number;
 }
@@ -437,6 +439,13 @@ export interface User {
     photo?: string | null;
     is_active?: boolean | null;
 }
+//heredo de User
+type UsersData = Omit<User, "role"> & {
+    id: number | null;
+    clustering_distance?: string | null;
+    role: { id: number; name: string };
+    person?: People;
+};
 
 export interface Role {
     id: number;
@@ -561,6 +570,7 @@ export interface StationVisitsFilesData {
     name: string;
     id: number;
     visit: number;
+    size?: string;
 }
 
 export interface StationImagesData {
@@ -891,4 +901,68 @@ export interface SourcesStationsData {
     path: string | null;
     server_id: number;
     format: string;
+}
+
+export interface Filter {
+    type?: string;
+    title: string;
+    multiple_titles?: { title: string; label: string }[];
+    input: string | boolean;
+    multiple_inputs?: string[] | { title: string; label: string }[];
+    to?: boolean;
+    label: string;
+}
+export interface TraceData {
+    api_id: number;
+    network_code: string;
+    station_code: string;
+    observation_year: number;
+    observation_month: number;
+    observation_day: number;
+    observation_doy: number;
+    observation_f_year: number;
+    observation_s_time: string;
+    observation_e_time: string;
+    receiver_type: string;
+    receiver_serial: string;
+    receiver_fw: string;
+    antenna_type: string;
+    antenna_serial: string;
+    antenna_dome: string;
+    antenna_height?: float;
+    antenna_code?: string;
+    radome_code?: string;
+    filename: string;
+    interval: number;
+    antenna_offset: float;
+    completion: number;
+    antenna_north?: float;
+    antenna_east?: float;
+    height_code?: string;
+}
+
+// Tipo para la respuesta de la API
+export interface TraceResponse {
+    count: number;
+    total_count: number;
+    data: TraceData[];
+}
+
+// Tipo para los filtros/toggles
+export interface RinexFilters {
+    showHeight: boolean;
+    showHeightCode: boolean;
+    showAntennaCode: boolean;
+    showAntennaSerial: boolean;
+    showAntennaRadome: boolean;
+}
+
+export interface StationInfoFilters {
+    showHeight: boolean;
+    showHeightCode: boolean;
+    showAntennaCode: boolean;
+    showAntennaSerial: boolean;
+    showNorth: boolean;
+    showEast: boolean;
+    showAntennaRadome: boolean;
 }

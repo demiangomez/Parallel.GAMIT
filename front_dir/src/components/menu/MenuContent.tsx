@@ -14,6 +14,7 @@ interface MenuContentProps {
     >;
     dispatch?: (value: FormReducerAction) => void;
     alterFunctionWithValue?: (value: string) => void;
+    uniqueId?: string | number; // Nuevo prop para identificador único
     setShowMenu: React.Dispatch<
         React.SetStateAction<
             | {
@@ -37,15 +38,18 @@ const MenuContent = ({
     setMultipleSelected,
     setShowMenu,
     alterFunctionWithValue,
+    uniqueId,
 }: MenuContentProps) => {
     const handleClick = () => {
         const newValue = alterValue ? alterValue : value;
-        if(alterFunctionWithValue){
+        if (alterFunctionWithValue) {
             alterFunctionWithValue(newValue);
-            setShowMenu(undefined)
+            // Solo cerrar el menú si no es modo múltiple
+            if (!multiple) {
+                setShowMenu(undefined);
+            }
             return;
-        }
-        else if (multiple) {
+        } else if (multiple) {
             setMultipleSelected &&
                 setMultipleSelected((prev) => {
                     if (prev) {
@@ -58,20 +62,18 @@ const MenuContent = ({
                         return [value];
                     }
                 });
-        }
-        else{
+        } else {
             dispatch &&
-            !setMultipleSelected &&
-            dispatch({
-                type: "change_value",
-                payload: {
-                    inputName: typeKey,
-                    inputValue: newValue,
-                },
-            });
+                !setMultipleSelected &&
+                dispatch({
+                    type: "change_value",
+                    payload: {
+                        inputName: typeKey,
+                        inputValue: newValue,
+                    },
+                });
             !multiple && setShowMenu(undefined);
         }
-        
     };
 
     return (
@@ -79,16 +81,22 @@ const MenuContent = ({
             className={`py-2 px-4 font-semibold text-lg w-full ${disabled ? "disabled" : ""}`}
         >
             <button
-            className={`w-full flex flex-wrap items-start justify-between px-2 text-left ${disabled ? "btn-disabled" : ""}`}
-            type="button"
-            onClick={() => {
-                dispatch ? handleClick() : alterFunction && alterFunction();
-            }}
+                className={`w-full flex flex-wrap items-start justify-between px-2 text-left ${disabled ? "btn-disabled" : ""}`}
+                type="button"
+                onClick={() => {
+                    dispatch ? handleClick() : alterFunction && alterFunction();
+                }}
             >
-            <span className="flex-1 mr-2 truncate">{value}</span>
-            {multiple && multipleSelected.includes(value) && (
-                <CheckIcon className="size-6 flex-shrink-0" />
-            )}
+                <span className="flex-1 mr-2 truncate">{value}</span>
+                {multiple &&
+                    uniqueId &&
+                    Array.isArray(multipleSelected) &&
+                    multipleSelected.includes(uniqueId) && (
+                        <CheckIcon className="size-6 flex-shrink-0" />
+                    )}
+                {multiple && !uniqueId && multipleSelected.includes(value) && (
+                    <CheckIcon className="size-6 flex-shrink-0" />
+                )}
             </button>
         </li>
     );

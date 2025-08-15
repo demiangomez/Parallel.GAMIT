@@ -6016,7 +6016,7 @@
             updateInterval: 200,
             zIndex: 1,
             bounds: null,
-            minZoom: 0,
+            minZoom: 2,
             maxZoom: void 0,
             maxNativeZoom: void 0,
             minNativeZoom: void 0,
@@ -6533,7 +6533,7 @@
     });
     var Di = Ni.extend({
         options: {
-            minZoom: 0,
+            minZoom: 2,
             maxZoom: 18,
             subdomains: "abc",
             errorTileUrl: "",

@@ -17,7 +17,7 @@ import {
 
 import { useEffect, useMemo, useState } from "react";
 
-import { PopupChildren } from "@componentsReact";
+import { MapVector, PopupChildren } from "@componentsReact";
 
 import { useLocalStorage, useAuth, useApi } from "@hooks";
 
@@ -37,6 +37,11 @@ import {
 
 import { isStationFiltered, chosenIcon } from "@utils";
 import { getStationTypesService, getStationStatusService } from "@services";
+
+//Para el major 4
+import "leaflet/dist/leaflet.css";
+import "leaflet-velocity/dist/leaflet-velocity.css";
+import "leaflet-velocity";
 
 interface MapProps {
     handleEarthquakeState: (earthquake: EarthquakeData) => void;
@@ -59,6 +64,8 @@ interface MapProps {
     earthquakesFiltered: EarthquakeData[];
     earthquakeAffectedStations: StationsAffectedServiceData | undefined;
     earthQuakeChosen: EarthquakeData | undefined;
+    toggleStateEarthquakeMask: boolean;
+    toggleCoseismicVector: boolean;
     stations: StationData[] | undefined;
     showEarthquakeList: boolean;
     setForceSyncScrollerMap: React.Dispatch<React.SetStateAction<number>>;
@@ -70,6 +77,7 @@ interface MapProps {
     >;
     setMainParams?: React.Dispatch<React.SetStateAction<GetParams>>;
     setShowScroller: React.Dispatch<React.SetStateAction<boolean>>;
+    vectorMagnitude?: number;
 }
 
 export const ChangeView = ({
@@ -89,7 +97,13 @@ export const ChangeView = ({
 };
 
 //Component for adding kml render to leaflet map from kml in base64 format
-const LoadKmzFromBase64 = ({ base64Data }: { base64Data: string }) => {
+const LoadKmzFromBase64 = ({
+    base64Data,
+    shouldFitBounds = true,
+}: {
+    base64Data: string;
+    shouldFitBounds?: boolean;
+}) => {
     const map = useMap();
 
     //--------------------------------------------------Funciones--------------------------------------------------
@@ -101,7 +115,6 @@ const LoadKmzFromBase64 = ({ base64Data }: { base64Data: string }) => {
             }
         });
     };
-
     //--------------------------------------------------UseEffect--------------------------------------------------
     useEffect(() => {
         const loadKmzOrKmlFile = async () => {
@@ -126,7 +139,6 @@ const LoadKmzFromBase64 = ({ base64Data }: { base64Data: string }) => {
                     );
 
                     const geojson = toGeoJSON.kml(dom);
-
                     const geoJsonLayer = L.geoJSON(geojson, {
                         style: (feature) => {
                             return feature
@@ -181,9 +193,10 @@ const LoadKmzFromBase64 = ({ base64Data }: { base64Data: string }) => {
                             return L.marker(latlng);
                         },
                     });
-
-                    map.fitBounds(geoJsonLayer.getBounds());
-                    map.zoomOut(1);
+                    if (shouldFitBounds) {
+                        map.fitBounds(geoJsonLayer.getBounds());
+                        map.zoomOut(1);
+                    }
                     geoJsonLayer.addTo(map);
                 };
 
@@ -231,6 +244,7 @@ const MapMarkers = ({
     earthquakeAffectedStations,
     earthQuakeChosen,
     earthquakesFiltered,
+    toggleStateEarthquakeMask,
     posToFly,
     filters,
     filterState,
@@ -238,9 +252,11 @@ const MapMarkers = ({
     setEarthquakesFiltered,
     handleEarthquakeState,
     setForceSyncScrollerMap,
+    toggleCoseismicVector,
+    // vectorMagnitude,
 }: MapProps) => {
     //---------------------------------------------------------UseAuth-------------------------------------------------------------
-    const { token, logout } = useAuth();
+    const { token, logout, user } = useAuth();
 
     //---------------------------------------------------------UseApi-------------------------------------------------------------
     const api = useApi(token, logout);
@@ -253,7 +269,6 @@ const MapMarkers = ({
         "lastZoomLevel",
         "8",
     );
-
 
     const [, setLastPosition] = useLocalStorage("lastPosition", "[0,0]");
 
@@ -279,6 +294,8 @@ const MapMarkers = ({
     const [statuses, setStatuses] = useState<{ name: string; color: string }[]>(
         [],
     );
+
+    const [isFirstKmlLoad, setIsFirstKmlLoad] = useState<boolean>(true);
 
     //-------------------------------------------------------------------------------UseEffects--------------------------------------------------------------------------------------
     //Modify setview when refreshing the page
@@ -321,7 +338,6 @@ const MapMarkers = ({
             }, 2900);
         }
     }, [mapState]);
-
 
     // Updates markers when map moves
     useEffect(() => {
@@ -410,6 +426,10 @@ const MapMarkers = ({
     }, []);
 
     useEffect(() => {
+        overlappedStationsByScale();
+    }, [user]);
+
+    useEffect(() => {
         if (
             Array.isArray(overlappedStations) &&
             overlappedStations.length > 0
@@ -476,8 +496,19 @@ const MapMarkers = ({
         }
     }, [overlappedStations]);
 
-    //-------------------------------------------------------------------------------Funciones--------------------------------------------------------------------------------------
+    useEffect(() => {
+        if (earthQuakeChosen) {
+            setIsFirstKmlLoad(true);
+        }
+    }, [earthQuakeChosen]);
 
+    useEffect(() => {
+        if (earthQuakeChosen && earthquakeAffectedStations) {
+            setIsFirstKmlLoad(false);
+        }
+    }, [toggleStateEarthquakeMask]);
+
+    //-------------------------------------------------------------------------------Funciones--------------------------------------------------------------------------------------
     const areStationsOverlapped = (
         stationA: StationData,
         stationB: StationData,
@@ -490,7 +521,10 @@ const MapMarkers = ({
             Math.pow(2, zoom);
         const scale = metersPerPixel * 96 * 39.37; // Convert to scale considering screen DPI
         const VISUAL_ACUITY_MM = 3; // Increased from 0.2mm due to larger marker size
-        const minDistanceMeters = (VISUAL_ACUITY_MM / 1000) * scale; // Convert mm to meters and apply scale
+        const minDistanceMeters =
+            Number(user?.clustering_distance) >= 0
+                ? Number(user?.clustering_distance)
+                : (VISUAL_ACUITY_MM / 1000) * scale;
 
         if (
             !stationA?.lat ||
@@ -655,7 +689,10 @@ const MapMarkers = ({
     const removeOldKmls = () => {
         map.eachLayer((layer) => {
             // Remove all layers except TileLayer and Markers
-            if (!(layer instanceof L.TileLayer) && !(layer instanceof L.Marker)) {
+            if (
+                !(layer instanceof L.TileLayer) &&
+                !(layer instanceof L.Marker)
+            ) {
                 map.removeLayer(layer);
             }
         });
@@ -741,7 +778,7 @@ const MapMarkers = ({
         requestAnimationFrame(() => {
             const map = (popup as any)._map as L.Map;
             if (!map) return;
-            
+
             const latLng = popup.getLatLng();
             if (!latLng) return;
 
@@ -780,7 +817,7 @@ const MapMarkers = ({
         if (isDangerousPopup) {
             map.setMinZoom(10);
         } else if (!isDangerousPopup) {
-            map.setMinZoom(4);
+            map.setMinZoom(2);
         }
     }, [isDangerousPopup]);
 
@@ -841,22 +878,41 @@ const MapMarkers = ({
         });
     }, [overlappedClusters, map]);
 
+    // const [magnitude, setMagnitude] = useState<number>(100000);
+
     return (
         <>
             {mapState &&
             earthquakeAffectedStations !== undefined &&
             earthQuakeChosen !== undefined ? (
                 <LoadKmzFromBase64
-                    base64Data={earthquakeAffectedStations.kml}
+                    base64Data={
+                        toggleStateEarthquakeMask
+                            ? earthquakeAffectedStations.kml_including_postseismic
+                            : earthquakeAffectedStations.kml_without_postseismic
+                    }
+                    shouldFitBounds={isFirstKmlLoad}
                 />
             ) : null}
             {mapState &&
                 earthquakeAffectedStations &&
-                earthquakeAffectedStations?.affected_stations?.map(
-                    (s: StationAffectedInfo, index: number) => {
-                        const station = findStation(s);
-                        const uniqueKey = `affected-${station?.network_code}-${station?.station_code}-${index}-${forceRenderMarker}`;
-                        return station && station.lat && station.lon ? (
+                (toggleStateEarthquakeMask
+                    ? earthquakeAffectedStations?.affected_stations_including_postseismic
+                    : earthquakeAffectedStations?.affected_stations_without_postseismic
+                )?.map((s: StationAffectedInfo, index: number) => {
+                    const station = findStation(s);
+
+                    //REEMPLAZAR
+                    const displacement =
+                        earthquakeAffectedStations.coseismic_displacements.find(
+                            (d) =>
+                                d.NetworkCode === s.network_code &&
+                                d.StationCode === s.station_code,
+                        );
+
+                    const uniqueKey = `affected-${station?.network_code}-${station?.station_code}-${index}-${forceRenderMarker}`;
+                    return station && station.lat && station.lon ? (
+                        <>
                             <Marker
                                 icon={chosenIcon(
                                     station as StationData,
@@ -887,9 +943,23 @@ const MapMarkers = ({
                                     />
                                 </Popup>
                             </Marker>
-                        ) : null;
-                    },
-                )}
+                            {!toggleStateEarthquakeMask &&
+                            earthQuakeChosen !== undefined &&
+                            toggleCoseismicVector &&
+                            displacement ? (
+                                <MapVector
+                                    origin={station}
+                                    displacement={{
+                                        north: displacement.n,
+                                        east: displacement.e,
+                                    }}
+                                    magnitude={100000}
+                                />
+                            ) : null}
+                        </>
+                    ) : null;
+                })}
+
             {map.getZoom() >= 10 &&
                 mainParams?.station_code === "" &&
                 overlappedClusters &&
@@ -972,7 +1042,7 @@ const MapMarkers = ({
                                         },
                                         popupopen: (e) => {
                                             setTimeout(() => {
-                                            adjustPopupPosition(e.popup);
+                                                adjustPopupPosition(e.popup);
                                             }, 200);
                                         },
                                         popupclose: () => {
@@ -1000,6 +1070,29 @@ const MapMarkers = ({
                             );
                         }
                     })}
+
+            {/* {!toggleStateEarthquakeMask &&
+            earthQuakeChosen !== undefined &&
+            toggleCoseismicVector ? (
+                <div
+                    style={{
+                        position: "absolute",
+                        right: "0",
+                        top: "100px",
+                        zIndex: 1000,
+                        width: "300px",
+                    }}
+                >
+                    <Slider
+                        classContainer="bg-zinc-50 rounded-md  p-2"
+                        tittle="Vector Fiel Scale"
+                        minValue={100000}
+                        maxValue={200000}
+                        value={magnitude}
+                        onChange={(e) => console.log(e.target.value)}
+                    />
+                </div>
+            ) : null} */}
         </>
     );
 };
@@ -1025,6 +1118,8 @@ const Map = ({
     setMarkersByBounds,
     setMainParams,
     setShowScroller,
+    toggleStateEarthquakeMask,
+    toggleCoseismicVector,
 }: MapProps) => {
     //---------------------------------------------------------------------------UseStates--------------------------------------------------------------------------------------
 
@@ -1032,6 +1127,7 @@ const Map = ({
         center: [0, 0],
         zoom: 4,
         scrollWheelZoom: true,
+        minZoom: 2,
     });
 
     const [forceRender, setForceRender] = useState(0);
@@ -1041,7 +1137,7 @@ const Map = ({
         if (earthquakes.length > 0) {
             setForceRender((prev) => prev + 1);
         }
-    }, [earthquakes]);
+    }, [earthquakes, toggleStateEarthquakeMask]);
 
     useEffect(() => {
         const savedZoomLevel = localStorage.getItem("lastZoomLevel");
@@ -1079,6 +1175,7 @@ const Map = ({
                 maxBoundsViscosity={1.0}
                 worldCopyJump={false}
                 zoomControl={false}
+                minZoom={1}
                 className="w-full h-[92vh]"
             >
                 <TileLayer
@@ -1092,7 +1189,7 @@ const Map = ({
                             ? "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
                             : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                     }
-                    minZoom={4}
+                    minZoom={1}
                 />
                 <ZoomControl position="bottomright" />
                 <ChangeView center={mapProps.center} zoom={mapProps.zoom} />
@@ -1113,6 +1210,8 @@ const Map = ({
                     }
                     earthquakeAffectedStations={earthquakeAffectedStations}
                     stations={stations}
+                    toggleStateEarthquakeMask={toggleStateEarthquakeMask}
+                    toggleCoseismicVector={toggleCoseismicVector}
                     setMainParams={setMainParams}
                     setMarkersByBounds={setMarkersByBounds}
                     setEarthquakesFiltered={setEarthquakesFiltered}

@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { StatsModal, Modal, Pagination, Table, RinexAddModal } from "@componentsReact";
+import {
+    StatsModal,
+    Modal,
+    Pagination,
+    Table,
+    RinexAddModal,
+} from "@componentsReact";
 import { PlusCircleIcon } from "@heroicons/react/24/outline";
 
 import { getStationInfoService } from "@services";
@@ -42,7 +48,9 @@ const StationInfoModal = ({
     const { token, logout } = useAuth();
     const api = useApi(token, logout);
 
-    const [typeAddition, setTypeAddition] = useState<"last" | "none-clear" | undefined>(undefined);
+    const [typeAddition, setTypeAddition] = useState<
+        "last" | "none-clear" | undefined
+    >(undefined);
 
     const [stationInfo, setStationInfo] = useState<StationInfoData | undefined>(
         undefined,
@@ -301,7 +309,6 @@ const StationInfoModal = ({
         }
     }, [totalCount, stationInfos]); // eslint-disable-line
 
-
     return (
         <Modal
             close={close}
@@ -346,6 +353,7 @@ const StationInfoModal = ({
             {modals?.show && modals?.title === "EditStats" && (
                 <StatsModal
                     stationInfo={stationInfo}
+                    typeAddition={typeAddition}
                     modalType={modals.type}
                     reFetch={() => {
                         setActivePage(1);
@@ -353,20 +361,19 @@ const StationInfoModal = ({
                     }}
                     setStateModal={setModals}
                     setStationInfo={setStationInfo}
-                    typeAddition={typeAddition}
+                    setTypeAddition={setTypeAddition}
                 />
             )}
             {modals?.show && modals?.title === "RinexAdd" && (
                 <RinexAddModal
-                stationApiId={station?.api_id ?? 0}
-                setModalState={setModals}
-                handleCloseModal={() => {
-                    setActivePage(1);
-                    getStationInfo();
-                }}
+                    stationApiId={station?.api_id ?? 0}
+                    setModalState={setModals}
+                    handleCloseModal={() => {
+                        setActivePage(1);
+                        getStationInfo();
+                    }}
                 />
             )}
-
         </Modal>
     );
 };

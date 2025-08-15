@@ -13,7 +13,8 @@ import { useLocalStorage } from "@hooks/useLocalStorage";
 import useApi from "@hooks/useApi";
 
 import { jwtDeserializer } from "@utils";
-import { getUserPhotoService } from "@services";
+import { getUserPhotoService, getUserService } from "@services";
+import { GetParams, UsersData } from "@types";
 
 interface AuthContextProps {
     token: string | null;
@@ -21,6 +22,7 @@ interface AuthContextProps {
     refreshToken: string | null;
     refresh: boolean | null;
     userPhoto: string | null;
+    user: UsersData | null;
     login: (token: string | null, nav?: boolean, lastPath?: string) => void;
     logout: (href: boolean) => void;
     getRole: (role: string) => void;
@@ -40,6 +42,7 @@ const AuthContext = createContext<AuthContextProps>({
     role: null,
     refresh: null,
     refreshToken: null,
+    user: null,
     userPhoto: null,
     login: () => {},
     logout: () => {},
@@ -57,6 +60,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     const [role, setRole] = useLocalStorage("gpsRole", null);
 
     const [userPhoto, setUserPhoto] = useState<string | null>(null);
+    const [user, setUser] = useState<UsersData | null>(null);
 
     const [refresh, setRefresh] = useState<boolean | null>(null);
 
@@ -93,6 +97,45 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     };
 
     const api = useApi(token, logout);
+
+    const getUserData = async () => {
+        const idUser = jwtDeserializer(token ?? "")?.user_id ?? 0;
+        try {
+            const bParams: GetParams = { with_people: true };
+            const res = await getUserService<UsersData>(api, idUser, bParams);
+            // Obtener la foto y usar su valor directamente
+            let photoData = null;
+            try {
+                const photoRes = await getUserPhotoService<any>(api, idUser);
+                if (photoRes.statusCode === 200) {
+                    photoData = photoRes.photo;
+                    setUserPhoto(photoData); // Actualizar el state también
+                }
+            } catch (photoErr) {
+                console.error("Error getting photo:", photoErr);
+            }
+
+            const extendedUser = {
+                id: res.id,
+                username: res.username,
+                password: res.password ?? "",
+                role: res.role,
+                is_active: res.is_active !== undefined ? res.is_active : null,
+                first_name: res.first_name,
+                last_name: res.last_name,
+                email: res.email,
+                phone: res.phone,
+                address: res.address,
+                photo: photoData ? "data:image/*;base64," + photoData : null, // ← Usar photoData directamente
+                clustering_distance: res.clustering_distance,
+                person: res.person,
+            };
+
+            if (extendedUser !== undefined) setUser(extendedUser);
+        } catch (err) {
+            console.error(err);
+        }
+    };
 
     const getUserPhoto = async () => {
         try {
@@ -147,6 +190,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     useEffect(() => {
         getUserPhoto();
+        getUserData();
     }, [token]);
 
     const value = useMemo(
@@ -156,6 +200,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             refresh,
             login,
             logout,
+            user,
             userPhoto,
             refreshToken,
             loginRefresh,
@@ -165,7 +210,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             setRefreshToken,
             setUserPhoto,
         }),
-        [token, refresh, role, userPhoto],
+        [token, refresh, role, userPhoto, user],
     );
 
     return (

@@ -16,11 +16,11 @@ export { default as StationChangeTryOrderModal } from "./modals/Station/StationC
 
 export { default as AddStationByFile } from "./modals/Station/StationModal/AddStationByFile";
 
-export { default as Dropzone} from "./Dropzone";
+export { default as Dropzone } from "./Dropzone";
 
-export { default as SourcesServers} from "../pages/SourcesServers/Sources";
+export { default as SourcesServers } from "../pages/SourcesServers/Sources";
 
-export { default as StationTimeSeriesDetailModal} from "./modals/Station/StationTimeSeriesDetailModal";
+export { default as StationTimeSeriesDetailModal } from "./modals/Station/StationTimeSeriesDetailModal";
 
 export { default as MapStationCreate } from "./map/StationCreateMap";
 
@@ -52,6 +52,8 @@ export { default as DateTimePicker } from "./DateTimePicker";
 
 export { default as Spinner } from "./Spinner";
 
+export { default as Slider } from "./Slider";
+
 export { default as CardContainer } from "./CardContainer";
 
 export { default as Photo } from "./Photo";
@@ -72,9 +74,9 @@ export { default as SourcesFormatsTableModal } from "../pages/SourcesServers/Sou
 
 export { default as SourcesServersTableModal } from "../pages/SourcesServers/SourcesServersTableModal";
 
-export { default as SourcesServersMergeModal} from "../pages/SourcesServers/SourcesServersMergeModal";
+export { default as SourcesServersMergeModal } from "../pages/SourcesServers/SourcesServersMergeModal";
 
-export { default as SourcesStationsTableModal} from "../pages/SourcesServers/SourcesStationsTableModal";
+export { default as SourcesStationsTableModal } from "../pages/SourcesServers/SourcesStationsTableModal";
 
 export { default as FileResultCard } from "./FileResultCard";
 
@@ -87,6 +89,8 @@ export { default as SourcesPage } from "../pages/SourcesServers/Sources";
 export { default as SourcesFormatsPage } from "../pages/SourcesServers/SourcesFormatsTable";
 
 export { default as SourcesServersPage } from "../pages/SourcesServers/SourcesServersTable";
+
+export { default as ImageUploadCircle } from "../components/ImageUploadCircle";
 
 // TABLE
 
@@ -104,7 +108,7 @@ export { default as MonumentsTable } from "../pages/Overview/MonumentsTable";
 
 export { default as CampaignsTable } from "../pages/Campaigns/CampaignsTable";
 
-export { default as PeopleTable } from "../pages/Overview/StationPeopleTable";
+export { default as PeopleTable } from "../pages/People/PeopleTable";
 
 export { default as StationStatusTable } from "../pages/Overview/StationStatusTable";
 
@@ -113,6 +117,12 @@ export { default as StationRolesTable } from "../pages/Overview/StationRolesTabl
 export { default as StationTypesTable } from "../pages/Overview/StationTypesTable";
 
 export { default as EventsTable } from "../pages/Station/Events/EventsTable";
+
+// USER SETTINGS
+
+export { default as UserSettingsForm } from "../pages/User/UserSettingsForm";
+
+export { default as PeopleSettingsForm } from "../pages/User/PeopleSettingsForm";
 
 // MENU
 
@@ -186,9 +196,13 @@ export { default as StationTypesModal } from "./modals/Overview/StationTypesModa
 
 export { default as StationStatusModal } from "./modals/Overview/StationStatusModal";
 
+export { default as StationCommentsModal } from "./modals/Station/StationCommentsModal";
+
 export { default as StationsModal } from "./modals/StationsModal";
 
 export { default as StatsModal } from "./modals/Station/StatsModal";
+
+export { default as TraceReceiverModal } from "./modals/Station/TraceReceiverModal";
 
 export { default as StationAddFileModal } from "./modals/Station/StationAddFileModal";
 
@@ -229,6 +243,8 @@ export { default as Map } from "./map/Map";
 export { default as MapStation } from "./map/MapStation";
 
 export { default as PopupChildren } from "./map/PopupChildren";
+
+export { default as MapVector } from "./map/MapVector";
 
 export { default as MapVisit } from "./map/MapVisit";
 

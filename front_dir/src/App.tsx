@@ -15,6 +15,8 @@ import {
     Station,
     Overview,
     Campaigns,
+    Settings,
+    PeopleRelations,
 } from "@pagesReact";
 
 import {
@@ -69,6 +71,15 @@ const router = createBrowserRouter(
                     }}
                 />
                 <Route
+                    path="people"
+                    element={<PeopleRelations />}
+                    handle={{
+                        crumb: () => {
+                            return "people";
+                        },
+                    }}
+                />
+                <Route
                     path="overview"
                     element={<Overview />}
                     handle={{
@@ -86,6 +97,16 @@ const router = createBrowserRouter(
                         },
                     }}
                 />
+                <Route
+                    path="settings"
+                    element={<Settings />}
+                    handle={{
+                        crumb: () => {
+                            return "settings";
+                        },
+                    }}
+                />
+
                 <Route
                     path=":nc/:sc"
                     element={<Station />}

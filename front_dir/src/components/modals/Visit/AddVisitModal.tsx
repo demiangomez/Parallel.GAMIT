@@ -33,7 +33,7 @@ import {
     postStationVisitService,
 } from "@services";
 
-import { PlusCircleIcon } from "@heroicons/react/24/outline";
+import { PlusCircleIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import QuillText from "@components/map/QuillText";
 
 interface Props {
@@ -92,10 +92,7 @@ const AddVisitModal = ({
 
     const [people, setPeople] = useState<PeopleType[]>([]);
 
-    const [peopleSelected, setPeopleSelected] = useState<string[] | undefined>(
-        [],
-    );
-
+    const [peopleSelected, setPeopleSelected] = useState<PeopleType[]>([]);
 
     const [matchingPeople, setMatchingPeople] = useState<
         PeopleType[] | undefined
@@ -116,6 +113,11 @@ const AddVisitModal = ({
     >(undefined);
 
     const { formState, dispatch } = useFormReducer(VISIT_STATE);
+
+    const deleteUserSelectById = (id: number) => {
+        const result = peopleSelected.filter((p) => p.id !== id);
+        setPeopleSelected(result);
+    };
 
     const formattedState = {
         ...VISIT_STATE,
@@ -147,7 +149,11 @@ const AddVisitModal = ({
             const formData = new FormData();
 
             Object.entries(formState).forEach(([key, value]) => {
-                if (key === "campaign" || key === "people" || key === "comments") {
+                if (
+                    key === "campaign" ||
+                    key === "people" ||
+                    key === "comments"
+                ) {
                     if (key === "campaign") {
                         if (!value) return formData.append(key, "");
                         const splittedValue = value
@@ -160,29 +166,18 @@ const AddVisitModal = ({
                         formData.append(key, String(campaignToAdd?.id));
                     }
                     if (key === "people") {
-                        if (!value) return;
+                        if (peopleSelected.length === 0) return;
 
-                        const peopleNames = value.split(" / "); // Asumiendo que los nombres están separados por comas
-
-                        peopleNames.forEach((name) => {
-                            const personToAdd = people?.find(
-                                (p) =>
-                                    p.first_name + " " + p.last_name ===
-                                    name.trim(),
-                            );
-                            formData.append(key, String(personToAdd?.id));
+                        peopleSelected.forEach((person) => {
+                            formData.append(key, String(person.id));
                         });
                     }
-                    if(key === "comments")
-                    {
+                    if (key === "comments") {
                         formData.append("comments", classHtml(value));
                     }
-                }
-                else {
+                } else {
                     formData.append(key, value);
-                } 
-                
-                
+                }
             });
 
             const res = await postStationVisitService<
@@ -359,16 +354,6 @@ const AddVisitModal = ({
         });
     }, [station, campaignB]);
 
-    useEffect(() => {
-        dispatch({
-            type: "change_value",
-            payload: {
-                inputName: "people",
-                inputValue: peopleSelected?.join(" / ") ?? "",
-            },
-        });
-    }, [peopleSelected]);
-
     const handleCloseModal = () => {
         reFetch();
     };
@@ -383,47 +368,54 @@ const AddVisitModal = ({
     }, [modals]);
 
     const inputRefCampaign = useRef<HTMLInputElement>(null);
-    
+
     const inputRefPeople = useRef<HTMLInputElement>(null);
 
-    const selectRef = (key: string) =>{
-        return key === "campaign" ? inputRefCampaign : key === "people" ? inputRefPeople : null;
-    }
-    
-
+    const selectRef = (key: string) => {
+        return key === "campaign"
+            ? inputRefCampaign
+            : key === "people"
+              ? inputRefPeople
+              : null;
+    };
 
     useEffect(() => {
-        if(showMenu){
+        if (showMenu) {
             const ref = selectRef(showMenu.type);
             if (ref && ref.current) {
                 ref.current.focus();
             }
         }
-        },[showMenu])
+    }, [showMenu]);
 
     useEffect(() => {
-        if(formState.campaign){
-            const campaignSelected = campaigns?.find((campaign) => 
-                formState.campaign === "(" + campaign.name + ")" + " " + campaign.start_date + " - " + campaign.end_date
+        if (formState.campaign) {
+            const campaignSelected = campaigns?.find(
+                (campaign) =>
+                    formState.campaign ===
+                    "(" +
+                        campaign.name +
+                        ")" +
+                        " " +
+                        campaign.start_date +
+                        " - " +
+                        campaign.end_date,
             );
-            
-            if(campaignSelected && campaignSelected.default_people){
-                const peoples = campaignSelected.default_people
-                const peoplesNames = peoples.map((p) => {
-                    const person = people.find((person) => person.id === p);
-                    return person ? `${person.first_name} ${person.last_name}` : '';
-                }).filter(name => name !== '');
-                setPeopleSelected(peoplesNames);
-                dispatch({
-                    type: "change_value",
-                    payload: {
-                        inputName: "people",
-                        inputValue: peoplesNames.join(" / "),
-                    },
-                });
+
+            if (campaignSelected && campaignSelected.default_people) {
+                const peopleIds = campaignSelected.default_people;
+                const selectedPeople = peopleIds
+                    .map((id) => {
+                        return people.find((person) => person.id === id);
+                    })
+                    .filter(
+                        (person): person is PeopleType => person !== undefined,
+                    );
+
+                setPeopleSelected(selectedPeople);
             }
         }
-    }, [formState.campaign])
+    }, [formState.campaign]);
 
     return (
         <Modal
@@ -537,7 +529,8 @@ const AddVisitModal = ({
                                                     dispatch({
                                                         type: "change_value",
                                                         payload: {
-                                                            inputName: "comments",
+                                                            inputName:
+                                                                "comments",
                                                             inputValue: value,
                                                         },
                                                     });
@@ -549,8 +542,8 @@ const AddVisitModal = ({
                                             <label
                                                 id={key}
                                                 className={`w-full input input-bordered flex items-center 
-                                            gap-2 ${errorBadge ? "input-error" : ""} 
-                                            ${inputsToDatePicker.includes(key) ? "w-11/12" : ""}`}
+                                                    gap-2 ${errorBadge ? "input-error" : ""} 
+                                                    ${inputsToDatePicker.includes(key) ? "w-11/12" : ""}`}
                                                 title={
                                                     errorBadge
                                                         ? errorBadge.detail
@@ -565,6 +558,7 @@ const AddVisitModal = ({
                                                             .replace("_", " ")}
                                                     </span>
                                                 </div>
+
                                                 <input
                                                     type={
                                                         inputsToDatePicker.includes(
@@ -588,8 +582,21 @@ const AddVisitModal = ({
                                                     }
                                                     onChange={(e) => {
                                                         handleChange(e.target);
+                                                        setShowMenu({
+                                                            type: key,
+                                                            show: true,
+                                                        });
                                                     }}
-                                                    className="grow "
+                                                    onClick={(e) => {
+                                                        handleChange(
+                                                            e.target as HTMLInputElement,
+                                                        );
+                                                        setShowMenu({
+                                                            type: key,
+                                                            show: true,
+                                                        });
+                                                    }}
+                                                    className="grow"
                                                     autoComplete="off"
                                                     disabled={inputsToDisable.includes(
                                                         key,
@@ -616,6 +623,32 @@ const AddVisitModal = ({
                                             </label>
                                         </div>
                                     )}
+                                    {key === "people" &&
+                                        peopleSelected.length > 0 && (
+                                            <div className="grid grid-cols-7 lg:grid-cols-4 gap-2 w-full my-4">
+                                                {peopleSelected.map((p) => {
+                                                    return (
+                                                        <div
+                                                            key={p.id}
+                                                            className="badge badge-secondary px-2 py-4 flex items-center min-w-0 max-w-full"
+                                                            title={`${p.first_name} ${p.last_name}`}
+                                                        >
+                                                            <span className="overflow-hidden text-ellipsis whitespace-nowrap max-w-3/4">
+                                                                {`${p.first_name} ${p.last_name}`}
+                                                            </span>
+                                                            <XMarkIcon
+                                                                className="ml-2 w-5 h-5 min-w-5 min-h-5 cursor-pointer hover:bg-[#4c566a] rounded"
+                                                                onClick={() =>
+                                                                    deleteUserSelectById(
+                                                                        p.id,
+                                                                    )
+                                                                }
+                                                            />
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
 
                                     {showMenu?.show &&
                                     showMenu.type === key &&
@@ -655,31 +688,73 @@ const AddVisitModal = ({
                                                 matchingPeople.length > 0
                                                     ? matchingPeople
                                                     : people
-                                                )?.map((ppl) => (
-                                                    <MenuContent
-                                                        multiple={true}
-                                                        multipleSelected={
-                                                            peopleSelected
-                                                        }
-                                                        key={
-                                                            ppl.id +
-                                                            ppl.first_name
-                                                        }
-                                                        typeKey={key}
-                                                        value={
-                                                            ppl.first_name +
-                                                            " " +
-                                                            ppl.last_name
-                                                        }
-                                                        dispatch={dispatch}
-                                                        setMultipleSelected={
-                                                            setPeopleSelected
-                                                        }
-                                                        setShowMenu={
-                                                            setShowMenu
-                                                        }
-                                                    />
-                                                ))}
+                                                )?.map((ppl) => {
+                                                    const displayName = `${ppl.first_name} ${ppl.last_name}`;
+
+                                                    return (
+                                                        <MenuContent
+                                                            multiple={true}
+                                                            multipleSelected={peopleSelected.map(
+                                                                (p) => p.id,
+                                                            )}
+                                                            key={ppl.id}
+                                                            typeKey={key}
+                                                            value={displayName}
+                                                            uniqueId={ppl.id}
+                                                            dispatch={dispatch}
+                                                            alterFunctionWithValue={() => {
+                                                                // Buscar la persona específica por ID usando el key del componente
+                                                                const targetPerson =
+                                                                    people.find(
+                                                                        (p) =>
+                                                                            p.id ===
+                                                                            ppl.id,
+                                                                    );
+
+                                                                if (
+                                                                    !targetPerson
+                                                                )
+                                                                    return;
+
+                                                                const isSelected =
+                                                                    peopleSelected.some(
+                                                                        (p) =>
+                                                                            p.id ===
+                                                                            targetPerson.id,
+                                                                    );
+
+                                                                if (
+                                                                    isSelected
+                                                                ) {
+                                                                    setPeopleSelected(
+                                                                        (
+                                                                            prev,
+                                                                        ) =>
+                                                                            prev.filter(
+                                                                                (
+                                                                                    p,
+                                                                                ) =>
+                                                                                    p.id !==
+                                                                                    targetPerson.id,
+                                                                            ),
+                                                                    );
+                                                                } else {
+                                                                    setPeopleSelected(
+                                                                        (
+                                                                            prev,
+                                                                        ) => [
+                                                                            ...prev,
+                                                                            targetPerson,
+                                                                        ],
+                                                                    );
+                                                                }
+                                                            }}
+                                                            setShowMenu={
+                                                                setShowMenu
+                                                            }
+                                                        />
+                                                    );
+                                                })}
                                             </Menu>
                                         )
                                     )}
@@ -714,24 +789,24 @@ const AddVisitModal = ({
                             >
                                 {images
                                     ? images?.map((img) => (
-                                        <div
+                                          <div
                                               key={img.id}
                                               className="flex flex-col items-center break-words pb-2 rounded-md"
                                           >
-                                            <img
-                                                src={`data:image/*;base64,${img.actual_image ?? ""}`}
-                                                alt={img.name}
-                                                className="size-60 object-cover rounded-md"
-                                            />
-                                            <span className="text-md font-medium mt-2 mx-auto w-auto">
-                                                {img.name}
-                                            </span>
-                                            {img.description && (
-                                                <span className="text-sm mt-2 mx-auto w-full">
-                                                    {img.description}
-                                                </span>
-                                            )}
-                                        </div>
+                                              <img
+                                                  src={`data:image/*;base64,${img.actual_image ?? ""}`}
+                                                  alt={img.name}
+                                                  className="size-60 object-cover rounded-md"
+                                              />
+                                              <span className="text-md font-medium mt-2 mx-auto w-auto">
+                                                  {img.name}
+                                              </span>
+                                              {img.description && (
+                                                  <span className="text-sm mt-2 mx-auto w-full">
+                                                      {img.description}
+                                                  </span>
+                                              )}
+                                          </div>
                                       ))
                                     : null}
                             </div>
@@ -740,10 +815,7 @@ const AddVisitModal = ({
                         step === 3 && (
                             <>
                                 <div className="flex flex-col items-center rounded-md bg-neutral-content">
-                                    <h3
-                                        className="font-bold inline-flex border-b-2 w-full justify-center 
-                                                    items-center text-xl my-2"
-                                    >
+                                    <h3 className="font-bold inline-flex border-b-2 w-full justify-center items-center text-xl my-2">
                                         Visit Observation Files
                                         <button
                                             className="btn btn-ghost btn-circle ml-2"
@@ -772,13 +844,14 @@ const AddVisitModal = ({
                                         ) : (
                                             <div
                                                 className={`grid
-                                    ${gnssFiles && gnssFiles.length > 1 && !loadingGnss ? "grid-cols-2 md:grid-cols-1" : "grid-cols-1"} 
-                                    grid-flow-dense gap-2`}
+                                                    ${gnssFiles && gnssFiles.length > 1 && !loadingGnss ? "grid-cols-2 md:grid-cols-1" : "grid-cols-1"} 
+                                                    grid-flow-dense gap-2`}
                                             >
                                                 {(!gnssFiles ||
                                                     gnssFiles.length === 0) && (
                                                     <div className="text-center text-neutral text-2xl font-bold w-full rounded-md bg-neutral-content p-4">
-                                                        There are no Observation Files
+                                                        There are no Observation
+                                                        Files
                                                     </div>
                                                 )}
                                                 {gnssFiles &&
@@ -952,7 +1025,6 @@ const AddVisitModal = ({
                         fileType === "visitImage"
                             ? getVisitImagesById()
                             : getFiles();
-                        // getAll();
                     }}
                 />
             )}

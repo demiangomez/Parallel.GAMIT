@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import {
     CardContainer,
     ConfirmDeleteModal,
+    StationPeopleModal,
     TableCard,
     TableSkeleton,
     VisitAddModal,
@@ -20,6 +21,7 @@ import {
     getStationVisitsService,
     getStationStatusService,
     getStationTypesService,
+    getPeopleService,
 } from "@services";
 
 import {
@@ -36,6 +38,8 @@ import {
     StationStatusData,
     StationTypeData,
     StationTypeServiceData,
+    People,
+    PeopleServiceData,
 } from "@types";
 
 import { showModal } from "@utils";
@@ -101,6 +105,26 @@ const Visits = () => {
     const [visit, setVisit] = useState<StationVisitsData | undefined>(
         undefined,
     );
+
+    const [person, setPerson] = useState<People | undefined>(undefined);
+    const [people, setPeople] = useState<People[]>([]);
+
+    const getPeople = async () => {
+        try {
+            setLoading(true);
+            const res = await getPeopleService<PeopleServiceData>(api);
+            setPeople(res.data);
+            // setPages(Math.ceil(res.total_count / bParams.limit));
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        getPeople();
+    }, []);
 
     const getVisits = async () => {
         try {
@@ -278,6 +302,9 @@ const Visits = () => {
                         modalTitle="AddVisit"
                         setModals={setModals}
                         addButton={true}
+                        secondAddButton={true}
+                        secondAddButtonTitle="+ Person"
+                        secondModalTitle="EditPerson"
                     >
                         {loading ? (
                             <div className="grid gap-4 grid-cols-3 grid-flow-dense">
@@ -323,6 +350,17 @@ const Visits = () => {
                     </TableCard>
                 </CardContainer>
             </div>
+
+            {modals && modals?.title === "EditPerson" && (
+                <StationPeopleModal
+                    Person={person}
+                    people={people}
+                    modalType={modals.type}
+                    setStateModal={setModals}
+                    setPerson={setPerson}
+                    reFetch={() => {}} //No es necesario un refetch porque el add visit hace un get de people
+                />
+            )}
 
             {modals && modals?.title === "ConfirmDelete" && (
                 <ConfirmDeleteModal

@@ -1,9 +1,27 @@
 import { useEffect, useRef, useState } from "react";
-import { Alert, ConfirmDeleteModal, Menu, MenuButton, MenuContent, Modal} from "@componentsReact";
-import { useApi, useAuth, useFormReducer} from "@hooks";
-import { apiOkStatuses, showModal} from "@utils";
-import { ErrorResponse, Errors, ExtendedRolePersonStationData, People, RolePersonStationData, StationData, StationStatus} from "@types";
-import { delRolePersonStationService, postRolePersonStationService} from "@services";
+import {
+    Alert,
+    ConfirmDeleteModal,
+    Menu,
+    MenuButton,
+    MenuContent,
+    Modal,
+} from "@componentsReact";
+import { useApi, useAuth, useFormReducer } from "@hooks";
+import { apiOkStatuses, showModal } from "@utils";
+import {
+    ErrorResponse,
+    Errors,
+    ExtendedRolePersonStationData,
+    People,
+    RolePersonStationData,
+    StationData,
+    StationStatus,
+} from "@types";
+import {
+    delRolePersonStationService,
+    postRolePersonStationService,
+} from "@services";
 
 interface Props {
     people: People[] | undefined;
@@ -163,22 +181,25 @@ const StationPersonModal = ({
     }, [modals]);
 
     const inputRefPerson = useRef<HTMLInputElement>(null);
-    
+
     const inputRefRole = useRef<HTMLInputElement>(null);
 
-    const selectRef = (key: string) =>{
-        return key === "role" ? inputRefRole : key === "person" ? inputRefPerson : null;
-    }
-    
+    const selectRef = (key: string) => {
+        return key === "role"
+            ? inputRefRole
+            : key === "person"
+              ? inputRefPerson
+              : null;
+    };
 
     useEffect(() => {
-        if(showMenu){
+        if (showMenu) {
             const ref = selectRef(showMenu.type);
             if (ref && ref.current) {
                 ref.current.focus();
             }
         }
-    },[showMenu])
+    }, [showMenu]);
 
     return (
         <Modal
@@ -241,18 +262,31 @@ const StationPersonModal = ({
                                             <input
                                                 type="text"
                                                 name={key}
-                                                ref = {selectRef(key)}
+                                                ref={selectRef(key)}
                                                 value={
                                                     key === "person" && person
                                                         ? person?.first_name +
                                                           " " +
                                                           person?.last_name
-                                                        : formState[
+                                                        : (formState[
                                                               key as keyof typeof formState
-                                                          ] ?? ""
+                                                          ] ?? "")
                                                 }
                                                 onChange={(e) => {
                                                     handleChange(e.target);
+                                                    setShowMenu({
+                                                        type: key,
+                                                        show: true,
+                                                    });
+                                                }}
+                                                onClick={(e) => {
+                                                    handleChange(
+                                                        e.target as HTMLInputElement,
+                                                    );
+                                                    setShowMenu({
+                                                        type: key,
+                                                        show: true,
+                                                    });
                                                 }}
                                                 className="grow"
                                                 autoComplete="off"

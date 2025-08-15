@@ -23,7 +23,8 @@ class StationinfoFilter(filters.FilterSet):
 
     class Meta:
         model = models.Stationinfo
-        fields = ['network_code', 'station_code']
+        fields = ['network_code', 'station_code',
+                  'receiver_code', 'receiver_serial']
 
 
 class GamitHtcFilter(filters.FilterSet):
@@ -37,7 +38,8 @@ class RinexFilter(filters.FilterSet):
 
     class Meta:
         model = models.Rinex
-        fields = ['network_code', 'station_code']
+        fields = ['network_code', 'station_code',
+                  'receiver_type', 'receiver_serial']
 
 
 class RolePersonStationFilter(filters.FilterSet):

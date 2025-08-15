@@ -743,6 +743,7 @@ class Stacks(BaseModel):
     class Meta:
         managed = False
         db_table = 'stacks'
+        ordering = ["name"]
         unique_together = (
             ('network_code', 'station_code', 'year', 'doy', 'name'),)
 
@@ -996,6 +997,7 @@ class User(AbstractUser):
     phone = models.CharField(max_length=15, blank=True)
     address = models.CharField(max_length=100, blank=True)
     photo = models.ImageField(upload_to='user_photos/', blank=True)
+    clustering_distance = models.IntegerField(null=True)
 
     REQUIRED_FIELDS = ["role"]
 
@@ -1017,7 +1019,7 @@ class Person(BaseModel):
     phone = models.CharField(max_length=15, blank=True)
     address = models.CharField(max_length=100, blank=True)
     photo = models.ImageField(upload_to='person_photos/', blank=True)
-    user = models.ForeignKey(User, models.SET_NULL, blank=True, null=True)
+    user = models.OneToOneField(User, models.SET_NULL, blank=True, null=True)
     institution = models.CharField(max_length=100, blank=True)
     position = models.CharField(max_length=100, blank=True)
 
@@ -1244,6 +1246,7 @@ class VisitGNSSDataFiles(BaseModel):
     file = models.FileField(upload_to=visits_gnss_data_files_path)
     filename = models.CharField(max_length=255, blank=True)
     description = models.CharField(max_length=500, blank=True)
+    size = models.CharField(max_length=20, blank=True)
 
     class Meta:
         constraints = [
@@ -1253,6 +1256,19 @@ class VisitGNSSDataFiles(BaseModel):
         ordering = ["filename"]
 
     def save(self, *args, **kwargs):
+        # Save file size before calling super().save()
+        if self.file and hasattr(self.file, 'size'):
+            # Convert bytes to human readable format
+            size = self.file.size
+            if size < 1024:
+                self.size = f"{size} B"
+            elif size < 1024 * 1024:
+                self.size = f"{size / 1024:.1f} KB"
+            elif size < 1024 * 1024 * 1024:
+                self.size = f"{size / (1024 * 1024):.1f} MB"
+            else:
+                self.size = f"{size / (1024 * 1024 * 1024):.1f} GB"
+
         super().save(*args, **kwargs)
 
         if self.file and hasattr(self.file, 'path'):

@@ -36,7 +36,9 @@ interface Props {
     >;
     type?: string;
     file?: StationFilesData;
-    setFile?: React.Dispatch<React.SetStateAction<StationFilesData | undefined>>;
+    setFile?: React.Dispatch<
+        React.SetStateAction<StationFilesData | undefined>
+    >;
 }
 
 const StationAddFileModal = ({
@@ -243,8 +245,8 @@ const StationAddFileModal = ({
 
     const updateMetadataFile = async () => {
         //LA CAGUEEE, PONER LO DE LEAN
-        try{
-        setLoading(true);
+        try {
+            setLoading(true);
             if (stationId) {
                 const formData = new FormData();
                 Object.entries(formState).forEach(([key, value]) => {
@@ -280,18 +282,19 @@ const StationAddFileModal = ({
         } finally {
             setLoading(false);
         }
-    }
+    };
 
     const updateFileDescription = async () => {
-        try{
-            if(globalDescription !== undefined){
+        try {
+            if (globalDescription !== undefined) {
                 const body = {
                     description: globalDescription,
                 };
-                if(typeof(file?.id) === "number"){
-                    
-                    const res = await patchStationAttachedFileDescription<any | ErrorResponse>(api, body, file?.id);
-                    if (res.statusCode !== 200 ) {
+                if (typeof file?.id === "number") {
+                    const res = await patchStationAttachedFileDescription<
+                        any | ErrorResponse
+                    >(api, body, file?.id);
+                    if (res.statusCode !== 200) {
                         setMsg({
                             status: 400,
                             errors: {
@@ -306,20 +309,19 @@ const StationAddFileModal = ({
                             },
                             msg: "Files were not uploaded successfully",
                         });
-                    } else{
+                    } else {
                         setMsg({
                             status: 200,
                             msg: "File description updated successfully",
                         });
-                    } 
+                    }
                     setBMsg({
                         status: res.statusCode,
                         msg: "File description updated successfully",
-                    })
+                    });
                 }
             }
-        }
-        catch(err){
+        } catch (err) {
             console.error(err);
             setMsg({
                 status: 400,
@@ -335,22 +337,18 @@ const StationAddFileModal = ({
                 },
                 msg: "Files were not uploaded successfully",
             });
-            
         }
-    }
+    };
 
     const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-        if(type === "edit"){
-            
-            if(file){
+        if (type === "edit") {
+            if (file) {
                 updateFileDescription();
-            }
-            else{
+            } else {
                 updateMetadataFile();
             }
-        }
-        else{
+        } else {
             !meta ? addFile() : addMetaDataFile();
         }
         setSubmited(true);
@@ -373,25 +371,24 @@ const StationAddFileModal = ({
     };
 
     useEffect(() => {
-        if(file !== undefined){
+        if (file !== undefined) {
             setGlobalDescription(file.description);
         }
     }, [file]);
 
-
     useEffect(() => {
         if (globalDescription) {
-            if(type !== "edit"){
-            setFiles((prev) => {
-                return prev.map((p) => {
-                    return {
-                        file: p.file,
-                        description: globalDescription,
-                        id: p.id,
-                        name: p.name,
-                    };
+            if (type !== "edit") {
+                setFiles((prev) => {
+                    return prev.map((p) => {
+                        return {
+                            file: p.file,
+                            description: globalDescription,
+                            id: p.id,
+                            name: p.name,
+                        };
+                    });
                 });
-            });
             }
         }
     }, [globalDescription]);
@@ -442,7 +439,7 @@ const StationAddFileModal = ({
             fileInputElement.value = "";
         }
 
-        if(file && setFile){
+        if (file && setFile) {
             setFile(undefined);
         }
     };
@@ -503,44 +500,44 @@ const StationAddFileModal = ({
             </div>
             <form className="form-control space-y-4" onSubmit={handleSubmit}>
                 <div className="form-control space-y-2">
-                    {type !== "edit" && 
-                    <input
-                        type="file"
-                        id="file-input"
-                        title={getInputTitle("navigation_file") ?? "File"}
-                        multiple={!meta}
-                        className={` ${otherErrorBadge?.includes("navigation_file") ? "file-input-error" : ""} file-input file-input-bordered w-full `}
-                        disabled={type === "edit"}
-                        onChange={(e) => {
-                            defaultValues();
+                    {type !== "edit" && (
+                        <input
+                            type="file"
+                            id="file-input"
+                            title={getInputTitle("navigation_file") ?? "File"}
+                            multiple={!meta}
+                            className={` ${otherErrorBadge?.includes("navigation_file") ? "file-input-error" : ""} file-input file-input-bordered w-full `}
+                            disabled={type === "edit"}
+                            onChange={(e) => {
+                                defaultValues();
 
-                            if (meta) {
-                                dispatch({
-                                    type: "change_value",
-                                    payload: {
-                                        inputName: "navigation_file",
-                                        inputValue:
-                                            e.target.files &&
-                                            e.target.files.length > 0
-                                                ? e.target.files[0]
-                                                : undefined,
-                                    },
-                                });
-                            } else {
-                                const files = e.target.files;
-
-                                if (files && files.length > 0) {
-                                    Array.from(files).forEach(() => {
-                                        handleChangeFiles(e.target);
+                                if (meta) {
+                                    dispatch({
+                                        type: "change_value",
+                                        payload: {
+                                            inputName: "navigation_file",
+                                            inputValue:
+                                                e.target.files &&
+                                                e.target.files.length > 0
+                                                    ? e.target.files[0]
+                                                    : undefined,
+                                        },
                                     });
-                                } else if (files && files.length === 0) {
-                                    setFiles([]);
-                                    setGlobalDescription("");
+                                } else {
+                                    const files = e.target.files;
+
+                                    if (files && files.length > 0) {
+                                        Array.from(files).forEach(() => {
+                                            handleChangeFiles(e.target);
+                                        });
+                                    } else if (files && files.length === 0) {
+                                        setFiles([]);
+                                        setGlobalDescription("");
+                                    }
                                 }
-                            }
-                        }}
-                    />
-                    }
+                            }}
+                        />
+                    )}
                     {!meta && (
                         <label
                             className={`w-full input input-bordered flex items-center gap-2 `}
@@ -548,14 +545,18 @@ const StationAddFileModal = ({
                         >
                             <div className="label">
                                 <span className="font-bold">
-                                    {type === "edit"? "FILE DESCRIPTION" : "GLOBAL DESCRIPTION"}
+                                    {type === "edit"
+                                        ? "FILE DESCRIPTION"
+                                        : "GLOBAL DESCRIPTION"}
                                 </span>
                             </div>
                             <input
                                 type="text"
                                 value={globalDescription}
                                 onChange={(e) => {
-                                    submited? ()=>{} : setGlobalDescription(e.target.value);
+                                    submited
+                                        ? () => {}
+                                        : setGlobalDescription(e.target.value);
                                 }}
                                 disabled={files.length === 0 && type !== "edit"}
                                 className="grow "
@@ -590,7 +591,6 @@ const StationAddFileModal = ({
                                         }}
                                         fileResults={fileResults}
                                         setFiles={setFiles}
-                                        
                                     />
                                 ))}
                             </div>
@@ -626,7 +626,7 @@ const StationAddFileModal = ({
                     className="btn btn-success self-center w-3/12"
                     type="submit"
                     disabled={
-                        (!meta && (files.length === 0 && type !== "edit") )||
+                        (!meta && files.length === 0 && type !== "edit") ||
                         progressBar ||
                         loading ||
                         apiOkStatuses.includes(Number(bMsg?.status))
@@ -635,7 +635,6 @@ const StationAddFileModal = ({
                     {" "}
                     Save{" "}
                 </button>
-
             </form>
         </Modal>
     );

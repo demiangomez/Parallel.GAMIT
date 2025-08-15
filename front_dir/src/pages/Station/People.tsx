@@ -7,6 +7,7 @@ import {
     Table,
     TableCard,
     ConfirmDeleteModal,
+    StationPeopleModal,
 } from "@componentsReact";
 
 import {
@@ -56,7 +57,9 @@ const People = () => {
         RolePersonStationData | undefined
     >(undefined);
 
-    const [people, setPeople] = useState<PeopleType[]>([]);
+    const [peopleType, setPeopleType] = useState<PeopleType[]>([]);
+    const [person, setPerson] = useState<PeopleType | undefined>(undefined);
+
     const [roles, setRoles] = useState<StationStatus[] | undefined>(undefined);
 
     const [modals, setModals] = useState<
@@ -83,6 +86,10 @@ const People = () => {
         } finally {
             setLoading(false);
         }
+    };
+
+    const reFetch = () => {
+        getPeople();
     };
 
     const delPerson = async () => {
@@ -116,7 +123,7 @@ const People = () => {
         try {
             setLoading(true);
             const res = await getPeopleService<PeopleServiceData>(api);
-            setPeople(res.data);
+            setPeopleType(res.data);
             // setPages(Math.ceil(res.total_count / bParams.limit));
         } catch (err) {
             console.error(err);
@@ -141,20 +148,31 @@ const People = () => {
         getRoles();
     }, []); // eslint-disable-line
 
-    const titles = ["Role", "Name", "Last Name", "Email", "Address", "Phone", "Institution", "Position"];
+    const titles = [
+        "Role",
+        "Name",
+        "Last Name",
+        "Email",
+        "Address",
+        "Phone",
+        "Institution",
+        "Position",
+    ];
 
     const body = useMemo(() => {
         const b = rolePersonStations?.map((rp) =>
             Object.values({
                 // id: monument.id,
                 role: roles?.find((r) => r.id === rp.role)?.name,
-                name: people.find((p) => p.id === rp.person)?.first_name,
-                last_name: people.find((p) => p.id === rp.person)?.last_name,
-                email: people.find((p) => p.id === rp.person)?.email,
-                address: people.find((p) => p.id === rp.person)?.address,
-                phone: people.find((p) => p.id === rp.person)?.phone,
-                institution: people.find((p) => p.id === rp.person)?.institution,
-                position: people.find((p) => p.id === rp.person)?.position,
+                name: peopleType.find((p) => p.id === rp.person)?.first_name,
+                last_name: peopleType.find((p) => p.id === rp.person)
+                    ?.last_name,
+                email: peopleType.find((p) => p.id === rp.person)?.email,
+                address: peopleType.find((p) => p.id === rp.person)?.address,
+                phone: peopleType.find((p) => p.id === rp.person)?.phone,
+                institution: peopleType.find((p) => p.id === rp.person)
+                    ?.institution,
+                position: peopleType.find((p) => p.id === rp.person)?.position,
             }),
         );
 
@@ -171,7 +189,7 @@ const People = () => {
             }
             return 0;
         });
-    }, [rolePersonStations, people, roles]);
+    }, [rolePersonStations, peopleType, roles]);
 
     useEffect(() => {
         modals?.show && showModal(modals.title);
@@ -189,6 +207,9 @@ const People = () => {
                         modalTitle="EditStationPerson"
                         setModals={setModals}
                         addButton={true}
+                        secondAddButton={true}
+                        secondAddButtonTitle="+ Person"
+                        secondModalTitle="EditPerson"
                     >
                         <Table
                             titles={body && body.length > 0 ? titles : []}
@@ -208,17 +229,26 @@ const People = () => {
                             state={rolePersonStations}
                         />
                         {modals?.show &&
-                            modals.title === "EditStationPerson" && (
-                                <StationPersonModal
-                                    people={people}
-                                    roles={roles}
-                                    Person={rolePersonStation}
-                                    Station={station}
-                                    modalType={modals.type}
-                                    setStateModal={setModals}
-                                    reFetch={() => getAll()}
-                                />
-                            )}
+                        modals.title === "EditStationPerson" ? (
+                            <StationPersonModal
+                                people={peopleType}
+                                roles={roles}
+                                Person={rolePersonStation}
+                                Station={station}
+                                modalType={modals.type}
+                                setStateModal={setModals}
+                                reFetch={() => getAll()}
+                            />
+                        ) : modals?.title === "EditPerson" ? (
+                            <StationPeopleModal
+                                Person={person}
+                                modalType={modals.type}
+                                setStateModal={setModals}
+                                setPerson={setPerson}
+                                reFetch={reFetch}
+                                people={peopleType}
+                            />
+                        ) : null}
 
                         {modals && modals?.title === "ConfirmDelete" && (
                             <ConfirmDeleteModal

@@ -31,8 +31,14 @@ CELERY_RESULT_EXPIRES = 3600
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": "redis://127.0.0.1:6379",
-    }
+        "LOCATION": "redis://127.0.0.1:6379/0",
+        "TIMEOUT": 3600
+    },
+    'earthquakes_affected_stations_cache': {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": "redis://127.0.0.1:/1",
+        "TIMEOUT": 3600
+    },
 }
 
 CONFIG_FILE_ABSOLUTE_PATH = "/code/gnss_data.cfg"

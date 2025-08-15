@@ -14,12 +14,13 @@ import {
     Skeleton,
     Breadcrumb,
     Toast,
+    StationCommentsModal,
 } from "@componentsReact";
 import { router } from "App";
 
 import { useAuth, useApi } from "@hooks";
 
-import { generateErrorMessages, hasDifferences } from "@utils";
+import { generateErrorMessages, hasDifferences, showModal } from "@utils";
 
 import {
     getStationImagesService,
@@ -82,6 +83,10 @@ const Station = () => {
         undefined,
     );
 
+    const [modals, setModals] = useState<
+        | { show: boolean; title: string; type: "add" | "edit" | "none" }
+        | undefined
+    >(undefined);
     const [loading, setLoading] = useState<boolean>(true);
     const [reLoading, setReLoading] = useState<boolean>(false);
     const [photoLoading, setPhotoLoading] = useState<boolean>(true);
@@ -365,6 +370,10 @@ const Station = () => {
         }
     }, [kmzFile]);
 
+    useEffect(() => {
+        modals?.show && showModal(modals.title);
+    }, [modals]);
+
     return (
         <div className="max-h-[92vh] transition-all duration-200">
             {typeof message.error === "boolean" &&
@@ -438,6 +447,7 @@ const Station = () => {
                                         getButtonClasses,
                                         getKmzBalloon,
                                         getReStation,
+                                        setModals,
                                     }}
                                     constants={{
                                         station,
@@ -454,6 +464,16 @@ const Station = () => {
                                 />
                             )}
                         </div>
+
+                        {modals && modals.title === "StationComments" && (
+                            <StationCommentsModal
+                                visits={visits}
+                                stationMeta={stationMeta}
+                                onHide={() => setModals(undefined)}
+                                setModal={setModals}
+                                station={station}
+                            />
+                        )}
 
                         <Outlet
                             context={{

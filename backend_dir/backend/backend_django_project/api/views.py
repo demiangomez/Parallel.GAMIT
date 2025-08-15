@@ -27,7 +27,7 @@ from drf_spectacular.types import OpenApiTypes
 from rest_framework import status
 import base64
 from django.forms.models import model_to_dict
-from django.core.cache import cache
+from django.core.cache import caches
 import time
 from .tasks import update_gaps_status
 from django.core.files.storage import default_storage
@@ -35,6 +35,7 @@ from pgamit import pyStationInfo, dbConnection, pyDate, pyETM
 from pgamit import Utils as pyUtils
 import dateutil.parser
 from io import BytesIO
+import json
 
 
 def response_is_paginated(response_data):
@@ -111,10 +112,16 @@ class UserList(CustomListCreateAPIView):
     parser_classes = [MultiPartParser]
 
 
-class UserDetail(generics.RetrieveUpdateAPIView):
+class UserDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = get_user_model().objects.all()
     serializer_class = serializers.UserSerializer
     parser_classes = [MultiPartParser]
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['with_people'] = self.request.query_params.get(
+            'with_people') == 'true'
+        return context
 
     def update(self, request, *args, **kwargs):
         user = self.get_object()
@@ -279,42 +286,7 @@ class StationList(CustomListCreateAPIView):
 
         if response.status_code == status.HTTP_200_OK:
 
-            station_meta_query = models.StationMeta.objects.values_list(
-                'station', 'has_gaps', 'has_stationinfo', 'id', 'status__name', 'station_type__name')
-
-            station_meta_gaps = models.StationMetaGaps.objects.select_related(
-                'station_meta').all()
-
-            station_meta_gaps_dict = {station_meta_object[3]: [
-            ] for station_meta_object in station_meta_query}
-
-            for gap in station_meta_gaps:
-                station_meta_gaps_dict[gap.station_meta.id].append(
-                    model_to_dict(gap))
-
-            station_meta_dict = {
-                station_meta_object[0]: (
-                    station_meta_object[1],
-                    station_meta_object[2],
-                    station_meta_object[3],
-                    station_meta_object[4],
-                    station_meta_object[5]
-                )
-                for station_meta_object in station_meta_query
-            }
-
-            # Update the response data with the information from station_meta_dict
-            for station in response.data["data"]:
-                if 'api_id' in station:
-
-                    if station['api_id'] in station_meta_dict:
-                        has_gaps, has_stationinfo, station_meta_id, station_status_name, station_type_name = station_meta_dict[
-                            station['api_id']]
-                        station["has_gaps"] = has_gaps
-                        station["has_stationinfo"] = has_stationinfo
-                        station["gaps"] = station_meta_gaps_dict[station_meta_id]
-                        station["status"] = station_status_name
-                        station["type"] = station_type_name
+            utils.StationUtils.get_station_meta_info(response.data["data"])
 
         return response
 
@@ -349,7 +321,7 @@ class StationDetail(generics.RetrieveUpdateDestroyAPIView):
                 response.data["has_stationinfo"] = stationmeta.has_stationinfo
                 response.data["gaps"] = [model_to_dict(
                     gap) for gap in stationmeta.stationmetagaps_set.all()]
-                response.data["status"] = stationmeta.status.name
+                response.data["status"] = stationmeta.status.name if stationmeta.status else None
                 response.data["type"] = stationmeta.station_type.name if stationmeta.station_type else None
 
         return response
@@ -1349,12 +1321,35 @@ class EarthquakesAffectedStations(APIView):
     def get(self, request, pk, format=None):
         earthquake = self.get_queryset(pk)
         try:
-            affected_stations, base64_kml = utils.EarthquakeUtils.get_affected_stations(
-                earthquake)
+            cache_key = f'earthquake-affected-stations-{pk}'
+
+            cache = caches['earthquakes_affected_stations_cache']
+
+            cached_response = cache.get(cache_key, "has expired")
+
+            if cached_response == "has expired":
+                affected_stations_including_postseismic, affected_stations_without_postseismic, kml_including_postseismic, kml_without_postseismic, coseismic_displacements = utils.EarthquakeUtils.get_affected_stations(
+                    earthquake)
+                csv_including_postseismic, csv_without_postseismic = utils.EarthquakeUtils.get_stations_csv_list(
+                    earthquake, affected_stations_including_postseismic, affected_stations_without_postseismic)
+                response = {"affected_stations_including_postseismic": affected_stations_including_postseismic, "affected_stations_without_postseismic": affected_stations_without_postseismic,
+                            "kml_without_postseismic": kml_without_postseismic, "kml_including_postseismic": kml_including_postseismic, "csv_including_postseismic": csv_including_postseismic, "csv_without_postseismic": csv_without_postseismic, "coseismic_displacements": coseismic_displacements}
+                cache.set(cache_key, response)
+            else:
+                response = cached_response
+
         except Exception as e:
             raise exceptions.CustomServerErrorExceptionHandler(e)
 
-        return Response(data={"affected_stations": affected_stations, "kml": base64_kml}, status=status.HTTP_200_OK)
+        return Response(data=response, status=status.HTTP_200_OK)
+
+
+class RemoveEarthquakesAffectedStationsCache(APIView):
+    serializer_class = serializers.DummySerializer
+
+    def post(self, request, format=None):
+        caches['earthquakes_affected_stations_cache'].clear()
+        return Response(data={"message": "Cache cleared successfully"}, status=status.HTTP_201_CREATED)
 
 
 class EtmParamsList(CustomListCreateAPIView):
@@ -1523,6 +1518,51 @@ class PersonDetail(generics.RetrieveUpdateDestroyAPIView):
         """If response is 200, add some related station fields"""
 
         return super().retrieve(request, *args, **kwargs)
+
+
+class PersonRelations(APIView):
+    serializer_class = serializers.DummySerializer
+
+    def get_person(self, pk):
+        try:
+            return models.Person.objects.get(id=pk)
+        except models.Person.DoesNotExist:
+            raise Http404
+
+    @extend_schema(description="Gets all relations person has (roles with stations, visits, etc).")
+    def get(self, request, pk, format=None):
+        person = self.get_person(pk)
+        try:
+            role_person_station, visits = utils.PersonUtils.get_relations(
+                person)
+
+            # Serialize the relations
+            role_person_station_serializer = serializers.RolePersonStationWithNamesSerializer(
+                role_person_station, many=True)
+            visits_serializer = serializers.VisitSerializer(visits, many=True)
+
+            relations = {
+                'role_person_station': role_person_station_serializer.data,
+                'visits': visits_serializer.data
+            }
+        except Exception as e:
+            raise exceptions.CustomServerErrorExceptionHandler(e)
+
+        return Response(data={"relations": relations}, status=status.HTTP_200_OK)
+
+
+class PersonHasDuplicates(APIView):
+    serializer_class = serializers.DummySerializer
+
+    @extend_schema(description="Removes leading and trailing spaces and ignores case when checking for duplicates.")
+    def get(self, request, first_name, last_name, format=None):
+        try:
+            has_duplicates = utils.PersonUtils.has_duplicates(
+                first_name, last_name)
+        except Exception as e:
+            raise exceptions.CustomServerErrorExceptionHandler(e)
+
+        return Response(data={"has_duplicates": has_duplicates}, status=status.HTTP_200_OK)
 
 
 class MergePerson(APIView):
@@ -2070,7 +2110,7 @@ class StationinfoList(CustomListCreateAPIView):
                 'The record already exists in the database.')
 
 
-class InsertStationInfoByFile(APIView):
+class ParseStationInfoByFile(APIView):
     parser_classes = [MultiPartParser]
     serializer_class = serializers.DummySerializer
 
@@ -2106,8 +2146,138 @@ class InsertStationInfoByFile(APIView):
             OpenApiParameter(name='file', type=OpenApiTypes.BINARY,
                              required=True, description='The file to upload.')
         ],
-        description="This endpoint uses PGAMIT module to parse the file. \nIt returns a value with key 'inserted_station_info' containing a list of station info successfully inserted. \nIf at least one station info insert failed, another value with key 'error_message' detailing the error is returned."
+        description="This endpoint uses PGAMIT module to parse the file. Returns all records present in file but it doesn't insert any of those."
     )
+    def post(self, request, *args, **kwargs):
+        if 'file' not in request.FILES:
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "No file was uploaded.")
+
+        uploaded_file = request.FILES['file']
+
+        # Save the file temporarily to pass file path to parser
+        file_path = default_storage.save(uploaded_file.name, uploaded_file)
+        full_file_path = os.path.join(default_storage.location, file_path)
+
+        try:
+            station = models.Stations.objects.get(
+                api_id=kwargs['station_api_id'])
+        except models.Stations.DoesNotExist:
+            if os.path.exists(full_file_path):
+                os.remove(full_file_path)
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "Station does not exist.")
+        except models.Stations.MultipleObjectsReturned:
+            if os.path.exists(full_file_path):
+                os.remove(full_file_path)
+            raise exceptions.CustomServerErrorExceptionHandler(
+                "Multiple stations with the same API ID exist.")
+        try:
+            cnn = dbConnection.Cnn(settings.CONFIG_FILE_ABSOLUTE_PATH)
+
+            pgamit_stationinfo = pyStationInfo.StationInfo(
+                cnn=cnn, NetworkCode=station.network_code.network_code, StationCode=station.station_code, allow_empty=True)
+            station_info_records = pgamit_stationinfo.parse_station_info(
+                full_file_path)
+            if os.path.exists(full_file_path):
+                os.remove(full_file_path)
+
+            return Response({"station_info_records_on_file": station_info_records}, status=status.HTTP_200_OK)
+        except Exception as e:
+
+            if os.path.exists(full_file_path):
+                os.remove(full_file_path)
+
+            raise exceptions.CustomValidationErrorExceptionHandler(e)
+
+
+class InsertStationInfoByFile(APIView):
+    parser_classes = [MultiPartParser]
+    serializer_class = serializers.DummySerializer
+
+    def _station_info_pgamit_to_serializer(self, station_info_record_from_pgamit):
+        station_info_instance = {
+            "network_code": station_info_record_from_pgamit.NetworkCode,
+            "station_code": station_info_record_from_pgamit.StationCode,
+            "receiver_code": station_info_record_from_pgamit.ReceiverCode,
+            "receiver_serial": station_info_record_from_pgamit.ReceiverSerial,
+            "receiver_firmware": station_info_record_from_pgamit.ReceiverFirmware,
+            "antenna_code": station_info_record_from_pgamit.AntennaCode,
+            "antenna_serial": station_info_record_from_pgamit.AntennaSerial,
+            "antenna_height": station_info_record_from_pgamit.AntennaHeight,
+            "antenna_north": station_info_record_from_pgamit.AntennaNorth,
+            "antenna_east": station_info_record_from_pgamit.AntennaEast,
+            "height_code": station_info_record_from_pgamit.HeightCode,
+            "radome_code": station_info_record_from_pgamit.RadomeCode,
+            "date_start": pyDate.Date(stninfo=station_info_record_from_pgamit.DateStart).datetime(),
+            "date_end": pyDate.Date(stninfo=station_info_record_from_pgamit.DateEnd).datetime(),
+            "receiver_vers": station_info_record_from_pgamit.ReceiverVers,
+            "comments": station_info_record_from_pgamit.Comments
+        }
+        station_info_serializer = serializers.StationinfoSerializer(
+            data=station_info_instance)
+
+        station_info_serializer.is_valid(raise_exception=True)
+
+        return station_info_serializer
+
+    @extend_schema(
+        request=OpenApiTypes.OBJECT,
+        parameters=[
+            OpenApiParameter(name='file', type=OpenApiTypes.BINARY,
+                             required=True, description='The file to upload.'),
+            OpenApiParameter(name='records_to_insert', type=OpenApiTypes.STR,
+                             required=False, description="""String with JSON format containing the actual records you wish to insert. Example:
+                             {
+                                "records_to_insert": [
+                                    {
+                                    "NetworkCode": "sag",
+                                    "StationCode": "igm1",
+                                    "DateStart": "2003 200 30 00 00"
+                                    },
+                                    {
+                                    "NetworkCode": "sag",
+                                    "StationCode": "igm1",
+                                    "DateStart": "2003 200 30 00 00"
+                                    }
+                                ]
+                            }"""),
+        ],
+        description="""This endpoint uses PGAMIT module to parse the file.
+        \nIt returns a value with key 'inserted_station_info' containing a list of station info successfully inserted.
+        \nIf at least one station info insert failed, another value with key 'error_message' detailing the error is returned.
+        """
+
+    )
+    def _filter_station_info_records(self, station_info_records, records_to_insert):
+        if records_to_insert is not None:
+            try:
+                records_to_insert = json.loads(records_to_insert)
+            except json.JSONDecodeError:
+                raise exceptions.CustomValidationErrorExceptionHandler(
+                    "Invalid JSON format for 'records_to_insert'.")
+            if not isinstance(records_to_insert, dict):
+                raise exceptions.CustomValidationErrorExceptionHandler(
+                    "'records_to_insert' must be a dictionary.")
+            records_to_insert = records_to_insert.get(
+                'records_to_insert', None)
+
+            if not isinstance(records_to_insert, list) or len(records_to_insert) == 0:
+                raise exceptions.CustomValidationErrorExceptionHandler(
+                    "'records_to_insert' must be a non-empty list.")
+
+            records_to_insert = [(record["NetworkCode"], record["StationCode"],
+                                  record["DateStart"]) for record in records_to_insert]
+
+            station_info_records = [station_info_record for station_info_record in station_info_records if (
+                station_info_record.NetworkCode, station_info_record.StationCode, str(station_info_record.DateStart)) in records_to_insert]
+
+            if len(station_info_records) == 0:
+                raise exceptions.CustomValidationErrorExceptionHandler(
+                    "At least one station info records must be selected")
+
+        return station_info_records
+
     def post(self, request, *args, **kwargs):
         if 'file' not in request.FILES:
             raise exceptions.CustomValidationErrorExceptionHandler(
@@ -2143,6 +2313,10 @@ class InsertStationInfoByFile(APIView):
             station_info_records = pgamit_stationinfo.parse_station_info(
                 full_file_path)
 
+            records_to_insert = request.data.get('records_to_insert', None)
+            station_info_records = self._filter_station_info_records(
+                station_info_records, records_to_insert)
+
             for station_info_record in station_info_records:
                 station_info_serializer = self._station_info_pgamit_to_serializer(
                     station_info_record)
@@ -2157,7 +2331,10 @@ class InsertStationInfoByFile(APIView):
             if os.path.exists(full_file_path):
                 os.remove(full_file_path)
 
-            return Response({"inserted_station_info": succesfully_inserted}, status=status.HTTP_201_CREATED)
+            if len(succesfully_inserted) == 0:
+                return Response({"inserted_station_info": []}, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                return Response({"inserted_station_info": succesfully_inserted}, status=status.HTTP_201_CREATED)
         except Exception as e:
 
             if os.path.exists(full_file_path):
@@ -2186,6 +2363,31 @@ class GetStationKMZ(APIView):
             raise exceptions.CustomServerErrorExceptionHandler(e)
 
         return Response(data={"kmz": kmz}, status=status.HTTP_200_OK)
+
+
+class GetNearbyStations(APIView):
+    serializer_class = serializers.DummySerializer
+
+    def get_queryset(self, station_api_id):
+        try:
+            return models.Stations.objects.get(api_id=station_api_id)
+        except models.Stations.DoesNotExist:
+            raise Http404
+
+    def get(self, request, station_api_id, distance_km, format=None):
+        station = self.get_queryset(station_api_id)
+        try:
+            nearby_stations = utils.NearbyStations.get_nearby_stations(
+                station, distance_km=distance_km)
+            serializer = serializers.StationSerializer(
+                nearby_stations, many=True)
+            utils.StationUtils.get_station_meta_info(
+                serializer.data)
+            nearby_stations = serializer.data
+        except Exception as e:
+            raise exceptions.CustomServerErrorExceptionHandler(e)
+
+        return Response(data={"nearby_stations": nearby_stations}, status=status.HTTP_200_OK)
 
 
 class StationinfoDetail(generics.RetrieveUpdateDestroyAPIView):
@@ -2272,7 +2474,7 @@ class UpdateGapsStatus(APIView):
     @extend_schema(description="Computes gaps status for all station_meta objects with 'has_gaps_update_needed' = true")
     def post(self, request, format=None):
 
-        if cache.add('update_gaps_status_lock', 'locked', timeout=60*60):
+        if caches['default'].add('update_gaps_status_lock', 'locked'):
             update_gaps_status.delay()
             return Response(status=status.HTTP_201_CREATED)
         else:
@@ -2283,7 +2485,7 @@ class DeleteUpdateGapsStatusBlock(APIView):
     serializer_class = serializers.DummySerializer
 
     def post(self, request, format=None):
-        cache.delete('update_gaps_status_lock')
+        caches['default'].delete('update_gaps_status_lock')
         return Response(status=status.HTTP_201_CREATED)
 
 

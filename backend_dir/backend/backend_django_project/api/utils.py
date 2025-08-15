@@ -6,7 +6,7 @@ import math
 from django.db import connection
 import django.utils.timezone
 import logging
-from django.core.cache import cache
+from django.core.cache import caches
 from django.conf import settings
 from django.forms.models import model_to_dict
 from rest_framework.response import Response
@@ -73,6 +73,43 @@ def get_actual_image(image_obj, request):
 
 
 class StationUtils:
+    @staticmethod
+    def get_station_meta_info(stations):
+        station_meta_query = models.StationMeta.objects.values_list(
+            'station', 'has_gaps', 'has_stationinfo', 'id', 'status__name', 'station_type__name')
+
+        station_meta_gaps = models.StationMetaGaps.objects.select_related(
+            'station_meta').all()
+
+        station_meta_gaps_dict = {station_meta_object[3]: [
+        ] for station_meta_object in station_meta_query}
+
+        for gap in station_meta_gaps:
+            station_meta_gaps_dict[gap.station_meta.id].append(
+                model_to_dict(gap))
+
+        station_meta_dict = {
+            station_meta_object[0]: (
+                station_meta_object[1],
+                station_meta_object[2],
+                station_meta_object[3],
+                station_meta_object[4],
+                station_meta_object[5]
+            )
+            for station_meta_object in station_meta_query
+        }
+
+        for station in stations:
+            if 'api_id' in station:
+                if station['api_id'] in station_meta_dict:
+                    has_gaps, has_stationinfo, station_meta_id, station_status_name, station_type_name = station_meta_dict[
+                        station['api_id']]
+                    station["has_gaps"] = has_gaps
+                    station["has_stationinfo"] = has_stationinfo
+                    station["gaps"] = station_meta_gaps_dict[station_meta_id]
+                    station["status"] = station_status_name
+                    station["type"] = station_type_name
+
     @staticmethod
     def parse_harpos_coeff_otl_file(file, network_code, station_code):
 
@@ -354,6 +391,36 @@ class FilesUtils:
 
 class PersonUtils:
     @staticmethod
+    def get_relations(person):
+        role_person_station = models.RolePersonStation.objects.filter(
+            person=person)
+
+        visits = models.Visits.objects.filter(people=person)
+
+        return role_person_station, visits
+
+    @staticmethod
+    def has_duplicates(first_name, last_name):
+        # check if first_name and last_name are not empty strings
+        if not isinstance(first_name, str) or not isinstance(last_name, str):
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "first_name and last_name must be strings")
+
+        # remove leading and trailing spaces
+        first_name = first_name.strip()
+        last_name = last_name.strip()
+
+        if first_name == "" or last_name == "":
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "first_name and last_name cannot be empty strings")
+
+        # check if there are duplicates using case-insensitive filtering
+        duplicates = models.Person.objects.filter(
+            first_name__iexact=first_name, last_name__iexact=last_name)
+
+        return duplicates.exists()
+
+    @staticmethod
     def merge_person(person_source, person_target):
 
         # transfer all visits
@@ -583,6 +650,30 @@ class StationKMZGenerator:
         return base64.b64encode(kmz_buffer.getvalue()).decode('utf-8')
 
 
+class NearbyStations:
+    @staticmethod
+    def get_nearby_stations(station, distance_km):
+        # check if station is of type models.Station
+        if not isinstance(station, models.Stations):
+            raise exceptions.CustomServerErrorExceptionHandler(
+                "station must be an instance of models.Station")
+
+        # check if distance_km is a positive number
+        if not isinstance(distance_km, (int, float)) or distance_km <= 0:
+            raise exceptions.CustomValidationErrorExceptionHandler(
+                "distance_km must be a positive number")
+
+        # get nearby stations
+        nearby_stations = models.Stations.objects.filter(
+            lat__range=(float(station.lat) - distance_km / 111,
+                        float(station.lat) + distance_km / 111),
+            lon__range=(float(station.lon) - distance_km / (111 * numpy.cos(numpy.radians(float(station.lat)))),
+                        float(station.lon) + distance_km / (111 * numpy.cos(numpy.radians(float(station.lat)))))
+        ).exclude(api_id=station.api_id)
+
+        return nearby_stations
+
+
 class EarthquakeUtils:
     @staticmethod
     def get_affected_stations(earthquake):
@@ -595,25 +686,107 @@ class EarthquakeUtils:
 
         eq_t = pyOkada.EarthquakeTable(cnn, earthquake.id)
 
-        affected_stations = [{"network_code": affected_station["NetworkCode"],
-                              "station_code": affected_station["StationCode"]} for affected_station in eq_t.stations]
+        affected_stations_only_postseismic = [{"network_code": affected_station["NetworkCode"],
+                                               "station_code": affected_station["StationCode"]} for affected_station in eq_t.p_stations]
 
-        strike = [float(earthquake.strike1), float(earthquake.strike2)
-                  ] if not math.isnan(earthquake.strike1) else []
-        dip = [float(earthquake.dip1), float(earthquake.dip2)
-               ] if not math.isnan(earthquake.strike1) else []
-        rake = [float(earthquake.rake1), float(earthquake.rake2)
-                ] if not math.isnan(earthquake.strike1) else []
+        affected_stations_without_postseismic = [{"network_code": affected_station["NetworkCode"],
+                                                  "station_code": affected_station["StationCode"]} for affected_station in eq_t.c_stations]
 
-        score = pyOkada.Score(earthquake.lat, earthquake.lon, earthquake.depth,
-                              earthquake.mag, strike, dip, rake, earthquake.date, density=750, location=earthquake.location, event_id=earthquake.id)
+        affected_stations_including_postseismic = affected_stations_without_postseismic + \
+            affected_stations_only_postseismic
 
-        kml = score.save_masks(include_postseismic=True)
+        mask = pyOkada.Mask(cnn, earthquake.id)
 
-        kml_base_64_encoded = base64.b64encode(
-            kml.encode('utf-8')).decode('utf-8')
+        kml_mask_including_postseismic = mask.save_masks(
+            include_postseismic=True)
+        kml_mask_without_postseismic = mask.save_masks(
+            include_postseismic=False)
 
-        return affected_stations, kml_base_64_encoded
+        kml_mask_including_postseismic = base64.b64encode(
+            kml_mask_including_postseismic.encode('utf-8')).decode('utf-8')
+
+        kml_mask_without_postseismic = base64.b64encode(
+            kml_mask_without_postseismic.encode('utf-8')).decode('utf-8')
+
+        coseismic_displacements = eq_t.get_coseismic_displacements()
+
+        return affected_stations_including_postseismic, affected_stations_without_postseismic, kml_mask_including_postseismic, kml_mask_without_postseismic, coseismic_displacements
+
+    def get_stations_csv_list(earthquake, stations_including_postseismic_reduced, stations_without_postseismic_reduced):
+        header = ["Network Code", "Station Code", "Latitude",
+                  "Longitude", "Postseismic", "Coseismic", "Observation Availability"]
+
+        earthquake_date = earthquake.date.date()
+        day_before_earthquake = earthquake_date - \
+            datetime.timedelta(days=1)
+
+        csv_content_including_postseismic = ['|'.join(header)]
+        csv_content_without_postseismic = ['|'.join(header)]
+
+        stations_without_postseismic = set()
+
+        for station in stations_without_postseismic_reduced:
+            try:
+                station_data = list(models.Stations.objects.values_list('network_code__network_code', 'station_code', 'lat', 'lon').get(
+                    network_code__network_code=station['network_code'], station_code=station['station_code']))
+                station_data.append(True)
+                station_data.append(True)
+                # Compute 'Observation Availability'
+                observation_availability = models.Rinex.objects.filter(
+                    network_code=station_data[0],
+                    station_code=station_data[1],
+                    observation_s_time__date=day_before_earthquake
+                ).exists() and models.Rinex.objects.filter(
+                    network_code=station_data[0],
+                    station_code=station_data[1],
+                    observation_s_time__date=earthquake_date
+                ).exists()
+
+                station_data.append(observation_availability)
+                csv_content_without_postseismic.append(
+                    '|'.join([str(item) for item in station_data]))
+
+                stations_without_postseismic.add(
+                    (station['network_code'], station['station_code']))
+            except models.Stations.DoesNotExist:
+                raise exceptions.CustomValidationErrorExceptionHandler(
+                    f"Station {station['network_code']}.{station['station_code']} does not exist")
+
+        for station in stations_including_postseismic_reduced:
+            try:
+                station_data = list(models.Stations.objects.values_list('network_code__network_code', 'station_code', 'lat', 'lon').get(
+                    network_code__network_code=station['network_code'], station_code=station['station_code']))
+                station_data.append(True)
+                # Compute "Coseismic" value
+                cosesmic_value = (
+                    station_data[0], station_data[1]) in stations_without_postseismic
+                station_data.append(cosesmic_value)
+
+                # Compute 'Observation Availability'
+                observation_availability = models.Rinex.objects.filter(
+                    network_code=station_data[0],
+                    station_code=station_data[1],
+                    observation_s_time__date=day_before_earthquake
+                ).exists() and models.Rinex.objects.filter(
+                    network_code=station_data[0],
+                    station_code=station_data[1],
+                    observation_s_time__date=earthquake_date
+                ).exists()
+
+                station_data.append(observation_availability)
+
+                csv_content_including_postseismic.append(
+                    '|'.join([str(item) for item in station_data]))
+            except models.Stations.DoesNotExist:
+                raise exceptions.CustomValidationErrorExceptionHandler(
+                    f"Station {station['network_code']}.{station['station_code']} does not exist")
+
+            # Convert to CSV strings
+        csv_including_postseismic = '\n'.join(
+            csv_content_including_postseismic)
+        csv_without_postseismic = '\n'.join(csv_content_without_postseismic)
+
+        return csv_including_postseismic, csv_without_postseismic
 
 
 class StationMetaUtils:
@@ -630,7 +803,7 @@ class StationMetaUtils:
         logger.info(
             f' \'has_gaps\' status updated. Total stations updated: {records.count()} - Time taken: {(datetime.datetime.now() - previous_time).total_seconds()}')
 
-        cache.delete('update_gaps_status_lock')
+        caches['default'].delete('update_gaps_status_lock')
 
     @staticmethod
     def update_gaps_status(station_meta_record):

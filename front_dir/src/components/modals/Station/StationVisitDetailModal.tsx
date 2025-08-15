@@ -7,6 +7,7 @@ import {
     Modal,
     RenderFileModal,
     Spinner,
+    StationPeopleModal,
     VisitCampaignModal,
     VisitPeopleModal,
 } from "@componentsReact";
@@ -26,6 +27,7 @@ import {
     PencilSquareIcon,
     PlusCircleIcon,
     TrashIcon,
+    UserPlusIcon,
 } from "@heroicons/react/24/outline";
 
 import {
@@ -47,7 +49,7 @@ import { useFormReducer, useWaitCursor, useApi, useAuth } from "@hooks";
 import { apiOkStatuses, classHtml, showModal } from "@utils";
 
 import {
-    People as PeopleType,
+    People,
     PeopleServiceData,
     StationVisitsData,
     StationVisitsFilesData,
@@ -138,7 +140,9 @@ const StationVisitDetailModal = ({
         undefined,
     );
 
-    const [people, setPeople] = useState<PeopleType[]>([]);
+    const [people, setPeople] = useState<People[]>([]);
+
+    const [person, setPerson] = useState<People | undefined>(undefined);
 
     const [files, setFiles] = useState<StationVisitsFilesData[] | undefined>(
         undefined,
@@ -901,32 +905,53 @@ const StationVisitDetailModal = ({
                                     </div>
                                 </div>
                                 <div className="flex items-center">
-                                    <div className="flex flex-col w-full max-h-60 pr-2 overflow-auto">
+                                    <div className="flex flex-col w-full max-h-60 pr-2 ">
                                         <div className="inline-flex items-end justify-between">
                                             <strong className="text-lg">
                                                 People:{" "}
                                             </strong>
                                             {edit && (
-                                                <button
-                                                    className="btn btn-ghost btn-circle ml-2"
-                                                    onClick={() => {
-                                                        setModals({
-                                                            show: true,
-                                                            title: "AddVisitPeople",
-                                                            type: "add",
-                                                        });
-                                                    }}
-                                                >
-                                                    <PlusCircleIcon
-                                                        strokeWidth={1.5}
-                                                        stroke="currentColor"
-                                                        className="w-8 h-10"
-                                                    />
-                                                </button>
+                                                <div className="justify-end flex space-x-2">
+                                                    <button
+                                                        className="btn btn-ghost btn-circle tooltip tooltip-bottom"
+                                                        data-tip="Create People"
+                                                        onClick={() => {
+                                                            setModals &&
+                                                                setModals({
+                                                                    show: true,
+                                                                    title: "EditPerson",
+                                                                    type: "add",
+                                                                });
+                                                        }}
+                                                    >
+                                                        <UserPlusIcon
+                                                            strokeWidth={1.5}
+                                                            stroke="currentColor"
+                                                            className="w-8 h-8 justify-self-center"
+                                                        />
+                                                    </button>
+                                                    <button
+                                                        className="btn btn-ghost btn-circle tooltip tooltip-bottom"
+                                                        data-tip="Add existing people"
+                                                        onClick={() => {
+                                                            setModals({
+                                                                show: true,
+                                                                title: "AddVisitPeople",
+                                                                type: "add",
+                                                            });
+                                                        }}
+                                                    >
+                                                        <PlusCircleIcon
+                                                            strokeWidth={1.5}
+                                                            stroke="currentColor"
+                                                            className="w-8 h-10 justify-self-center"
+                                                        />
+                                                    </button>
+                                                </div>
                                             )}
                                         </div>
                                         <div className="w-full grid grid-cols-1 grid-flow-dense">
-                                            <div className="flex flex-col w-full rounded-md bg-neutral-content">
+                                            <div className="flex flex-col w-full rounded-md bg-neutral-content max-h-[200px] overflow-auto flex-grow">
                                                 {visit?.people.length > 0 ? (
                                                     visit?.people.map(
                                                         (p: {
@@ -1502,15 +1527,20 @@ const StationVisitDetailModal = ({
                                                                 <TrashIcon className="size-8 text-red-600" />
                                                             </button>
                                                             <div className="flex flex-col w-8/12 text-pretty break-words max-w-full">
+                                                                <h3 className="text-slate-500">
+                                                                    ({f.size})
+                                                                </h3>
                                                                 <h2
                                                                     className="card-title truncate"
                                                                     title={
                                                                         f.filename
                                                                     }
                                                                 >
-                                                                    {f.filename}
+                                                                    {
+                                                                        f.filename
+                                                                    }{" "}
                                                                 </h2>
-                                                                <p>
+                                                                <p className="w-100 truncate">
                                                                     {
                                                                         f.description
                                                                     }
@@ -1865,6 +1895,17 @@ const StationVisitDetailModal = ({
                     type={modals.type}
                     fileToEdit={fileToEdit}
                     setFileToEdit={setFileToEdit}
+                />
+            )}
+
+            {modals && modals?.title === "EditPerson" && (
+                <StationPeopleModal
+                    Person={person}
+                    modalType={modals.type}
+                    setStateModal={setModals}
+                    setPerson={setPerson}
+                    people={people}
+                    reFetch={() => getPeople()} // En este caso closeModal es el fetch de visits que hace la pagina.
                 />
             )}
 

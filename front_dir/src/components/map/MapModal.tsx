@@ -194,6 +194,7 @@ const MapModal = ({
         center: [0, 0],
         zoom: 4,
         scrollWheelZoom: true,
+        minZoom: 2,
     });
 
     const [loadingMap, setLoadingMap] = useState(false);
@@ -375,6 +376,7 @@ const MapModal = ({
                         {...mapProps}
                         preferCanvas={true}
                         zoomControl={false}
+                        minZoom={1}
                         maxBoundsViscosity={1.0}
                         ref={(map) => {
                             if (map) {
@@ -430,7 +432,7 @@ const MapModal = ({
                         <TileLayer
                             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                            minZoom={4}
+                            minZoom={1}
                         />
                         <FeatureGroup ref={featureGroupRef}>
                             {memoizedEditControl}

@@ -14,6 +14,10 @@ export { default as Station } from "./Station/Station";
 
 export { default as Overview } from "./Overview/Overview";
 
+// User Settings
+
+export { default as Settings } from "./User/Settings";
+
 // Users
 
 export { default as Users } from "./Users/Users";
@@ -21,3 +25,7 @@ export { default as Users } from "./Users/Users";
 // Campaigns
 
 export { default as Campaigns } from "./Campaigns/Campaigns";
+
+// People Station
+
+export { default as PeopleRelations } from "./People/People";

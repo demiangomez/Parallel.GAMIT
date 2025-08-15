@@ -40,8 +40,8 @@ const UsersTable = () => {
             setLoading(true);
             const res = await getUsersService<UsersServiceData>(api, params);
             setUsers(res.data);
-            if(bParams.limit)
-            setPages(Math.ceil(res.total_count / bParams.limit));
+            if (bParams.limit)
+                setPages(Math.ceil(res.total_count / bParams.limit));
         } catch (err) {
             console.error(err);
         } finally {
@@ -138,7 +138,7 @@ const UsersTable = () => {
                         type: "edit",
                     })
                 }
-                onAlterClickFunction={()=>{
+                onAlterClickFunction={() => {
                     setModals({
                         show: true,
                         title: "ConfirmDelete",
@@ -156,7 +156,6 @@ const UsersTable = () => {
                     handlePage={handlePage}
                 />
             ) : null}
-
             {modals?.show && modals.title === "EditUsers" && (
                 <UsersModal
                     User={user}

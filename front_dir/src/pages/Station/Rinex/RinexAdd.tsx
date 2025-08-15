@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
 import { useDropzone } from "react-dropzone";
-import { Alert, Modal } from "@componentsReact";
+import { Alert, Modal, Table } from "@componentsReact";
 
 import { CloudArrowDownIcon } from "@heroicons/react/24/outline";
 
 import { useAuth, useApi } from "@hooks";
 
-import { postStationInfoByFileService } from "@services";
+import { getRecordsFromFile, postStationInfoByFileService } from "@services";
 import { apiOkStatuses, formattedDates, woTz } from "@utils";
-import { RinexAddFile, RinexFileResponse } from "@types";
+import { Errors, RinexAddFile, RinexFileResponse, ErrorResponse } from "@types";
 
 interface Props {
     stationApiId: number;
@@ -21,10 +21,46 @@ interface Props {
     >;
 }
 
-interface DropzoneProps {
+type RecordsOfFile = {
+    station_info_records_on_file: Record[];
+    statusCode: number;
+};
+
+type Record = {
+    NetworkCode: string;
+    StationCode: string;
+    ReceiverCode: string;
+    ReceiverSerial: string;
+    ReceiverFirmware: string;
+    AntennaCode: string;
+    AntennaSerial: string;
+    AntennaHeight: number;
+    AntennaNorth: number;
+    AntennaEast: number;
+    HeightCode: string;
+    RadomeCode: string;
+    DateStart: {
+        stninfo: string;
+    };
+    DateEnd: {
+        stninfo: string;
+    };
+    Comments: string | null;
+    ReceiverVers: string;
+    hash: number;
+    record_format: string;
+};
+
+type RecordToInsert = {
+    NetworkCode: string;
+    StationCode: string;
+    DateStart: string;
+};
+
+type DropzoneProps = {
     file: File | undefined;
     setFile: React.Dispatch<React.SetStateAction<File | undefined>>;
-}
+};
 
 const Dropzone = ({ file, setFile }: DropzoneProps) => {
     const { acceptedFiles, getRootProps, getInputProps } = useDropzone({
@@ -84,7 +120,7 @@ const RinexAdd = ({ stationApiId, handleCloseModal, setModalState }: Props) => {
         | {
               status: number;
               msg: string;
-              errors?: RinexFileResponse;
+              errors?: RinexFileResponse | Errors;
               rinex_other_errors?: { [key: string]: string[] };
           }
         | undefined
@@ -92,11 +128,169 @@ const RinexAdd = ({ stationApiId, handleCloseModal, setModalState }: Props) => {
 
     const [file, setFile] = useState<File | undefined>(undefined);
 
+    const [records, setRecords] = useState<RecordToInsert[]>([]);
+
+    const [tableData, setTableData] = useState<(string | number | null)[][]>();
+
+    const titles = [
+        "NET CODE",
+        "ST CODE",
+        "DATE START",
+        "DATE END",
+        "RX CODE",
+        "RX SERIAL",
+        "RX FW",
+        "ANT CODE",
+        "ANT SERIAL",
+        "HEIGHT",
+        "NORTH",
+        "EAST",
+        "HC",
+        "RAD",
+        "COMMENTS",
+    ];
+
+    const getRecords = async () => {
+        try {
+            setLoading(true);
+            setMsg(undefined);
+
+            const formData = new FormData();
+            formData.append("file", file as File);
+
+            const res = await getRecordsFromFile<RecordsOfFile | ErrorResponse>(
+                api,
+                stationApiId,
+                formData,
+            );
+
+            if (res) {
+                if ("status" in res) {
+                    setMsg({
+                        status: res.statusCode,
+                        msg: "No Records valid",
+                        errors: res.response,
+                    });
+                    setTableData([]);
+                } else {
+                    const recordsOnFile = res.station_info_records_on_file;
+
+                    const data = recordsOnFile?.map(
+                        ({
+                            NetworkCode,
+                            StationCode,
+                            DateStart,
+                            DateEnd,
+                            //eslint-disable-next-line
+                            ReceiverVers,
+                            //eslint-disable-next-line
+                            hash,
+                            //eslint-disable-next-line
+                            record_format,
+                            ...restOfStationInfo
+                        }: Record) => {
+                            return [
+                                NetworkCode,
+                                StationCode,
+                                DateStart.stninfo,
+                                DateEnd.stninfo,
+                                ...Object.values(restOfStationInfo),
+                            ];
+                        },
+                    );
+                    setTableData(data);
+                }
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const addAllRecords = () => {
+        if (!tableData) return;
+
+        if (records.length !== tableData.length) {
+            const data = tableData
+                .map((row) => {
+                    const networkCode = row[0]?.toString();
+                    const stationCode = row[1]?.toString();
+                    const dateStart = row[2]?.toString();
+
+                    if (
+                        networkCode !== undefined &&
+                        stationCode !== undefined &&
+                        dateStart !== undefined
+                    ) {
+                        return {
+                            NetworkCode: networkCode,
+                            StationCode: stationCode,
+                            DateStart: dateStart,
+                        };
+                    }
+                    return null;
+                })
+                .filter((row): row is RecordToInsert => row !== null);
+
+            setRecords(data);
+        } else {
+            setRecords([]);
+        }
+    };
+
+    const addOrDiscardRecord = (row: (string | number | null)[]) => {
+        if (!tableData) return;
+
+        const networkCode = row[0] as string;
+        const stationCode = row[1] as string;
+        const dateStart = row[2] ? row[2].toString() : "";
+
+        setRecords((prev = []) => {
+            const exists = prev.some(
+                (r) =>
+                    r.NetworkCode === networkCode &&
+                    r.StationCode === stationCode &&
+                    r.DateStart === dateStart,
+            );
+            if (exists) {
+                // Remove record
+                return prev.filter(
+                    (r) =>
+                        !(
+                            r.NetworkCode === networkCode &&
+                            r.StationCode === stationCode &&
+                            r.DateStart === dateStart
+                        ),
+                );
+            } else {
+                // Add record
+                return [
+                    ...prev,
+                    {
+                        NetworkCode: networkCode,
+                        StationCode: stationCode,
+                        DateStart: dateStart,
+                    },
+                ];
+            }
+        });
+    };
+
     const addFile = async () => {
         try {
             setLoading(true);
+            setMsg(undefined);
+            const recordsToInsert = {
+                records_to_insert: records,
+            };
+
             const formData = new FormData();
             formData.append("file", file as File);
+            formData.append(
+                "records_to_insert",
+                JSON.stringify(recordsToInsert),
+            );
 
             const res = await postStationInfoByFileService<
                 RinexAddFile | RinexFileResponse
@@ -138,6 +332,12 @@ const RinexAdd = ({ stationApiId, handleCloseModal, setModalState }: Props) => {
         }
     };
 
+    useEffect(() => {
+        if (file != undefined) {
+            getRecords();
+        }
+    }, [file]);
+
     return (
         <Modal
             close={true}
@@ -150,6 +350,22 @@ const RinexAdd = ({ stationApiId, handleCloseModal, setModalState }: Props) => {
                 <Dropzone file={file} setFile={setFile} />
             </div>
 
+            {tableData != undefined && tableData?.length > 0 && (
+                <Table
+                    titles={titles}
+                    body={tableData}
+                    loading={loading}
+                    table={"Station"}
+                    dataOnly={true}
+                    multipleSelect={true}
+                    onClickFunctionWithValue={addOrDiscardRecord}
+                    onAlterClickFunction={() => addAllRecords()}
+                    state={records}
+                    setState={setRecords}
+                    onClickFunction={() => {}}
+                />
+            )}
+
             <div className="w-full flex flex-col items-center mt-2">
                 <button
                     className="btn btn-success w-[160px]"
@@ -158,7 +374,8 @@ const RinexAdd = ({ stationApiId, handleCloseModal, setModalState }: Props) => {
                     disabled={
                         !file ||
                         loading ||
-                        apiOkStatuses.includes(Number(msg?.status))
+                        apiOkStatuses.includes(Number(msg?.status)) ||
+                        records.length === 0
                     }
                 >
                     Add

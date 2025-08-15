@@ -8,6 +8,7 @@ import {
     MenuButton,
     MenuContent,
     Modal,
+    TraceReceiverModal,
 } from "@componentsReact";
 
 import "react-datepicker/dist/react-datepicker.css";
@@ -45,10 +46,12 @@ import {
     formattedDates,
     showModal,
 } from "@utils";
+import { MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 
 interface EditStatsModalProps {
     stationInfo: StationInfoData | undefined;
     modalType: "add" | "edit" | "none";
+    typeAddition: "last" | "none-clear" | undefined;
     setStateModal: React.Dispatch<
         React.SetStateAction<
             | { show: boolean; title: string; type: "add" | "edit" | "none" }
@@ -58,17 +61,20 @@ interface EditStatsModalProps {
     setStationInfo?: React.Dispatch<
         React.SetStateAction<StationInfoData | undefined>
     >;
+    setTypeAddition: React.Dispatch<
+        React.SetStateAction<"last" | "none-clear" | undefined>
+    >;
     reFetch: () => void;
-    typeAddition: "last" | "none-clear" | undefined;
 }
 
 const EditStatsModal = ({
     stationInfo,
     modalType,
+    typeAddition,
+    setTypeAddition,
     setStateModal,
     setStationInfo,
     reFetch,
-    typeAddition,
 }: EditStatsModalProps) => {
     const { nc, sc } = useParams();
 
@@ -113,7 +119,7 @@ const EditStatsModal = ({
             input: "",
         },
         date_end: { check: true, input: "" },
-    }); 
+    });
 
     const [showMenu, setShowMenu] = useState<
         { type: string; show: boolean } | undefined
@@ -156,8 +162,16 @@ const EditStatsModal = ({
         }
     }, [stationInfo]); // eslint-disable-line
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const { value, name } = e.target;
+    const handleChange = (
+        e:
+            | React.ChangeEvent<HTMLInputElement>
+            | React.MouseEvent<HTMLInputElement, MouseEvent>,
+    ) => {
+        // Determina el tipo de evento y obtiene el target correctamente
+        const target =
+            (e as React.ChangeEvent<HTMLInputElement>).target ??
+            (e as React.MouseEvent<HTMLInputElement>).target;
+        const { value, name } = target as HTMLInputElement;
 
         if (name === "receiver_code") {
             const match = receivers.filter((receiver) =>
@@ -379,6 +393,8 @@ const EditStatsModal = ({
         STATION_INFO_STATE.network_code = nc ?? "";
         STATION_INFO_STATE.station_code = sc ?? "";
 
+        setTypeAddition(undefined);
+
         dispatch({
             type: "set",
             payload: STATION_INFO_STATE,
@@ -402,30 +418,35 @@ const EditStatsModal = ({
 
     const inputRefHeightCode = useRef<HTMLInputElement>(null);
 
-    const selectRef = (key: string) =>{
-        return key === "receiver_code" ? inputRefReceiverCode : key === "antenna_code" ? inputRefAntenaCode : key === "height_code" ? inputRefHeightCode : null;
-    }
-    
+    const selectRef = (key: string) => {
+        return key === "receiver_code"
+            ? inputRefReceiverCode
+            : key === "antenna_code"
+              ? inputRefAntenaCode
+              : key === "height_code"
+                ? inputRefHeightCode
+                : null;
+    };
 
     useEffect(() => {
-        if(showMenu){
+        if (showMenu) {
             const ref = selectRef(showMenu.type);
             if (ref && ref.current) {
                 ref.current.focus();
             }
         }
-    },[showMenu])
-
+    }, [showMenu]);
 
     useEffect(() => {
         modals?.show && showModal(modals.title);
     }, [modals]);
-    
+
     useEscape(() => {
         closeModal();
         dispatchAndClearDoys();
         setMsg(undefined);
     });
+
     return (
         <Modal
             close={true}
@@ -434,18 +455,35 @@ const EditStatsModal = ({
             handleCloseModal={closeModal}
             setModalState={setStateModal}
         >
-            <h3 className="font-bold text-center text-2xl my-2 w-full">
-                {modalType === "none"
-                    ? "Add"
-                    : modalType.charAt(0).toUpperCase() +
-                      modalType.slice(1) +
-                      (modalType === "edit"
-                          ? " " +
-                            stationInfo?.network_code.toUpperCase() +
-                            "." +
-                            stationInfo?.station_code.toUpperCase()
-                          : "")}
-            </h3>
+            <div className="flex flex-row">
+                {typeAddition && (
+                    <button
+                        className="btn"
+                        onClick={() =>
+                            setModals({
+                                show: true,
+                                title: "TraceReceiverModal",
+                                type: "none",
+                            })
+                        }
+                    >
+                        Trace Receiver{" "}
+                        <MagnifyingGlassIcon className="size-5" />
+                    </button>
+                )}
+                <h3 className="font-bold text-center text-2xl my-2 w-full">
+                    {modalType === "none"
+                        ? "Add"
+                        : modalType.charAt(0).toUpperCase() +
+                          modalType.slice(1) +
+                          (modalType === "edit"
+                              ? " " +
+                                stationInfo?.network_code.toUpperCase() +
+                                "." +
+                                stationInfo?.station_code.toUpperCase()
+                              : "")}
+                </h3>
+            </div>
             <form className="form-control space-y-4" onSubmit={handleSubmit}>
                 <div className="form-control space-y-2">
                     {Object.entries(formState || {}).map(([key], index) => {
@@ -458,7 +496,7 @@ const EditStatsModal = ({
                         const errorBadge = msg?.errors?.errors?.find(
                             (error) => error.attr === key,
                         );
-                        
+
                         return (
                             <div className="flex flex-col" key={index}>
                                 {errorBadge && (
@@ -493,7 +531,7 @@ const EditStatsModal = ({
                                                     ? "datetime-local"
                                                     : "text"
                                             }
-                                            ref = {selectRef(key)}
+                                            ref={selectRef(key)}
                                             name={key}
                                             value={
                                                 inputsToDatePicker.includes(key)
@@ -543,6 +581,11 @@ const EditStatsModal = ({
                                                         key === "date_end") &&
                                                     doyCheck?.[key].check;
 
+                                                setShowMenu({
+                                                    type: key,
+                                                    show: true,
+                                                });
+
                                                 if (hasDoy) {
                                                     setDoyCheck({
                                                         ...doyCheck,
@@ -588,6 +631,13 @@ const EditStatsModal = ({
                                                     ? "YYYY DDD HH MM SS"
                                                     : ""
                                             }
+                                            onClick={(e) => {
+                                                handleChange(e);
+                                                setShowMenu({
+                                                    type: key,
+                                                    show: true,
+                                                });
+                                            }}
                                         />
                                         {inputsToDatePicker.includes(key) &&
                                             !doyCheck?.[key].check && (
@@ -770,6 +820,18 @@ const EditStatsModal = ({
                                     type: "edit",
                                 });
                             }}
+                        />
+                    )}
+                    {modals && modals?.title === "TraceReceiverModal" && (
+                        <TraceReceiverModal
+                            closeModal={() => {
+                                setModals({
+                                    show: false,
+                                    title: "",
+                                    type: "none",
+                                });
+                            }}
+                            parentDispatch={dispatch} // Pasamos el dispatch para rellenar el formulario
                         />
                     )}
                 </div>

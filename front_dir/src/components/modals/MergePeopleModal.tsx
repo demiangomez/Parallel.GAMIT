@@ -25,11 +25,12 @@ const MergePeopleModal = ({
 
     const [successText, setSuccessText] = useState<boolean>(false);
 
-    const [people, setPeople] = useState<string[] | undefined>(undefined);
+    const [people, setPeople] = useState<
+        { id: string; name: string }[] | undefined
+    >(undefined);
 
-    const [from, setFrom] = useState<string | undefined>(undefined);
-
-    const [to, setTo] = useState<string | undefined>(undefined);
+    const [from, setFrom] = useState<string | number | undefined>(undefined);
+    const [to, setTo] = useState<string | number | undefined>(undefined);
 
     const { token, logout } = useAuth();
     const api = useApi(token, logout);
@@ -38,16 +39,8 @@ const MergePeopleModal = ({
         return `${name} ${surname}`;
     };
 
-    const findPerson = (name: string) => {
-        const foundPerson = body?.find((person) => {
-            if (person) {
-                return (
-                    getFullName(person.first_name, person.last_name) === name
-                );
-            }
-            return false;
-        });
-        return foundPerson;
+    const findPerson = (id: string | number) => {
+        return body?.find((person) => person && person.id === id);
     };
 
     const mergePeople = async () => {
@@ -82,20 +75,18 @@ const MergePeopleModal = ({
     };
 
     const filterPeople = (people: People[]) => {
-        const filteredPeople = people.map((person) => {
-            if (person) {
-                return getFullName(person.first_name, person.last_name);
-            }
-        });
-        return filteredPeople;
+        return people
+            .filter((person) => person)
+            .map((person) => ({
+                id: person.id.toString(),
+                name: getFullName(person.first_name, person.last_name),
+            }));
     };
 
     useEffect(() => {
         if (body && body.length > 0) {
-            const filteredPeople = filterPeople(body).filter(
-                (person): person is string => person !== undefined,
-            );
-            filteredPeople.sort((a, b) => a.localeCompare(b));
+            const filteredPeople = filterPeople(body);
+            filteredPeople.sort((a, b) => a.name.localeCompare(b.name));
             setPeople(filteredPeople);
         }
     }, [body]);
@@ -110,7 +101,6 @@ const MergePeopleModal = ({
             noPadding={true}
         >
             {" "}
-            
             <div
                 className={
                     successText
@@ -124,97 +114,93 @@ const MergePeopleModal = ({
                     <h1 className="text-2xl font-bold">Merge People</h1>
                 </div>
                 {
-                <form
-                    typeof="submit"
-                    onSubmit={(e) => {
-                        handleSubmit(e);
-                    }}
-                    className="w-full flex justify-start items-center flex-col gap-4"
-                >
-                    <div className="flex justify-start flex-row items-center border-b-2 mt-4 border-gray-300 w-full pb-6">
-                        <div className="flex flex-col gap-6 w-full max-w-[500px] pl-6">
-                            <h2 className="text-xl font-semibold">
-                                Merge From:
-                            </h2>
-                            <div className="max-h-[20vh] overflow-y-auto">
-                                {people?.map((person, index) => (
-                                    <div
-                                        key={index}
-                                        className="flex flex-row gap-4 p-2 mb-1 hover:bg-gray-200 rounded-md"
-                                    >
-                                        <input
-                                            className="checkbox"
-                                            type="checkbox"
-                                            name="person"
-                                            value={person}
-                                            checked={from === person}
-                                            onChange={() =>
-                                                from === person
-                                                    ? setFrom(undefined)
-                                                    : setFrom(person)
-                                            }
-                                        />
-                                        <label
-                                            htmlFor="person"
-                                            className="text-xl"
+                    <form
+                        typeof="submit"
+                        onSubmit={(e) => {
+                            handleSubmit(e);
+                        }}
+                        className="w-full flex justify-start items-center flex-col gap-4"
+                    >
+                        <div className="flex justify-start flex-row items-center border-b-2 mt-4 border-gray-300 w-full pb-6">
+                            <div className="flex flex-col gap-6 w-full max-w-[500px] pl-6">
+                                <h2 className="text-xl font-semibold">
+                                    Merge From:
+                                </h2>
+                                <div className="max-h-[20vh] overflow-y-auto">
+                                    {people?.map((person) => (
+                                        <div
+                                            key={person.id}
+                                            className="flex flex-row gap-4 p-2 mb-1 hover:bg-gray-200 rounded-md"
                                         >
-                                            {person}
-                                        </label>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                        <div className="flex flex-col gap-6 w-full max-w-[500px] pl-6">
-                            <h2 className="text-xl font-semibold">Merge To:</h2>
-                            <div className="max-h-[20vh] overflow-y-auto">
-                                {people?.map((person, index) => (
-                                    <div
-                                        key={index}
-                                        className="flex flex-row justify-start items-center gap-4 p-2 mb-1 hover:bg-gray-200 rounded-md"
-                                    >
-                                        <input
-                                            className="checkbox"
-                                            type="checkbox"
-                                            name="person"
-                                            value={person}
-                                            checked={to === person}
-                                            onChange={() =>
-                                                to === person
-                                                    ? setTo(undefined)
-                                                    : setTo(person)
-                                            }
-                                        />
-                                        <label
-                                            htmlFor="person"
-                                            className="text-xl"
-                                        >
-                                            {person}
-                                        </label>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                    <div className="flex justify-center flex-col w-full items-center gap-1">
-                        <button
-                            disabled={
-                                !(to && from) || to === from || successText
-                            }
-                            className="btn btn-neutral w-32"
-                            type="submit"
-                        >
-                            {loading && <Spinner size="lg" />}
-                            {!loading && (
-                                <div className="flex justify-center items-center gap-1">
-                                    <p className="font-semibold text-base">
-                                        Merge
-                                    </p>
-                                    <ArrowRightIcon className="size-5" />
+                                            <input
+                                                className="checkbox"
+                                                type="checkbox"
+                                                name="person-from"
+                                                value={person.id}
+                                                checked={from === person.id}
+                                                onChange={() =>
+                                                    from === person.id
+                                                        ? setFrom(undefined)
+                                                        : setFrom(person.id)
+                                                }
+                                            />
+                                            <label className="text-xl">
+                                                {person.name}
+                                            </label>
+                                        </div>
+                                    ))}
                                 </div>
-                            )}
-                        </button>
-                    </div>
-                </form>
+                            </div>
+                            <div className="flex flex-col gap-6 w-full max-w-[500px] pl-6">
+                                <h2 className="text-xl font-semibold">
+                                    Merge To:
+                                </h2>
+                                <div className="max-h-[20vh] overflow-y-auto">
+                                    {people?.map((person) => (
+                                        <div
+                                            key={person.id}
+                                            className="flex flex-row justify-start items-center gap-4 p-2 mb-1 hover:bg-gray-200 rounded-md"
+                                        >
+                                            <input
+                                                className="checkbox"
+                                                type="checkbox"
+                                                name="person-to"
+                                                value={person.id}
+                                                checked={to === person.id}
+                                                onChange={() =>
+                                                    to === person.id
+                                                        ? setTo(undefined)
+                                                        : setTo(person.id)
+                                                }
+                                            />
+                                            <label className="text-xl">
+                                                {person.name}
+                                            </label>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex justify-center flex-col w-full items-center gap-1">
+                            <button
+                                disabled={
+                                    !(to && from) || to === from || successText
+                                }
+                                className="btn btn-neutral w-32"
+                                type="submit"
+                            >
+                                {loading && <Spinner size="lg" />}
+                                {!loading && (
+                                    <div className="flex justify-center items-center gap-1">
+                                        <p className="font-semibold text-base">
+                                            Merge
+                                        </p>
+                                        <ArrowRightIcon className="size-5" />
+                                    </div>
+                                )}
+                            </button>
+                        </div>
+                    </form>
                 }
                 {successText ? (
                     <div className="w-full p-4">
@@ -248,7 +234,6 @@ const MergePeopleModal = ({
                         />
                     </div>
                 ) : null}
-                
             </div>
         </Modal>
     );

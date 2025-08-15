@@ -16,6 +16,7 @@ interface MyMapContainerProps {
     zoom: number;
     center: LatLngExpression;
     scrollWheelZoom: boolean;
+    minZoom?: number;
     style?: React.CSSProperties;
 }
 
@@ -127,9 +128,10 @@ const LoadKmzFromBase64 = ({ base64Data }: { base64Data: string }) => {
 
 const MapVisit = ({ base64Data, station, statuses, types }: MapProps) => {
     const [mapProps, setMapProps] = useState<MyMapContainerProps>({
-        zoom: 13,
+        zoom: 0,
         center: [0, 0],
         scrollWheelZoom: true,
+        minZoom: 2,
     });
 
     useEffect(() => {
@@ -146,12 +148,13 @@ const MapVisit = ({ base64Data, station, statuses, types }: MapProps) => {
         <div className="z-10 pt-6 flex justify-center">
             <MapContainer
                 {...mapProps}
+                minZoom={1}
                 className="w-[55vw] h-[30vh] xl:w-[40vw] lg:w-[30vw] md:w-[30vw] sm:w-[20vw]"
             >
                 <TileLayer
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    minZoom={4}
+                    minZoom={1}
                 />
                 <Marker
                     icon={chosenIcon(station as StationData, types, statuses)}

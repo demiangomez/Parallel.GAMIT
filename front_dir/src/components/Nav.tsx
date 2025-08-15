@@ -10,6 +10,8 @@ import {
     UserCircleIcon,
     UserGroupIcon,
     ServerStackIcon,
+    Cog6ToothIcon,
+    UsersIcon,
 } from "@heroicons/react/24/outline";
 
 import { useApi, useAuth } from "@hooks";
@@ -44,6 +46,11 @@ const Nav = () => {
             title: "station",
             type: "add",
         });
+    };
+
+    const closeDrowpDown = () => {
+        document.activeElement instanceof HTMLElement &&
+            document.activeElement.blur();
     };
 
     const serverHealthCheck = async () => {
@@ -122,6 +129,13 @@ const Nav = () => {
                     </Link>
                     <Link
                         className="btn btn-ghost btn-circle"
+                        to={"/people"}
+                        title="People"
+                    >
+                        <UsersIcon className="size-8" />
+                    </Link>
+                    <Link
+                        className="btn btn-ghost btn-circle"
                         to={"/overview"}
                         title="Overview"
                     >
@@ -164,19 +178,30 @@ const Nav = () => {
                                 <Link
                                     className="hover:bg-slate-600 flex justify-start focus:text-primary"
                                     to={"/users"}
+                                    onClick={() => closeDrowpDown()}
                                 >
                                     <UserGroupIcon className="size-6" />
-
                                     <span className="ml-[40px]">Users</span>
+                                </Link>
+                            </li>
+                            <li className="">
+                                <Link
+                                    className="hover:bg-slate-600 flex justify-start focus:text-primary"
+                                    to={"/settings"}
+                                    onClick={() => closeDrowpDown()}
+                                >
+                                    <Cog6ToothIcon className="size-6" />
+                                    <span className="ml-[40px]">Settings</span>
                                 </Link>
                             </li>
                             <li className="">
                                 <a
                                     className="hover:bg-slate-600 flex w-full justify-start"
-                                    onClick={() => logout(true)}
+                                    onClick={() => {
+                                        logout(true);
+                                    }}
                                 >
                                     <ArrowRightEndOnRectangleIcon className="size-6" />
-
                                     <span className="ml-[40px]">Logout</span>
                                 </a>
                             </li>

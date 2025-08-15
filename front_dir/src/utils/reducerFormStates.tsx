@@ -77,7 +77,7 @@ export const SOURCES_STATIONS_STATE = {
     path: "",
     format: "",
     server_id: "",
-}
+};
 
 export const SOURCES_SERVERS_STATE = {
     server_id: "",
@@ -86,13 +86,13 @@ export const SOURCES_SERVERS_STATE = {
     password: "",
     path: "",
     protocol: "",
-    username: ""
-}
+    username: "",
+};
 
 export const SOURCES_FORMATS_STATE = {
     format: "",
     api_id: "",
-}
+};
 
 export const METADATA_STATE = {
     stationMeta: {
@@ -109,7 +109,7 @@ export const METADATA_STATE = {
         auto_y: "",
         auto_z: "",
     },
-}
+};
 
 export const EVENTS_FILTERS_STATE = {
     description: "",
@@ -164,14 +164,14 @@ export const SERIES_JUMP_DATA = {
     action: "",
     jump_type: "",
     relaxation: [],
-}
+};
 
 export const SERIES_POLYNOMIAL_DATA = {
     DOY: "",
     Year: "",
     terms: "",
-}
+};
 
 export const SERIES_PERIODIC_DATA = {
-    frequence: []
-}
+    frequence: [],
+};

@@ -69,6 +69,12 @@ const MainPage = () => {
     const [earthQuakeAffectedStations, setEarthQuakeAffectedStations] =
         useState<StationsAffectedServiceData | undefined>(undefined);
 
+    const [toggleStateEarthquakeMask, setToggleEarthquakeMask] =
+        useState<boolean>(true); // represents coseismic + postseismic
+
+    const [toggleCoseismicVector, setToggleCoseismicVector] =
+        useState<boolean>(false); // represents Show co-seismic vectors
+
     const [chosenEarthquake, setChosenEarthquake] = useState<
         EarthquakeData | undefined
     >(undefined);
@@ -271,7 +277,7 @@ const MainPage = () => {
                         earthQuakeAffectedParams,
                         { signal: abortAffectedStationsRef.current.signal },
                     );
-                if (result && result.affected_stations) {
+                if (result && result.affected_stations_including_postseismic) {
                     setEarthQuakeAffectedStations(result);
                 }
             }
@@ -705,6 +711,9 @@ const MainPage = () => {
                         earthquakeChosen={chosenEarthquake}
                         handleEarthquakeState={handleEarthquakeState}
                         handleEarthquakeClose={handleEarthquakeClose}
+                        earthquakeAffectedStations={earthQuakeAffectedStations}
+                        setToggleEarthquakeMask={setToggleEarthquakeMask}
+                        setToggleCoseismicVector={setToggleCoseismicVector}
                     />
                     {earthquakeModal &&
                         earthquakeModal.title === "earthquake" && (
@@ -793,6 +802,10 @@ const MainPage = () => {
                             setMarkersByBounds={setMarkersByBounds}
                             setEarthquakesFiltered={setEarthQuakeFiltered}
                             setForceSyncScrollerMap={setForceSyncScrollerMap}
+                            toggleStateEarthquakeMask={
+                                toggleStateEarthquakeMask
+                            }
+                            toggleCoseismicVector={toggleCoseismicVector}
                         />
 
                         {list && (

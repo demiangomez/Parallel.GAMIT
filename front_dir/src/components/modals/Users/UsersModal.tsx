@@ -1,17 +1,18 @@
 import { useEffect, useState } from "react";
-import { Alert, Modal } from "@componentsReact";
+import { Alert, ConfirmDeleteModal, Modal } from "@componentsReact";
 
 import { EyeIcon, EyeSlashIcon } from "@heroicons/react/24/outline";
 
 import { useApi, useAuth, useFormReducer } from "@hooks/index";
 import { USERS_STATE } from "@utils/reducerFormStates";
-import { apiOkStatuses, jwtDeserializer } from "@utils";
+import { apiOkStatuses, jwtDeserializer, showModal } from "@utils";
 
 import {
     getRolesService,
     postUserService,
     patchUserService,
     getUserPhotoService,
+    deleteUserService,
 } from "@services";
 
 import {
@@ -54,9 +55,14 @@ const EditUsersModal = ({
 
     const [roles, setRoles] = useState<Role[]>([]);
 
-    const [loading, setLoading] = useState<boolean>(false);
+    const [loadingSubmit, setLoadingSubmit] = useState<boolean>(false);
+    const [loadingDelete, setLoadingDelete] = useState<boolean>(false);
     const [msg, setMsg] = useState<
         { status: number; msg: string; errors?: Errors } | undefined
+    >(undefined);
+    const [modals, setModals] = useState<
+        | { show: boolean; title: string; type: "add" | "edit" | "none" }
+        | undefined
     >(undefined);
 
     const [seePwd, setSeePwd] = useState<boolean>(false);
@@ -92,6 +98,14 @@ const EditUsersModal = ({
         }
     }, [User]); // eslint-disable-line
 
+    const confirmDeleteUser = () => {
+        setModals({
+            show: true,
+            title: "ConfirmDelete",
+            type: "edit",
+        });
+    };
+
     const handleChange = (e: HTMLInputElement | HTMLSelectElement) => {
         const { name, value } = e;
 
@@ -126,7 +140,9 @@ const EditUsersModal = ({
 
     const postUser = async () => {
         try {
-            setLoading(true);
+            setLoadingSubmit(true);
+            setMsg(undefined);
+
             const { role, photo, ...rest } = formState;
 
             const formData = new FormData();
@@ -160,17 +176,66 @@ const EditUsersModal = ({
         } catch (err) {
             console.error(err);
         } finally {
-            setLoading(false);
+            setLoadingSubmit(false);
         }
     };
 
-    // const handleDelete = () => {
-    // console.log("logica para eliminar el usuario")
-    // };
+    const deleteUser = async () => {
+        try {
+            setLoadingDelete(true);
+            setMsg(undefined);
+
+            if (!formState.id) {
+                setMsg({
+                    status: 400,
+                    msg: "No user ID provided",
+                });
+                return;
+            }
+
+            const res = await deleteUserService<ErrorResponse>(
+                api,
+                formState.id,
+            );
+
+            if (res) {
+                if (res.status == "success") {
+                    setMsg({
+                        status: res.statusCode,
+                        msg: "User deleted successfully",
+                    });
+                } else {
+                    setMsg({
+                        status: res.statusCode,
+                        msg: res.response.type,
+                        errors: res.response,
+                    });
+                }
+            }
+        } catch (err: any) {
+            console.error(err);
+
+            // Handle different types of errors
+            if (err?.response?.status) {
+                setMsg({
+                    status: err.response.status,
+                    msg: err.response.data?.message || "Error deleting user",
+                });
+            } else {
+                setMsg({
+                    status: 500,
+                    msg: "Error deleting user",
+                });
+            }
+        } finally {
+            setLoadingDelete(false);
+        }
+    };
 
     const putUser = async () => {
         try {
-            setLoading(true);
+            setLoadingSubmit(true);
+            setMsg(undefined);
 
             const { role, password, photo, ...rest } = formState;
 
@@ -214,7 +279,7 @@ const EditUsersModal = ({
         } catch (err) {
             console.error(err);
         } finally {
-            setLoading(false);
+            setLoadingSubmit(false);
         }
     };
 
@@ -233,6 +298,12 @@ const EditUsersModal = ({
             getPhoto();
         }
     }, []); // eslint-disable-line
+
+    useEffect(() => {
+        setLoadingDelete(true);
+        modals?.show && showModal(modals.title);
+        setLoadingDelete(false);
+    }, [modals]);
 
     return (
         <Modal
@@ -529,25 +600,49 @@ const EditUsersModal = ({
                         );
                     })}
                 </div>
-                <Alert msg={msg} />
+                {modals && modals?.title === "ConfirmDelete" && (
+                    <ConfirmDeleteModal
+                        msg={msg}
+                        loading={loadingDelete}
+                        confirmRemove={() => deleteUser()}
+                        closeModal={() => {
+                            setModals({
+                                show: false,
+                                title: "",
+                                type: "edit",
+                            });
+                        }}
+                    />
+                )}
+                {modals?.title !== "ConfirmDelete" && <Alert msg={msg} />}
                 <div className="flex w-full justify-center space-x-4">
-                    {/* <button
-                        type="button"
-                        className="btn btn-error w-4/12"
-                        disabled={apiOkStatuses.includes(Number(msg?.status))}
-                        onClick={handleDelete}
-                    >
-                        {loading && (
-                            <span className="loading loading-spinner loading-md"></span>
-                        )}
-                        Delete
-                    </button> */}
+                    {modalType === "edit" && (
+                        <button
+                            type="button"
+                            className="btn btn-error flex-1 max-w-[200px]"
+                            disabled={
+                                apiOkStatuses.includes(Number(msg?.status)) ||
+                                loadingSubmit ||
+                                loadingDelete
+                            }
+                            onClick={() => {
+                                confirmDeleteUser();
+                                setMsg(undefined);
+                            }}
+                        >
+                            Remove
+                        </button>
+                    )}
                     <button
                         type="submit"
-                        className="btn btn-success w-4/12"
-                        disabled={apiOkStatuses.includes(Number(msg?.status))}
+                        className={`btn btn-success flex-1 max-w-[200px] ${modalType === "add" ? "mx-auto" : ""}`}
+                        disabled={
+                            apiOkStatuses.includes(Number(msg?.status)) ||
+                            loadingSubmit ||
+                            loadingDelete
+                        }
                     >
-                        {loading && (
+                        {loadingSubmit && (
                             <span className="loading loading-spinner loading-md"></span>
                         )}
                         Submit

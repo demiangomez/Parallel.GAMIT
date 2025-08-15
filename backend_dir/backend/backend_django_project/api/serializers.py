@@ -145,16 +145,33 @@ class RoleSerializer(serializers.ModelSerializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
+    person = serializers.SerializerMethodField()
 
     class Meta:
         model = get_user_model()
         fields = ['id', 'username', 'password', 'role', 'is_active',
-                  'first_name', 'last_name', 'email', 'phone', 'address', 'photo']
-        extra_kwargs = {'password': {'write_only': True}}
+                  'first_name', 'last_name', 'email', 'phone', 'address', 'photo', 'clustering_distance', 'person']
+        extra_kwargs = {'password': {'write_only': True},
+                        'person': {'required': False}}
+
+    def get_person(self, obj):
+        if self.context.get('with_people'):
+            try:
+                person = models.Person.objects.get(user=obj)
+                return PersonSerializer(person).data if person else None
+            except models.Person.DoesNotExist:
+                return None
+        return None
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Make password optional only for updates (when instance exists)
+        if self.instance is not None:
+            self.fields['password'].required = False
 
     def save(self):
         # hash password (it didn't work with to_internal_value(self, data))
-        if 'password' in self.validated_data:
+        if 'password' in self.validated_data and self.validated_data['password']:
             self.validated_data["password"] = django.contrib.auth.hashers.make_password(
                 self.validated_data["password"])
         super().save()
@@ -166,6 +183,9 @@ class UserSerializer(serializers.ModelSerializer):
         representation = super().to_representation(instance)
 
         representation["role"] = RoleSerializer(instance.role).data
+
+        if not self.context.get('with_people'):
+            representation.pop('person', None)
 
         return representation
 
@@ -473,6 +493,25 @@ class RolePersonStationSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.RolePersonStation
         fields = '__all__'
+
+
+class RolePersonStationWithNamesSerializer(serializers.ModelSerializer):
+    station_network_code = serializers.SerializerMethodField()
+    station_station_code = serializers.SerializerMethodField()
+    station_role_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = models.RolePersonStation
+        fields = '__all__'
+
+    def get_station_network_code(self, obj):
+        return obj.station.network_code.network_code
+
+    def get_station_station_code(self, obj):
+        return obj.station.station_code
+
+    def get_station_role_name(self, obj):
+        return obj.role.name
 
 
 class StationTypeSerializer(serializers.ModelSerializer):
@@ -842,7 +881,7 @@ class VisitGNSSDataFilesSerializer(serializers.ModelSerializer):
 class VisitGNSSDataFilesOnlyMetadataSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.VisitGNSSDataFiles
-        fields = ['id', 'visit', 'filename', 'description']
+        fields = ['id', 'visit', 'filename', 'description', 'size']
 
 
 class StationCodeSerializer(serializers.ModelSerializer):

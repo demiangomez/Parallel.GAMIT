@@ -2,7 +2,7 @@ import {
     MonumentsTable,
     StationStatusTable,
     StationRolesTable,
-    PeopleTable,
+    // PeopleTable,
     StationTypesTable,
 } from "@componentsReact";
 
@@ -18,7 +18,7 @@ const Overview = () => {
                     <StationStatusTable />
                 </div>
                 <div className="flex flex-col items-start space-y-4 xl:items-center">
-                    <PeopleTable />
+                    {/* <PeopleTable /> */}
                     <StationRolesTable />
                     <StationTypesTable />
                 </div>

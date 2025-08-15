@@ -3,7 +3,7 @@ import { Link, useOutletContext } from "react-router-dom";
 
 import useApi from "@hooks/useApi";
 import { useAuth } from "@hooks/useAuth";
-import { getRinexService, getStationMetaService} from "@services";
+import { getRinexService, getStationMetaService } from "@services";
 
 import {
     GetParams,
@@ -19,6 +19,7 @@ interface PopupChildrenProps {
     station: StationData | undefined;
     fromMain?: boolean | undefined;
     mainParams?: GetParams;
+    reload?: boolean;
 }
 
 const child = (key: string, text: string, idx: number) => {
@@ -35,6 +36,7 @@ const PopupChildren = ({
     station,
     fromMain,
     mainParams,
+    reload,
 }: PopupChildrenProps) => {
     const { station_code, network_code, country_code, lat, lon, height } =
         station || {};
@@ -53,8 +55,6 @@ const PopupChildren = ({
         Height: height?.toFixed(3),
     };
 
-
-    
     const { token, logout } = useAuth();
     const api = useApi(token, logout);
 
@@ -111,15 +111,22 @@ const PopupChildren = ({
     };
 
     const getDistinctVisitYears = (key: string) => {
-        if(stationMetaByMain?.[key as keyof StationMetadataServiceData] && (stationMetaByMain?.[key as keyof StationMetadataServiceData] as string[]).join(", ") !== ""){
-            const valores = stationMetaByMain?.[key as keyof StationMetadataServiceData] as string[];
+        if (
+            stationMetaByMain?.[key as keyof StationMetadataServiceData] &&
+            (
+                stationMetaByMain?.[
+                    key as keyof StationMetadataServiceData
+                ] as string[]
+            ).join(", ") !== ""
+        ) {
+            const valores = stationMetaByMain?.[
+                key as keyof StationMetadataServiceData
+            ] as string[];
             valores.sort((a, b) => Number(a) - Number(b));
             return valores.join(", ");
-        }
-        else{
+        } else {
             return "-";
         }
-
     };
 
     const errorMessages = station ? generateErrorMessages(station) : [];
@@ -130,8 +137,6 @@ const PopupChildren = ({
             getStationMeta();
         }
     }, [fromMain]);
-
-    
 
     const campsToShow = ["rinex_count", "distinct_visit_years", "station_name"];
 
@@ -153,57 +158,128 @@ const PopupChildren = ({
                     {Object.entries(data).map((d, idx) =>
                         child(String(d[0]), String(d[1]), idx),
                     )}
-                    {
-                        fromMain? campsToShow.map((key, idx) => {
-                            if(key !== "distinct_visit_years") {
-                                return (
-                                    <div key = {idx} className="flex flex-col w-full">
-                                        <span className="text-sm">
-                                            <strong>{key.replace(/_/g, " ").replace(/^\w/, c => c.toUpperCase())}:</strong>{" "}
-                                            {stationMetaByMain?.[key as keyof StationMetadataServiceData] ? stationMetaByMain[key as keyof StationMetadataServiceData] : "-"}
-                                        </span>
-                                    </div>
-                                );
-                            }
-                            else{
-                                return (
-                                    <div key = {idx} className="flex flex-col w-full">
-                                        <span className="text-sm flex flex-row flex-wrap">
-                                            <strong>{key.replace(/_/g, " ").replace(/^\w/, c => c.toUpperCase())}: </strong>
-                                                <div className={Array.isArray(stationMetaByMain?.[key as keyof StationMetadataServiceData]) && (stationMetaByMain?.[key as keyof StationMetadataServiceData] as string[]).length > 1 ? "" : "ml-1"}>
-                                                {getDistinctVisitYears(key)}
-                                                </div>
-                                        </span>
-                                    </div>
-                                );
-                            }
-                            }) : !fromMain && stationMeta ? campsToShow.map((key, idx) => {
-                                if(key !== "distinct_visit_years") {
+                    {fromMain
+                        ? campsToShow.map((key, idx) => {
+                              if (key !== "distinct_visit_years") {
+                                  return (
+                                      <div
+                                          key={idx}
+                                          className="flex flex-col w-full"
+                                      >
+                                          <span className="text-sm">
+                                              <strong>
+                                                  {key
+                                                      .replace(/_/g, " ")
+                                                      .replace(/^\w/, (c) =>
+                                                          c.toUpperCase(),
+                                                      )}
+                                                  :
+                                              </strong>{" "}
+                                              {stationMetaByMain?.[
+                                                  key as keyof StationMetadataServiceData
+                                              ]
+                                                  ? stationMetaByMain[
+                                                        key as keyof StationMetadataServiceData
+                                                    ]
+                                                  : "-"}
+                                          </span>
+                                      </div>
+                                  );
+                              } else {
+                                  return (
+                                      <div
+                                          key={idx}
+                                          className="flex flex-col w-full"
+                                      >
+                                          <span className="text-sm flex flex-row flex-wrap">
+                                              <strong>
+                                                  {key
+                                                      .replace(/_/g, " ")
+                                                      .replace(/^\w/, (c) =>
+                                                          c.toUpperCase(),
+                                                      )}
+                                                  :{" "}
+                                              </strong>
+                                              <div
+                                                  className={
+                                                      Array.isArray(
+                                                          stationMetaByMain?.[
+                                                              key as keyof StationMetadataServiceData
+                                                          ],
+                                                      ) &&
+                                                      (
+                                                          stationMetaByMain?.[
+                                                              key as keyof StationMetadataServiceData
+                                                          ] as string[]
+                                                      ).length > 1
+                                                          ? ""
+                                                          : "ml-1"
+                                                  }
+                                              >
+                                                  {getDistinctVisitYears(key)}
+                                              </div>
+                                          </span>
+                                      </div>
+                                  );
+                              }
+                          })
+                        : !fromMain && stationMeta
+                          ? campsToShow.map((key, idx) => {
+                                if (key !== "distinct_visit_years") {
                                     return (
-                                        <div key = {idx} className="flex flex-col w-full">
+                                        <div
+                                            key={idx}
+                                            className="flex flex-col w-full"
+                                        >
                                             <span className="text-sm">
-                                                <strong>{key.replace(/_/g, " ").replace(/^\w/, c => c.toUpperCase())}:</strong>{" "}
-                                                {stationMeta?.[key as keyof StationMetadataServiceData] ?  stationMeta[key as keyof StationMetadataServiceData]  : "-"} 
+                                                <strong>
+                                                    {key
+                                                        .replace(/_/g, " ")
+                                                        .replace(/^\w/, (c) =>
+                                                            c.toUpperCase(),
+                                                        )}
+                                                    :
+                                                </strong>{" "}
+                                                {stationMeta?.[
+                                                    key as keyof StationMetadataServiceData
+                                                ]
+                                                    ? stationMeta[
+                                                          key as keyof StationMetadataServiceData
+                                                      ]
+                                                    : "-"}
                                             </span>
                                         </div>
                                     );
-                                }
-                                else{
+                                } else {
                                     return (
-                                        <div key = {idx} className="flex flex-col w-full">
+                                        <div
+                                            key={idx}
+                                            className="flex flex-col w-full"
+                                        >
                                             <span className="text-sm flex flex-row flex-wrap">
-                                                <strong className="pr-1">{key.replace(/_/g, " ").replace(/^\w/, c => c.toUpperCase())}:</strong>{" "}
-                                                {
-                                                    stationMeta?.[key as keyof StationMetadataServiceData] ?  
-                                                    (stationMeta?.[key as keyof StationMetadataServiceData] as string[]).join(", ")  : "-"
-                                                }
+                                                <strong className="pr-1">
+                                                    {key
+                                                        .replace(/_/g, " ")
+                                                        .replace(/^\w/, (c) =>
+                                                            c.toUpperCase(),
+                                                        )}
+                                                    :
+                                                </strong>{" "}
+                                                {stationMeta?.[
+                                                    key as keyof StationMetadataServiceData
+                                                ]
+                                                    ? (
+                                                          stationMeta?.[
+                                                              key as keyof StationMetadataServiceData
+                                                          ] as string[]
+                                                      ).join(", ")
+                                                    : "-"}
                                             </span>
                                         </div>
                                     );
                                 }
-                        })
-                        :null
-                    }
+                            })
+                          : null}
                 </div>
                 {fromMain && loading ? (
                     <span className="loading loading-dots loading-lg mx-auto"></span>
@@ -245,7 +321,9 @@ const PopupChildren = ({
                         )}
                         {lastRinex && (
                             <div className="flex flex-col">
-                                <h2 className="text-md font-semibold pt-2 text-gray-500">Last Rinex</h2>
+                                <h2 className="text-md font-semibold pt-2 text-gray-500">
+                                    Last Rinex
+                                </h2>
                                 <div className="flex">
                                     <strong>Filename: </strong>
                                     <span
@@ -324,6 +402,7 @@ const PopupChildren = ({
                     to={`/${network_code}/${station_code}`}
                     className=" text-center"
                     state={{ ...station, mainParams: mainParams }}
+                    reloadDocument={reload}
                 >
                     {" "}
                     Navigate to Station{" "}
