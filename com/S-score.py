@@ -36,6 +36,10 @@ def main():
     parser.add_argument('-table', '--output_table', action='store_true',
                         help="Output the list of stations affected by the requested earthquake.", default=False)
 
+    parser.add_argument('-ad', '--azimuth_distance', action='store_true',
+                        help="Output the list of stations affected by the requested earthquake with "
+                             "the azimuth and distance to epicenter.", default=False)
+
     parser.add_argument('-density', '--mask_density', nargs=1, type=int,
                         metavar='{mask_density}', default=[750],
                         help="A value to control the quality of the output mask. "
@@ -73,6 +77,14 @@ def main():
 
                 for stn in table.get_coseismic_displacements(args.output_displacements):
                     print('%s : %6.3f %6.3f %6.3f' % (stationID(stn), stn['n'], stn['e'], stn['u']))
+
+            if args.azimuth_distance:
+                table = pyOkada.EarthquakeTable(cnn, event['id'], args.postseismic)
+                print(' >> Azimuth and distance to %s '
+                      '(id %s)' % (event['location'], event['id']))
+
+                for stn in table.c_stations:
+                    print('%s : %6.1f deg %6.1f km' % (stationID(stn), stn['azimuth'], stn['distance']))
 
         else:
             print(' -- Event %s not found' % eq)

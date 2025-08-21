@@ -68,6 +68,7 @@ from obspy.imaging.beachball import beachball
 
 from pgamit.pyDate import Date
 from pgamit import pyETM as etm
+from pgamit.pyETM import CO_SEISMIC_JUMP, CO_SEISMIC_JUMP_DECAY
 from pgamit import dbConnection
 
 cosd  = lambda x : np.cos(np.deg2rad(x))
@@ -82,6 +83,29 @@ b = -1.1478
 
 POST_SEISMIC_SCALE_FACTOR = 1.5
 
+
+def azimuth(lon1, lat1, lon2, lat2):
+    """
+    Calculates the initial bearing (azimuth) in degrees between two points
+    on the Earth's surface (latitude and longitude).
+    """
+    # convert decimal degrees to radians
+    lon1 = lon1 * np.pi / 180
+    lat1 = lat1 * np.pi / 180
+    lon2 = lon2 * np.pi / 180
+    lat2 = lat2 * np.pi / 180
+
+    delta_lon = lon2 - lon1
+
+    y = np.sin(delta_lon) * np.cos(lat2)
+    x = np.cos(lat1) * np.sin(lat2) - \
+        np.sin(lat1) * np.cos(lat2) * np.cos(delta_lon)
+
+    az_rad = np.atan2(y, x)
+    az_deg = np.rad2deg(az_rad)
+
+    # Normalize to 0-360 degrees
+    return (az_deg + 360) % 360
 
 def distance(lon1, lat1, lon2, lat2):
     """
@@ -146,18 +170,23 @@ class EarthquakeTable(object):
             sp = a * eq['mag'] - np.log10(dist) + b + np.log10(POST_SEISMIC_SCALE_FACTOR)
             sc = a * eq['mag'] - np.log10(dist) + b
 
+            # prepare a dictionary for this station
+            stn_dict = dict(stn)
+            stn_dict['distance'] = dist
+            stn_dict['azimuth']  = azimuth(stn['lon'], stn['lat'], eq['lon'], eq['lat'])
+
             if (sc > 0 or sp > 0) and rake:
                 # check the actual score if rake, otherwise no need to check
                 sc, sp = score.score(stn['lat'], stn['lon'])
                 if sc > 0:
-                    self.c_stations.append(dict(stn))
+                    self.c_stations.append(stn_dict)
                 elif sp > 0 and include_postseismic:
-                    self.p_stations.append(dict(stn))
+                    self.p_stations.append(stn_dict)
             elif sc > 0:
                 # append the station because no L2 s-score
-                self.c_stations.append(dict(stn))
+                self.c_stations.append(stn_dict)
             elif sp > 0 and include_postseismic:
-                self.p_stations.append(dict(stn))
+                self.p_stations.append(stn_dict)
 
         self.c_stations = sorted(self.c_stations, key=lambda x: x['StationCode'])
         self.p_stations = sorted(self.p_stations, key=lambda x: x['StationCode'])
@@ -166,13 +195,13 @@ class EarthquakeTable(object):
         # find co-seismic only and co+post-seismic
         etms = self.cnn.query_float(f"SELECT \"NetworkCode\", \"StationCode\", params, relaxation, "
                                     f"ARRAY_LENGTH(relaxation,1) as len, jump_type FROM etms "
-                                    f"WHERE jump_type in (10, 15) "
+                                    f"WHERE jump_type in ({CO_SEISMIC_JUMP_DECAY}, {CO_SEISMIC_JUMP}) "
                                     f"AND metadata like '%{self.earthquake_id}%' and stack = '{stack}'", as_dict=True)
 
         displacements = []
 
         for etm in etms:
-            if etm['jump_type'] == 15:
+            if etm['jump_type'] == CO_SEISMIC_JUMP:
                 displacements.append({"NetworkCode": etm['NetworkCode'],
                                       "StationCode": etm['StationCode'],
                                       "n"          : etm['params'][0],
