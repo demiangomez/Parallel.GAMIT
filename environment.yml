@@ -9,7 +9,7 @@ dependencies:
   - h5py
   - matplotlib
   - networkx
-  - numpy>=1.19.5
+  - numpy==1.26.4
   - pandas
   - paramiko
   - psycopg2-binary
