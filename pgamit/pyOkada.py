@@ -101,7 +101,7 @@ def azimuth(lon1, lat1, lon2, lat2):
     x = np.cos(lat1) * np.sin(lat2) - \
         np.sin(lat1) * np.cos(lat2) * np.cos(delta_lon)
 
-    az_rad = np.atan2(y, x)
+    az_rad = np.arctan2(y, x)
     az_deg = np.rad2deg(az_rad)
 
     # Normalize to 0-360 degrees
