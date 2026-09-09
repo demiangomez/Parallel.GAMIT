@@ -31,22 +31,24 @@ DB_NAME = 'gnss_data'
 DEBUG = False
 
 
+def _decimal_to_float(value):
+    """recursively convert Decimal values to float, including inside nested lists
+    (e.g. the etms.params/sigmas columns, which are stored as a list of lists)"""
+    if isinstance(value, Decimal):
+        return float(value)
+    elif isinstance(value, list):
+        return [_decimal_to_float(v) for v in value]
+    else:
+        return value
+
+
 def cast_array_to_float(recordset):
 
     if len(recordset) > 0:
         if not isinstance(recordset[0], dict):
             result = []
             for record in recordset:
-                new_record = []
-                for field in record:
-                    if isinstance(field, list):
-                        new_record.append([float(value) if isinstance(value, Decimal) else value for value in field])
-                    else:
-                        if isinstance(field, Decimal):
-                            new_record.append(float(field))
-                        else:
-                            new_record.append(field)
-
+                new_record = [_decimal_to_float(field) for field in record]
                 result.append(tuple(new_record))
 
             return result
@@ -54,10 +56,8 @@ def cast_array_to_float(recordset):
             # Convert any DECIMAL values to float
             for record in recordset:
                 for key, value in record.items():
-                    if isinstance(value, Decimal):
-                        record[key] = float(value)
-                    elif isinstance(value, list) and all(isinstance(i, Decimal) for i in value):
-                        record[key] = [float(i) for i in value]
+                    if isinstance(value, Decimal) or isinstance(value, list):
+                        record[key] = _decimal_to_float(value)
 
     return recordset
 
@@ -548,7 +548,7 @@ def run_db_migrations(cnn: 'Cnn'):
                 CONSTRAINT reference_frames_pkey PRIMARY KEY (frame_name, engine),
                 CONSTRAINT reference_frames_api_id_key UNIQUE (api_id),
                 CONSTRAINT reference_frames_engine_check
-                    CHECK (engine IN ('gamit', 'pages')),
+                    CHECK (engine IN ('gamit', 'pages', 'ppp')),
                 CONSTRAINT reference_frames_periodic_wrms_check
                     CHECK (periodic_wrms IS NULL OR array_length(periodic_wrms, 1) = 4),
                 CONSTRAINT reference_frames_euler_pole_check
@@ -566,9 +566,9 @@ def run_db_migrations(cnn: 'Cnn'):
             COMMENT ON COLUMN reference_frames.frame_name IS
                 'Reference frame / stack name, matches "name" in the per-engine stacks table (e.g. stacks.name for engine=gamit).';
             COMMENT ON COLUMN reference_frames.engine IS
-                'Processing engine that produced this frame: gamit or pages. Determines which per-engine stacks/projects table this row corresponds to.';
+                'Processing engine that produced this frame: gamit, pages, or ppp. Determines which per-engine stacks/projects table this row corresponds to. ppp frames share the physical stacks table with gamit and are exempt from project validation (see reference_frames_validate_project_trigger).';
             COMMENT ON COLUMN reference_frames.project IS
-                'Project used to build this frame; validated against gamit_projects.project or pages_projects.project depending on engine (see reference_frames_validate_project_trigger).';
+                'Project used to build this frame; validated against gamit_projects.project or pages_projects.project depending on engine (see reference_frames_validate_project_trigger). For engine=ppp there is no per-engine projects table: this instead holds the PPP software name (e.g. gpspace) and is not validated.';
             COMMENT ON COLUMN reference_frames.fixed_plate IS
                 'Two-character tectonic plate code this frame is fixed to (see stations.plate). NULL means a no-net-rotation frame.';
             COMMENT ON COLUMN reference_frames.constraints_id IS
@@ -580,7 +580,7 @@ def run_db_migrations(cnn: 'Cnn'):
             COMMENT ON COLUMN reference_frames.periodic_wrms IS
                 'WRMS scatter (m) of the periodic-space realization, from Stack.remove_common_modes(). Fixed 4-element order: [annual_cos, annual_sin, semiannual_cos, semiannual_sin].';
             COMMENT ON COLUMN reference_frames.euler_pole IS
-                'Euler pole solution when fixed_plate is set, from cart2euler() in FixPlate.py. Full-precision numeric, fixed 3-element order: [pole_lat_deg, pole_lon_deg, rotation_rate_deg_per_myr]. NULL for no-net-rotation frames and, for now, for all frames (not yet written by any process).';
+                'Euler pole solution when fixed_plate is set, as ECEF rotation vector components (C[0:3] * k) in mas/yr, from FixPlate.py euler_pole(). Full-precision numeric, fixed 3-element order: [X, Y, Z]. NULL for no-net-rotation frames.';
             COMMENT ON COLUMN reference_frames.euler_pole_stations IS
                 'Stations used to compute euler_pole, as NetworkCode.StationCode entries (see FixPlate.py). NULL for now, same as euler_pole.';
             COMMENT ON COLUMN reference_frames.first_epoch IS
@@ -602,6 +602,13 @@ def run_db_migrations(cnn: 'Cnn'):
                 project_table TEXT;
                 found         BOOLEAN;
             BEGIN
+                -- ppp frames have no per-engine projects table to validate
+                -- against: project is a free-text PPP software name (e.g.
+                -- gpspace) instead, so it is never validated.
+                IF NEW.engine = 'ppp' THEN
+                    RETURN NEW;
+                END IF;
+
                 project_table := CASE NEW.engine
                     WHEN 'gamit' THEN 'gamit_projects'
                     WHEN 'pages' THEN 'pages_projects'
@@ -645,6 +652,7 @@ def run_db_migrations(cnn: 'Cnn'):
             BEGIN
                 stack_table := CASE OLD.engine
                     WHEN 'gamit' THEN 'stacks'
+                    WHEN 'ppp'   THEN 'stacks'
                     WHEN 'pages' THEN 'stacks_pages'
                     ELSE NULL
                 END;
@@ -676,6 +684,7 @@ def run_db_migrations(cnn: 'Cnn'):
                 IF NEW.frame_name IS DISTINCT FROM OLD.frame_name THEN
                     stack_table := CASE OLD.engine
                         WHEN 'gamit' THEN 'stacks'
+                        WHEN 'ppp'   THEN 'stacks'
                         WHEN 'pages' THEN 'stacks_pages'
                         ELSE NULL
                     END;
@@ -1133,7 +1142,7 @@ def run_db_migrations(cnn: 'Cnn'):
             CREATE TABLE sources_metadata (
                 id         SERIAL PRIMARY KEY,
                 protocol   VARCHAR NOT NULL CHECK (protocol IN ('ftp', 'http', 'sftp',
-                           'https', 'ftpa', 'FTP', 'HTTP', 'SFTP', 'HTTPS', 'FTPA')),
+                           'https', 'ftpa', 'ftps', 'FTP', 'HTTP', 'SFTP', 'HTTPS', 'FTPA', 'FTPS')),
                 fqdn       VARCHAR NOT NULL,
                 username   VARCHAR,
                 "password" VARCHAR,
@@ -1254,6 +1263,171 @@ def run_db_migrations(cnn: 'Cnn'):
                 'Used to detect file changes without re-parsing.';
         """)
         cnn.commit_transac()
+
+    ##################################################################
+    # Allow 'ftps'/'FTPS' (explicit FTP over TLS) in the protocol
+    # CHECK constraints of sources_servers and sources_metadata.
+
+    protocol_check = cnn.query_float("""
+        SELECT pg_get_constraintdef(oid) AS def
+        FROM pg_constraint
+        WHERE conname = 'sources_servers_protocol_check';
+        """, as_dict=True)
+
+    if protocol_check and 'ftps' not in protocol_check[0]['def'].lower():
+        print(' >> Allowing ftps protocol in sources_servers/sources_metadata')
+        cnn.begin_transac()
+        cnn.query("""
+            ALTER TABLE sources_servers  DROP CONSTRAINT sources_servers_protocol_check;
+            ALTER TABLE sources_servers  ADD  CONSTRAINT sources_servers_protocol_check
+                CHECK (protocol IN ('ftp', 'http', 'sftp', 'https', 'ftpa', 'ftps',
+                                     'FTP', 'HTTP', 'SFTP', 'HTTPS', 'FTPA', 'FTPS'));
+
+            ALTER TABLE sources_metadata DROP CONSTRAINT sources_metadata_protocol_check;
+            ALTER TABLE sources_metadata ADD  CONSTRAINT sources_metadata_protocol_check
+                CHECK (protocol IN ('ftp', 'http', 'sftp', 'https', 'ftpa', 'ftps',
+                                     'FTP', 'HTTP', 'SFTP', 'HTTPS', 'FTPA', 'FTPS'));
+        """)
+        cnn.commit_transac()
+
+    ##################################################################
+    # Allow a 'ppp' reference_frames.engine (missed when reference_frames
+    # was first created). ppp frames share the physical stacks table with
+    # gamit (there is no separate per-engine table for them), and are
+    # exempt from project validation since there's no PPP projects table:
+    # project instead holds the PPP software name (e.g. gpspace), allowing
+    # frames built from different PPP software to be told apart.
+    # The CREATE TABLE branch above already includes 'ppp' for fresh
+    # installs; this block upgrades a reference_frames table created
+    # before 'ppp' existed.
+
+    reference_frames_exists = cnn.query_float("""
+        SELECT EXISTS (
+            SELECT FROM information_schema.tables
+            WHERE table_schema = 'public'
+            AND table_name = 'reference_frames');
+        """, as_dict=True)
+
+    if reference_frames_exists[0]['exists']:
+        engine_check = cnn.query_float("""
+            SELECT pg_get_constraintdef(oid) AS def
+            FROM pg_constraint
+            WHERE conname = 'reference_frames_engine_check';
+            """, as_dict=True)
+
+        if engine_check and 'ppp' not in engine_check[0]['def'].lower():
+            print(' >> Allowing ppp engine in reference_frames')
+            cnn.begin_transac()
+            cnn.query("""
+                ALTER TABLE reference_frames DROP CONSTRAINT reference_frames_engine_check;
+                ALTER TABLE reference_frames ADD  CONSTRAINT reference_frames_engine_check
+                    CHECK (engine IN ('gamit', 'pages', 'ppp'));
+
+                COMMENT ON COLUMN reference_frames.engine IS
+                    'Processing engine that produced this frame: gamit, pages, or ppp. Determines which per-engine stacks/projects table this row corresponds to. ppp frames share the physical stacks table with gamit and are exempt from project validation (see reference_frames_validate_project_trigger).';
+                COMMENT ON COLUMN reference_frames.project IS
+                    'Project used to build this frame; validated against gamit_projects.project or pages_projects.project depending on engine (see reference_frames_validate_project_trigger). For engine=ppp there is no per-engine projects table: this instead holds the PPP software name (e.g. gpspace) and is not validated.';
+            """)
+            cnn.commit_transac()
+
+        # Keep the euler_pole column comment in sync with FixPlate.py, which
+        # stores the ECEF rotation vector (mas/yr) rather than lat/lon/rate.
+        cnn.query("""
+            COMMENT ON COLUMN reference_frames.euler_pole IS
+                'Euler pole solution when fixed_plate is set, as ECEF rotation vector components (C[0:3] * k) in mas/yr, from FixPlate.py euler_pole(). Full-precision numeric, fixed 3-element order: [X, Y, Z]. NULL for no-net-rotation frames.';
+            """)
+
+        # Always re-install the trigger functions below (CREATE OR REPLACE
+        # is idempotent) so an existing installation picks up ppp handling
+        # even if the engine_check constraint was already correct.
+        cnn.query("""
+            CREATE OR REPLACE FUNCTION reference_frames_validate_project() RETURNS TRIGGER AS $BODY$
+            DECLARE
+                project_table TEXT;
+                found         BOOLEAN;
+            BEGIN
+                IF NEW.engine = 'ppp' THEN
+                    RETURN NEW;
+                END IF;
+
+                project_table := CASE NEW.engine
+                    WHEN 'gamit' THEN 'gamit_projects'
+                    WHEN 'pages' THEN 'pages_projects'
+                    ELSE NULL
+                END;
+
+                IF project_table IS NULL THEN
+                    RAISE EXCEPTION 'reference_frames: unknown engine ''%''', NEW.engine;
+                END IF;
+
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.tables
+                    WHERE table_schema = 'public' AND table_name = project_table
+                ) THEN
+                    RAISE WARNING 'reference_frames: % does not exist yet, skipping project validation for %/%',
+                        project_table, NEW.engine, NEW.project;
+                    RETURN NEW;
+                END IF;
+
+                EXECUTE format('SELECT EXISTS (SELECT 1 FROM %I WHERE project = $1)', project_table)
+                    INTO found USING NEW.project;
+
+                IF NOT found THEN
+                    RAISE EXCEPTION 'reference_frames: project ''%'' not found in % (engine=%)',
+                        NEW.project, project_table, NEW.engine;
+                END IF;
+
+                RETURN NEW;
+            END;
+            $BODY$ LANGUAGE plpgsql;
+
+            CREATE OR REPLACE FUNCTION reference_frames_cascade_delete() RETURNS TRIGGER AS $BODY$
+            DECLARE
+                stack_table TEXT;
+            BEGIN
+                stack_table := CASE OLD.engine
+                    WHEN 'gamit' THEN 'stacks'
+                    WHEN 'ppp'   THEN 'stacks'
+                    WHEN 'pages' THEN 'stacks_pages'
+                    ELSE NULL
+                END;
+
+                IF stack_table IS NOT NULL AND EXISTS (
+                    SELECT 1 FROM information_schema.tables
+                    WHERE table_schema = 'public' AND table_name = stack_table
+                ) THEN
+                    EXECUTE format('DELETE FROM %I WHERE name = $1', stack_table) USING OLD.frame_name;
+                END IF;
+
+                RETURN OLD;
+            END;
+            $BODY$ LANGUAGE plpgsql;
+
+            CREATE OR REPLACE FUNCTION reference_frames_cascade_rename() RETURNS TRIGGER AS $BODY$
+            DECLARE
+                stack_table TEXT;
+            BEGIN
+                IF NEW.frame_name IS DISTINCT FROM OLD.frame_name THEN
+                    stack_table := CASE OLD.engine
+                        WHEN 'gamit' THEN 'stacks'
+                        WHEN 'ppp'   THEN 'stacks'
+                        WHEN 'pages' THEN 'stacks_pages'
+                        ELSE NULL
+                    END;
+
+                    IF stack_table IS NOT NULL AND EXISTS (
+                        SELECT 1 FROM information_schema.tables
+                        WHERE table_schema = 'public' AND table_name = stack_table
+                    ) THEN
+                        EXECUTE format('UPDATE %I SET name = $1 WHERE name = $2', stack_table)
+                            USING NEW.frame_name, OLD.frame_name;
+                    END IF;
+                END IF;
+
+                RETURN NEW;
+            END;
+            $BODY$ LANGUAGE plpgsql;
+        """)
 
 
 def adapt_numpy_array(numpy_array):
@@ -1449,6 +1623,47 @@ class Cnn(object):
         query = f'INSERT INTO {table} ("{columns}") VALUES ({placeholders})'
         try:
             self.cursor.execute(query, values)
+            self.cnn.commit()
+        except psycopg2.errors.UniqueViolation as e:
+            self.cnn.rollback()
+            raise dbErrInsert(e)
+
+    def insert_many(self, table: str, rows: list):
+        """
+        Bulk-inserts many rows into a table using a single multi-row
+        INSERT statement (via psycopg2.extras.execute_values), instead of
+        issuing one round-trip per row like insert() does. Use this instead
+        of calling insert() in a loop when writing more than a handful of
+        rows (e.g. epoch-by-epoch time series).
+
+        Parameters:
+        table (str): The table to insert into.
+        rows (list of dict): One dict per row. Keys not present as columns
+                              in the table are ignored. The set of columns
+                              used is the union of keys across all rows
+                              (in order of first appearance), so rows may
+                              omit keys that should be inserted as NULL/default.
+        """
+        if not rows:
+            return
+
+        cols = list(self.get_columns(table).keys())
+
+        fields = []
+        for row in rows:
+            for k in row.keys():
+                if k in cols and k not in fields:
+                    fields.append(k)
+
+        columns = '", "'.join(fields)
+        values = [tuple(row.get(f) for f in fields) for row in rows]
+
+        query = f'INSERT INTO {table} ("{columns}") VALUES %s'
+
+        debug("INSERT_MANY: table=%r rows=%d" % (table, len(rows)))
+
+        try:
+            psycopg2.extras.execute_values(self.cursor, query, values)
             self.cnn.commit()
         except psycopg2.errors.UniqueViolation as e:
             self.cnn.rollback()

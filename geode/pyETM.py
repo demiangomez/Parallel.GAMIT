@@ -22,7 +22,7 @@ from importlib.metadata import version, PackageNotFoundError
 import numpy.linalg
 
 try:
-    VERSION = str(version("geode"))
+    VERSION = str(version("geode-gnss"))
 except PackageNotFoundError:
     # package is not installed
     VERSION = 'NOT_AVAIL'

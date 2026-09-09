@@ -12,7 +12,7 @@ import os
 from importlib.metadata import version, PackageNotFoundError
 
 try:
-    VERSION = str(version("geode"))
+    VERSION = str(version("geode-gnss"))
 except PackageNotFoundError:
     # package is not installed
     VERSION = 'NOT_AVAIL'
@@ -361,6 +361,19 @@ class EtmEngine:
             "version": VERSION
         }
 
+        # always route through EtmEncoder (numpy types, datetime/Date -> {year, month, ...}, float
+        # rounding) so the returned dict is normalized the same way whether or not it gets written
+        # to disk. Without this, callers that don't pass `filename` (e.g. the web API) receive raw
+        # datetime objects, which fall back to whatever generic JSON encoder they use downstream
+        # (e.g. Django REST Framework's, which stringifies datetimes via isoformat() instead of
+        # producing the {year, month, day, mjd, doy, hour, minute, second} dict).
+        json_str = json.dumps(etm_dump, indent=4, sort_keys=False, cls=EtmEncoder,
+                              round_digits=6, no_round_fields=['covariance', 'parameter_sigmas',
+                                                               'parameters', 'covariance_matrix',
+                                                               'lat', 'lon', 'params', 'sigmas',
+                                                               'periodogram_frequencies',
+                                                               'periodogram_power'])
+
         if filename:
             if not os.path.basename(filename):
                 filename = os.path.join(filename, self.config.build_filename()) + '.json'
@@ -371,19 +384,13 @@ class EtmEngine:
 
             #import bson
 
-            file_write(filename,
-                       json.dumps(etm_dump, indent=4, sort_keys=False, cls=EtmEncoder,
-                                  round_digits=6, no_round_fields=['covariance', 'parameter_sigmas',
-                                                                   'parameters', 'covariance_matrix',
-                                                                   'lat', 'lon', 'params', 'sigmas',
-                                                                   'periodogram_frequencies',
-                                                                   'periodogram_power']))
+            file_write(filename, json_str)
 
             #binary_data = bson.encode(etm_dump, cls)
             #with open(filename + '.bson', 'wb') as f:
             #    f.write(binary_data)
 
-        return etm_dump
+        return json.loads(json_str)
 
     def plot(self) -> Union[str, None]:
 

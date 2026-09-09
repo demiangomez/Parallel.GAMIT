@@ -13,6 +13,7 @@ Supports multiple filter types:
 - Station removals with - or * prefix
 """
 
+import math
 import re
 from typing import List, Dict, Optional
 import geopandas as gpd
@@ -173,6 +174,7 @@ class StationSelector:
     def select_stations(self, station_filter: StationFilter) -> List[Dict]:
         """Select stations based on the provided filter."""
         if station_filter.filter_str == 'all':
+            # all:[filter] is a special case within _select_by_station
             return self._select_all_stations()
         
         if station_filter.country_code:
@@ -295,21 +297,34 @@ class StationSelector:
             # Using haversine distance formula in SQL
             # Note: This assumes you have lat/lon columns in decimal degrees
             rf = station_filter.radius_filter
-            # Approximate degrees per km at this latitude
+            # Approximate degrees per km at this latitude. Longitude lines
+            # converge toward the poles, so degrees-per-km scales with
+            # 1/cos(lat) -- not linearly with |lat|. Near the poles
+            # (cos(lat) ~ 0) any longitude is within a short distance of the
+            # center, so no longitude bounding box is meaningful there.
             lat_deg_per_km = 1.0 / 111.0
-            lon_deg_per_km = 1.0 / (111.0 * abs(rf['lat']) / 90.0)
-            
-            # Create a simple bounding box first for efficiency
             lat_delta = rf['radius_km'] * lat_deg_per_km
-            lon_delta = rf['radius_km'] * lon_deg_per_km
-            
-            conditions.append(f'''(
-                lat BETWEEN {rf['lat'] - lat_delta} AND {rf['lat'] + lat_delta}
-                AND lon BETWEEN {rf['lon'] - lon_delta} AND {rf['lon'] + lon_delta}
+
+            bbox_conditions = [f"lat BETWEEN {rf['lat'] - lat_delta} AND {rf['lat'] + lat_delta}"]
+
+            cos_lat = math.cos(math.radians(rf['lat']))
+            if abs(cos_lat) > 1e-6:
+                lon_deg_per_km = 1.0 / (111.0 * abs(cos_lat))
+                lon_delta = rf['radius_km'] * lon_deg_per_km
+                # if the radius already spans the full longitude range at
+                # this latitude, a bounding box on lon restricts nothing
+                if lon_delta < 180:
+                    bbox_conditions.append(
+                        f"lon BETWEEN {rf['lon'] - lon_delta} AND {rf['lon'] + lon_delta}")
+
+            # Create a simple bounding box first for efficiency; the exact
+            # great-circle distance check below is what actually determines
+            # membership
+            conditions.append('(' + ' AND '.join(bbox_conditions) + f'''
                 AND (
                     6371 * acos(
-                        cos(radians({rf['lat']})) * cos(radians(lat)) * 
-                        cos(radians(lon) - radians({rf['lon']})) + 
+                        cos(radians({rf['lat']})) * cos(radians(lat)) *
+                        cos(radians(lon) - radians({rf['lon']})) +
                         sin(radians({rf['lat']})) * sin(radians(lat))
                     ) <= {rf['radius_km']}
                 )

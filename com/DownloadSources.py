@@ -22,6 +22,7 @@ import os
 import queue
 import shutil
 import socket
+import ssl
 import subprocess
 import tempfile
 import threading
@@ -196,7 +197,7 @@ INSERT INTO sources_formats (format) VALUES ('DEFAULT_FORMAT');
 CREATE TABLE sources_servers (
     server_id  INT     NOT NULL GENERATED ALWAYS AS IDENTITY,
     protocol   VARCHAR NOT NULL CHECK (protocol IN ('ftp', 'http', 'sftp',
-    'https', 'ftpa', 'FTP', 'HTTP', 'SFTP', 'HTTPS', 'FTPA')),
+    'https', 'ftpa', 'ftps', 'FTP', 'HTTP', 'SFTP', 'HTTPS', 'FTPA', 'FTPS')),
     fqdn       VARCHAR NOT NULL,
 
     username   VARCHAR,
@@ -1024,6 +1025,57 @@ class ProtocolFTPA(ProtocolFTP):
             self.ftp.login(self.username, self.password)
         self.ftp.set_pasv(False)
 
+# -------------------------
+# FTPS (explicit FTP/TLS)
+# -------------------------
+
+
+class _ReusedSessionFTP_TLS(ftplib.FTP_TLS):
+    """
+    FTP_TLS that reuses the control channel's TLS session for data
+    connections. Some FTPS servers (e.g. FileZilla Server) reject a
+    fresh TLS session on the data channel and require session reuse.
+    """
+
+    def ntransfercmd(self, cmd, rest=None):
+        conn, size = ftplib.FTP.ntransfercmd(self, cmd, rest)
+        if self._prot_p:
+            conn = self.context.wrap_socket(conn,
+                                             server_hostname=self.host,
+                                             session=self.sock.session)
+        return conn, size
+
+
+class ProtocolFTPS(ProtocolFTP):
+    DEFAULT_PORT = 21
+
+    def __init__(self, *args, **kargs):
+        # bypass ProtocolFTP.__init__ (it hardcodes protocol='ftp' and
+        # creates a plain, unencrypted ftplib.FTP)
+        IProtocol.__init__(self, 'ftps', *args, **kargs)
+
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        # Many FTPS deployments use self-signed certificates; there is
+        # no CA to verify against, so verification is disabled here.
+        context.check_hostname = False
+        context.verify_mode = ssl.CERT_NONE
+        # Tolerate servers (e.g. FileZilla Server) that close TLS data
+        # channels without OpenSSL's preferred shutdown sequence.
+        context.options |= ssl.OP_IGNORE_UNEXPECTED_EOF
+
+        self.ftp = _ReusedSessionFTP_TLS(context=context,
+                                          timeout=SERVER_CONNECTION_TIMEOUT)
+
+    def connect(self):
+        self.ftp.connect(self.fqdn, self.port)
+        if self.username and self.password:
+            # FTP_TLS.login() implicitly performs AUTH TLS before
+            # sending USER/PASS, which is what these servers require.
+            self.ftp.login(self.username, self.password)
+        # Encrypt the data channel too, not just the control channel.
+        self.ftp.prot_p()
+        self.ftp.set_pasv(True)
+
 # -------
 # SFTP
 # -------
@@ -1269,6 +1321,7 @@ class Client:
 
         protoClass = {'FTP':  ProtocolFTP,
                       'FTPA':  ProtocolFTPA,
+                      'FTPS':  ProtocolFTPS,
                       'SFTP':  ProtocolSFTP,
                       'HTTP':  ProtocolHTTP,
                       'HTTPS':  ProtocolHTTPS,

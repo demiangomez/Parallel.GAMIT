@@ -418,6 +418,8 @@ def insert_stninfo(NetworkCode, StationCode, stninfofile):
 
     errors = []
 
+    import geode.metadata.station_info as station_info
+
     try:
         cnn = dbConnection.Cnn("gnss_data.cfg")
     except:

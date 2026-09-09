@@ -12,6 +12,7 @@ import argparse
 import datetime
 import os
 import json
+from collections import Counter
 import numpy as np
 import simplekml
 
@@ -23,7 +24,8 @@ from geode.pyDate import Date
 from geode.pyLeastSquares import adjust_lsq
 from geode.pyOkada import ScoreTable
 from geode.Utils import (cart2euler, get_stack_stations, process_stnlist, add_version_argument,
-                          stationID, file_write, xyz2sphere_lla, required_length, print_columns)
+                          stationID, file_write, xyz2sphere_lla, required_length, print_columns,
+                          lg2ct, station_list_help)
 
 
 def build_design(hdata, vdata):
@@ -202,7 +204,7 @@ def euler_pole(args, cnn):
 
     # vertical reference frame transformation
     if len(args.vertical_ref):
-        vref = process_stnlist(cnn, args.include_stations,
+        vref = process_stnlist(cnn, args.vertical_ref,
                                summary_title='Stations for VREF:')
     else:
         vref = []
@@ -222,8 +224,8 @@ def euler_pole(args, cnn):
 
         if not args.ppp_solutions:
             # use a GAMIT stack
-            rs = cnn.query_float(f'''SELECT etms.*, 
-                                     stations.auto_x, stations.auto_y, stations.auto_z
+            rs = cnn.query_float(f'''SELECT etms.*,
+                                     stations.auto_x, stations.auto_y, stations.auto_z, stations.plate
                                      FROM etms INNER JOIN stations
                                      USING ("NetworkCode", "StationCode")
                                      WHERE ("NetworkCode", "StationCode", "stack",
@@ -232,8 +234,8 @@ def euler_pole(args, cnn):
                                      \'polynomial\')''', as_dict=True)
         else:
             # use PPP solutions
-            rs = cnn.query_float(f'''SELECT etms.*, 
-                                                 stations.auto_x, stations.auto_y, stations.auto_z
+            rs = cnn.query_float(f'''SELECT etms.*,
+                                                 stations.auto_x, stations.auto_y, stations.auto_z, stations.plate
                                                  FROM etms INNER JOIN stations
                                                  USING ("NetworkCode", "StationCode")
                                                  WHERE ("NetworkCode", "StationCode", "soln",
@@ -248,8 +250,8 @@ def euler_pole(args, cnn):
                           'StationCode': stn['StationCode'],
                           'lat': lla[0][0],
                           'lon': lla[0][1],
-                          'v': params.reshape((
-                              3, params.shape[0] // 3))[:, 1]})
+                          'plate': rs[0]['plate'],
+                          'v': params[:, 1]})
 
     # now gather the data for the VREF, if any
     vdata = []
@@ -287,9 +289,12 @@ def euler_pole(args, cnn):
                               'StationCode': stn['StationCode'],
                               'lat': lla[0][0],
                               'lon': lla[0][1],
-                              'v': params.reshape((
-                                  3, params.shape[0] // 3))[:, 1]})
-                vdata[-1]['v'][2] -= float(stn['parameters'][0]) / 1000.
+                              'v': params[:, 1]})
+                # external vertical velocity supplied by the user (mm/yr -> m/yr),
+                # kept separately since it's the actual constraint value (NE=0,
+                # VU=vu_external), as opposed to the residual computed below
+                vdata[-1]['vu_external'] = float(stn['parameters'][0]) / 1000.
+                vdata[-1]['v'][2] -= vdata[-1]['vu_external']
 
     A, L = build_design(hdata, vdata)
 
@@ -386,13 +391,85 @@ def euler_pole(args, cnn):
     if save_stack:
         stations = get_stack_stations(cnn, args.stack_name[0])
 
+        if args.save_filter:
+            filter_stn = process_stnlist(cnn, args.save_filter,
+                                         summary_title='Filtering stations to save to new stack %s:' % save_stack)
+            filter_ids = {stationID(s) for s in filter_stn}
+            stations = [s for s in stations if stationID(s) in filter_ids]
+
+        engine = 'ppp' if args.ppp_solutions else 'gamit'
+
+        if args.ppp_solutions:
+            # only PPP software currently supported; distinguishes ppp
+            # frames from one another once more engines exist
+            frame_project = 'gpspace'
+        else:
+            proj_rs = cnn.query_float(
+                f'SELECT DISTINCT "Project" FROM stacks WHERE name = \'{stack}\'',
+                as_dict=True)
+            projects = [r['Project'] for r in proj_rs if r['Project']]
+            if not projects:
+                frame_project = None
+            else:
+                frame_project = Counter(projects).most_common(1)[0][0]
+                if len(set(projects)) > 1:
+                    tqdm.write(' -- WARNING: source stack %s spans multiple projects %s;'
+                               ' using majority %s for reference_frames.project'
+                               % (stack, sorted(set(projects)), frame_project))
+
+        def save_reference_frame():
+            # fixed_plate: majority vote among the HREF stations actually
+            # used to fit the Euler pole (hdata), not the full station list
+            # being saved into the new stack
+            plates = [s['plate'] for s in hdata if s.get('plate')]
+            fixed_plate = Counter(plates).most_common(1)[0][0] if plates else None
+            if plates and len(set(plates)) > 1:
+                tqdm.write(' -- WARNING: HREF stations span multiple plates %s;'
+                           ' using majority %s as fixed_plate'
+                           % (sorted(set(plates)), fixed_plate))
+
+            constraints_id = save_stack if len(vref) > 0 else None
+
+            cnn.insert('reference_frames',
+                       frame_name=save_stack,
+                       engine=engine,
+                       project=frame_project,
+                       fixed_plate=fixed_plate,
+                       constraints_id=constraints_id,
+                       euler_pole=[float(C[0, 0] * k), float(C[1, 0] * k), float(C[2, 0] * k)],
+                       euler_pole_stations=[stationID(s) for s in hdata],
+                       first_epoch=frame_first_epoch.datetime() if frame_first_epoch else None,
+                       last_epoch=frame_last_epoch.datetime() if frame_last_epoch else None)
+
+            if constraints_id:
+                # constraint used for VREF stations: NE=0, VU=external
+                # vertical velocity, converted from local (N,E,U) to ECEF
+                constraint_rows = []
+                for vs in vdata:
+                    dx, dy, dz = lg2ct(np.array([0.]), np.array([0.]),
+                                       np.array([vs['vu_external']]),
+                                       np.array([vs['lat']]), np.array([vs['lon']]))
+                    constraint_rows.append({'constraints_id': constraints_id,
+                                            'network_code': vs['NetworkCode'],
+                                            'station_code': vs['StationCode'],
+                                            'vx': float(dx[0]),
+                                            'vy': float(dy[0]),
+                                            'vz': float(dz[0])})
+                cnn.insert_many('reference_frame_constraints', constraint_rows)
+
         # delete the entire stack to produce the new one
         if not args.preserve_stack:
             existing_stns = []
             cnn.query(f'DELETE FROM stacks WHERE name = \'{save_stack}\'')
+            cnn.query(f'DELETE FROM reference_frames '
+                      f'WHERE frame_name = \'{save_stack}\' AND engine = \'{engine}\'')
+            cnn.query(f'DELETE FROM reference_frame_constraints WHERE constraints_id = \'{save_stack}\'')
         else:
             existing_stns = get_stack_stations(cnn, save_stack)
             existing_stns = [stationID(stn) for stn in existing_stns]
+
+        frame_first_epoch = None
+        frame_last_epoch  = None
 
         pbar = tqdm(total=0, ncols=80, disable=None)
 
@@ -437,23 +514,31 @@ def euler_pole(args, cnn):
                 pbar.total = len(etm.soln.date)
                 pbar.reset()
 
-                for x, y, z, d in zip(etm.L[0], etm.L[1], etm.L[2],
-                                      etm.soln.date):
-                    cnn.insert('stacks', Project=etm.soln.project,
-                               NetworkCode=NetworkCode,
-                               StationCode=StationCode,
-                               X=float(x),
-                               Y=float(y),
-                               Z=float(z),
-                               sigmax=0.00,
-                               sigmay=0.00,
-                               sigmaz=0.00,
-                               FYear=float(d.fyear),
-                               Year=int(d.year),
-                               DOY=int(d.doy),
-                               name=save_stack)
-                    pbar.update()
+                rows = [{'Project': etm.soln.project,
+                         'NetworkCode': NetworkCode,
+                         'StationCode': StationCode,
+                         'X': float(x),
+                         'Y': float(y),
+                         'Z': float(z),
+                         'sigmax': 0.00,
+                         'sigmay': 0.00,
+                         'sigmaz': 0.00,
+                         'FYear': float(d.fyear),
+                         'Year': int(d.year),
+                         'DOY': int(d.doy),
+                         'name': save_stack}
+                        for x, y, z, d in zip(etm.L[0], etm.L[1], etm.L[2],
+                                              etm.soln.date)]
+                cnn.insert_many('stacks', rows)
+                pbar.update(len(rows))
                 pbar.refresh()
+
+                station_first = min(etm.soln.date)
+                station_last  = max(etm.soln.date)
+                if frame_first_epoch is None or station_first < frame_first_epoch:
+                    frame_first_epoch = station_first
+                if frame_last_epoch is None or station_last > frame_last_epoch:
+                    frame_last_epoch = station_last
 
                 # replace stack name so that figures show the new stack name
                 etm.soln.stack_name = save_stack
@@ -470,6 +555,43 @@ def euler_pole(args, cnn):
                 tqdm.write(' -- Unexpected exception while processing %s: %s' % (stationID(stn), str(e)))
 
         pbar.close()
+
+        if frame_project is None:
+            tqdm.write(' -- WARNING: could not determine a project for source stack %s;'
+                       ' skipping reference_frames record for %s' % (stack, save_stack))
+        elif not args.preserve_stack:
+            # frame is being (re)built from scratch: write fixed_plate,
+            # project, euler_pole, euler_pole_stations, constraints, and
+            # the epoch range in one shot
+            save_reference_frame()
+        else:
+            # preserve_stack only adds stations to an existing stack; the
+            # station list used above is not part of the Euler pole fit,
+            # so fixed_plate/project/euler_pole/constraints must stay as
+            # they were when the frame was created. Only the epoch range
+            # may need to grow with the newly added stations.
+            existing_frame = cnn.query_float(
+                f'SELECT first_epoch, last_epoch FROM reference_frames '
+                f'WHERE frame_name = \'{save_stack}\' AND engine = \'{engine}\'',
+                as_dict=True)
+
+            if not existing_frame:
+                # frame row doesn't exist yet (e.g. first save done with
+                # -preserve, or a pre-existing stack from before this
+                # feature existed): create it now, same as a fresh build
+                save_reference_frame()
+            else:
+                updates = {}
+                if frame_first_epoch is not None and (
+                        existing_frame[0]['first_epoch'] is None or
+                        frame_first_epoch.datetime() < existing_frame[0]['first_epoch']):
+                    updates['first_epoch'] = frame_first_epoch.datetime()
+                if frame_last_epoch is not None and (
+                        existing_frame[0]['last_epoch'] is None or
+                        frame_last_epoch.datetime() > existing_frame[0]['last_epoch']):
+                    updates['last_epoch'] = frame_last_epoch.datetime()
+                if updates:
+                    cnn.update('reference_frames', updates, frame_name=save_stack, engine=engine)
 
 
 def main():
@@ -532,6 +654,17 @@ def main():
                              frame as new stack.
                              Switch requires a stack name to use. WARNING!
                              If stack exists it will be overwritten.''')
+
+    parser.add_argument('-save_filter', '--save_filter', nargs='+', type=str,
+                        metavar='{filter}',
+                        help='''Restrict which stations from the source
+                             stack are written out when using -save. Useful
+                             to avoid saving the entire (possibly global)
+                             source stack when only an area of interest is
+                             needed. Does not affect the stations used to
+                             compute the Euler pole (see -include/-vref).
+                             If omitted, every station in the source stack
+                             is saved. ''' + station_list_help())
 
     parser.add_argument('-candidates', '--candidate_sites', nargs='+',
                         action=required_length(5, 6),

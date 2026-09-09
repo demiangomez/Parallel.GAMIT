@@ -1,7 +1,7 @@
 from importlib.metadata import version, PackageNotFoundError
 
 try:
-    __version__ = version("geode")
+    __version__ = version("geode-gnss")
 except PackageNotFoundError:
     # package is not installed
     __version__ = "0.0.0"

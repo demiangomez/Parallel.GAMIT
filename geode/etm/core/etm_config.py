@@ -7,6 +7,15 @@ from typing import Dict, List, Optional, Any, Union
 import numpy as np
 import logging
 
+from importlib.metadata import version, PackageNotFoundError
+
+try:
+    VERSION = str(version("geode-gnss"))
+except PackageNotFoundError:
+    # package is not installed
+    VERSION = 'NOT_AVAIL'
+    pass
+
 logger = logging.getLogger(__name__)
 
 # app
@@ -50,6 +59,8 @@ class EtmConfig:
             earthquakes_cherry_picked: same as above, for the forced-event id list
         """
         setup_etm_logging(level=logging.CRITICAL if silent else logging.INFO)
+
+        logger.info(f"Running geode version {VERSION}")
 
         self.json_file: Union[str, dict] = json_file
 
